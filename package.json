@@ -13,6 +13,26 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "contributes": {
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .big",
+          "command": "bigExplorer.showData",
+          "group": "navigation",
+          "args": [
+            "${resource}"
+          ]
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "bigExplorer.showData",
+        "title": "Debug data"
+      }
+    ]
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
