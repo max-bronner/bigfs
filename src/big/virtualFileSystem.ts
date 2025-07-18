@@ -36,6 +36,14 @@ export class FileService {
 
     const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
+
+    const rootNode: VirtualNode = {
+      name: archiveName,
+      type: FileType.Directory,
+      path: `/${archiveName}`,
+      archivePath,
+      children: new Map<string, VirtualNode>(),
+    };
   }
 
   public async scanWorkspace(): Promise<void> {
