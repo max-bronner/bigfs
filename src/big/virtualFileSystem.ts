@@ -46,6 +46,28 @@ export class FileService {
     return filePathParts;
   }
 
+  private addNodeToVirtualFileTree(
+    parentNode: VirtualNode,
+    childName: string,
+    isFile: boolean
+  ) {
+    if (!parentNode.children?.has(childName)) {
+      const type = isFile ? FileType.File : FileType.Directory;
+      const childNode: VirtualNode = {
+        name: childName,
+        type,
+        path: `${parentNode.path}/${childName}`,
+        archivePath: parentNode.archivePath,
+      };
+
+      if (!isFile) {
+        childNode.children = new Map<string, VirtualNode>();
+      }
+
+      parentNode.children?.set(childName, childNode);
+    }
+  }
+
   private addFileToVirtualFileTree(
     archiveFile: BigFileEntry,
     archiveNode: VirtualNode
@@ -55,7 +77,9 @@ export class FileService {
 
     filePathParts.forEach((nodeName, index) => {
       const isFile = index === filePathParts.length - 1;
-      // add parts to file system
+      this.addNodeToVirtualFileTree(parentNode, nodeName, isFile);
+
+      parentNode = parentNode.children?.get(nodeName) as VirtualNode;
     });
   }
 
