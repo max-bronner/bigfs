@@ -1,10 +1,10 @@
-import { type ExtensionContext, workspace, commands, type Uri } from 'vscode';
+import * as vscode from 'vscode';
+import { FileService } from './big/virtualFileSystem';
 import { BigFileSystemProvider } from './big/fsProvider';
 import { SCHEME } from './constants';
 
-export async function activate(context: ExtensionContext) {
-  const provider = new BigFileSystemProvider();
-  const files = await workspace.findFiles('**/*.big');
+export function activate(context: vscode.ExtensionContext) {
+  const fileService = new FileService();
 
   context.subscriptions.push(
     workspace.registerFileSystemProvider(SCHEME, provider, {
