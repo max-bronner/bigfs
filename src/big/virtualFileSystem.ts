@@ -2,6 +2,7 @@ import { workspace, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import { parseBigArchive } from './bigParser';
 import type { BigFileArchive } from './bigParser';
+import { BigFileEntry } from './bigParser';
 import path from 'path';
 
 export interface VirtualNode {
@@ -33,6 +34,31 @@ export class FileService {
     }
   }
 
+  private parseFilePath(filePath: string): string[] {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    const parsedPath = path.parse(normalizedPath);
+    const filePathParts = parsedPath.dir
+      .split('/')
+      .filter((part) => part.length > 0);
+
+    filePathParts.push(parsedPath.base);
+
+    return filePathParts;
+  }
+
+  private addFileToVirtualFileTree(
+    archiveFile: BigFileEntry,
+    archiveNode: VirtualNode
+  ) {
+    const filePathParts = this.parseFilePath(archiveFile.name);
+    let parentNode = archiveNode;
+
+    filePathParts.forEach((nodeName, index) => {
+      const isFile = index === filePathParts.length - 1;
+      // add parts to file system
+    });
+  }
+
   private async addArchiveToVirtualFileTree(uri: Uri): Promise<void> {
     const data = await this.parseArchiveFile(uri);
 
@@ -48,6 +74,10 @@ export class FileService {
     };
 
     this.virtualFileTree.set(archiveName, rootNode);
+
+    data.entries.forEach((archiveFile) => {
+      this.addFileToVirtualFileTree(archiveFile, rootNode);
+    });
   }
 
   public async scanWorkspace(): Promise<void> {
