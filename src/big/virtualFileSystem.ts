@@ -2,6 +2,7 @@ import { workspace, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import { parseBigArchive } from './bigParser';
 import type { BigFileArchive } from './bigParser';
+import path from 'path';
 
 export class FileService {
   private _onDidChangeArchives = new EventEmitter<Uri>();
@@ -23,6 +24,9 @@ export class FileService {
 
   private async addArchiveToVirtualFileTree(uri: Uri): Promise<void> {
     const data = await this.parseArchiveFile(uri);
+
+    const archiveName = path.basename(uri.path);
+    const archivePath = uri.fsPath;
   }
 
   public async scanWorkspace(): Promise<void> {
