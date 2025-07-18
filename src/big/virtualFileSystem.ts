@@ -17,6 +17,8 @@ export class FileService {
   private _onDidChangeArchives = new EventEmitter<Uri>();
   public readonly onDidChangeArchives = this._onDidChangeArchives.event;
 
+  private virtualFileTree = new Map<string, VirtualNode>();
+
   constructor() {
     this.scanWorkspace();
   }
@@ -44,12 +46,16 @@ export class FileService {
       archivePath,
       children: new Map<string, VirtualNode>(),
     };
+
+    this.virtualFileTree.set(archiveName, rootNode);
   }
 
   public async scanWorkspace(): Promise<void> {
     if (!workspace.workspaceFolders) {
       return;
     }
+
+    this.virtualFileTree.clear();
 
     const archiveUri = await workspace.findFiles(BIG_PATTERN, null, 100);
 
