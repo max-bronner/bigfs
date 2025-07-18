@@ -4,6 +4,15 @@ import { parseBigArchive } from './bigParser';
 import type { BigFileArchive } from './bigParser';
 import path from 'path';
 
+export interface VirtualNode {
+  name: string;
+  type: FileType;
+  path: string;
+  archivePath: string;
+  children?: Map<string, VirtualNode>;
+  fileBuffer?: Uint8Array;
+}
+
 export class FileService {
   private _onDidChangeArchives = new EventEmitter<Uri>();
   public readonly onDidChangeArchives = this._onDidChangeArchives.event;
