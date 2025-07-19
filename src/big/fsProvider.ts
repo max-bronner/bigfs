@@ -27,6 +27,8 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   readDirectory(uri: vscode.Uri): Thenable<[string, vscode.FileType][]> {
+    const node = this.fileService.getNode(uri);
+
     return Promise.resolve([]);
   }
 
