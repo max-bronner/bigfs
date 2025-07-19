@@ -28,8 +28,18 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
   readDirectory(uri: vscode.Uri): Thenable<[string, vscode.FileType][]> {
     const node = this.fileService.getNode(uri);
+    if (!node || node.type !== vscode.FileType.Directory) {
+      throw vscode.FileSystemError.FileNotFound(uri);
+    }
 
-    return Promise.resolve([]);
+    const result: [string, vscode.FileType][] = [];
+    if (node.children) {
+      for (const [name, childNode] of node.children) {
+        result.push([name, childNode.type]);
+      }
+    }
+
+    return Promise.resolve(result);
   }
 
   readFile(uri: vscode.Uri): Uint8Array | Thenable<Uint8Array> {
