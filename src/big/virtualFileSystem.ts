@@ -11,7 +11,6 @@ export interface VirtualNode {
   path: string;
   archivePath: string;
   children?: Map<string, VirtualNode>;
-  fileBuffer?: Uint8Array;
 }
 
 export class FileService {
