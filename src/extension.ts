@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import { FileService } from './big/virtualFileSystem';
 import { BigFileSystemProvider } from './big/fsProvider';
+import { BigExplorerProvider } from './big/bigExplorer';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
   const fileService = new FileService();
   const fsProvider = new BigFileSystemProvider(fileService);
+  const explorerProvider = new BigExplorerProvider(fileService);
 
   // Registration of file system provider
   context.subscriptions.push(
@@ -15,10 +17,11 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  // Registration of tree data provider
   context.subscriptions.push(
-    commands.registerCommand('bigExplorer.showData', (resourceUri: Uri) => {
-      const info = provider.readDirectory(resourceUri);
-      console.log(info);
+    vscode.window.createTreeView('bigArchiveExplorer', {
+      treeDataProvider: explorerProvider,
+      showCollapseAll: true,
     })
   );
 
