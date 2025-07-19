@@ -1,63 +1,52 @@
-import * as fs from 'fs';
-import type {
-  FileChangeEvent,
-  FileStat,
-  FileSystemProvider,
-  Uri,
-} from 'vscode';
-import { Disposable, EventEmitter, FileType, FileSystemError } from 'vscode';
-import {
-  parseBigArchive,
-  type BigFileArchive,
-  type BigFileEntry,
-} from './bigParser';
+import * as vscode from 'vscode';
+import { FileService } from './virtualFileSystem';
 
-export class BigFileSystemProvider implements FileSystemProvider {
-  private readonly _emitter = new EventEmitter<FileChangeEvent[]>();
-  readonly onDidChangeFile = this._emitter.event;
+export class BigFileSystemProvider implements vscode.FileSystemProvider {
+  private onDidChangeFileEmitter = new vscode.EventEmitter<
+    vscode.FileChangeEvent[]
+  >();
+  readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
-  constructor() {}
-
-  private getArchive(bigFilePath: string): BigFileArchive {
-    try {
-      const buffer = fs.readFileSync(bigFilePath);
-      return parseBigArchive(buffer);
-    } catch (error) {
-      throw new Error(`Failed to parse BIG file ${bigFilePath}`);
-    }
+  constructor(private fileService: FileService) {
+    fileService.onDidChangeArchives((uri: any) => {
+      this.onDidChangeFileEmitter.fire([
+        {
+          type: vscode.FileChangeType.Changed,
+          uri,
+        },
+      ]);
+    });
   }
 
-  stat(uri: Uri): FileStat {
-    return { type: FileType.Directory, ctime: 0, mtime: 0, size: 0 };
+  watch(uri: vscode.Uri): vscode.Disposable {
+    return new vscode.Disposable(() => {});
   }
 
-  watch(): Disposable {
-    return new Disposable(() => {});
+  stat(uri: vscode.Uri): vscode.FileStat | Thenable<vscode.FileStat> {
+    return { type: vscode.FileType.Directory, ctime: 0, mtime: 0, size: 0 };
   }
 
-  readDirectory(uri: Uri): [string, FileType][] {
-    const archive = this.getArchive(uri.fsPath);
-
-    return archive.entries.map(({ name }) => [name, FileType.File]);
+  readDirectory(uri: vscode.Uri): Thenable<[string, vscode.FileType][]> {
+    return Promise.resolve([]);
   }
 
-  readFile(uri: Uri): Uint8Array {
-    return new Uint8Array();
-  }
-
-  writeFile(): void {
-    throw FileSystemError.NoPermissions();
-  }
-
-  delete(): void {
-    throw FileSystemError.NoPermissions();
-  }
-
-  rename(): void {
-    throw FileSystemError.NoPermissions();
+  readFile(uri: vscode.Uri): Uint8Array | Thenable<Uint8Array> {
+    throw vscode.FileSystemError.NoPermissions();
   }
 
   createDirectory(): void {
-    throw FileSystemError.NoPermissions();
+    throw vscode.FileSystemError.NoPermissions();
+  }
+
+  writeFile(): void {
+    throw vscode.FileSystemError.NoPermissions();
+  }
+
+  delete(): void {
+    throw vscode.FileSystemError.NoPermissions();
+  }
+
+  rename(): void {
+    throw vscode.FileSystemError.NoPermissions();
   }
 }

@@ -5,10 +5,13 @@ import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
   const fileService = new FileService();
+  const fsProvider = new BigFileSystemProvider(fileService);
 
+  // Registration of file system provider
   context.subscriptions.push(
-    workspace.registerFileSystemProvider(SCHEME, provider, {
-      isReadonly: true,
+    vscode.workspace.registerFileSystemProvider(SCHEME, fsProvider, {
+      isCaseSensitive: false,
+      isReadonly: true, // Todo: implement write support
     })
   );
 
