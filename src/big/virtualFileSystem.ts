@@ -1,8 +1,7 @@
 import { workspace, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
-import { parseBigArchive } from './bigParser';
 import type { BigFileArchive } from './bigParser';
-import { BigFileEntry } from './bigParser';
+import { BigFileEntry, parseBigArchive } from './bigParser';
 import path from 'path';
 
 export interface VirtualNode {
@@ -131,5 +130,8 @@ export class FileService {
     }
 
     return parentNode;
+  }
+  public getArchives(): Map<string, VirtualNode> {
+    return this.virtualFileTree;
   }
 }

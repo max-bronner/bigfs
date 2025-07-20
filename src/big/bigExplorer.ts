@@ -37,6 +37,11 @@ export class BigExplorerProvider implements TreeDataProvider<VirtualNode> {
   }
 
   getChildren(element?: VirtualNode): Thenable<VirtualNode[]> {
+    if (!element) {
+      const archives = this.fileService.getArchives();
+      return Promise.resolve(Array.from(archives.values()));
+    }
+
     return Promise.resolve([]);
   }
 }
