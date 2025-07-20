@@ -3,6 +3,7 @@ import {
   TreeDataProvider,
   TreeItemCollapsibleState,
   FileType,
+  ThemeIcon,
 } from 'vscode';
 import type { FileService } from './virtualFileSystem';
 import { VirtualNode } from './virtualFileSystem';
@@ -13,6 +14,14 @@ export class BigTreeNode extends TreeItem {
     public readonly collapsibleState: TreeItemCollapsibleState
   ) {
     super(node.name, collapsibleState);
+
+    if (node.type === FileType.File) {
+      this.iconPath = new ThemeIcon('file');
+    } else {
+      this.iconPath = new ThemeIcon('folder');
+      this.description = `(${node.children?.size} files)`;
+    }
+    this.tooltip = node.path;
   }
 }
 
