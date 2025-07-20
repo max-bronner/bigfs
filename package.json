@@ -16,6 +16,8 @@
   "contributes": {
     "menus": {
       "explorer/context": [
+    "views": {
+      "explorer": [
         {
           "when": "resourceExtname == .big",
           "command": "bigExplorer.showData",
@@ -30,8 +32,20 @@
       {
         "command": "bigExplorer.showData",
         "title": "Debug data"
+        "command": "bigfs.refreshArchives",
+        "title": "Refresh",
+        "icon": "$(refresh)"
       }
     ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "bigfs.refreshArchives",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
