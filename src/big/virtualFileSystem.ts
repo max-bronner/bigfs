@@ -10,6 +10,7 @@ export interface VirtualNode {
   path: string;
   archivePath: string;
   children?: Map<string, VirtualNode>;
+  fileBuffer?: Uint8Array;
 }
 
 export class FileService {
@@ -79,6 +80,8 @@ export class FileService {
 
       parentNode = parentNode.children?.get(nodeName) as VirtualNode;
     });
+
+    parentNode.fileBuffer = archiveFile.fileBuffer;
   }
 
   private async addArchiveToVirtualFileTree(uri: Uri): Promise<void> {
