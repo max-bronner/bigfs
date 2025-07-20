@@ -2,6 +2,7 @@ export interface BigFileEntry {
   name: string;
   offset: number;
   size: number;
+  fileBuffer: Uint8Array;
 }
 
 export interface BigFileArchive {
@@ -56,12 +57,14 @@ const readEntry = (
 
   const name = buffer.toString('utf-8', nameStart, nameEnd);
   const nextIndex = nameEnd + 1; // Skip null terminator
+  const fileBuffer = buffer.subarray(offset, offset + size); // info: currently a view, could be a copy too
 
   return {
     offset,
     size,
     name,
     nextIndex,
+    fileBuffer,
   };
 };
 
