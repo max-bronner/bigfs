@@ -1,6 +1,8 @@
+import type { Event } from 'vscode';
 import {
   TreeItem,
   TreeDataProvider,
+  EventEmitter,
   TreeItemCollapsibleState,
   FileType,
   ThemeIcon,
@@ -26,7 +28,20 @@ export class BigTreeNode extends TreeItem {
 }
 
 export class BigExplorerProvider implements TreeDataProvider<VirtualNode> {
-  constructor(private fileService: FileService) {}
+  private _onDidChangeTreeData: EventEmitter<VirtualNode | undefined | void> =
+    new EventEmitter<VirtualNode | undefined | void>();
+  readonly onDidChangeTreeData: Event<VirtualNode | undefined | void> =
+    this._onDidChangeTreeData.event;
+
+  constructor(private fileService: FileService) {
+    this.fileService.onDidChangeArchives(() => {
+      this._onDidChangeTreeData.fire();
+    });
+  }
+
+  refresh(): void {
+    this._onDidChangeTreeData.fire();
+  }
 
   getTreeItem(element: VirtualNode): TreeItem {
     const collapsibleState =

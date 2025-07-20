@@ -26,7 +26,12 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   console.log('BIG Explorer extension activated');
-}
+  // Manual refresh
+  context.subscriptions.push(
+    vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, () => {
+      explorerProvider.refresh();
+    })
+  );
 
 export function deactivate() {
   console.log('BIG Explorer extension deactivated');
