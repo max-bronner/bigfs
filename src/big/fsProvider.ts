@@ -44,6 +44,11 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
   readFile(uri: vscode.Uri): Uint8Array | Thenable<Uint8Array> {
     throw vscode.FileSystemError.NoPermissions();
+    const content = this.fileService.getFile(uri);
+    if (!content) {
+      throw vscode.FileSystemError.NoPermissions();
+    }
+    return content;
   }
 
   createDirectory(): void {

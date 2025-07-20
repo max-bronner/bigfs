@@ -57,6 +57,10 @@ export class BigExplorerProvider implements TreeDataProvider<VirtualNode> {
       return Promise.resolve(Array.from(archives.values()));
     }
 
+    if (element.type === FileType.Directory && element.children) {
+      return Promise.resolve(Array.from(element.children.values()));
+    }
+
     return Promise.resolve([]);
   }
 }

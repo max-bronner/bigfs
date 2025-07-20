@@ -134,6 +134,23 @@ export class FileService {
 
     return parentNode;
   }
+
+  public getFile(uri: Uri): Uint8Array | undefined {
+    const [archiveName, ...filePathParts] = uri.path
+      .split('/')
+      .filter((part) => part.length > 0);
+    let parentNode = this.virtualFileTree.get(archiveName);
+
+    for (const nodeName of filePathParts) {
+      if (!parentNode || !parentNode.children?.has(nodeName)) {
+        return undefined;
+      }
+      parentNode = parentNode.children?.get(nodeName);
+    }
+
+    return parentNode?.fileBuffer;
+  }
+
   public getArchives(): Map<string, VirtualNode> {
     return this.virtualFileTree;
   }
