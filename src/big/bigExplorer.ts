@@ -1,5 +1,6 @@
 import type { Event } from 'vscode';
 import {
+  Uri,
   TreeItem,
   TreeDataProvider,
   EventEmitter,
@@ -18,6 +19,11 @@ export class BigTreeNode extends TreeItem {
     super(node.name, collapsibleState);
 
     if (node.type === FileType.File) {
+      this.command = {
+        command: 'bigfs.openFile',
+        title: 'Open File',
+        arguments: [Uri.parse(`bigfs:${node.path}`)],
+      };
       this.iconPath = new ThemeIcon('file');
     } else {
       this.iconPath = new ThemeIcon('folder');

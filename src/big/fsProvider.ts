@@ -23,7 +23,16 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   stat(uri: vscode.Uri): vscode.FileStat | Thenable<vscode.FileStat> {
-    return { type: vscode.FileType.Directory, ctime: 0, mtime: 0, size: 0 };
+    const node = this.fileService.getNode(uri);
+    if (!node) {
+      throw vscode.FileSystemError.FileNotFound(uri);
+    }
+    return {
+      type: node.type,
+      ctime: 0,
+      mtime: 0,
+      size: node.fileBuffer?.length || 0,
+    };
   }
 
   readDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
@@ -43,7 +52,6 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   readFile(uri: vscode.Uri): Uint8Array | Thenable<Uint8Array> {
-    throw vscode.FileSystemError.NoPermissions();
     const content = this.fileService.getFile(uri);
     if (!content) {
       throw vscode.FileSystemError.NoPermissions();

@@ -14,34 +14,35 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "menus": {
-      "explorer/context": [
     "views": {
       "explorer": [
         {
-          "when": "resourceExtname == .big",
-          "command": "bigExplorer.showData",
-          "group": "navigation",
-          "args": [
-            "${resource}"
-          ]
+          "id": "bigArchiveExplorer",
+          "name": "BIG Archives"
         }
       ]
     },
     "commands": [
       {
-        "command": "bigExplorer.showData",
-        "title": "Debug data"
         "command": "bigfs.refreshArchives",
         "title": "Refresh",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "bigfs.openFile",
+        "title": "Open File"
       }
-    ]
     ],
     "menus": {
       "view/title": [
         {
           "command": "bigfs.refreshArchives",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "bigfs.openFile",
           "group": "navigation"
         }
       ]
