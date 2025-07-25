@@ -103,6 +103,8 @@ export class FileService {
     data.entries.forEach((archiveFile) => {
       this.addFileToVirtualFileTree(archiveFile, rootNode);
     });
+
+    this._onDidChangeArchives.fire(uri);
   }
 
   public async scanWorkspace(): Promise<void> {
@@ -112,11 +114,11 @@ export class FileService {
 
     this.virtualFileTree.clear();
 
-    const archiveUri = await workspace.findFiles(BIG_PATTERN, null, 100);
+    const archiveUris = await workspace.findFiles(BIG_PATTERN, null, 100);
 
-    archiveUri.forEach((uri) => {
-      this.addArchiveToVirtualFileTree(uri);
-    });
+    await Promise.all(
+      archiveUris.map((uri) => this.addArchiveToVirtualFileTree(uri))
+    );
   }
 
   public getNode(uri: Uri): VirtualNode | undefined {
