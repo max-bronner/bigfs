@@ -1,7 +1,7 @@
 import { workspace, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import type { BigFileArchive } from './bigParser';
-import { BigFileEntry, parseBigArchive } from './bigParser';
+import { BigFileEntry, parseBigArchive, writeBigArchive } from './bigParser';
 import path from 'path';
 
 export interface VirtualNode {
@@ -34,8 +34,7 @@ export class FileService {
   }
 
   private parseFilePath(filePath: string): string[] {
-    const normalizedPath = filePath.replace(/\\/g, '/');
-    const parsedPath = path.parse(normalizedPath);
+    const parsedPath = path.parse(filePath);
     const filePathParts = parsedPath.dir
       .split('/')
       .filter((part) => part.length > 0);

@@ -59,7 +59,7 @@ const readEntry = (
     throw new Error(`Unexpected end of file`);
   }
 
-  const name = buffer.toString('utf-8', nameStart, nameEnd);
+  const name = buffer.toString('utf-8', nameStart, nameEnd).replace(/\\/g, '/');
   const nextIndex = nameEnd + 1; // Skip null terminator
   const fileBuffer = buffer.subarray(offset, offset + size); // info: currently a view, could be a copy too
 
