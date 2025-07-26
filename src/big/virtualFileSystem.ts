@@ -162,4 +162,50 @@ export class FileService {
   public getArchives(): Map<string, VirtualNode> {
     return this.virtualFileTree;
   }
+
+  public async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
+    const node = this.getNode(uri);
+    if (!node || node.type !== FileType.File) {
+      throw new Error('File not found or is not a file');
+    }
+
+    node.fileBuffer = content;
+    const archive = this.archives.get(node.archivePath);
+
+    if (!archive) {
+      throw new Error(`Archive not found`);
+    }
+
+    const { archiveName, path } = this.parseUri(uri);
+
+    const entry = archive.entries.find((entry) => entry.name === path);
+    if (!entry) {
+      throw new Error(`Entry not found in archive`);
+    }
+    entry.fileBuffer = content;
+    const rootNode = this.virtualFileTree.get(archiveName);
+    if (!rootNode) {
+      throw new Error(`Archive not found`);
+    }
+
+    await this.saveArchive(rootNode);
+  }
+
+  private async saveArchive(rootNode: VirtualNode): Promise<void> {
+    const archive = this.archives.get(rootNode.archivePath);
+
+    if (!archive) {
+      throw new Error(`Archive not found`);
+    }
+
+    try {
+      const newArchiveBuffer = writeBigArchive(archive);
+
+      const archiveUri = Uri.file(rootNode.archivePath);
+      await workspace.fs.writeFile(archiveUri, newArchiveBuffer);
+    } catch (error) {
+      console.error(`Failed to save archive:`, error);
+      throw error;
+    }
+  }
 }
