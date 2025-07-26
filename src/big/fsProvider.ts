@@ -63,8 +63,32 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     throw vscode.FileSystemError.NoPermissions();
   }
 
-  writeFile(): void {
-    throw vscode.FileSystemError.NoPermissions();
+  async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
+    const node = this.fileService.getNode(uri);
+
+    if (!node) {
+      throw vscode.FileSystemError.FileNotFound(uri);
+    }
+
+    if (node.type !== vscode.FileType.File) {
+      throw vscode.FileSystemError.FileIsADirectory(uri);
+    }
+
+    try {
+      await this.fileService.writeFile(uri, content);
+
+      this.onDidChangeFileEmitter.fire([
+        {
+          type: vscode.FileChangeType.Changed,
+          uri,
+        },
+      ]);
+    } catch (error) {
+      console.error('Error writing file:', error);
+      throw vscode.FileSystemError.NoPermissions(
+        `Failed to write file: ${error}`
+      );
+    }
   }
 
   delete(): void {
