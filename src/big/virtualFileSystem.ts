@@ -24,6 +24,15 @@ export class FileService {
     this.scanWorkspace();
   }
 
+  private parseUri(uri: Uri): { archiveName: string; path: string } {
+    const [archiveName, ...pathParts] = uri.path
+      .split('/')
+      .filter((part) => part.length);
+
+    const path = pathParts.join('/');
+    return { archiveName, path };
+  }
+
   private async parseArchiveFile(uri: Uri): Promise<BigFileArchive> {
     try {
       const byteArray = await workspace.fs.readFile(uri);
