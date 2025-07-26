@@ -153,7 +153,7 @@ export const writeBigArchive = (archive: BigFileArchive): Buffer => {
     entry.size = entry.fileBuffer.length;
     currentMetaOffset = writeIndexEntry(buffer, currentMetaOffset, entry);
 
-    buffer.set(entry.fileBuffer, dataOffset);
+    buffer.set(entry.fileBuffer, entry.offset);
     currentDataOffset += alignBytes(entry.fileBuffer.length);
   });
 
