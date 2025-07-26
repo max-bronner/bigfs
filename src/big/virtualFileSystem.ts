@@ -17,6 +17,7 @@ export class FileService {
   private _onDidChangeArchives = new EventEmitter<Uri>();
   public readonly onDidChangeArchives = this._onDidChangeArchives.event;
 
+  private archives = new Map<string, BigFileArchive>();
   private virtualFileTree = new Map<string, VirtualNode>();
 
   constructor() {
@@ -89,6 +90,8 @@ export class FileService {
     const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
 
+    this.archives.set(archivePath, data);
+
     const rootNode: VirtualNode = {
       name: archiveName,
       type: FileType.Directory,
@@ -111,6 +114,7 @@ export class FileService {
       return;
     }
 
+    this.archives.clear();
     this.virtualFileTree.clear();
 
     const archiveUris = await workspace.findFiles(BIG_PATTERN, null, 100);
