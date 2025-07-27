@@ -13,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(SCHEME, fsProvider, {
       isCaseSensitive: false,
-      isReadonly: true, // Todo: implement write support
+      isReadonly: false, // Todo: implement write support
     })
   );
 
@@ -40,6 +40,15 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showTextDocument(resource);
       }
     )
+  );
+
+  // Show message when file is saved
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(async (document) => {
+      if (document.uri.scheme === SCHEME) {
+        console.log(`BIG file saved: ${document.uri.path}`);
+      }
+    })
   );
 }
 
