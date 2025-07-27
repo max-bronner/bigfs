@@ -37,13 +37,20 @@
       "view/title": [
         {
           "command": "bigfs.refreshArchives",
-          "group": "navigation"
+          "group": "navigation",
+          "when": "view == bigArchiveExplorer"
         }
       ],
       "view/item/context": [
         {
           "command": "bigfs.openFile",
           "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "bigfs.refreshArchives",
+          "title": "BIG: Refresh Archives"
         }
       ]
     }
