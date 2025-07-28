@@ -27,11 +27,18 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     if (!node) {
       throw vscode.FileSystemError.FileNotFound(uri);
     }
+
+    let size = 0;
+    if (node.type === vscode.FileType.File) {
+      const content = this.fileService.getFile(uri);
+      size = content?.length || 0;
+    }
+
     return {
       type: node.type,
       ctime: 0,
       mtime: 0,
-      size: node.fileBuffer?.length || 0,
+      size,
     };
   }
 
