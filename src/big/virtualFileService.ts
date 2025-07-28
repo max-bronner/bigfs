@@ -1,7 +1,7 @@
 import { workspace, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import type { BigFileArchive } from './bigParser';
-import { BigFileEntry, parseBigArchive, writeBigArchive } from './bigParser';
+import { BigFileEntry, readBigArchive, writeBigArchive } from './bigParser';
 import path from 'path';
 
 export interface VirtualNode {
@@ -34,7 +34,7 @@ export class VirtualFileService {
     this.clearAll();
 
     const archiveUris = await workspace.findFiles(BIG_PATTERN, null, 100);
-    await Promise.all(archiveUris.map((uri) => this.addBIGToVirtualTree(uri)));
+    await Promise.all(archiveUris.map((uri) => this.addBigToVirtualTree(uri)));
   }
 
   /**
@@ -113,8 +113,8 @@ export class VirtualFileService {
   /**
    * Loads an archive file and adds it to the virtual file tree
    */
-  private async addBIGToVirtualTree(uri: Uri): Promise<void> {
-    const archiveData = await this.parseArchiveFile(uri);
+  private async addBigToVirtualTree(uri: Uri): Promise<void> {
+    const archiveData = await readBigArchive(uri);
     const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
 
@@ -206,19 +206,6 @@ export class VirtualFileService {
     // Extract the file path from the node's path by removing the archive name
     const pathParts = node.path.split('/').filter((part) => part.length);
     return pathParts.slice(1).join('/'); // Remove archive name, keep the rest
-  }
-
-  /**
-   * Parses an archive file
-   */
-  private async parseArchiveFile(uri: Uri): Promise<BigFileArchive> {
-    try {
-      const byteArray = await workspace.fs.readFile(uri);
-      const buffer = Buffer.from(byteArray);
-      return parseBigArchive(buffer);
-    } catch (error) {
-      throw Error(`Failed to parse archive ${uri.fsPath}:`);
-    }
   }
 
   /**

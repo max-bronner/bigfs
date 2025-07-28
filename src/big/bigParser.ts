@@ -1,3 +1,5 @@
+import { Uri, workspace } from 'vscode';
+
 export interface BigFileEntry {
   name: string;
   offset: number;
@@ -72,7 +74,7 @@ const readEntry = (
   };
 };
 
-export const parseBigArchive = (buffer: NonSharedBuffer): BigFileArchive => {
+const parseBigArchive = (buffer: NonSharedBuffer): BigFileArchive => {
   if (buffer.length < LENGTH_HEADER) {
     throw new Error('File too small to be a valid BIG archive');
   }
@@ -95,6 +97,16 @@ export const parseBigArchive = (buffer: NonSharedBuffer): BigFileArchive => {
     indexOffset,
     entries,
   };
+};
+
+export const readBigArchive = async (uri: Uri): Promise<BigFileArchive> => {
+  try {
+    const byteArray = await workspace.fs.readFile(uri);
+    const buffer = Buffer.from(byteArray);
+    return parseBigArchive(buffer);
+  } catch (error) {
+    throw Error(`Failed to parse archive ${uri.fsPath}:`);
+  }
 };
 
 const calculateBufferSizes = (entries: BigFileEntry[]): number[] => {
