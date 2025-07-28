@@ -46,7 +46,10 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       if (document.uri.scheme === SCHEME) {
-        console.log(`BIG file saved: ${document.uri.path}`);
+        vscode.window.showInformationMessage(
+          `BIG archive updated: ${document.uri.path}`,
+          { modal: false }
+        );
       }
     })
   );
