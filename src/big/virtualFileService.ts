@@ -10,7 +10,6 @@ export interface VirtualNode {
   path: string;
   archivePath: string;
   children?: Map<string, VirtualNode>;
-  fileBuffer?: Uint8Array;
 }
 
 export class VirtualFileService {
@@ -63,13 +62,20 @@ export class VirtualFileService {
    * Gets file content by URI
    */
   public getFile(uri: Uri): Uint8Array | undefined {
-    const fileNode = this.getNode(uri);
-
-    if (!fileNode || fileNode.type !== FileType.File) {
+    const node = this.getNode(uri);
+    if (!node || node.type !== FileType.File) {
       throw new Error('File not found or is not a file');
     }
 
-    return fileNode.fileBuffer;
+    const filePath = this.getFilePathFromNode(node);
+    const archive = this.archiveStorage.get(node.archivePath);
+
+    if (!archive) {
+      return undefined;
+    }
+
+    const entry = archive.entries.find((entry) => entry.name === filePath);
+    return entry?.fileBuffer;
   }
 
   /**
@@ -80,7 +86,7 @@ export class VirtualFileService {
   }
 
   /**
-   * Writes file content to the file buffer
+   * Writes file content to the archive storage
    */
   public async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
     const node = this.getNode(uri);
@@ -88,21 +94,19 @@ export class VirtualFileService {
       throw new Error('File not found or is not a file');
     }
 
-    node.fileBuffer = content;
-
+    const filePath = this.getFilePathFromNode(node);
     const archive = this.archiveStorage.get(node.archivePath);
+
     if (!archive) {
       throw new Error('Archive not found');
     }
 
-    const path = this.parseUri(uri).nodes.join('/'); // join nodes to path together
-    const entry = archive.entries.find((entry) => entry.name === path);
+    const entry = archive.entries.find((entry) => entry.name === filePath);
     if (!entry) {
       throw new Error('Entry not found in archive');
     }
 
     entry.fileBuffer = content;
-
     await this.saveArchive(node.archivePath);
   }
 
@@ -141,8 +145,6 @@ export class VirtualFileService {
       this.addNodeToVirtualTree(parentNode, nodeName, isFile);
       parentNode = parentNode.children!.get(nodeName)!;
     });
-
-    parentNode.fileBuffer = archiveFile.fileBuffer;
   }
 
   /**
@@ -195,6 +197,15 @@ export class VirtualFileService {
     });
 
     return rootNode;
+  }
+
+  /**
+   * Gets the file path from a node (for archive lookup)
+   */
+  private getFilePathFromNode(node: VirtualNode): string {
+    // Extract the file path from the node's path by removing the archive name
+    const pathParts = node.path.split('/').filter((part) => part.length);
+    return pathParts.slice(1).join('/'); // Remove archive name, keep the rest
   }
 
   /**
