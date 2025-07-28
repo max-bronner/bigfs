@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { FileService } from './virtualFileSystem';
+import { VirtualFileService } from './virtualFileService';
 
 export class BigFileSystemProvider implements vscode.FileSystemProvider {
   private onDidChangeFileEmitter = new vscode.EventEmitter<
@@ -7,7 +7,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   >();
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
-  constructor(private fileService: FileService) {
+  constructor(private fileService: VirtualFileService) {
     fileService.onDidChangeArchives((uri: any) => {
       this.onDidChangeFileEmitter.fire([
         {

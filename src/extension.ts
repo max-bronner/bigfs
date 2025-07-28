@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { FileService } from './big/virtualFileSystem';
+import { VirtualFileService } from './big/virtualFileService';
 import { BigFileSystemProvider } from './big/fsProvider';
 import { BigExplorerProvider } from './big/bigExplorer';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
-  const fileService = new FileService();
+  const fileService = new VirtualFileService();
   const fsProvider = new BigFileSystemProvider(fileService);
   const explorerProvider = new BigExplorerProvider(fileService);
 

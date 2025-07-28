@@ -8,8 +8,8 @@ import {
   FileType,
   ThemeIcon,
 } from 'vscode';
-import type { FileService } from './virtualFileSystem';
-import { VirtualNode } from './virtualFileSystem';
+import type { VirtualFileService } from './virtualFileService';
+import { VirtualNode } from './virtualFileService';
 
 export class BigTreeNode extends TreeItem {
   constructor(
@@ -39,7 +39,7 @@ export class BigExplorerProvider implements TreeDataProvider<VirtualNode> {
   readonly onDidChangeTreeData: Event<VirtualNode | undefined | void> =
     this._onDidChangeTreeData.event;
 
-  constructor(private fileService: FileService) {
+  constructor(private fileService: VirtualFileService) {
     this.fileService.onDidChangeArchives(() => {
       this._onDidChangeTreeData.fire();
     });
