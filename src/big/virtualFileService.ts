@@ -67,7 +67,7 @@ export class VirtualFileService {
       return undefined;
     }
 
-    const entry = archive.entries.find((entry) => entry.name === filePath);
+    const entry = archive.entries.get(filePath);
     return entry?.fileBuffer;
   }
 
@@ -94,7 +94,7 @@ export class VirtualFileService {
       throw new Error('Archive not found');
     }
 
-    const entry = archive.entries.find((entry) => entry.name === filePath);
+    const entry = archive.entries.get(filePath);
     if (!entry) {
       throw new Error('Entry not found in archive');
     }
@@ -175,7 +175,7 @@ export class VirtualFileService {
   private createVirtualFileTree(
     archiveName: string,
     archivePath: string,
-    entries: BigFileEntry[]
+    entries: Map<string, BigFileEntry>
   ): VirtualNode {
     const rootNode: VirtualNode = {
       name: archiveName,

@@ -67,12 +67,12 @@ const parseBigArchive = (buffer: NonSharedBuffer): BigFileArchive => {
 
   const { magic, fileSize, numEntries, indexOffset } = readHeaders(buffer);
 
-  const entries: BigFileEntry[] = [];
+  const entries = new Map<string, BigFileEntry>();
   let currentOffset = LENGTH_HEADER;
 
   for (let i = 0; i < numEntries; i++) {
     const { nextIndex, ...entry } = readEntry(buffer, currentOffset);
-    entries.push(entry);
+    entries.set(entry.name, entry);
     currentOffset = nextIndex;
   }
 
@@ -95,11 +95,13 @@ export const readBigArchive = async (uri: Uri): Promise<BigFileArchive> => {
   }
 };
 
-const calculateBufferSizes = (entries: BigFileEntry[]): number[] => {
+const calculateBufferSizes = (entries: Map<string, BigFileEntry>): number[] => {
   let totalMetaSize = 0;
   let totalDataSize = 0;
-  entries.forEach((entry, index) => {
-    const isLast = index === entries.length - 1;
+  const entriesArray = Array.from(entries.values());
+
+  entriesArray.forEach((entry, index) => {
+    const isLast = index === entriesArray.length - 1;
 
     const nameLength = Buffer.byteLength(entry.name, 'utf-8');
     const entryMetaSize = 8 + nameLength + (isLast ? 0 : 1);
@@ -141,11 +143,12 @@ export const writeBigArchive = (archive: BigFileArchive): Buffer => {
 
   buffer.write(archive.magic, 0, 4, 'ascii');
   buffer.writeUInt32LE(totalSize, 4);
-  buffer.writeUInt32BE(archive.entries.length, 8);
+  buffer.writeUInt32BE(archive.entries.size, 8);
   buffer.writeUInt32BE(dataOffset - 1, 12); // indexOffset
 
   let currentMetaOffset = LENGTH_HEADER;
   let currentDataOffset = dataOffset;
+
   archive.entries.forEach((entry) => {
     entry.offset = currentDataOffset;
     entry.size = entry.fileBuffer.length;

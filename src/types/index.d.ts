@@ -20,5 +20,5 @@ export interface BigFileArchive {
   fileSize: number;
   numEntries: number;
   indexOffset: number;
-  entries: BigFileEntry[];
+  entries: Map<string, BigFileEntry>;
 }
