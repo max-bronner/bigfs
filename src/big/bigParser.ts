@@ -1,19 +1,5 @@
 import { Uri, workspace } from 'vscode';
-
-export interface BigFileEntry {
-  name: string;
-  offset: number;
-  size: number;
-  fileBuffer: Uint8Array;
-}
-
-export interface BigFileArchive {
-  magic: string;
-  fileSize: number;
-  numEntries: number;
-  indexOffset: number;
-  entries: BigFileEntry[];
-}
+import type { BigFileEntry, BigFileArchive } from '../types';
 
 const LENGTH_HEADER = 16;
 

@@ -9,7 +9,7 @@ import {
   ThemeIcon,
 } from 'vscode';
 import type { VirtualFileService } from './virtualFileService';
-import { VirtualNode } from './virtualFileService';
+import type { VirtualNode } from '../types';
 
 export class BigTreeNode extends TreeItem {
   constructor(

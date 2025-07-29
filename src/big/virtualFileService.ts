@@ -1,16 +1,9 @@
 import { workspace, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
-import type { BigFileArchive } from './bigParser';
-import { BigFileEntry, readBigArchive, writeBigArchive } from './bigParser';
+import type { BigFileArchive, BigFileEntry } from '../types';
+import { readBigArchive, writeBigArchive } from './bigParser';
+import { VirtualNode } from '../types';
 import path from 'path';
-
-export interface VirtualNode {
-  name: string;
-  type: FileType;
-  path: string;
-  archivePath: string;
-  children?: Map<string, VirtualNode>;
-}
 
 export class VirtualFileService {
   private _onDidChangeArchives = new EventEmitter<Uri>();
