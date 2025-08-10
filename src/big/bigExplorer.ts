@@ -101,15 +101,36 @@ export class BigExplorerProvider
     const internalData = dataTransfer.get(this.dropMimeTypes[0]);
 
     if (internalData) {
+      const sources = internalData.value as VirtualNode[];
+
+      const validNodes = sources.filter((source) => {
+        const isSameDirectory = target.children?.get(source.name) === source;
+        const isChildDirectory = target.path.startsWith(source.path);
+        if (isSameDirectory || isChildDirectory) {
+          return false;
+        } else {
+          return true;
+        }
+      });
+
+      if (!validNodes.length) {
+        return;
+      }
       // Handle internal drag and drop
-      console.log('internalData', internalData);
+      console.log('internalData', validNodes);
+      console.log('target', target);
       return;
     }
 
     const externalData = dataTransfer.get(this.dropMimeTypes[1]);
     if (externalData) {
+      const uris = externalData.value
+        .split(/\r?\n/)
+        .map((line: string) => line.trim())
+        .map((line: string) => Uri.parse(line));
       // Handle external drag and drop
-      console.log('externalData', externalData);
+      console.log('uris', uris);
+      console.log('target', target);
       return;
     }
     this.refresh();
