@@ -12,6 +12,7 @@ import {
   DataTransferItem,
 } from 'vscode';
 import type { VirtualFileService } from './virtualFileService';
+import { DragDropService } from './dragDropService';
 import type { VirtualNode } from '../types';
 
 export class BigTreeNode extends TreeItem {
@@ -52,10 +53,13 @@ export class BigExplorerProvider
   readonly onDidChangeTreeData: Event<VirtualNode | undefined | void> =
     this._onDidChangeTreeData.event;
 
+  private dragDropService: DragDropService;
+
   constructor(private fileService: VirtualFileService) {
     this.fileService.onDidChangeArchives(() => {
       this._onDidChangeTreeData.fire();
     });
+    this.dragDropService = new DragDropService(fileService);
   }
 
   refresh(): void {
@@ -104,7 +108,7 @@ export class BigExplorerProvider
       const sources = internalData.value as VirtualNode[];
 
       const validNodes = sources.filter((source) => {
-        const isSameDirectory = target.children?.get(source.name) === source;
+        const isSameDirectory = `${target.path}/${source.name}` === source.path;
         const isChildDirectory = target.path.startsWith(source.path);
         if (isSameDirectory || isChildDirectory) {
           return false;
@@ -129,8 +133,7 @@ export class BigExplorerProvider
         .map((line: string) => line.trim())
         .map((line: string) => Uri.parse(line));
       // Handle external drag and drop
-      console.log('uris', uris);
-      console.log('target', target);
+      this.dragDropService.handleExternalDrop(uris, target);
       return;
     }
     this.refresh();

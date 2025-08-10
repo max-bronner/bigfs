@@ -79,6 +79,13 @@ export class VirtualFileService {
   }
 
   /**
+   * Gets the archive storage
+   */
+  public getArchiveStorage(name: string): BigFileArchive | undefined {
+    return this.archiveStorage.get(name);
+  }
+
+  /**
    * Writes file content to the archive storage
    */
   public async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
