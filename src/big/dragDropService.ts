@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { VirtualFileService } from './virtualFileService';
 import { VirtualNode } from '../types';
-import * as fs from 'fs';
 import * as path from 'path';
 
 interface ExternalFile {
@@ -48,7 +47,6 @@ export class DragDropService {
             targetPath: `${target.path}/${fileName}`,
             action: null,
           });
-          console.log('conflict', fileName);
         }
         filesToProcess.push({ uri: uri, isFile: true });
       } else if (stats.type === vscode.FileType.Directory) {
@@ -70,7 +68,6 @@ export class DragDropService {
             });
           }
         });
-        console.log(conflicts);
       }
     });
   }
