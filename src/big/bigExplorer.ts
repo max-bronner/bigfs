@@ -5,8 +5,11 @@ import {
   TreeDataProvider,
   EventEmitter,
   TreeItemCollapsibleState,
+  TreeDragAndDropController,
   FileType,
   ThemeIcon,
+  DataTransfer,
+  DataTransferItem,
 } from 'vscode';
 import type { VirtualFileService } from './virtualFileService';
 import type { VirtualNode } from '../types';
@@ -33,7 +36,17 @@ export class BigTreeNode extends TreeItem {
   }
 }
 
-export class BigExplorerProvider implements TreeDataProvider<VirtualNode> {
+export class BigExplorerProvider
+  implements
+    TreeDataProvider<VirtualNode>,
+    TreeDragAndDropController<VirtualNode>
+{
+  readonly dropMimeTypes = [
+    'application/vnd.code.tree.bigArchiveExplorer',
+    'text/uri-list',
+  ];
+  readonly dragMimeTypes = ['application/vnd.code.tree.bigArchiveExplorer'];
+
   private _onDidChangeTreeData: EventEmitter<VirtualNode | undefined | void> =
     new EventEmitter<VirtualNode | undefined | void>();
   readonly onDidChangeTreeData: Event<VirtualNode | undefined | void> =
@@ -68,5 +81,37 @@ export class BigExplorerProvider implements TreeDataProvider<VirtualNode> {
     }
 
     return Promise.resolve([]);
+  }
+
+  async handleDrag(
+    source: readonly VirtualNode[],
+    dataTransfer: DataTransfer
+  ): Promise<void> {
+    dataTransfer.set(this.dragMimeTypes[0], new DataTransferItem(source));
+  }
+
+  async handleDrop(
+    target: VirtualNode | undefined,
+    dataTransfer: DataTransfer
+  ): Promise<void> {
+    if (!target || target.type !== FileType.Directory) {
+      return;
+    }
+
+    const internalData = dataTransfer.get(this.dropMimeTypes[0]);
+
+    if (internalData) {
+      // Handle internal drag and drop
+      console.log('internalData', internalData);
+      return;
+    }
+
+    const externalData = dataTransfer.get(this.dropMimeTypes[1]);
+    if (externalData) {
+      // Handle external drag and drop
+      console.log('externalData', externalData);
+      return;
+    }
+    this.refresh();
   }
 }

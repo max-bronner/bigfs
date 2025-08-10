@@ -21,6 +21,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.window.createTreeView('bigArchiveExplorer', {
       treeDataProvider: explorerProvider,
+      dragAndDropController: explorerProvider,
       showCollapseAll: true,
     })
   );
