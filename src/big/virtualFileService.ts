@@ -160,7 +160,7 @@ export class VirtualFileService {
       archivePath: parentNode.archivePath,
     };
 
-    if (!isFile) {
+    if (!isFile && !childNode.children) {
       childNode.children = new Map<string, VirtualNode>();
     }
 
