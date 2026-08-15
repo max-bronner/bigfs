@@ -7,7 +7,6 @@ import {
   TreeItemCollapsibleState,
   TreeDragAndDropController,
   FileType,
-  ThemeIcon,
   DataTransfer,
   DataTransferItem,
 } from 'vscode';
@@ -22,18 +21,18 @@ export class BigTreeNode extends TreeItem {
   ) {
     super(node.name, collapsibleState);
 
+    this.resourceUri = Uri.parse(`bigfs:${node.path}`);
+    this.tooltip = node.path;
+
     if (node.type === FileType.File) {
       this.command = {
         command: 'vscode.open',
         title: 'Open',
-        arguments: [Uri.parse(`bigfs:${node.path}`)],
+        arguments: [this.resourceUri],
       };
-      this.iconPath = new ThemeIcon('file');
     } else {
-      this.iconPath = new ThemeIcon('folder');
       this.description = `(${node.children?.size} files)`;
     }
-    this.tooltip = node.path;
   }
 }
 
