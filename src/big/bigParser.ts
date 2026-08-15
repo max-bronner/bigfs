@@ -28,7 +28,7 @@ const readHeaders = (buffer: NonSharedBuffer) => {
 
 const readEntry = (
   buffer: NonSharedBuffer,
-  index: number
+  index: number,
 ): BigFileEntry & { nextIndex: number } => {
   if (index + 8 >= buffer.length) {
     throw new Error(`Unexpected end of file`);
@@ -104,7 +104,7 @@ const calculateBufferSizes = (entries: Map<string, BigFileEntry>): number[] => {
     const isLast = index === entriesArray.length - 1;
 
     const nameLength = Buffer.byteLength(entry.name, 'utf-8');
-    const entryMetaSize = 8 + nameLength + (isLast ? 0 : 1);
+    const entryMetaSize = 8 + nameLength + 1;
     totalMetaSize += entryMetaSize;
 
     const entryDataSize = isLast
@@ -119,7 +119,7 @@ const calculateBufferSizes = (entries: Map<string, BigFileEntry>): number[] => {
 const writeIndexEntry = (
   buffer: Buffer,
   offset: number,
-  entry: BigFileEntry
+  entry: BigFileEntry,
 ): number => {
   buffer.writeUInt32BE(entry.offset, offset);
   buffer.writeUInt32BE(entry.size, offset + 4);
@@ -133,7 +133,7 @@ const writeIndexEntry = (
 
 export const writeBigArchive = (archive: BigFileArchive): Buffer => {
   const [headerSize, metaSize, dataSize] = calculateBufferSizes(
-    archive.entries
+    archive.entries,
   );
 
   const dataOffset = headerSize + metaSize;
