@@ -17,8 +17,8 @@ export interface BigFileEntry {
 
 export interface BigFileArchive {
   magic: string;
-  fileSize: number;
-  numEntries: number;
-  indexOffset: number;
+  archiveSize: number;
+  entryCount: number;
+  indexTableEndOffset: number;
   entries: Map<string, BigFileEntry>;
 }

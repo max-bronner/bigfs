@@ -1,28 +1,28 @@
 import { Uri, workspace } from 'vscode';
 import type { BigFileEntry, BigFileArchive } from '../types';
 
-const LENGTH_HEADER = 16;
+export const LENGTH_HEADER = 16;
 
 const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
-const readHeaders = (buffer: Buffer) => {
+export const readHeaders = (buffer: Buffer) => {
   // Read header (16 bytes total)
   const magic = buffer.toString('ascii', 0, 4);
   if (!magic.includes('BIG')) {
     throw new Error(`Invalid BIG file magic: '${magic}'`);
   }
 
-  const fileSize = buffer.readUInt32LE(4);
-  const numEntries = buffer.readUInt32BE(8);
-  const indexOffset = buffer.readUInt32BE(12);
+  const archiveSize = buffer.readUInt32LE(4);
+  const entryCount = buffer.readUInt32BE(8);
+  const indexTableEndOffset = buffer.readUInt32BE(12);
 
   return {
-    fileSize,
-    indexOffset,
+    archiveSize,
+    indexTableEndOffset,
     magic,
-    numEntries,
+    entryCount,
   };
 };
 
@@ -65,12 +65,12 @@ const parseBigArchive = (buffer: Buffer): BigFileArchive => {
     throw new Error('File too small to be a valid BIG archive');
   }
 
-  const { magic, fileSize, numEntries, indexOffset } = readHeaders(buffer);
+  const { magic, archiveSize, entryCount, indexTableEndOffset } = readHeaders(buffer);
 
   const entries = new Map<string, BigFileEntry>();
   let currentOffset = LENGTH_HEADER;
 
-  for (let i = 0; i < numEntries; i++) {
+  for (let i = 0; i < entryCount; i++) {
     const { nextIndex, ...entry } = readEntry(buffer, currentOffset);
     entries.set(entry.name, entry);
     currentOffset = nextIndex;
@@ -78,9 +78,9 @@ const parseBigArchive = (buffer: Buffer): BigFileArchive => {
 
   return {
     magic,
-    fileSize,
-    numEntries,
-    indexOffset,
+    archiveSize,
+    entryCount,
+    indexTableEndOffset,
     entries,
   };
 };
@@ -128,7 +128,7 @@ const calculateBufferSizes = (
   return { indexTableEndOffset, dataOffset, totalSize };
 };
 
-const writeIndexEntry = (
+const writeIndexTableEntry = (
   buffer: Buffer,
   offset: number,
   entry: BigFileEntry,
@@ -161,7 +161,7 @@ export const writeBigArchive = (archive: BigFileArchive): Buffer => {
   archive.entries.forEach((entry) => {
     entry.offset = currentDataOffset;
     entry.size = entry.fileBuffer.length;
-    currentMetaOffset = writeIndexEntry(buffer, currentMetaOffset, entry);
+    currentMetaOffset = writeIndexTableEntry(buffer, currentMetaOffset, entry);
 
     buffer.set(entry.fileBuffer, entry.offset);
     currentDataOffset += alignBytes(entry.fileBuffer.length);
