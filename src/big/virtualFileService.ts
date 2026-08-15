@@ -1,4 +1,4 @@
-import { workspace, EventEmitter, FileType, Uri } from 'vscode';
+import { workspace, window, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import type { BigFileArchive, BigFileEntry } from '../types';
 import { readBigArchive, writeBigArchive } from './bigParser';
@@ -36,7 +36,22 @@ export class VirtualFileService {
     this.clearAll();
 
     const archiveUris = await workspace.findFiles(BIG_PATTERN, null, 100);
-    await Promise.all(archiveUris.map((uri) => this.addBigToVirtualTree(uri)));
+
+    const results = await Promise.allSettled(
+      archiveUris.map((uri) => this.addBigToVirtualTree(uri)),
+    );
+
+    const failed = results.filter((result) => result.status === 'rejected');
+
+    if (failed.length) {
+      failed.forEach((result) =>
+        console.error('Failed to read archive:', result.reason),
+      );
+
+      window.showWarningMessage(
+        `${failed.length} of ${archiveUris.length} BIG archives could not be read.`,
+      );
+    }
   }
 
   /**
