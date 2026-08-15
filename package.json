@@ -28,10 +28,6 @@
         "command": "bigfs.refreshArchives",
         "title": "Refresh",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "bigfs.openFile",
-        "title": "Open File"
       }
     ],
     "menus": {
@@ -40,12 +36,6 @@
           "command": "bigfs.refreshArchives",
           "group": "navigation",
           "when": "view == bigArchiveExplorer"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "bigfs.openFile",
-          "group": "navigation"
         }
       ],
       "commandPalette": [

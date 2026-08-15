@@ -33,16 +33,6 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Open text files when clicking them
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      `${SCHEME}.openFile`,
-      (resource: vscode.Uri) => {
-        vscode.window.showTextDocument(resource);
-      }
-    )
-  );
-
   // Show message when file is saved
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument(async (document) => {

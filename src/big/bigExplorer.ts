@@ -18,14 +18,14 @@ import type { VirtualNode } from '../types';
 export class BigTreeNode extends TreeItem {
   constructor(
     public readonly node: VirtualNode,
-    public readonly collapsibleState: TreeItemCollapsibleState
+    public readonly collapsibleState: TreeItemCollapsibleState,
   ) {
     super(node.name, collapsibleState);
 
     if (node.type === FileType.File) {
       this.command = {
-        command: 'bigfs.openFile',
-        title: 'Open File',
+        command: 'vscode.open',
+        title: 'Open',
         arguments: [Uri.parse(`bigfs:${node.path}`)],
       };
       this.iconPath = new ThemeIcon('file');
@@ -89,14 +89,14 @@ export class BigExplorerProvider
 
   async handleDrag(
     source: readonly VirtualNode[],
-    dataTransfer: DataTransfer
+    dataTransfer: DataTransfer,
   ): Promise<void> {
     dataTransfer.set(this.dragMimeTypes[0], new DataTransferItem(source));
   }
 
   async handleDrop(
     target: VirtualNode | undefined,
-    dataTransfer: DataTransfer
+    dataTransfer: DataTransfer,
   ): Promise<void> {
     if (!target || target.type !== FileType.Directory) {
       return;
