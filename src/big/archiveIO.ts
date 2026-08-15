@@ -1,5 +1,6 @@
-import { open } from 'fs/promises';
-import { LENGTH_HEADER, readHeaders } from './bigParser';
+import { open, readFile } from 'fs/promises';
+import { LENGTH_HEADER, parseBigArchive, readHeaders } from './bigParser';
+import type { BigFileArchive } from '../types';
 
 export interface IndexTableEntry {
   name: string;
@@ -60,7 +61,12 @@ export const readArchiveIndexTable = async (
 
   try {
     const headerBuffer = Buffer.alloc(LENGTH_HEADER);
-    const { bytesRead } = await archiveFile.read(headerBuffer, 0, LENGTH_HEADER, 0);
+    const { bytesRead } = await archiveFile.read(
+      headerBuffer,
+      0,
+      LENGTH_HEADER,
+      0,
+    );
 
     if (bytesRead < LENGTH_HEADER) {
       throw new Error('File too small to be a valid BIG archive');
@@ -102,4 +108,11 @@ export const readEntryData = async (
   } finally {
     await archiveFile.close();
   }
+};
+
+export const readBigArchive = async (
+  archivePath: string,
+): Promise<BigFileArchive> => {
+  const buffer = await readFile(archivePath);
+  return parseBigArchive(buffer);
 };

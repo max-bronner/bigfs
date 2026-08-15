@@ -1,7 +1,8 @@
 import { workspace, window, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import type { BigFileArchive, BigFileEntry } from '../types';
-import { readBigArchive, writeBigArchive } from './bigParser';
+import { writeBigArchive } from './bigParser';
+import { readBigArchive } from './archiveIO';
 import { VirtualNode } from '../types';
 import path from 'path';
 
@@ -138,9 +139,9 @@ export class VirtualFileService {
    * Loads an archive file and adds it to the virtual file tree
    */
   private async addBigToVirtualTree(uri: Uri): Promise<void> {
-    const archiveData = await readBigArchive(uri);
     const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
+    const archiveData = await readBigArchive(archivePath);
 
     this.archiveStorage.set(archivePath, archiveData);
 

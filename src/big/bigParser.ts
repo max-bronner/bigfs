@@ -1,4 +1,3 @@
-import { Uri, workspace } from 'vscode';
 import type { BigFileEntry, BigFileArchive } from '../types';
 
 export const LENGTH_HEADER = 16;
@@ -60,12 +59,13 @@ const readEntry = (
   };
 };
 
-const parseBigArchive = (buffer: Buffer): BigFileArchive => {
+export const parseBigArchive = (buffer: Buffer): BigFileArchive => {
   if (buffer.length < LENGTH_HEADER) {
     throw new Error('File too small to be a valid BIG archive');
   }
 
-  const { magic, archiveSize, entryCount, indexTableEndOffset } = readHeaders(buffer);
+  const { magic, archiveSize, entryCount, indexTableEndOffset } =
+    readHeaders(buffer);
 
   const entries = new Map<string, BigFileEntry>();
   let currentOffset = LENGTH_HEADER;
@@ -83,16 +83,6 @@ const parseBigArchive = (buffer: Buffer): BigFileArchive => {
     indexTableEndOffset,
     entries,
   };
-};
-
-export const readBigArchive = async (uri: Uri): Promise<BigFileArchive> => {
-  try {
-    const byteArray = await workspace.fs.readFile(uri);
-    const buffer = Buffer.from(byteArray);
-    return parseBigArchive(buffer);
-  } catch (error) {
-    throw Error(`Failed to parse archive ${uri.fsPath}:`);
-  }
 };
 
 interface ArchiveLayout {
