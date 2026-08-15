@@ -13,6 +13,7 @@ import {
 import type { VirtualFileService } from './virtualFileService';
 import { DragDropService } from './dragDropService';
 import type { VirtualNode } from '../types';
+import { SCHEME } from '../constants';
 
 export class BigTreeNode extends TreeItem {
   constructor(
@@ -21,7 +22,7 @@ export class BigTreeNode extends TreeItem {
   ) {
     super(node.name, collapsibleState);
 
-    this.resourceUri = Uri.parse(`bigfs:${node.path}`);
+    this.resourceUri = Uri.from({ scheme: SCHEME, path: node.path });
     this.tooltip = node.path;
 
     if (node.type === FileType.File) {

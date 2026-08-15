@@ -23,6 +23,23 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "bigArchiveExplorer",
+        "contents": "Open a folder to load the BIG archives inside it.\n[Open Folder](command:vscode.openFolder)",
+        "when": "workbenchState == empty"
+      },
+      {
+        "view": "bigArchiveExplorer",
+        "contents": "Searching for BIG archives...",
+        "when": "workbenchState != empty && bigfs.scanning"
+      },
+      {
+        "view": "bigArchiveExplorer",
+        "contents": "No BIG archives were found in this folder.\n[Refresh](command:bigfs.refreshArchives)",
+        "when": "workbenchState != empty && !bigfs.scanning"
+      }
+    ],
     "commands": [
       {
         "command": "bigfs.refreshArchives",

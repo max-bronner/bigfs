@@ -12,8 +12,17 @@ export class VirtualFileService {
   private archiveStorage = new Map<string, BigFileArchive>();
   private virtualFileTree = new Map<string, VirtualNode>();
 
+  private readonly initialScan: Promise<void>;
+
   constructor() {
-    this.scanWorkspace();
+    this.initialScan = this.scanWorkspace();
+  }
+
+  /**
+   * Resolves after initial scan to avoid showing empty message when still loading
+   */
+  public whenReady(): Promise<void> {
+    return this.initialScan;
   }
 
   /**
@@ -123,7 +132,7 @@ export class VirtualFileService {
     const rootNode = this.createVirtualFileTree(
       archiveName,
       archivePath,
-      archiveData.entries
+      archiveData.entries,
     );
     this.virtualFileTree.set(archiveName, rootNode);
 
@@ -135,7 +144,7 @@ export class VirtualFileService {
    */
   private addFileToVirtualTree(
     archiveFile: BigFileEntry,
-    archiveNode: VirtualNode
+    archiveNode: VirtualNode,
   ): void {
     const filePathParts = this.parseFilePath(archiveFile.name);
     let parentNode = archiveNode;
@@ -153,7 +162,7 @@ export class VirtualFileService {
   private addNodeToVirtualTree(
     parentNode: VirtualNode,
     childName: string,
-    isFile: boolean
+    isFile: boolean,
   ): VirtualNode {
     if (parentNode.type === FileType.File || !parentNode.children) {
       throw Error(`Node is already a file`);
@@ -182,7 +191,7 @@ export class VirtualFileService {
   private createVirtualFileTree(
     archiveName: string,
     archivePath: string,
-    entries: Map<string, BigFileEntry>
+    entries: Map<string, BigFileEntry>,
   ): VirtualNode {
     const rootNode: VirtualNode = {
       name: archiveName,

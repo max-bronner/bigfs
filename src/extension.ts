@@ -6,6 +6,17 @@ import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
   const fileService = new VirtualFileService();
+
+  const setScanning = (scanning: boolean) =>
+    vscode.commands.executeCommand(
+      'setContext',
+      `${SCHEME}.scanning`,
+      scanning,
+    );
+
+  setScanning(true);
+  fileService.whenReady().finally(() => setScanning(false));
+
   const fsProvider = new BigFileSystemProvider(fileService);
   const explorerProvider = new BigExplorerProvider(fileService);
 
@@ -14,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.registerFileSystemProvider(SCHEME, fsProvider, {
       isCaseSensitive: false,
       isReadonly: false, // Todo: implement write support
-    })
+    }),
   );
 
   // Registration of tree data provider
@@ -23,14 +34,14 @@ export function activate(context: vscode.ExtensionContext) {
       treeDataProvider: explorerProvider,
       dragAndDropController: explorerProvider,
       showCollapseAll: true,
-    })
+    }),
   );
 
   // Manual refresh
   context.subscriptions.push(
     vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, () => {
       explorerProvider.refresh();
-    })
+    }),
   );
 
   // Show message when file is saved
@@ -39,10 +50,10 @@ export function activate(context: vscode.ExtensionContext) {
       if (document.uri.scheme === SCHEME) {
         vscode.window.showInformationMessage(
           `BIG archive updated: ${document.uri.path}`,
-          { modal: false }
+          { modal: false },
         );
       }
-    })
+    }),
   );
 }
 
