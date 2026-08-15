@@ -7,7 +7,7 @@ const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
-const readHeaders = (buffer: NonSharedBuffer) => {
+const readHeaders = (buffer: Buffer) => {
   // Read header (16 bytes total)
   const magic = buffer.toString('ascii', 0, 4);
   if (!magic.includes('BIG')) {
@@ -27,7 +27,7 @@ const readHeaders = (buffer: NonSharedBuffer) => {
 };
 
 const readEntry = (
-  buffer: NonSharedBuffer,
+  buffer: Buffer,
   index: number,
 ): BigFileEntry & { nextIndex: number } => {
   if (index + 8 >= buffer.length) {
@@ -60,7 +60,7 @@ const readEntry = (
   };
 };
 
-const parseBigArchive = (buffer: NonSharedBuffer): BigFileArchive => {
+const parseBigArchive = (buffer: Buffer): BigFileArchive => {
   if (buffer.length < LENGTH_HEADER) {
     throw new Error('File too small to be a valid BIG archive');
   }
