@@ -39,7 +39,15 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Manual refresh
   context.subscriptions.push(
-    vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, () => {
+    vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, async () => {
+      setScanning(true);
+
+      try {
+        await fileService.scanWorkspace();
+      } finally {
+        setScanning(false);
+      }
+
       explorerProvider.refresh();
     }),
   );
