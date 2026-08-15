@@ -80,6 +80,6 @@
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "eslint": "^10.8.1",
-    "typescript": "^6.0.3"
+    "typescript": "~6.0.3"
   }
 }
