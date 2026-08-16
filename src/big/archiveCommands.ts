@@ -1,11 +1,31 @@
-import { commands, window, workspace, FileType } from 'vscode';
-import type { ExtensionContext, TreeView } from 'vscode';
+import {
+  commands,
+  window,
+  workspace,
+  FileType,
+  ProgressLocation,
+  Uri,
+} from 'vscode';
+import type { ExtensionContext, Progress, TreeView } from 'vscode';
 import { SCHEME } from '../constants';
-import { deleteNodes, getNodeUri, getParentPath } from './fileOperations';
+import {
+  deleteNodes,
+  getNodeUri,
+  getParentPath,
+  getTopLevelNodes,
+  importFromDisk,
+} from './fileOperations';
 import type { VirtualNode } from '../types';
 import type { VirtualFileService } from './virtualFileService';
 
 const SEPARATOR_PATTERN = /[\\/]/;
+
+const REVEAL_LABEL = 'Reveal in File Explorer';
+
+interface ExtractedFile {
+  nodePath: string;
+  targetUri: Uri;
+}
 
 interface NamePrompt {
   title: string;
@@ -100,6 +120,129 @@ const renameNode = async (target: VirtualNode): Promise<void> => {
   );
 };
 
+const getFileNodes = (node: VirtualNode): VirtualNode[] => {
+  if (node.type === FileType.File) {
+    return [node];
+  }
+
+  const fileNodes: VirtualNode[] = [];
+
+  for (const child of node.children?.values() ?? []) {
+    fileNodes.push(...getFileNodes(child));
+  }
+
+  return fileNodes;
+};
+
+const getExtractedFiles = (
+  nodes: readonly VirtualNode[],
+  targetDirectoryUri: Uri,
+): ExtractedFile[] => {
+  const extractedFiles: ExtractedFile[] = [];
+
+  for (const node of nodes) {
+    const basePath = getParentPath(node.path);
+
+    for (const fileNode of getFileNodes(node)) {
+      const relativePath = fileNode.path.slice(basePath.length + 1);
+
+      extractedFiles.push({
+        nodePath: fileNode.path,
+        targetUri: Uri.joinPath(targetDirectoryUri, ...relativePath.split('/')),
+      });
+    }
+  }
+
+  return extractedFiles;
+};
+
+const extractToFile = async (node: VirtualNode): Promise<Uri | undefined> => {
+  const targetUri = await window.showSaveDialog({
+    defaultUri: Uri.file(node.name),
+    saveLabel: 'Extract',
+  });
+
+  if (!targetUri) {
+    return undefined;
+  }
+
+  const content = await workspace.fs.readFile(getNodeUri(node.path));
+
+  await workspace.fs.writeFile(targetUri, content);
+
+  return targetUri;
+};
+
+const extractToDirectory = async (
+  nodes: readonly VirtualNode[],
+): Promise<Uri | undefined> => {
+  const targetDirectoryUris = await window.showOpenDialog({
+    canSelectFiles: false,
+    canSelectFolders: true,
+    canSelectMany: false,
+    openLabel: 'Extract Here',
+  });
+
+  const targetDirectoryUri = targetDirectoryUris?.[0];
+
+  if (!targetDirectoryUri) {
+    return undefined;
+  }
+
+  const extractedFiles = getExtractedFiles(nodes, targetDirectoryUri);
+
+  const writeFiles = async (
+    progress: Progress<{ message?: string; increment?: number }>,
+  ): Promise<void> => {
+    const increment = 100 / extractedFiles.length;
+    let written = 0;
+
+    for (const { nodePath, targetUri } of extractedFiles) {
+      written += 1;
+      progress.report({
+        increment,
+        message: `${written} of ${extractedFiles.length}`,
+      });
+
+      const content = await workspace.fs.readFile(getNodeUri(nodePath));
+
+      await workspace.fs.writeFile(targetUri, content);
+    }
+  };
+
+  await window.withProgress(
+    { location: ProgressLocation.Notification, title: 'Extracting' },
+    writeFiles,
+  );
+
+  return targetDirectoryUri;
+};
+
+const extractNodes = async (nodes: readonly VirtualNode[]): Promise<void> => {
+  const topLevelNodes = getTopLevelNodes(nodes);
+  const singleFile =
+    topLevelNodes.length === 1 && topLevelNodes[0].type === FileType.File
+      ? topLevelNodes[0]
+      : undefined;
+
+  const targetUri = singleFile
+    ? await extractToFile(singleFile)
+    : await extractToDirectory(topLevelNodes);
+
+  if (!targetUri) {
+    return;
+  }
+
+  const selectedOption = await window.showInformationMessage(
+    `Extracted to ${targetUri.fsPath}.`,
+    REVEAL_LABEL,
+  );
+
+  if (selectedOption === REVEAL_LABEL) {
+    await commands.executeCommand('revealFileInOS', targetUri);
+  }
+};
+
 export const registerArchiveCommands = (
   context: ExtensionContext,
   fileService: VirtualFileService,
@@ -144,9 +287,41 @@ export const registerArchiveCommands = (
     );
   };
 
+  const addFiles = async (target: VirtualNode): Promise<void> => {
+    const directoryPath = getTargetDirectoryPath(target);
+    const directory = fileService.getNode(getNodeUri(directoryPath));
+
+    if (!directory) {
+      return;
+    }
+
+    const sourceUris = await window.showOpenDialog({
+      canSelectMany: true,
+      openLabel: 'Add to Archive',
+    });
+
+    if (!sourceUris?.length) {
+      return;
+    }
+
+    const importedData = await importFromDisk(
+      fileService,
+      sourceUris,
+      directory,
+    );
+
+    if (importedData) {
+      const files = `${importedData} file${importedData === 1 ? '' : 's'}`;
+
+      window.showInformationMessage(`Added ${files} to ${directory.name}.`);
+    }
+  };
+
   register('newFile', ([target]) => createFile(target));
   register('newFolder', ([target]) => createFolder(target));
   register('rename', ([target]) => renameNode(target));
+  register('addFiles', ([target]) => addFiles(target));
+  register('extract', (targets) => extractNodes(targets));
   register('delete', async (targets) => {
     await deleteNodes(fileService, targets);
   });

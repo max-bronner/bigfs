@@ -64,6 +64,14 @@
       {
         "command": "bigfs.delete",
         "title": "Delete"
+      },
+      {
+        "command": "bigfs.addFiles",
+        "title": "Add Files..."
+      },
+      {
+        "command": "bigfs.extract",
+        "title": "Extract..."
       }
     ],
     "menus": {
@@ -83,6 +91,16 @@
         {
           "command": "bigfs.newFolder",
           "group": "navigation@2",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.addFiles",
+          "group": "navigation@3",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.extract",
+          "group": "3_extract@1",
           "when": "view == bigArchiveExplorer"
         },
         {
@@ -115,6 +133,14 @@
         },
         {
           "command": "bigfs.delete",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.addFiles",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.extract",
           "when": "false"
         }
       ]
