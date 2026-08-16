@@ -11,7 +11,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onFileSystem:bigfs"
   ],
   "main": "./out/extension.js",
   "contributes": {

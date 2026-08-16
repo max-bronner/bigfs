@@ -19,7 +19,7 @@ import path from 'path';
 type EntriesCallback = (entries: Map<string, BigFileEntry>) => void;
 
 export class VirtualFileService {
-  private _onDidChangeArchives = new EventEmitter<Uri>();
+  private _onDidChangeArchives = new EventEmitter<string>();
   public readonly onDidChangeArchives = this._onDidChangeArchives.event;
 
   private archiveStorage = new Map<string, ParsedArchive>();
@@ -353,7 +353,7 @@ export class VirtualFileService {
     );
     this.virtualFileTree.set(archiveName, rootNode);
 
-    this._onDidChangeArchives.fire(uri);
+    this._onDidChangeArchives.fire(archivePath);
   }
 
   /**
@@ -592,7 +592,7 @@ export class VirtualFileService {
       this.createVirtualFileTree(archiveName, archivePath, archive.entries),
     );
 
-    this._onDidChangeArchives.fire(Uri.file(archivePath));
+    this._onDidChangeArchives.fire(archivePath);
   }
 
   /**

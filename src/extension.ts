@@ -24,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(SCHEME, fsProvider, {
       isCaseSensitive: false,
-      isReadonly: false, // Todo: implement write support
+      isReadonly: false,
     }),
   );
 
