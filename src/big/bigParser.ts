@@ -1,12 +1,12 @@
 import type { ArchiveLayout, BigFileEntry, PlacedEntry } from '../types';
 
-export const LENGTH_HEADER = 16;
+export const HEADER_LENGTH = 16;
 
 const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
-export const readHeaders = (buffer: Buffer) => {
+export const parseHeader = (buffer: Buffer) => {
   // Read header (16 bytes total)
   const magic = buffer.toString('ascii', 0, 4);
   if (!magic.includes('BIG')) {
@@ -25,6 +25,46 @@ export const readHeaders = (buffer: Buffer) => {
   };
 };
 
+export const parseIndexTable = (
+  table: Buffer,
+  entryCount: number,
+): BigFileEntry[] => {
+  const entries: BigFileEntry[] = [];
+  let cursor = 0;
+
+  for (let entryNumber = 0; entryNumber < entryCount; entryNumber++) {
+    if (cursor + 8 > table.length) {
+      throw new Error(
+        `Index table ends after ${entryNumber} of ${entryCount} entries`,
+      );
+    }
+
+    const offset = table.readUInt32BE(cursor);
+    const size = table.readUInt32BE(cursor + 4);
+
+    const nameStart = cursor + 8;
+    let nameEnd = nameStart;
+
+    while (nameEnd < table.length && table[nameEnd] !== 0) {
+      nameEnd++;
+    }
+
+    if (nameEnd >= table.length) {
+      throw new Error(`Unterminated name in index table entry ${entryNumber}`);
+    }
+
+    entries.push({
+      name: table.toString('utf-8', nameStart, nameEnd).replace(/\\/g, '/'),
+      offset,
+      size,
+    });
+
+    cursor = nameEnd + 1;
+  }
+
+  return entries;
+};
+
 export const computeArchiveLayout = (
   entries: Map<string, BigFileEntry>,
 ): ArchiveLayout => {
@@ -32,7 +72,7 @@ export const computeArchiveLayout = (
 
   const indexTableEndOffset = entriesArray.reduce(
     (total, entry) => total + 8 + Buffer.byteLength(entry.name, 'utf-8') + 1,
-    LENGTH_HEADER,
+    HEADER_LENGTH,
   );
 
   const placedEntries: PlacedEntry[] = [];
@@ -77,7 +117,7 @@ export const serializeIndexTable = (
   buffer.writeUInt32BE(placedEntries.length, 8);
   buffer.writeUInt32BE(indexTableEndOffset, 12);
 
-  let cursor = LENGTH_HEADER;
+  let cursor = HEADER_LENGTH;
   placedEntries.forEach((placedEntry) => {
     cursor = writeIndexTableEntry(buffer, cursor, placedEntry);
   });

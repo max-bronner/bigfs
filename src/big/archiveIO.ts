@@ -1,8 +1,9 @@
 import { open, rename, unlink } from 'fs/promises';
 import type { FileHandle } from 'fs/promises';
 import {
-  LENGTH_HEADER,
-  readHeaders,
+  HEADER_LENGTH,
+  parseHeader,
+  parseIndexTable,
   computeArchiveLayout,
   serializeIndexTable,
 } from './bigParser';
@@ -11,67 +12,30 @@ import type { ArchiveLayout, BigFileEntry, ParsedArchive } from '../types';
 /** Buffer size for moving an entry's data between archives */
 const COPY_CHUNK_SIZE = 256 * 1024;
 
-const parseIndexTable = (table: Buffer, entryCount: number): BigFileEntry[] => {
-  const entries: BigFileEntry[] = [];
-  let cursor = 0;
-
-  for (let entryNumber = 0; entryNumber < entryCount; entryNumber++) {
-    if (cursor + 8 > table.length) {
-      throw new Error(
-        `Index table ends after ${entryNumber} of ${entryCount} entries`,
-      );
-    }
-
-    const offset = table.readUInt32BE(cursor);
-    const size = table.readUInt32BE(cursor + 4);
-
-    const nameStart = cursor + 8;
-    let nameEnd = nameStart;
-
-    while (nameEnd < table.length && table[nameEnd] !== 0) {
-      nameEnd++;
-    }
-
-    if (nameEnd >= table.length) {
-      throw new Error(`Unterminated name in index table entry ${entryNumber}`);
-    }
-
-    entries.push({
-      name: table.toString('utf-8', nameStart, nameEnd).replace(/\\/g, '/'),
-      offset,
-      size,
-    });
-
-    cursor = nameEnd + 1;
-  }
-
-  return entries;
-};
-
 export const readArchiveIndexTable = async (
   archivePath: string,
 ): Promise<ParsedArchive> => {
   const archiveFile = await open(archivePath, 'r');
 
   try {
-    const headerBuffer = Buffer.alloc(LENGTH_HEADER);
+    const headerBuffer = Buffer.alloc(HEADER_LENGTH);
     const { bytesRead } = await archiveFile.read(
       headerBuffer,
       0,
-      LENGTH_HEADER,
+      HEADER_LENGTH,
       0,
     );
 
-    if (bytesRead < LENGTH_HEADER) {
+    if (bytesRead < HEADER_LENGTH) {
       throw new Error('File too small to be a valid BIG archive');
     }
 
-    const header = readHeaders(headerBuffer);
+    const header = parseHeader(headerBuffer);
 
-    const tableLength = Math.max(header.indexTableEndOffset - LENGTH_HEADER, 0);
+    const tableLength = Math.max(header.indexTableEndOffset - HEADER_LENGTH, 0);
     const table = Buffer.alloc(tableLength);
     if (tableLength) {
-      await archiveFile.read(table, 0, tableLength, LENGTH_HEADER);
+      await archiveFile.read(table, 0, tableLength, HEADER_LENGTH);
     }
 
     const entries = new Map<string, BigFileEntry>();

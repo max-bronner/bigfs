@@ -42,7 +42,7 @@ export class VirtualFileService {
     const archiveUris = await workspace.findFiles(BIG_PATTERN, null, 100);
 
     const results = await Promise.allSettled(
-      archiveUris.map((uri) => this.addBigToVirtualTree(uri)),
+      archiveUris.map((uri) => this.addArchiveToTree(uri)),
     );
 
     const failed = results.filter((result) => result.status === 'rejected');
@@ -169,7 +169,7 @@ export class VirtualFileService {
   /**
    * Loads an archive file and adds it to the virtual file tree
    */
-  private async addBigToVirtualTree(uri: Uri): Promise<void> {
+  private async addArchiveToTree(uri: Uri): Promise<void> {
     const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
     const archiveData = await readArchiveIndexTable(archivePath);
