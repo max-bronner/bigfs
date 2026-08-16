@@ -109,7 +109,24 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     ]);
   }
 
-  rename(): void {
-    throw vscode.FileSystemError.NoPermissions();
+  async rename(
+    oldUri: vscode.Uri,
+    newUri: vscode.Uri,
+    options: { overwrite: boolean },
+  ): Promise<void> {
+    if (!this.fileService.getNode(oldUri)) {
+      throw vscode.FileSystemError.FileNotFound(oldUri);
+    }
+
+    if (this.fileService.getNode(newUri) && !options.overwrite) {
+      throw vscode.FileSystemError.FileExists(newUri);
+    }
+
+    await this.fileService.rename(oldUri, newUri);
+
+    this.onDidChangeFileEmitter.fire([
+      { type: vscode.FileChangeType.Deleted, uri: oldUri },
+      { type: vscode.FileChangeType.Created, uri: newUri },
+    ]);
   }
 }

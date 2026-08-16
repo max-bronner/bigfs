@@ -261,6 +261,65 @@ export class VirtualFileService {
   }
 
   /**
+   * Renames or moves a file or a directory with everything below it
+   */
+  public async rename(oldUri: Uri, newUri: Uri): Promise<void> {
+    const source = this.getArchiveContext(oldUri);
+    const target = this.getArchiveContext(newUri);
+    const node = this.getNode(oldUri);
+
+    if (!node) {
+      throw FileSystemError.FileNotFound(oldUri);
+    }
+
+    if (source.archivePath !== target.archivePath) {
+      throw FileSystemError.NoPermissions('Cannot move between archives');
+    }
+
+    if (!source.entryPath || !target.entryPath) {
+      throw FileSystemError.NoPermissions('Cannot rename the archive root');
+    }
+
+    if (this.isPathBelow(target.entryPath, source.entryPath)) {
+      throw FileSystemError.NoPermissions('Cannot move an entry into itself');
+    }
+
+    const filePaths = this.getEntryPaths(node);
+
+    this.moveEmptyDirectories(
+      source.archivePath,
+      source.entryPath,
+      target.entryPath,
+    );
+
+    if (!filePaths.length) {
+      this.rebuildTree(source.archivePath);
+      return;
+    }
+
+    const moveEntries: EntriesCallback = (entries) => {
+      filePaths.forEach((filePath) => {
+        const entry = entries.get(filePath);
+
+        if (!entry) {
+          throw new Error(`Entry missing from archive: ${filePath}`);
+        }
+
+        const movedPath = this.movePath(
+          filePath,
+          source.entryPath,
+          target.entryPath,
+        );
+
+        entries.delete(filePath);
+        entries.set(movedPath, { ...entry, name: movedPath });
+      });
+    };
+
+    await this.saveArchive(source.archivePath, moveEntries);
+  }
+
+  /**
    * Gets the archive entry paths of a node and of all files below it
    */
   private getEntryPaths(node: VirtualNode): string[] {
@@ -403,13 +462,52 @@ export class VirtualFileService {
     }
 
     directories.forEach((directoryPath) => {
-      if (
-        directoryPath === entryPath ||
-        directoryPath.startsWith(`${entryPath}/`)
-      ) {
+      if (this.isPathBelow(directoryPath, entryPath)) {
         directories.delete(directoryPath);
       }
     });
+  }
+
+  /**
+   * Moves tracked empty directories along with the entry they sit under
+   */
+  private moveEmptyDirectories(
+    archivePath: string,
+    sourcePath: string,
+    targetPath: string,
+  ): void {
+    const directories = this.emptyDirectories.get(archivePath);
+
+    if (!directories) {
+      return;
+    }
+
+    Array.from(directories)
+      .filter((directoryPath) => this.isPathBelow(directoryPath, sourcePath))
+      .forEach((directoryPath) => {
+        directories.delete(directoryPath);
+        directories.add(this.movePath(directoryPath, sourcePath, targetPath));
+      });
+  }
+
+  /**
+   * Whether a path is another path or sits below it
+   */
+  private isPathBelow(filePath: string, ancestorPath: string): boolean {
+    return filePath === ancestorPath || filePath.startsWith(`${ancestorPath}/`);
+  }
+
+  /**
+   * Repoints a path from below one entry to below another
+   */
+  private movePath(
+    filePath: string,
+    sourcePath: string,
+    targetPath: string,
+  ): string {
+    return filePath === sourcePath
+      ? targetPath
+      : `${targetPath}${filePath.slice(sourcePath.length)}`;
   }
 
   /**
