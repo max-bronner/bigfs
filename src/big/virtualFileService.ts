@@ -26,6 +26,8 @@ export class VirtualFileService {
   private virtualFileTree = new Map<string, VirtualNode>();
   private saveQueues = new Map<string, Promise<unknown>>();
 
+  private emptyDirectories = new Map<string, Set<string>>();
+
   private readonly initialScan: Promise<void>;
 
   constructor() {
@@ -201,6 +203,26 @@ export class VirtualFileService {
   }
 
   /**
+   * Creates a directory for file management.
+   * Nothing written to archive file, archives only contain files with path, no directories
+   */
+  public createDirectory(uri: Uri): void {
+    const { archivePath, entryPath } = this.getArchiveContext(uri);
+
+    if (!entryPath) {
+      throw FileSystemError.NoPermissions('Cannot create the archive root');
+    }
+
+    const directories =
+      this.emptyDirectories.get(archivePath) ?? new Set<string>();
+
+    directories.add(entryPath);
+    this.emptyDirectories.set(archivePath, directories);
+
+    this.rebuildTree(archivePath);
+  }
+
+  /**
    * Deletes a file or a directory with all of its contents from the archive
    */
   public async delete(uri: Uri): Promise<void> {
@@ -211,14 +233,19 @@ export class VirtualFileService {
       throw FileSystemError.FileNotFound(uri);
     }
 
-    const ancestors = chain.slice(0, -1);
-    const parentNode = ancestors.at(-1);
-
-    if (!parentNode?.children) {
+    if (!chain.at(-2)?.children) {
       throw FileSystemError.NoPermissions('Archives cannot be deleted');
     }
 
+    const { archivePath, entryPath } = this.getArchiveContext(uri);
     const filePaths = this.getEntryPaths(node);
+
+    this.forgetEmptyDirectories(archivePath, entryPath);
+
+    if (!filePaths.length) {
+      this.rebuildTree(archivePath);
+      return;
+    }
 
     const removeEntries: EntriesCallback = (entries) => {
       filePaths.forEach((filePath) => {
@@ -230,7 +257,7 @@ export class VirtualFileService {
       });
     };
 
-    await this.saveArchive(node.archivePath, removeEntries);
+    await this.saveArchive(archivePath, removeEntries);
   }
 
   /**
@@ -336,7 +363,53 @@ export class VirtualFileService {
       this.addFileToVirtualTree(entry, rootNode);
     });
 
+    this.emptyDirectories
+      .get(archivePath)
+      ?.forEach((directoryPath) =>
+        this.addEmptyDirectory(rootNode, directoryPath),
+      );
+
     return rootNode;
+  }
+
+  /**
+   * Adds empty directory to path
+   */
+  private addEmptyDirectory(
+    rootNode: VirtualNode,
+    directoryPath: string,
+  ): void {
+    let parentNode = rootNode;
+
+    for (const segment of directoryPath.split('/')) {
+      const existingNode = parentNode.children?.get(segment);
+
+      if (existingNode && existingNode.type !== FileType.Directory) {
+        return;
+      }
+
+      parentNode = this.addNodeToVirtualTree(parentNode, segment, false);
+    }
+  }
+
+  /**
+   * Drops tracked empty directories of path
+   */
+  private forgetEmptyDirectories(archivePath: string, entryPath: string): void {
+    const directories = this.emptyDirectories.get(archivePath);
+
+    if (!directories) {
+      return;
+    }
+
+    directories.forEach((directoryPath) => {
+      if (
+        directoryPath === entryPath ||
+        directoryPath.startsWith(`${entryPath}/`)
+      ) {
+        directories.delete(directoryPath);
+      }
+    });
   }
 
   /**
