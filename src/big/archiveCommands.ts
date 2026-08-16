@@ -14,6 +14,7 @@ import {
   getParentPath,
   getTopLevelNodes,
   importFromDisk,
+  resolveConflicts,
 } from './fileOperations';
 import type { VirtualNode } from '../types';
 import type { VirtualFileService } from './virtualFileService';
@@ -23,6 +24,7 @@ const SEPARATOR_PATTERN = /[\\/]/;
 const REVEAL_LABEL = 'Reveal in File Explorer';
 
 interface ExtractedFile {
+  name: string;
   nodePath: string;
   targetUri: Uri;
 }
@@ -147,6 +149,7 @@ const getExtractedFiles = (
       const relativePath = fileNode.path.slice(basePath.length + 1);
 
       extractedFiles.push({
+        name: relativePath,
         nodePath: fileNode.path,
         targetUri: Uri.joinPath(targetDirectoryUri, ...relativePath.split('/')),
       });
@@ -154,6 +157,30 @@ const getExtractedFiles = (
   }
 
   return extractedFiles;
+};
+
+const exists = async (uri: Uri): Promise<boolean> => {
+  try {
+    await workspace.fs.stat(uri);
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const withoutRefusedFiles = async (
+  extractedFiles: ExtractedFile[],
+): Promise<ExtractedFile[]> => {
+  const takenNames = new Set<string>();
+
+  for (const file of extractedFiles) {
+    if (await exists(file.targetUri)) {
+      takenNames.add(file.name);
+    }
+  }
+
+  return resolveConflicts(extractedFiles, (file) => takenNames.has(file.name));
 };
 
 const extractToFile = async (node: VirtualNode): Promise<Uri | undefined> => {
@@ -189,7 +216,13 @@ const extractToDirectory = async (
     return undefined;
   }
 
-  const extractedFiles = getExtractedFiles(nodes, targetDirectoryUri);
+  const extractedFiles = await withoutRefusedFiles(
+    getExtractedFiles(nodes, targetDirectoryUri),
+  );
+
+  if (!extractedFiles.length) {
+    return undefined;
+  }
 
   const writeFiles = async (
     progress: Progress<{ message?: string; increment?: number }>,

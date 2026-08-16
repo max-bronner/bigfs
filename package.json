@@ -12,8 +12,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onFileSystem:bigfs",
-    "onView:bigArchiveExplorer"
+    "onFileSystem:bigfs"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -21,7 +20,8 @@
       "explorer": [
         {
           "id": "bigArchiveExplorer",
-          "name": "BIG Archives"
+          "name": "BIG Archives",
+          "icon": "$(archive)"
         }
       ]
     },
@@ -265,7 +265,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.2.0",
+    "@types/node": "^22.19.0",
     "@types/vscode": "^1.125.0",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",

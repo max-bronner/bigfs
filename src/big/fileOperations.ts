@@ -81,7 +81,7 @@ const askForOverwrite = async (names: string[]): Promise<OverwriteChoice> => {
   }
 };
 
-const resolveConflicts = async <T extends { name: string }>(
+export const resolveConflicts = async <T extends { name: string }>(
   items: T[],
   isConflicting: (item: T) => boolean,
 ): Promise<T[]> => {
