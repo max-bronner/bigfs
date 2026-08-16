@@ -15,6 +15,7 @@ const MAX_LISTED_NAMES = 5;
 
 const REPLACE_LABEL = 'Replace';
 const SKIP_LABEL = 'Skip';
+const DELETE_LABEL = 'Delete';
 
 export const getNodeUri = (nodePath: string): Uri =>
   Uri.from({ scheme: SCHEME, path: nodePath });
@@ -25,22 +26,38 @@ export const getParentPath = (nodePath: string): string =>
 const isPathBelow = (nodePath: string, ancestorPath: string): boolean =>
   nodePath === ancestorPath || nodePath.startsWith(`${ancestorPath}/`);
 
+const getListedNames = (names: string[]): string => {
+  const listedNames = names.slice(0, MAX_LISTED_NAMES);
+  const hiddenCount = names.length - listedNames.length;
+
+  if (hiddenCount) {
+    listedNames.push(`and ${hiddenCount} more`);
+  }
+
+  return listedNames.join(', ');
+};
+
 const getOverwriteMessage = (
   names: string[],
 ): { message: string; detail: string } => {
-  const listedFiles = names.slice(0, MAX_LISTED_NAMES);
-  const hiddenFileCount = names.length - listedFiles.length;
-
-  if (hiddenFileCount) {
-    listedFiles.push(`and ${hiddenFileCount} more`);
-  }
-
   const subject =
     names.length === 1 ? 'item already exists' : 'items already exist';
 
   return {
     message: `${names.length} ${subject} here.`,
-    detail: listedFiles.join(', '),
+    detail: getListedNames(names),
+  };
+};
+
+const getDeleteMessage = (
+  names: string[],
+): { message: string; detail: string } => {
+  const subject =
+    names.length === 1 ? 'this item' : `these ${names.length} items`;
+
+  return {
+    message: `Permanently delete ${subject} from the archive?`,
+    detail: getListedNames(names),
   };
 };
 
@@ -157,6 +174,49 @@ export const moveNodes = async (
   await fileService.moveEntries(acceptedUris, getNodeUri(targetDirectory.path));
 
   return acceptedNodes.length;
+};
+
+/**
+ * Deletes nodes in batches
+ */
+export const deleteNodes = async (
+  fileService: VirtualFileService,
+  nodes: readonly VirtualNode[],
+): Promise<number> => {
+  const topLevelNodes = getTopLevelNodes(nodes);
+
+  if (!topLevelNodes.length) {
+    return 0;
+  }
+
+  const { message, detail } = getDeleteMessage(
+    topLevelNodes.map((node) => node.name),
+  );
+
+  const selectedOption = await window.showWarningMessage(
+    message,
+    { modal: true, detail },
+    DELETE_LABEL,
+  );
+
+  if (selectedOption !== DELETE_LABEL) {
+    return 0;
+  }
+
+  const urisByArchive = new Map<string, Uri[]>();
+
+  for (const node of topLevelNodes) {
+    const uris = urisByArchive.get(node.archivePath) ?? [];
+
+    uris.push(getNodeUri(node.path));
+    urisByArchive.set(node.archivePath, uris);
+  }
+
+  for (const uris of urisByArchive.values()) {
+    await fileService.deleteEntries(uris);
+  }
+
+  return topLevelNodes.length;
 };
 
 const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {

@@ -46,6 +46,24 @@
         "command": "bigfs.refreshArchives",
         "title": "Refresh",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "bigfs.newFile",
+        "title": "New File...",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "bigfs.newFolder",
+        "title": "New Folder...",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "bigfs.rename",
+        "title": "Rename..."
+      },
+      {
+        "command": "bigfs.delete",
+        "title": "Delete"
       }
     ],
     "menus": {
@@ -56,13 +74,63 @@
           "when": "view == bigArchiveExplorer"
         }
       ],
+      "view/item/context": [
+        {
+          "command": "bigfs.newFile",
+          "group": "navigation@1",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.newFolder",
+          "group": "navigation@2",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.rename",
+          "group": "7_modification@1",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        },
+        {
+          "command": "bigfs.delete",
+          "group": "7_modification@2",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        }
+      ],
       "commandPalette": [
         {
           "command": "bigfs.refreshArchives",
           "title": "BIG: Refresh Archives"
+        },
+        {
+          "command": "bigfs.newFile",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.newFolder",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.rename",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.delete",
+          "when": "false"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "bigfs.rename",
+        "key": "f2",
+        "when": "focusedView == bigArchiveExplorer"
+      },
+      {
+        "command": "bigfs.delete",
+        "key": "delete",
+        "when": "focusedView == bigArchiveExplorer"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

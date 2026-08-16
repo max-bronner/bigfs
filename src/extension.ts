@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { VirtualFileService } from './big/virtualFileService';
 import { BigFileSystemProvider } from './big/fsProvider';
 import { BigExplorerProvider } from './big/bigExplorer';
+import { registerArchiveCommands } from './big/archiveCommands';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -29,14 +30,16 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   // Registration of tree data provider
-  context.subscriptions.push(
-    vscode.window.createTreeView('bigArchiveExplorer', {
-      treeDataProvider: explorerProvider,
-      dragAndDropController: explorerProvider,
-      showCollapseAll: true,
-      canSelectMany: true,
-    }),
-  );
+  const treeView = vscode.window.createTreeView('bigArchiveExplorer', {
+    treeDataProvider: explorerProvider,
+    dragAndDropController: explorerProvider,
+    showCollapseAll: true,
+    canSelectMany: true,
+  });
+
+  context.subscriptions.push(treeView);
+
+  registerArchiveCommands(context, fileService, treeView);
 
   // Manual refresh
   context.subscriptions.push(

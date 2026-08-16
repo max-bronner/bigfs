@@ -32,12 +32,16 @@ export class BigTreeNode extends TreeItem {
     this.tooltip = node.path;
 
     if (node.type === FileType.File) {
+      this.contextValue = 'bigFile';
       this.command = {
         command: 'vscode.open',
         title: 'Open',
         arguments: [this.resourceUri],
       };
     } else {
+      const isArchiveRoot = node.path === `/${node.name}`;
+
+      this.contextValue = isArchiveRoot ? 'bigArchive' : 'bigFolder';
       this.description = `(${node.children?.size} files)`;
     }
   }
