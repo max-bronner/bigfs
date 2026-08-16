@@ -16,12 +16,15 @@ import {
 import { VirtualNode } from '../types';
 import path from 'path';
 
+type EntriesCallback = (entries: Map<string, BigFileEntry>) => void;
+
 export class VirtualFileService {
   private _onDidChangeArchives = new EventEmitter<Uri>();
   public readonly onDidChangeArchives = this._onDidChangeArchives.event;
 
   private archiveStorage = new Map<string, ParsedArchive>();
   private virtualFileTree = new Map<string, VirtualNode>();
+  private saveQueues = new Map<string, Promise<unknown>>();
 
   private readonly initialScan: Promise<void>;
 
@@ -169,22 +172,18 @@ export class VirtualFileService {
     }
 
     const filePath = this.getFilePathFromNode(node);
-    const archive = this.archiveStorage.get(node.archivePath);
 
-    if (!archive) {
-      throw new Error('Archive not found');
-    }
+    const replaceEntryContent: EntriesCallback = (entries) => {
+      const entry = entries.get(filePath);
 
-    const entry = archive.entries.get(filePath);
+      if (!entry) {
+        throw FileSystemError.FileNotFound(uri);
+      }
 
-    if (!entry) {
-      throw FileSystemError.FileNotFound(uri);
-    }
+      entries.set(filePath, { ...entry, pendingData: content });
+    };
 
-    const entries = new Map(archive.entries);
-    entries.set(filePath, { ...entry, pendingData: content });
-
-    await this.saveArchive(node.archivePath, entries);
+    await this.saveArchive(node.archivePath, replaceEntryContent);
   }
 
   /**
@@ -205,25 +204,19 @@ export class VirtualFileService {
       throw FileSystemError.NoPermissions('Archives cannot be deleted');
     }
 
-    const archive = this.archiveStorage.get(node.archivePath);
-
-    if (!archive) {
-      throw new Error('Archive not found');
-    }
-
-    const entries = new Map(archive.entries);
-
     const filePaths = this.getEntryPaths(node);
 
-    filePaths.forEach((filePath) => {
-      const isDeleted = entries.delete(filePath);
+    const removeEntries: EntriesCallback = (entries) => {
+      filePaths.forEach((filePath) => {
+        const isDeleted = entries.delete(filePath);
 
-      if (!isDeleted) {
-        throw new Error(`Entry missing from archive: ${filePath}`);
-      }
-    });
+        if (!isDeleted) {
+          throw new Error(`Entry missing from archive: ${filePath}`);
+        }
+      });
+    };
 
-    await this.saveArchive(node.archivePath, entries);
+    await this.saveArchive(node.archivePath, removeEntries);
 
     parentNode.children.delete(node.name);
 
@@ -346,17 +339,40 @@ export class VirtualFileService {
   }
 
   /**
-   * Saves an archive to disk
+   * Applies changes in a queue to an archive and saves it to disk
    */
   private async saveArchive(
     archivePath: string,
-    entries: Map<string, BigFileEntry>,
+    modifyEntries: EntriesCallback,
+  ): Promise<void> {
+    const queue = this.saveQueues.get(archivePath) ?? Promise.resolve();
+    const save = queue.then(() =>
+      this.writeArchive(archivePath, modifyEntries),
+    );
+
+    this.saveQueues.set(
+      archivePath,
+      save.catch(() => undefined),
+    );
+
+    return save;
+  }
+
+  /**
+   * Writes archive to disk
+   */
+  private async writeArchive(
+    archivePath: string,
+    modifyEntries: EntriesCallback,
   ): Promise<void> {
     const archive = this.archiveStorage.get(archivePath);
 
     if (!archive) {
       throw new Error('Archive not found');
     }
+
+    const entries = new Map(archive.entries);
+    modifyEntries(entries);
 
     let layout: ArchiveLayout;
 
