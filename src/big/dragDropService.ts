@@ -34,7 +34,7 @@ export class DragDropService {
     const filesToProcess: ExternalFile[] = [];
     const conflicts: FileConflict[] = [];
 
-    sourceUris.forEach(async (uri) => {
+    for (const uri of sourceUris) {
       const stats = await vscode.workspace.fs.stat(uri);
 
       if (stats.type === vscode.FileType.File) {
@@ -48,7 +48,6 @@ export class DragDropService {
             action: null,
           });
         }
-        filesToProcess.push({ uri: uri, isFile: true });
       } else if (stats.type === vscode.FileType.Directory) {
         filesToProcess.push({ uri: uri, isFile: false });
 
@@ -69,7 +68,7 @@ export class DragDropService {
           }
         });
       }
-    });
+    }
   }
 
   async getFilesInFolder(folderUri: vscode.Uri): Promise<

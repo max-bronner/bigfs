@@ -39,7 +39,7 @@ export class VirtualFileService {
 
     this.clearAll();
 
-    const archiveUris = await workspace.findFiles(BIG_PATTERN, null, 100);
+    const archiveUris = await workspace.findFiles(BIG_PATTERN, null);
 
     const results = await Promise.allSettled(
       archiveUris.map((uri) => this.addArchiveToTree(uri)),
