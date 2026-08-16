@@ -58,7 +58,11 @@ export const readArchiveIndexTable = async (
 export const readEntryData = async (
   archivePath: string,
   entry: BigFileEntry,
-): Promise<Buffer> => {
+): Promise<Uint8Array> => {
+  if (entry.pendingData) {
+    return entry.pendingData;
+  }
+
   if (!entry.size) {
     return Buffer.alloc(0);
   }
@@ -126,8 +130,8 @@ export const writeArchiveFile = async (
           continue;
         }
 
-        if (entry.fileBuffer) {
-          await tempFile.write(entry.fileBuffer, 0, size, offset);
+        if (entry.pendingData) {
+          await tempFile.write(entry.pendingData, 0, size, offset);
           continue;
         }
 

@@ -6,6 +6,10 @@ const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
+const toTreeName = (name: string): string => name.replace(/\\/g, '/');
+
+const toStoredName = (name: string): string => name.replace(/\//g, '\\');
+
 export const parseHeader = (buffer: Buffer) => {
   // Read header (16 bytes total)
   const magic = buffer.toString('ascii', 0, 4);
@@ -54,7 +58,7 @@ export const parseIndexTable = (
     }
 
     entries.push({
-      name: table.toString('utf-8', nameStart, nameEnd).replace(/\\/g, '/'),
+      name: toTreeName(table.toString('utf-8', nameStart, nameEnd)),
       offset,
       size,
     });
@@ -71,7 +75,8 @@ export const computeArchiveLayout = (
   const entriesArray = Array.from(entries.values());
 
   const indexTableEndOffset = entriesArray.reduce(
-    (total, entry) => total + 8 + Buffer.byteLength(entry.name, 'utf-8') + 1,
+    (total, entry) =>
+      total + 8 + Buffer.byteLength(toStoredName(entry.name), 'utf-8') + 1,
     HEADER_LENGTH,
   );
 
@@ -79,7 +84,7 @@ export const computeArchiveLayout = (
   let dataOffset = alignBytes(indexTableEndOffset);
 
   entriesArray.forEach((entry) => {
-    const size = entry.fileBuffer ? entry.fileBuffer.length : entry.size;
+    const size = entry.pendingData?.length ?? entry.size;
     placedEntries.push({ entry, offset: dataOffset, size });
     dataOffset = alignBytes(dataOffset + size);
   });
@@ -98,7 +103,7 @@ const writeIndexTableEntry = (
   buffer.writeUInt32BE(placedEntry.offset, offset);
   buffer.writeUInt32BE(placedEntry.size, offset + 4);
 
-  const nameBytes = Buffer.from(placedEntry.entry.name, 'utf-8');
+  const nameBytes = Buffer.from(toStoredName(placedEntry.entry.name), 'utf-8');
   nameBytes.copy(buffer, offset + 8);
   buffer[offset + 8 + nameBytes.length] = 0; // null terminator
 

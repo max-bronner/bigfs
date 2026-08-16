@@ -12,7 +12,7 @@ export interface BigFileEntry {
   name: string;
   offset: number;
   size: number;
-  fileBuffer?: Uint8Array;
+  pendingData?: Uint8Array;
 }
 
 export interface ParsedArchive {

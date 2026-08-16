@@ -111,10 +111,7 @@ export class VirtualFileService {
       return undefined;
     }
 
-    const content =
-      entry.fileBuffer ?? (await readEntryData(node.archivePath, entry));
-
-    return content;
+    return readEntryData(node.archivePath, entry);
   }
 
   public getFileSize(uri: Uri): number {
@@ -130,7 +127,7 @@ export class VirtualFileService {
       return 0;
     }
 
-    return entry.fileBuffer?.length ?? entry.size;
+    return entry.pendingData?.length ?? entry.size;
   }
 
   private getEntry(node: VirtualNode): BigFileEntry | undefined {
@@ -185,7 +182,7 @@ export class VirtualFileService {
     }
 
     const entries = new Map(archive.entries);
-    entries.set(filePath, { ...entry, fileBuffer: content });
+    entries.set(filePath, { ...entry, pendingData: content });
 
     await this.saveArchive(node.archivePath, entries);
   }
@@ -373,6 +370,8 @@ export class VirtualFileService {
     layout.placedEntries.forEach(({ entry, offset, size }) => {
       entry.offset = offset;
       entry.size = size;
+
+      delete entry.pendingData;
     });
 
     archive.entries = entries;
