@@ -1,8 +1,7 @@
 import { workspace, window, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
-import type { BigFileArchive, BigFileEntry } from '../types';
-import { writeBigArchive } from './bigParser';
-import { readBigArchive } from './archiveIO';
+import type { ParsedArchive, BigFileEntry } from '../types';
+import { readArchiveFile, writeArchiveFile } from './archiveIO';
 import { VirtualNode } from '../types';
 import path from 'path';
 
@@ -10,7 +9,7 @@ export class VirtualFileService {
   private _onDidChangeArchives = new EventEmitter<Uri>();
   public readonly onDidChangeArchives = this._onDidChangeArchives.event;
 
-  private archiveStorage = new Map<string, BigFileArchive>();
+  private archiveStorage = new Map<string, ParsedArchive>();
   private virtualFileTree = new Map<string, VirtualNode>();
 
   private readonly initialScan: Promise<void>;
@@ -106,7 +105,7 @@ export class VirtualFileService {
   /**
    * Gets the archive storage
    */
-  public getArchiveStorage(name: string): BigFileArchive | undefined {
+  public getArchiveStorage(name: string): ParsedArchive | undefined {
     return this.archiveStorage.get(name);
   }
 
@@ -141,7 +140,7 @@ export class VirtualFileService {
   private async addBigToVirtualTree(uri: Uri): Promise<void> {
     const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
-    const archiveData = await readBigArchive(archivePath);
+    const archiveData = await readArchiveFile(archivePath);
 
     this.archiveStorage.set(archivePath, archiveData);
 
@@ -244,9 +243,7 @@ export class VirtualFileService {
     }
 
     try {
-      const newArchiveBuffer = writeBigArchive(archive);
-      const archiveUri = Uri.file(archivePath);
-      await workspace.fs.writeFile(archiveUri, newArchiveBuffer);
+      await writeArchiveFile(archivePath, archive);
     } catch (error) {
       console.error('Failed to save archive:', error);
       throw error;

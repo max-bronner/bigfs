@@ -15,10 +15,24 @@ export interface BigFileEntry {
   fileBuffer: Uint8Array;
 }
 
-export interface BigFileArchive {
+export interface ParsedArchive {
   magic: string;
   archiveSize: number;
   entryCount: number;
   indexTableEndOffset: number;
   entries: Map<string, BigFileEntry>;
+}
+
+/** Entry for ArchiveLayout with its location */
+export interface PlacedEntry {
+  entry: BigFileEntry;
+  offset: number;
+  size: number;
+}
+
+/** Layout for writing archive file */
+export interface ArchiveLayout {
+  placedEntries: PlacedEntry[];
+  indexTableEndOffset: number;
+  totalSize: number;
 }

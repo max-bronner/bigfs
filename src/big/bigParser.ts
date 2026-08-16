@@ -1,4 +1,9 @@
-import type { BigFileEntry, BigFileArchive } from '../types';
+import type {
+  ArchiveLayout,
+  BigFileEntry,
+  ParsedArchive,
+  PlacedEntry,
+} from '../types';
 
 export const LENGTH_HEADER = 16;
 
@@ -59,7 +64,7 @@ const readEntry = (
   };
 };
 
-export const parseBigArchive = (buffer: Buffer): BigFileArchive => {
+export const parseBigArchive = (buffer: Buffer): ParsedArchive => {
   if (buffer.length < LENGTH_HEADER) {
     throw new Error('File too small to be a valid BIG archive');
   }
@@ -85,76 +90,61 @@ export const parseBigArchive = (buffer: Buffer): BigFileArchive => {
   };
 };
 
-interface ArchiveLayout {
-  indexTableEndOffset: number;
-  dataOffset: number;
-  totalSize: number;
-}
-
-const calculateBufferSizes = (
+export const computeArchiveLayout = (
   entries: Map<string, BigFileEntry>,
 ): ArchiveLayout => {
-  let totalMetaSize = 0;
-  let totalDataSize = 0;
   const entriesArray = Array.from(entries.values());
 
-  entriesArray.forEach((entry, index) => {
-    const isLast = index === entriesArray.length - 1;
+  const indexTableEndOffset = entriesArray.reduce(
+    (total, entry) => total + 8 + Buffer.byteLength(entry.name, 'utf-8') + 1,
+    LENGTH_HEADER,
+  );
 
-    const nameLength = Buffer.byteLength(entry.name, 'utf-8');
-    const entryMetaSize = 8 + nameLength + 1;
-    totalMetaSize += entryMetaSize;
+  const placedEntries: PlacedEntry[] = [];
+  let dataOffset = alignBytes(indexTableEndOffset);
 
-    const entryDataSize = isLast
-      ? entry.fileBuffer.length
-      : alignBytes(entry.fileBuffer.length);
-    totalDataSize += entryDataSize;
+  entriesArray.forEach((entry) => {
+    const size = entry.fileBuffer.length;
+    placedEntries.push({ entry, offset: dataOffset, size });
+    dataOffset = alignBytes(dataOffset + size);
   });
 
-  const indexTableEndOffset = LENGTH_HEADER + totalMetaSize;
-  const dataOffset = alignBytes(indexTableEndOffset);
-  const totalSize = dataOffset + totalDataSize;
+  const last = placedEntries[placedEntries.length - 1];
+  const totalSize = last ? last.offset + last.size : indexTableEndOffset;
 
-  return { indexTableEndOffset, dataOffset, totalSize };
+  return { placedEntries, indexTableEndOffset, totalSize };
 };
 
 const writeIndexTableEntry = (
   buffer: Buffer,
   offset: number,
-  entry: BigFileEntry,
+  placedEntry: PlacedEntry,
 ): number => {
-  buffer.writeUInt32BE(entry.offset, offset);
-  buffer.writeUInt32BE(entry.size, offset + 4);
+  buffer.writeUInt32BE(placedEntry.offset, offset);
+  buffer.writeUInt32BE(placedEntry.size, offset + 4);
 
-  const nameBytes = Buffer.from(entry.name, 'utf-8');
+  const nameBytes = Buffer.from(placedEntry.entry.name, 'utf-8');
   nameBytes.copy(buffer, offset + 8);
   buffer[offset + 8 + nameBytes.length] = 0; // null terminator
 
   return offset + 8 + nameBytes.length + 1;
 };
 
-export const writeBigArchive = (archive: BigFileArchive): Buffer => {
-  const { indexTableEndOffset, dataOffset, totalSize } = calculateBufferSizes(
-    archive.entries,
-  );
+export const serializeIndexTable = (
+  magic: string,
+  layout: ArchiveLayout,
+): Buffer => {
+  const { placedEntries, indexTableEndOffset, totalSize } = layout;
+  const buffer = Buffer.alloc(alignBytes(indexTableEndOffset));
 
-  const buffer = Buffer.alloc(totalSize);
-
-  buffer.write(archive.magic, 0, 4, 'ascii');
+  buffer.write(magic, 0, 4, 'ascii');
   buffer.writeUInt32LE(totalSize, 4);
-  buffer.writeUInt32BE(archive.entries.size, 8);
+  buffer.writeUInt32BE(placedEntries.length, 8);
   buffer.writeUInt32BE(indexTableEndOffset, 12);
 
-  let currentMetaOffset = LENGTH_HEADER;
-  let currentDataOffset = dataOffset;
-
-  archive.entries.forEach((entry) => {
-    entry.offset = currentDataOffset;
-    entry.size = entry.fileBuffer.length;
-    currentMetaOffset = writeIndexTableEntry(buffer, currentMetaOffset, entry);
-
-    buffer.set(entry.fileBuffer, entry.offset);
-    currentDataOffset += alignBytes(entry.fileBuffer.length);
+  let cursor = LENGTH_HEADER;
+  placedEntries.forEach((placedEntry) => {
+    cursor = writeIndexTableEntry(buffer, cursor, placedEntry);
   });
 
   return buffer;

@@ -1,6 +1,12 @@
-import { open, readFile } from 'fs/promises';
-import { LENGTH_HEADER, parseBigArchive, readHeaders } from './bigParser';
-import type { BigFileArchive } from '../types';
+import { open, readFile, rename, unlink } from 'fs/promises';
+import {
+  LENGTH_HEADER,
+  parseBigArchive,
+  readHeaders,
+  computeArchiveLayout,
+  serializeIndexTable,
+} from './bigParser';
+import type { ParsedArchive } from '../types';
 
 export interface IndexTableEntry {
   name: string;
@@ -110,9 +116,48 @@ export const readEntryData = async (
   }
 };
 
-export const readBigArchive = async (
+export const readArchiveFile = async (
   archivePath: string,
-): Promise<BigFileArchive> => {
+): Promise<ParsedArchive> => {
   const buffer = await readFile(archivePath);
   return parseBigArchive(buffer);
+};
+
+export const writeArchiveFile = async (
+  archivePath: string,
+  archive: ParsedArchive,
+): Promise<void> => {
+  const layout = computeArchiveLayout(archive.entries);
+  const indexTable = serializeIndexTable(archive.magic, layout);
+  const tempPath = `${archivePath}.${process.pid}.tmp`;
+
+  try {
+    const tempFile = await open(tempPath, 'w');
+
+    try {
+      await tempFile.write(indexTable, 0, indexTable.length, 0);
+
+      // Write one entry at a time
+      for (const { entry, offset, size } of layout.placedEntries) {
+        if (size) {
+          await tempFile.write(entry.fileBuffer, 0, size, offset);
+        }
+      }
+
+      await tempFile.truncate(layout.totalSize);
+    } finally {
+      await tempFile.close();
+    }
+  } catch (error) {
+    await unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
+
+  await rename(tempPath, archivePath);
+
+  layout.placedEntries.forEach(({ entry, offset, size }) => {
+    entry.offset = offset;
+    entry.size = size;
+  });
+  archive.archiveSize = layout.totalSize;
 };
