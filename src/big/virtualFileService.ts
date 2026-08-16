@@ -1,7 +1,11 @@
 import { workspace, window, EventEmitter, FileType, Uri } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import type { ParsedArchive, BigFileEntry } from '../types';
-import { readArchiveFile, writeArchiveFile } from './archiveIO';
+import {
+  readArchiveIndexTable,
+  readEntryData,
+  writeArchiveFile,
+} from './archiveIO';
 import { VirtualNode } from '../types';
 import path from 'path';
 
@@ -78,21 +82,49 @@ export class VirtualFileService {
   /**
    * Gets file content by URI
    */
-  public getFile(uri: Uri): Uint8Array | undefined {
+  public async getFile(uri: Uri): Promise<Uint8Array | undefined> {
     const node = this.getNode(uri);
-    if (!node || node.type !== FileType.File) {
-      throw new Error('File not found or is not a file');
-    }
 
-    const filePath = this.getFilePathFromNode(node);
-    const archive = this.archiveStorage.get(node.archivePath);
-
-    if (!archive) {
+    if (!node) {
       return undefined;
     }
 
-    const entry = archive.entries.get(filePath);
-    return entry?.fileBuffer;
+    const entry = this.getEntry(node);
+
+    if (!entry) {
+      return undefined;
+    }
+
+    const content =
+      entry.fileBuffer ?? (await readEntryData(node.archivePath, entry));
+
+    return content;
+  }
+
+  public getFileSize(uri: Uri): number {
+    const node = this.getNode(uri);
+
+    if (!node) {
+      return 0;
+    }
+
+    const entry = this.getEntry(node);
+
+    if (!entry) {
+      return 0;
+    }
+
+    return entry.fileBuffer?.length ?? entry.size;
+  }
+
+  private getEntry(node: VirtualNode): BigFileEntry | undefined {
+    if (node.type !== FileType.File) {
+      return undefined;
+    }
+
+    const archive = this.archiveStorage.get(node.archivePath);
+
+    return archive?.entries.get(this.getFilePathFromNode(node));
   }
 
   /**
@@ -140,7 +172,7 @@ export class VirtualFileService {
   private async addBigToVirtualTree(uri: Uri): Promise<void> {
     const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
-    const archiveData = await readArchiveFile(archivePath);
+    const archiveData = await readArchiveIndexTable(archivePath);
 
     this.archiveStorage.set(archivePath, archiveData);
 

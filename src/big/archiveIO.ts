@@ -1,4 +1,5 @@
 import { open, readFile, rename, unlink } from 'fs/promises';
+import type { FileHandle } from 'fs/promises';
 import {
   LENGTH_HEADER,
   parseBigArchive,
@@ -6,25 +7,13 @@ import {
   computeArchiveLayout,
   serializeIndexTable,
 } from './bigParser';
-import type { ArchiveLayout, ParsedArchive } from '../types';
+import type { ArchiveLayout, BigFileEntry, ParsedArchive } from '../types';
 
-export interface IndexTableEntry {
-  name: string;
-  offset: number;
-  size: number;
-}
+/** Buffer size for moving an entry's data between archives */
+const COPY_CHUNK_SIZE = 256 * 1024;
 
-export interface ArchiveIndexTable {
-  magic: string;
-  archiveSize: number;
-  entries: Map<string, IndexTableEntry>;
-}
-
-const parseIndexTable = (
-  table: Buffer,
-  entryCount: number,
-): IndexTableEntry[] => {
-  const entries: IndexTableEntry[] = [];
+const parseIndexTable = (table: Buffer, entryCount: number): BigFileEntry[] => {
+  const entries: BigFileEntry[] = [];
   let cursor = 0;
 
   for (let entryNumber = 0; entryNumber < entryCount; entryNumber++) {
@@ -62,7 +51,7 @@ const parseIndexTable = (
 
 export const readArchiveIndexTable = async (
   archivePath: string,
-): Promise<ArchiveIndexTable> => {
+): Promise<ParsedArchive> => {
   const archiveFile = await open(archivePath, 'r');
 
   try {
@@ -86,12 +75,18 @@ export const readArchiveIndexTable = async (
       await archiveFile.read(table, 0, tableLength, LENGTH_HEADER);
     }
 
-    const entries = new Map<string, IndexTableEntry>();
+    const entries = new Map<string, BigFileEntry>();
     const indexTable = parseIndexTable(table, header.entryCount);
 
     indexTable.forEach((entry) => entries.set(entry.name, entry));
 
-    return { magic: header.magic, archiveSize: header.archiveSize, entries };
+    return {
+      magic: header.magic,
+      archiveSize: header.archiveSize,
+      entryCount: header.entryCount,
+      indexTableEndOffset: header.indexTableEndOffset,
+      entries,
+    };
   } finally {
     await archiveFile.close();
   }
@@ -99,7 +94,7 @@ export const readArchiveIndexTable = async (
 
 export const readEntryData = async (
   archivePath: string,
-  entry: IndexTableEntry,
+  entry: BigFileEntry,
 ): Promise<Buffer> => {
   if (!entry.size) {
     return Buffer.alloc(0);
@@ -113,6 +108,34 @@ export const readEntryData = async (
     return buffer;
   } finally {
     await archiveFile.close();
+  }
+};
+
+const copyEntryData = async (
+  sourceFile: FileHandle,
+  targetFile: FileHandle,
+  sourceOffset: number,
+  targetOffset: number,
+  size: number,
+): Promise<void> => {
+  const buffer = Buffer.alloc(Math.min(COPY_CHUNK_SIZE, size));
+  let copied = 0;
+
+  while (copied < size) {
+    const chunk = Math.min(buffer.length, size - copied);
+    const { bytesRead } = await sourceFile.read(
+      buffer,
+      0,
+      chunk,
+      sourceOffset + copied,
+    );
+
+    if (!bytesRead) {
+      throw new Error('Unexpected end of archive while copying entry data');
+    }
+
+    await targetFile.write(buffer, 0, bytesRead, targetOffset + copied);
+    copied += bytesRead;
   }
 };
 
@@ -135,19 +158,30 @@ export const writeArchiveFile = async (
   try {
     const tempFile = await open(tempPath, 'w');
 
+    let sourceFile: FileHandle | undefined;
+
     try {
       await tempFile.write(indexTable, 0, indexTable.length, 0);
 
       // Write one entry at a time
       for (const { entry, offset, size } of layout.placedEntries) {
-        if (size) {
-          await tempFile.write(entry.fileBuffer, 0, size, offset);
+        if (!size) {
+          continue;
         }
+
+        if (entry.fileBuffer) {
+          await tempFile.write(entry.fileBuffer, 0, size, offset);
+          continue;
+        }
+
+        sourceFile ??= await open(archivePath, 'r');
+        await copyEntryData(sourceFile, tempFile, entry.offset, offset, size);
       }
 
       await tempFile.truncate(layout.totalSize);
       await tempFile.sync();
     } finally {
+      await sourceFile?.close().catch(() => undefined);
       await tempFile.close();
     }
 

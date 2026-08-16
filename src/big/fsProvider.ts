@@ -28,11 +28,10 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
       throw vscode.FileSystemError.FileNotFound(uri);
     }
 
-    let size = 0;
-    if (node.type === vscode.FileType.File) {
-      const content = this.fileService.getFile(uri);
-      size = content?.length || 0;
-    }
+    const size =
+      node.type === vscode.FileType.File
+        ? this.fileService.getFileSize(uri)
+        : 0;
 
     return {
       type: node.type,
@@ -58,10 +57,10 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     return result;
   }
 
-  readFile(uri: vscode.Uri): Uint8Array | Thenable<Uint8Array> {
-    const content = this.fileService.getFile(uri);
+  async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+    const content = await this.fileService.getFile(uri);
     if (!content) {
-      throw vscode.FileSystemError.NoPermissions();
+      throw vscode.FileSystemError.FileNotFound(uri);
     }
     return content;
   }
@@ -93,7 +92,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     } catch (error) {
       console.error('Error writing file:', error);
       throw vscode.FileSystemError.NoPermissions(
-        `Failed to write file: ${error}`
+        `Failed to write file: ${error}`,
       );
     }
   }

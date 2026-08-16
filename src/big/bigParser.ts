@@ -104,7 +104,7 @@ export const computeArchiveLayout = (
   let dataOffset = alignBytes(indexTableEndOffset);
 
   entriesArray.forEach((entry) => {
-    const size = entry.fileBuffer.length;
+    const size = entry.fileBuffer ? entry.fileBuffer.length : entry.size;
     placedEntries.push({ entry, offset: dataOffset, size });
     dataOffset = alignBytes(dataOffset + size);
   });
