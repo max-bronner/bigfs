@@ -176,9 +176,62 @@ export const moveNodes = async (
   return acceptedNodes.length;
 };
 
-/**
- * Deletes nodes in batches
- */
+const getAvailableName = (takenNames: Set<string>, name: string): string => {
+  if (!takenNames.has(name)) {
+    return name;
+  }
+
+  const extension = path.posix.extname(name);
+  const baseName = name.slice(0, name.length - extension.length);
+
+  let availableName = `${baseName} copy${extension}`;
+  let copyNumber = 2;
+
+  while (takenNames.has(availableName)) {
+    availableName = `${baseName} copy ${copyNumber}${extension}`;
+    copyNumber += 1;
+  }
+
+  return availableName;
+};
+
+export const copyNodes = async (
+  fileService: VirtualFileService,
+  sources: readonly VirtualNode[],
+  targetDirectory: VirtualNode,
+): Promise<number> => {
+  const topLevelSources = getTopLevelNodes(sources);
+
+  const isInTargetArchive = (source: VirtualNode) =>
+    source.archivePath === targetDirectory.archivePath;
+
+  const sourcesInArchive = topLevelSources.filter(isInTargetArchive);
+
+  if (sourcesInArchive.length < topLevelSources.length) {
+    window.showWarningMessage(
+      'Entries can only be copied inside the archive they belong to.',
+    );
+  }
+
+  if (!sourcesInArchive.length) {
+    return 0;
+  }
+
+  const takenNames = new Set(targetDirectory.children?.keys() ?? []);
+  const copies: { sourceUri: Uri; targetName: string }[] = [];
+
+  for (const source of sourcesInArchive) {
+    const targetName = getAvailableName(takenNames, source.name);
+
+    takenNames.add(targetName);
+    copies.push({ sourceUri: getNodeUri(source.path), targetName });
+  }
+
+  await fileService.copyEntries(copies, getNodeUri(targetDirectory.path));
+
+  return copies.length;
+};
+
 export const deleteNodes = async (
   fileService: VirtualFileService,
   nodes: readonly VirtualNode[],

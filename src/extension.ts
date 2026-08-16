@@ -3,6 +3,7 @@ import { VirtualFileService } from './big/virtualFileService';
 import { BigFileSystemProvider } from './big/fsProvider';
 import { BigExplorerProvider } from './big/bigExplorer';
 import { registerArchiveCommands } from './big/archiveCommands';
+import { registerClipboardCommands } from './big/clipboardCommands';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -40,6 +41,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(treeView);
 
   registerArchiveCommands(context, fileService, treeView);
+  registerClipboardCommands(context, fileService, treeView);
 
   // Manual refresh
   context.subscriptions.push(

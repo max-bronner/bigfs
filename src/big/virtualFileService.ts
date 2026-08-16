@@ -222,13 +222,60 @@ export class VirtualFileService {
       throw FileSystemError.NoPermissions('Cannot create the archive root');
     }
 
+    this.keepEmptyDirectory(archivePath, entryPath);
+    this.rebuildTree(archivePath);
+  }
+
+  private keepEmptyDirectory(archivePath: string, entryPath: string): void {
     const directories =
       this.emptyDirectories.get(archivePath) ?? new Set<string>();
 
     directories.add(entryPath);
     this.emptyDirectories.set(archivePath, directories);
+  }
 
-    this.rebuildTree(archivePath);
+  /**
+   * Keeps the directories in virtual file system available
+   */
+  private keepEmptiedDirectories(
+    archivePath: string,
+    removedPaths: Iterable<string>,
+  ): void {
+    const archive = this.archiveStorage.get(archivePath);
+
+    if (!archive) {
+      return;
+    }
+
+    const hasEntriesBelow = (directoryPath: string): boolean => {
+      const prefix = `${directoryPath}/`;
+
+      for (const entryPath of archive.entries.keys()) {
+        if (entryPath.startsWith(prefix)) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    for (const removedPath of removedPaths) {
+      let directoryPath = this.getEntryDirectory(removedPath);
+
+      while (directoryPath && !hasEntriesBelow(directoryPath)) {
+        this.keepEmptyDirectory(archivePath, directoryPath);
+        directoryPath = this.getEntryDirectory(directoryPath);
+      }
+    }
+  }
+
+  /**
+   * Get directory of an entry path
+   */
+  private getEntryDirectory(entryPath: string): string {
+    const separatorIndex = entryPath.lastIndexOf('/');
+
+    return separatorIndex < 0 ? '' : entryPath.slice(0, separatorIndex);
   }
 
   /**
@@ -279,11 +326,14 @@ export class VirtualFileService {
       }
     }
 
-    for (const entryPath of entryPaths) {
-      this.forgetEmptyDirectories(archivePath, entryPath);
-    }
+    const forgetTargets = () => {
+      for (const entryPath of entryPaths) {
+        this.forgetEmptyDirectories(archivePath, entryPath);
+      }
+    };
 
     if (!removedPaths.size) {
+      forgetTargets();
       this.rebuildTree(archivePath);
       return;
     }
@@ -297,6 +347,11 @@ export class VirtualFileService {
     };
 
     await this.saveArchive(archivePath, removeEntries);
+
+    this.keepEmptiedDirectories(archivePath, removedPaths);
+    forgetTargets();
+
+    this.rebuildTree(archivePath);
   }
 
   /**
@@ -333,6 +388,49 @@ export class VirtualFileService {
     }
 
     await this.applyMoves(target.archivePath, moves);
+  }
+
+  /**
+   * Copies entries into a directory in batches
+   */
+  public async copyEntries(
+    copies: { sourceUri: Uri; targetName: string }[],
+    targetDirectoryUri: Uri,
+  ): Promise<void> {
+    const target = this.getArchiveContext(targetDirectoryUri);
+    const entryCopies: EntryMove[] = [];
+
+    for (const { sourceUri, targetName } of copies) {
+      const targetPath = target.entryPath
+        ? `${target.entryPath}/${targetName}`
+        : targetName;
+
+      entryCopies.push(
+        this.getEntryMove(sourceUri, target.archivePath, targetPath),
+      );
+    }
+
+    if (!entryCopies.some(hasStoredEntries)) {
+      return;
+    }
+
+    const copyEntries: EntriesCallback = (entries) => {
+      for (const { sourcePath, targetPath, filePaths } of entryCopies) {
+        for (const filePath of filePaths) {
+          const entry = entries.get(filePath);
+
+          if (!entry) {
+            throw new Error(`Entry missing from archive: ${filePath}`);
+          }
+
+          const copiedPath = this.movePath(filePath, sourcePath, targetPath);
+
+          entries.set(copiedPath, { ...entry, name: copiedPath });
+        }
+      }
+    };
+
+    await this.saveArchive(target.archivePath, copyEntries);
   }
 
   /**
@@ -402,11 +500,14 @@ export class VirtualFileService {
     archivePath: string,
     moves: EntryMove[],
   ): Promise<void> {
-    for (const { sourcePath, targetPath } of moves) {
-      this.moveEmptyDirectories(archivePath, sourcePath, targetPath);
-    }
+    const relocateSources = () => {
+      for (const { sourcePath, targetPath } of moves) {
+        this.moveEmptyDirectories(archivePath, sourcePath, targetPath);
+      }
+    };
 
     if (!moves.some(hasStoredEntries)) {
+      relocateSources();
       this.rebuildTree(archivePath);
       return;
     }
@@ -429,6 +530,17 @@ export class VirtualFileService {
     };
 
     await this.saveArchive(archivePath, moveEntryPaths);
+
+    const movedPaths: string[] = [];
+
+    for (const move of moves) {
+      movedPaths.push(...move.filePaths);
+    }
+
+    this.keepEmptiedDirectories(archivePath, movedPaths);
+    relocateSources();
+
+    this.rebuildTree(archivePath);
   }
 
   /**

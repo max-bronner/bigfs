@@ -72,6 +72,30 @@
       {
         "command": "bigfs.extract",
         "title": "Extract..."
+      },
+      {
+        "command": "bigfs.cut",
+        "title": "Cut"
+      },
+      {
+        "command": "bigfs.copy",
+        "title": "Copy"
+      },
+      {
+        "command": "bigfs.paste",
+        "title": "Paste"
+      },
+      {
+        "command": "bigfs.duplicate",
+        "title": "Duplicate"
+      },
+      {
+        "command": "bigfs.copyPath",
+        "title": "Copy Path"
+      },
+      {
+        "command": "bigfs.copyRelativePath",
+        "title": "Copy Relative Path"
       }
     ],
     "menus": {
@@ -112,6 +136,36 @@
           "command": "bigfs.delete",
           "group": "7_modification@2",
           "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        },
+        {
+          "command": "bigfs.cut",
+          "group": "5_cutcopypaste@1",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        },
+        {
+          "command": "bigfs.copy",
+          "group": "5_cutcopypaste@2",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        },
+        {
+          "command": "bigfs.paste",
+          "group": "5_cutcopypaste@3",
+          "when": "view == bigArchiveExplorer && bigfs.hasClipboard"
+        },
+        {
+          "command": "bigfs.duplicate",
+          "group": "5_cutcopypaste@4",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        },
+        {
+          "command": "bigfs.copyPath",
+          "group": "6_copypath@1",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        },
+        {
+          "command": "bigfs.copyRelativePath",
+          "group": "6_copypath@2",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
         }
       ],
       "commandPalette": [
@@ -142,6 +196,30 @@
         {
           "command": "bigfs.extract",
           "when": "false"
+        },
+        {
+          "command": "bigfs.cut",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.copy",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.paste",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.duplicate",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.copyPath",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.copyRelativePath",
+          "when": "false"
         }
       ]
     },
@@ -155,6 +233,24 @@
         "command": "bigfs.delete",
         "key": "delete",
         "when": "focusedView == bigArchiveExplorer"
+      },
+      {
+        "command": "bigfs.cut",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
+        "when": "focusedView == bigArchiveExplorer"
+      },
+      {
+        "command": "bigfs.copy",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "focusedView == bigArchiveExplorer"
+      },
+      {
+        "command": "bigfs.paste",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
+        "when": "focusedView == bigArchiveExplorer && bigfs.hasClipboard"
       }
     ]
   },
