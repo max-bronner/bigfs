@@ -232,38 +232,68 @@ export class VirtualFileService {
   }
 
   /**
-   * Deletes a file or a directory with all of its contents from the archive
+   * Delete file or directory with all of its contents from archive
    */
   public async delete(uri: Uri): Promise<void> {
-    const chain = this.getNodeChain(uri);
-    const node = chain.at(-1);
+    await this.deleteEntries([uri]);
+  }
 
-    if (!node) {
-      throw FileSystemError.FileNotFound(uri);
+  /**
+   * Delete entries of one archive in a batch
+   */
+  public async deleteEntries(uris: Uri[]): Promise<void> {
+    if (!uris.length) {
+      return;
     }
 
-    if (!chain.at(-2)?.children) {
-      throw FileSystemError.NoPermissions('Archives cannot be deleted');
+    const { archivePath } = this.getArchiveContext(uris[0]);
+    const entryPaths: string[] = [];
+    const removedPaths = new Set<string>();
+
+    for (const uri of uris) {
+      const chain = this.getNodeChain(uri);
+      const node = chain.at(-1);
+
+      if (!node) {
+        throw FileSystemError.FileNotFound(uri);
+      }
+
+      const isArchiveRoot = !chain.at(-2)?.children;
+
+      if (isArchiveRoot) {
+        throw FileSystemError.NoPermissions('Archives cannot be deleted');
+      }
+
+      const context = this.getArchiveContext(uri);
+
+      if (context.archivePath !== archivePath) {
+        throw FileSystemError.NoPermissions(
+          'Cannot delete from several archives at once',
+        );
+      }
+
+      entryPaths.push(context.entryPath);
+
+      for (const filePath of this.getEntryPaths(node)) {
+        removedPaths.add(filePath);
+      }
     }
 
-    const { archivePath, entryPath } = this.getArchiveContext(uri);
-    const filePaths = this.getEntryPaths(node);
+    for (const entryPath of entryPaths) {
+      this.forgetEmptyDirectories(archivePath, entryPath);
+    }
 
-    this.forgetEmptyDirectories(archivePath, entryPath);
-
-    if (!filePaths.length) {
+    if (!removedPaths.size) {
       this.rebuildTree(archivePath);
       return;
     }
 
     const removeEntries: EntriesCallback = (entries) => {
-      filePaths.forEach((filePath) => {
-        const isDeleted = entries.delete(filePath);
-
-        if (!isDeleted) {
+      for (const filePath of removedPaths) {
+        if (!entries.delete(filePath)) {
           throw new Error(`Entry missing from archive: ${filePath}`);
         }
-      });
+      }
     };
 
     await this.saveArchive(archivePath, removeEntries);

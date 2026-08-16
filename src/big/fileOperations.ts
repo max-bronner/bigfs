@@ -104,6 +104,15 @@ const findChild = (
   return node;
 };
 
+export const getTopLevelNodes = (
+  nodes: readonly VirtualNode[],
+): VirtualNode[] => {
+  const isNested = (node: VirtualNode) =>
+    nodes.some((other) => other !== node && isPathBelow(node.path, other.path));
+
+  return nodes.filter((node) => !isNested(node));
+};
+
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean => {
   const isAlreadyInTarget = getParentPath(source.path) === target.path;
   const isTargetInsideSource = isPathBelow(target.path, source.path);
@@ -116,12 +125,14 @@ export const moveNodes = async (
   sources: readonly VirtualNode[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
+  const topLevelSources = getTopLevelNodes(sources);
+
   const isInTargetArchive = (source: VirtualNode) =>
     source.archivePath === targetDirectory.archivePath;
 
-  const sourcesInArchive = sources.filter(isInTargetArchive);
+  const sourcesInArchive = topLevelSources.filter(isInTargetArchive);
 
-  if (sourcesInArchive.length < sources.length) {
+  if (sourcesInArchive.length < topLevelSources.length) {
     window.showWarningMessage(
       'Entries can only be moved inside the archive they belong to.',
     );

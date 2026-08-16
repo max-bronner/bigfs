@@ -34,6 +34,7 @@ export function activate(context: vscode.ExtensionContext) {
       treeDataProvider: explorerProvider,
       dragAndDropController: explorerProvider,
       showCollapseAll: true,
+      canSelectMany: true,
     }),
   );
 
