@@ -158,32 +158,46 @@ export class VirtualFileService {
   }
 
   /**
-   * Writes file content to the archive storage
+   * Resolves URI address to the archive and its file inside
    */
-  public async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
-    const node = this.getNode(uri);
+  private getArchiveContext(uri: Uri): {
+    archivePath: string;
+    entryPath: string;
+  } {
+    const { archiveName, nodes } = this.parseUri(uri);
+    const rootNode = this.virtualFileTree.get(archiveName);
 
-    if (!node) {
+    if (!rootNode) {
       throw FileSystemError.FileNotFound(uri);
     }
 
-    if (node.type !== FileType.File) {
+    return { archivePath: rootNode.archivePath, entryPath: nodes.join('/') };
+  }
+
+  /**
+   * Writes file content to the archive storage
+   */
+  public async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
+    const { archivePath, entryPath } = this.getArchiveContext(uri);
+
+    if (!entryPath) {
+      throw FileSystemError.NoPermissions('Cannot write to the archive root');
+    }
+
+    if (this.getNode(uri)?.type === FileType.Directory) {
       throw FileSystemError.FileIsADirectory(uri);
     }
 
-    const filePath = this.getFilePathFromNode(node);
-
-    const replaceEntryContent: EntriesCallback = (entries) => {
-      const entry = entries.get(filePath);
-
-      if (!entry) {
-        throw FileSystemError.FileNotFound(uri);
-      }
-
-      entries.set(filePath, { ...entry, pendingData: content });
+    const writeEntry: EntriesCallback = (entries) => {
+      entries.set(entryPath, {
+        name: entryPath,
+        offset: 0, // assigned when the archive is written
+        size: content.length,
+        pendingData: content,
+      });
     };
 
-    await this.saveArchive(node.archivePath, replaceEntryContent);
+    await this.saveArchive(archivePath, writeEntry);
   }
 
   /**

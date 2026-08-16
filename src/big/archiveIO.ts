@@ -33,11 +33,11 @@ export const readArchiveIndexTable = async (
     const header = parseHeader(headerBuffer);
     const { size: fileSize } = await archiveFile.stat();
 
-    const hasValidIndexTable =
+    const hasInvalidIndexTable =
       header.indexTableEndOffset < HEADER_LENGTH ||
       header.indexTableEndOffset > fileSize;
 
-    if (hasValidIndexTable) {
+    if (hasInvalidIndexTable) {
       throw new Error(
         `Index table ends at ${header.indexTableEndOffset}, ` +
           `outside the archive of ${fileSize} bytes`,
