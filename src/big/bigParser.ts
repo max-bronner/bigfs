@@ -1,9 +1,4 @@
-import type {
-  ArchiveLayout,
-  BigFileEntry,
-  ParsedArchive,
-  PlacedEntry,
-} from '../types';
+import type { ArchiveLayout, BigFileEntry, PlacedEntry } from '../types';
 
 export const LENGTH_HEADER = 16;
 
@@ -27,66 +22,6 @@ export const readHeaders = (buffer: Buffer) => {
     indexTableEndOffset,
     magic,
     entryCount,
-  };
-};
-
-const readEntry = (
-  buffer: Buffer,
-  index: number,
-): BigFileEntry & { nextIndex: number } => {
-  if (index + 8 >= buffer.length) {
-    throw new Error(`Unexpected end of file`);
-  }
-
-  const offset = buffer.readUInt32BE(index);
-  const size = buffer.readUInt32BE(index + 4);
-
-  const nameStart = index + 8;
-  let nameEnd = nameStart;
-  while (nameEnd < buffer.length && buffer[nameEnd] !== 0) {
-    nameEnd++;
-  }
-
-  if (nameEnd >= buffer.length) {
-    throw new Error(`Unexpected end of file`);
-  }
-
-  const name = buffer.toString('utf-8', nameStart, nameEnd).replace(/\\/g, '/');
-  const nextIndex = nameEnd + 1; // Skip null terminator
-  const fileBuffer = buffer.subarray(offset, offset + size); // info: currently a view, could be a copy too
-
-  return {
-    offset,
-    size,
-    name,
-    nextIndex,
-    fileBuffer,
-  };
-};
-
-export const parseBigArchive = (buffer: Buffer): ParsedArchive => {
-  if (buffer.length < LENGTH_HEADER) {
-    throw new Error('File too small to be a valid BIG archive');
-  }
-
-  const { magic, archiveSize, entryCount, indexTableEndOffset } =
-    readHeaders(buffer);
-
-  const entries = new Map<string, BigFileEntry>();
-  let currentOffset = LENGTH_HEADER;
-
-  for (let i = 0; i < entryCount; i++) {
-    const { nextIndex, ...entry } = readEntry(buffer, currentOffset);
-    entries.set(entry.name, entry);
-    currentOffset = nextIndex;
-  }
-
-  return {
-    magic,
-    archiveSize,
-    entryCount,
-    indexTableEndOffset,
-    entries,
   };
 };
 

@@ -1,8 +1,7 @@
-import { open, readFile, rename, unlink } from 'fs/promises';
+import { open, rename, unlink } from 'fs/promises';
 import type { FileHandle } from 'fs/promises';
 import {
   LENGTH_HEADER,
-  parseBigArchive,
   readHeaders,
   computeArchiveLayout,
   serializeIndexTable,
@@ -137,13 +136,6 @@ const copyEntryData = async (
     await targetFile.write(buffer, 0, bytesRead, targetOffset + copied);
     copied += bytesRead;
   }
-};
-
-export const readArchiveFile = async (
-  archivePath: string,
-): Promise<ParsedArchive> => {
-  const buffer = await readFile(archivePath);
-  return parseBigArchive(buffer);
 };
 
 export const writeArchiveFile = async (
