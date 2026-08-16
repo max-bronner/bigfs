@@ -20,6 +20,17 @@ import {
 } from './fileOperations';
 import type { VirtualNode } from '../types';
 
+const nameCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+});
+
+const compareNames = (a: VirtualNode, b: VirtualNode): number =>
+  nameCollator.compare(a.name, b.name);
+
+const sortNodes = (nodes: VirtualNode[]): VirtualNode[] =>
+  nodes.sort(compareNames);
+
 export class BigTreeNode extends TreeItem {
   constructor(
     public readonly node: VirtualNode,
@@ -65,7 +76,7 @@ export class BigExplorerProvider
 
   constructor(private fileService: VirtualFileService) {
     this.fileService.onDidChangeArchives(() => {
-      this._onDidChangeTreeData.fire();
+      this.refresh();
     });
   }
 
@@ -81,17 +92,18 @@ export class BigExplorerProvider
     return new BigTreeNode(element, collapsibleState);
   }
 
-  getChildren(element?: VirtualNode): Thenable<VirtualNode[]> {
+  async getChildren(element?: VirtualNode): Promise<VirtualNode[]> {
     if (!element) {
-      const archives = this.fileService.getArchives();
-      return Promise.resolve(Array.from(archives.values()));
+      await this.fileService.whenReady();
+
+      return sortNodes(Array.from(this.fileService.getArchives().values()));
     }
 
     if (element.type === FileType.Directory && element.children) {
-      return Promise.resolve(Array.from(element.children.values()));
+      return sortNodes(Array.from(element.children.values()));
     }
 
-    return Promise.resolve([]);
+    return [];
   }
 
   async handleDrag(

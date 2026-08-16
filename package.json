@@ -12,7 +12,8 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onFileSystem:bigfs"
+    "onFileSystem:bigfs",
+    "onView:bigArchiveExplorer"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -33,12 +34,12 @@
       {
         "view": "bigArchiveExplorer",
         "contents": "Searching for BIG archives...",
-        "when": "workbenchState != empty && bigfs.scanning"
+        "when": "workbenchState != empty && !bigfs.scanned"
       },
       {
         "view": "bigArchiveExplorer",
         "contents": "No BIG archives were found in this folder.\n[Refresh](command:bigfs.refreshArchives)",
-        "when": "workbenchState != empty && !bigfs.scanning"
+        "when": "workbenchState != empty && bigfs.scanned && !bigfs.hasArchives"
       }
     ],
     "commands": [

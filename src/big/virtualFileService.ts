@@ -60,7 +60,7 @@ export class VirtualFileService {
 
     this.clearAll();
 
-    const archiveUris = await workspace.findFiles(BIG_PATTERN, null);
+    const archiveUris = await workspace.findFiles(BIG_PATTERN);
 
     const results = await Promise.allSettled(
       archiveUris.map((uri) => this.addArchiveToTree(uri)),
@@ -86,6 +86,9 @@ export class VirtualFileService {
     return this.getNodeChain(uri).at(-1);
   }
 
+  /**
+   * Gets a node together with every directory above it, starting at the archive
+   */
   private getNodeChain(uri: Uri): VirtualNode[] {
     const { archiveName, nodes } = this.parseUri(uri);
     const rootNode = this.virtualFileTree.get(archiveName);
@@ -115,26 +118,24 @@ export class VirtualFileService {
   public async getFile(uri: Uri): Promise<Uint8Array | undefined> {
     const node = this.getNode(uri);
 
-    if (!node) {
-      return undefined;
-    }
-
-    const entry = this.getEntry(node);
-
-    if (!entry) {
-      return undefined;
-    }
-
-    return readEntryData(node.archivePath, entry);
+    return node ? this.getFileContent(node) : undefined;
   }
 
-  public getFileSize(uri: Uri): number {
-    const node = this.getNode(uri);
+  /**
+   * Reads the content of a node straight from the archive on disk
+   */
+  public async getFileContent(
+    node: VirtualNode,
+  ): Promise<Uint8Array | undefined> {
+    const entry = this.getEntry(node);
 
-    if (!node) {
-      return 0;
-    }
+    return entry ? readEntryData(node.archivePath, entry) : undefined;
+  }
 
+  /**
+   * Gets the size of a file from the index, never from its content
+   */
+  public getFileSize(node: VirtualNode): number {
     const entry = this.getEntry(node);
 
     if (!entry) {
@@ -144,6 +145,9 @@ export class VirtualFileService {
     return entry.pendingData?.length ?? entry.size;
   }
 
+  /**
+   * Gets the archive entry a file node stands for
+   */
   private getEntry(node: VirtualNode): BigFileEntry | undefined {
     if (node.type !== FileType.File) {
       return undefined;
@@ -226,6 +230,9 @@ export class VirtualFileService {
     this.rebuildTree(archivePath);
   }
 
+  /**
+   * Tracks a directory that has nothing stored below it
+   */
   private keepEmptyDirectory(archivePath: string, entryPath: string): void {
     const directories =
       this.emptyDirectories.get(archivePath) ?? new Set<string>();
@@ -576,8 +583,6 @@ export class VirtualFileService {
       archiveData.entries,
     );
     this.virtualFileTree.set(archiveName, rootNode);
-
-    this._onDidChangeArchives.fire(archivePath);
   }
 
   /**

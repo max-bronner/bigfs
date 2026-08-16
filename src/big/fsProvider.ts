@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { VirtualFileService } from './virtualFileService';
+import type { VirtualNode } from '../types';
 
 export class BigFileSystemProvider implements vscode.FileSystemProvider {
   private onDidChangeFileEmitter = new vscode.EventEmitter<
@@ -13,15 +14,29 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     return new vscode.Disposable(() => {});
   }
 
-  stat(uri: vscode.Uri): vscode.FileStat | Thenable<vscode.FileStat> {
+  private async resolveNode(
+    uri: vscode.Uri,
+  ): Promise<VirtualNode | undefined> {
     const node = this.fileService.getNode(uri);
+
+    if (node) {
+      return node;
+    }
+
+    await this.fileService.whenReady();
+
+    return this.fileService.getNode(uri);
+  }
+
+  async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+    const node = await this.resolveNode(uri);
     if (!node) {
       throw vscode.FileSystemError.FileNotFound(uri);
     }
 
     const size =
       node.type === vscode.FileType.File
-        ? this.fileService.getFileSize(uri)
+        ? this.fileService.getFileSize(node)
         : 0;
 
     return {
@@ -32,8 +47,8 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     };
   }
 
-  readDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
-    const node = this.fileService.getNode(uri);
+  async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
+    const node = await this.resolveNode(uri);
     if (!node || node.type !== vscode.FileType.Directory) {
       throw vscode.FileSystemError.FileNotFound(uri);
     }
@@ -49,7 +64,12 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-    const content = await this.fileService.getFile(uri);
+    const node = await this.resolveNode(uri);
+    if (!node) {
+      throw vscode.FileSystemError.FileNotFound(uri);
+    }
+
+    const content = await this.fileService.getFileContent(node);
     if (!content) {
       throw vscode.FileSystemError.FileNotFound(uri);
     }

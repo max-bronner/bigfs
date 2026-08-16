@@ -9,15 +9,15 @@ import { SCHEME } from './constants';
 export function activate(context: vscode.ExtensionContext) {
   const fileService = new VirtualFileService();
 
-  const setScanning = (scanning: boolean) =>
-    vscode.commands.executeCommand(
-      'setContext',
-      `${SCHEME}.scanning`,
-      scanning,
-    );
+  const setContextKey = (key: string, value: boolean) =>
+    vscode.commands.executeCommand('setContext', `${SCHEME}.${key}`, value);
 
-  setScanning(true);
-  fileService.whenReady().finally(() => setScanning(false));
+  const markScanned = async () => {
+    await setContextKey('hasArchives', fileService.getArchives().size > 0);
+    await setContextKey('scanned', true);
+  };
+
+  fileService.whenReady().finally(markScanned);
 
   const fsProvider = new BigFileSystemProvider(fileService);
   const explorerProvider = new BigExplorerProvider(fileService);
@@ -46,15 +46,14 @@ export function activate(context: vscode.ExtensionContext) {
   // Manual refresh
   context.subscriptions.push(
     vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, async () => {
-      setScanning(true);
+      await setContextKey('scanned', false);
 
       try {
         await fileService.scanWorkspace();
       } finally {
-        setScanning(false);
+        explorerProvider.refresh();
+        await markScanned();
       }
-
-      explorerProvider.refresh();
     }),
   );
 
