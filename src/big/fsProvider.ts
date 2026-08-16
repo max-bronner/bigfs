@@ -7,16 +7,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   >();
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
-  constructor(private fileService: VirtualFileService) {
-    fileService.onDidChangeArchives((uri: any) => {
-      this.onDidChangeFileEmitter.fire([
-        {
-          type: vscode.FileChangeType.Changed,
-          uri,
-        },
-      ]);
-    });
-  }
+  constructor(private fileService: VirtualFileService) {}
 
   watch(uri: vscode.Uri): vscode.Disposable {
     return new vscode.Disposable(() => {});
@@ -70,35 +61,25 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
-    const node = this.fileService.getNode(uri);
+    await this.fileService.writeFile(uri, content);
 
-    if (!node) {
-      throw vscode.FileSystemError.FileNotFound(uri);
-    }
-
-    if (node.type !== vscode.FileType.File) {
-      throw vscode.FileSystemError.FileIsADirectory(uri);
-    }
-
-    try {
-      await this.fileService.writeFile(uri, content);
-
-      this.onDidChangeFileEmitter.fire([
-        {
-          type: vscode.FileChangeType.Changed,
-          uri,
-        },
-      ]);
-    } catch (error) {
-      console.error('Error writing file:', error);
-      throw vscode.FileSystemError.NoPermissions(
-        `Failed to write file: ${error}`,
-      );
-    }
+    this.onDidChangeFileEmitter.fire([
+      {
+        type: vscode.FileChangeType.Changed,
+        uri,
+      },
+    ]);
   }
 
-  delete(): void {
-    throw vscode.FileSystemError.NoPermissions();
+  async delete(uri: vscode.Uri): Promise<void> {
+    await this.fileService.delete(uri);
+
+    this.onDidChangeFileEmitter.fire([
+      {
+        type: vscode.FileChangeType.Deleted,
+        uri,
+      },
+    ]);
   }
 
   rename(): void {

@@ -1,6 +1,13 @@
-import { workspace, window, EventEmitter, FileType, Uri } from 'vscode';
+import {
+  workspace,
+  window,
+  EventEmitter,
+  FileType,
+  FileSystemError,
+  Uri,
+} from 'vscode';
 import { BIG_PATTERN } from '../constants';
-import type { ParsedArchive, BigFileEntry } from '../types';
+import type { ArchiveLayout, ParsedArchive, BigFileEntry } from '../types';
 import {
   readArchiveIndexTable,
   readEntryData,
@@ -62,21 +69,30 @@ export class VirtualFileService {
    * Gets a node by URI
    */
   public getNode(uri: Uri): VirtualNode | undefined {
+    return this.getNodeChain(uri).at(-1);
+  }
+
+  private getNodeChain(uri: Uri): VirtualNode[] {
     const { archiveName, nodes } = this.parseUri(uri);
-    let parentNode = this.virtualFileTree.get(archiveName);
+    const rootNode = this.virtualFileTree.get(archiveName);
 
-    if (!parentNode || !nodes.length) {
-      throw new Error('Node not found');
+    if (!rootNode) {
+      return [];
     }
 
-    for (const node of nodes) {
-      if (!parentNode.children?.has(node)) {
-        return undefined;
+    const chain = [rootNode];
+
+    for (const nodeName of nodes) {
+      const childNode = chain.at(-1)!.children?.get(nodeName);
+
+      if (!childNode) {
+        return [];
       }
-      parentNode = parentNode.children.get(node)!;
+
+      chain.push(childNode);
     }
 
-    return parentNode;
+    return chain;
   }
 
   /**
@@ -146,8 +162,13 @@ export class VirtualFileService {
    */
   public async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
     const node = this.getNode(uri);
-    if (!node || node.type !== FileType.File) {
-      throw new Error('File not found or is not a file');
+
+    if (!node) {
+      throw FileSystemError.FileNotFound(uri);
+    }
+
+    if (node.type !== FileType.File) {
+      throw FileSystemError.FileIsADirectory(uri);
     }
 
     const filePath = this.getFilePathFromNode(node);
@@ -158,12 +179,75 @@ export class VirtualFileService {
     }
 
     const entry = archive.entries.get(filePath);
+
     if (!entry) {
-      throw new Error('Entry not found in archive');
+      throw FileSystemError.FileNotFound(uri);
     }
 
-    entry.fileBuffer = content;
-    await this.saveArchive(node.archivePath);
+    const entries = new Map(archive.entries);
+    entries.set(filePath, { ...entry, fileBuffer: content });
+
+    await this.saveArchive(node.archivePath, entries);
+  }
+
+  /**
+   * Deletes a file or a directory with all of its contents from the archive
+   */
+  public async delete(uri: Uri): Promise<void> {
+    const chain = this.getNodeChain(uri);
+    const node = chain.at(-1);
+
+    if (!node) {
+      throw FileSystemError.FileNotFound(uri);
+    }
+
+    const ancestors = chain.slice(0, -1);
+    const parentNode = ancestors.at(-1);
+
+    if (!parentNode?.children) {
+      throw FileSystemError.NoPermissions('Archives cannot be deleted');
+    }
+
+    const archive = this.archiveStorage.get(node.archivePath);
+
+    if (!archive) {
+      throw new Error('Archive not found');
+    }
+
+    const entries = new Map(archive.entries);
+
+    const filePaths = this.getEntryPaths(node);
+
+    filePaths.forEach((filePath) => {
+      const isDeleted = entries.delete(filePath);
+
+      if (!isDeleted) {
+        throw new Error(`Entry missing from archive: ${filePath}`);
+      }
+    });
+
+    await this.saveArchive(node.archivePath, entries);
+
+    parentNode.children.delete(node.name);
+
+    this._onDidChangeArchives.fire(Uri.file(node.archivePath));
+  }
+
+  /**
+   * Gets the archive entry paths of a node and of all files below it
+   */
+  private getEntryPaths(node: VirtualNode): string[] {
+    if (node.type === FileType.File) {
+      return [this.getFilePathFromNode(node)];
+    }
+
+    const filePaths: string[] = [];
+
+    node.children?.forEach((childNode) =>
+      filePaths.push(...this.getEntryPaths(childNode)),
+    );
+
+    return filePaths;
   }
 
   /**
@@ -267,26 +351,34 @@ export class VirtualFileService {
   /**
    * Saves an archive to disk
    */
-  private async saveArchive(archivePath: string): Promise<void> {
+  private async saveArchive(
+    archivePath: string,
+    entries: Map<string, BigFileEntry>,
+  ): Promise<void> {
     const archive = this.archiveStorage.get(archivePath);
 
     if (!archive) {
       throw new Error('Archive not found');
     }
 
+    let layout: ArchiveLayout;
+
     try {
-      const layout = await writeArchiveFile(archivePath, archive);
-
-      layout.placedEntries.forEach(({ entry, offset, size }) => {
-        entry.offset = offset;
-        entry.size = size;
-      });
-
-      archive.archiveSize = layout.totalSize;
+      layout = await writeArchiveFile(archivePath, archive.magic, entries);
     } catch (error) {
       console.error('Failed to save archive:', error);
       throw error;
     }
+
+    layout.placedEntries.forEach(({ entry, offset, size }) => {
+      entry.offset = offset;
+      entry.size = size;
+    });
+
+    archive.entries = entries;
+    archive.entryCount = entries.size;
+    archive.archiveSize = layout.totalSize;
+    archive.indexTableEndOffset = layout.indexTableEndOffset;
   }
 
   /**

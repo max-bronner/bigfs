@@ -104,10 +104,11 @@ const copyEntryData = async (
 
 export const writeArchiveFile = async (
   archivePath: string,
-  archive: ParsedArchive,
+  magic: string,
+  entries: Map<string, BigFileEntry>,
 ): Promise<ArchiveLayout> => {
-  const layout = computeArchiveLayout(archive.entries);
-  const indexTable = serializeIndexTable(archive.magic, layout);
+  const layout = computeArchiveLayout(entries);
+  const indexTable = serializeIndexTable(magic, layout);
 
   const tempPath = `${archivePath}.${process.pid}.tmp`;
 
