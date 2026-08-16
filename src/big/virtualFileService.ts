@@ -6,6 +6,7 @@ import {
   FileSystemError,
   Uri,
 } from 'vscode';
+import type { FileSystemWatcher } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import type { ArchiveLayout, ParsedArchive, BigFileEntry } from '../types';
 import {
@@ -37,10 +38,85 @@ export class VirtualFileService {
 
   private emptyDirectories = new Map<string, Set<string>>();
 
+  private readonly archiveWatcher: FileSystemWatcher;
+
+  private lastWrittenAt = new Map<string, number>();
+
   private readonly initialScan: Promise<void>;
 
   constructor() {
     this.initialScan = this.scanWorkspace();
+    this.archiveWatcher = this.watchArchives();
+  }
+
+  public dispose(): void {
+    this.archiveWatcher.dispose();
+  }
+
+  /**
+   * Follows the archives on disk, so edits made outside the editor show up
+   */
+  private watchArchives(): FileSystemWatcher {
+    const watcher = workspace.createFileSystemWatcher(BIG_PATTERN);
+
+    watcher.onDidChange((uri) => this.reloadArchive(uri));
+    watcher.onDidCreate((uri) => this.reloadArchive(uri));
+    watcher.onDidDelete((uri) => this.forgetArchive(uri));
+
+    return watcher;
+  }
+
+  /**
+   * Reads an archive again after it changed on disk
+   */
+  private async reloadArchive(uri: Uri): Promise<void> {
+    const archivePath = uri.fsPath;
+
+    if (await this.hasOwnWrite(archivePath)) {
+      return;
+    }
+
+    try {
+      await this.addArchiveToTree(uri);
+    } catch (error) {
+      console.error('Failed to reload archive:', error);
+      return;
+    }
+
+    this._onDidChangeArchives.fire(archivePath);
+  }
+
+  /**
+   * Drops an archive that is gone from disk
+   */
+  private forgetArchive(uri: Uri): void {
+    const archivePath = uri.fsPath;
+
+    this.archiveStorage.delete(archivePath);
+    this.virtualFileTree.delete(path.basename(archivePath));
+    this.emptyDirectories.delete(archivePath);
+    this.lastWrittenAt.delete(archivePath);
+
+    this._onDidChangeArchives.fire(archivePath);
+  }
+
+  /**
+   * Whether the archive on disk is still the one this service last wrote
+   */
+  private async hasOwnWrite(archivePath: string): Promise<boolean> {
+    const writtenAt = this.lastWrittenAt.get(archivePath);
+
+    if (!writtenAt) {
+      return false;
+    }
+
+    try {
+      const { mtime } = await workspace.fs.stat(Uri.file(archivePath));
+
+      return mtime === writtenAt;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -348,7 +424,9 @@ export class VirtualFileService {
     const removeEntries: EntriesCallback = (entries) => {
       for (const filePath of removedPaths) {
         if (!entries.delete(filePath)) {
-          throw new Error(`Entry missing from archive: ${filePath}`);
+          throw FileSystemError.FileNotFound(
+            `Entry missing from archive: ${filePath}`,
+          );
         }
       }
     };
@@ -427,7 +505,9 @@ export class VirtualFileService {
           const entry = entries.get(filePath);
 
           if (!entry) {
-            throw new Error(`Entry missing from archive: ${filePath}`);
+            throw FileSystemError.FileNotFound(
+            `Entry missing from archive: ${filePath}`,
+          );
           }
 
           const copiedPath = this.movePath(filePath, sourcePath, targetPath);
@@ -525,7 +605,9 @@ export class VirtualFileService {
           const entry = entries.get(filePath);
 
           if (!entry) {
-            throw new Error(`Entry missing from archive: ${filePath}`);
+            throw FileSystemError.FileNotFound(
+            `Entry missing from archive: ${filePath}`,
+          );
           }
 
           const movedPath = this.movePath(filePath, sourcePath, targetPath);
@@ -778,7 +860,7 @@ export class VirtualFileService {
     const archive = this.archiveStorage.get(archivePath);
 
     if (!archive) {
-      throw new Error('Archive not found');
+      throw FileSystemError.Unavailable(archivePath);
     }
 
     const entries = new Map(archive.entries);
@@ -801,6 +883,10 @@ export class VirtualFileService {
     });
 
     archive.entries = entries;
+
+    const { mtime } = await workspace.fs.stat(Uri.file(archivePath));
+
+    this.lastWrittenAt.set(archivePath, mtime);
 
     this.rebuildTree(archivePath);
   }

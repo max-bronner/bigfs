@@ -9,6 +9,8 @@ import { SCHEME } from './constants';
 export function activate(context: vscode.ExtensionContext) {
   const fileService = new VirtualFileService();
 
+  context.subscriptions.push(fileService);
+
   const setContextKey = (key: string, value: boolean) =>
     vscode.commands.executeCommand('setContext', `${SCHEME}.${key}`, value);
 

@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
+import path from 'path';
 import { VirtualFileService } from './virtualFileService';
+import { SCHEME } from '../constants';
 import type { VirtualNode } from '../types';
 
 export class BigFileSystemProvider implements vscode.FileSystemProvider {
@@ -8,7 +10,31 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   >();
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
-  constructor(private fileService: VirtualFileService) {}
+  constructor(private fileService: VirtualFileService) {
+    fileService.onDidChangeArchives((archivePath) => {
+      this.fireChangedDocuments(archivePath);
+    });
+  }
+
+  private fireChangedDocuments(archivePath: string): void {
+    const archivePrefix = `/${path.basename(archivePath)}/`;
+
+    const changes = vscode.workspace.textDocuments
+      .filter(
+        (document) =>
+          document.uri.scheme === SCHEME &&
+          !document.isDirty &&
+          document.uri.path.startsWith(archivePrefix),
+      )
+      .map((document) => ({
+        type: vscode.FileChangeType.Changed,
+        uri: document.uri,
+      }));
+
+    if (changes.length) {
+      this.onDidChangeFileEmitter.fire(changes);
+    }
+  }
 
   watch(uri: vscode.Uri): vscode.Disposable {
     return new vscode.Disposable(() => {});
