@@ -9,11 +9,16 @@ import {
   FileType,
   DataTransfer,
   DataTransferItem,
+  window,
 } from 'vscode';
 import type { VirtualFileService } from './virtualFileService';
-import { DragDropService } from './dragDropService';
+import {
+  getNodeUri,
+  getParentPath,
+  importFromDisk,
+  moveNodes,
+} from './fileOperations';
 import type { VirtualNode } from '../types';
-import { SCHEME } from '../constants';
 
 export class BigTreeNode extends TreeItem {
   constructor(
@@ -23,7 +28,7 @@ export class BigTreeNode extends TreeItem {
     super(node.name, collapsibleState);
 
     this.id = node.path;
-    this.resourceUri = Uri.from({ scheme: SCHEME, path: node.path });
+    this.resourceUri = getNodeUri(node.path);
     this.tooltip = node.path;
 
     if (node.type === FileType.File) {
@@ -54,13 +59,10 @@ export class BigExplorerProvider
   readonly onDidChangeTreeData: Event<VirtualNode | undefined | void> =
     this._onDidChangeTreeData.event;
 
-  private dragDropService: DragDropService;
-
   constructor(private fileService: VirtualFileService) {
     this.fileService.onDidChangeArchives(() => {
       this._onDidChangeTreeData.fire();
     });
-    this.dragDropService = new DragDropService(fileService);
   }
 
   refresh(): void {
@@ -99,44 +101,62 @@ export class BigExplorerProvider
     target: VirtualNode | undefined,
     dataTransfer: DataTransfer,
   ): Promise<void> {
-    if (!target || target.type !== FileType.Directory) {
+    const directory = target && this.resolveDropDirectory(target);
+
+    if (!directory) {
       return;
     }
 
-    const internalData = dataTransfer.get(this.dropMimeTypes[0]);
+    try {
+      const internalData = dataTransfer.get(this.dropMimeTypes[0]);
 
-    if (internalData) {
-      const sources = internalData.value as VirtualNode[];
+      if (internalData) {
+        const moved = await moveNodes(
+          this.fileService,
+          internalData.value as VirtualNode[],
+          directory,
+        );
 
-      const validNodes = sources.filter((source) => {
-        const isSameDirectory = `${target.path}/${source.name}` === source.path;
-        const isChildDirectory = target.path.startsWith(source.path);
-        if (isSameDirectory || isChildDirectory) {
-          return false;
-        } else {
-          return true;
+        if (moved) {
+          const items = `${moved} item${moved === 1 ? '' : 's'}`;
+
+          window.showInformationMessage(`Moved ${items} to ${directory.name}.`);
         }
-      });
 
-      if (!validNodes.length) {
         return;
       }
-      // Handle internal drag and drop
-      console.log('internalData', validNodes);
-      console.log('target', target);
-      return;
+
+      const externalData = dataTransfer.get(this.dropMimeTypes[1]);
+
+      if (externalData) {
+        const sourceUris = String(externalData.value)
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => Uri.parse(line));
+
+        const imported = await importFromDisk(
+          this.fileService,
+          sourceUris,
+          directory,
+        );
+
+        if (imported) {
+          const files = `${imported} file${imported === 1 ? '' : 's'}`;
+
+          window.showInformationMessage(`Added ${files} to ${directory.name}.`);
+        }
+      }
+    } catch (error) {
+      window.showErrorMessage(`Drop failed: ${error}`);
+    }
+  }
+
+  private resolveDropDirectory(target: VirtualNode): VirtualNode | undefined {
+    if (target.type === FileType.Directory) {
+      return target;
     }
 
-    const externalData = dataTransfer.get(this.dropMimeTypes[1]);
-    if (externalData) {
-      const uris = externalData.value
-        .split(/\r?\n/)
-        .map((line: string) => line.trim())
-        .map((line: string) => Uri.parse(line));
-      // Handle external drag and drop
-      this.dragDropService.handleExternalDrop(uris, target);
-      return;
-    }
-    this.refresh();
+    return this.fileService.getNode(getNodeUri(getParentPath(target.path)));
   }
 }

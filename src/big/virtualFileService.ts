@@ -18,6 +18,15 @@ import path from 'path';
 
 type EntriesCallback = (entries: Map<string, BigFileEntry>) => void;
 
+interface EntryMove {
+  sourcePath: string;
+  targetPath: string;
+  filePaths: string[];
+}
+
+const hasStoredEntries = (move: EntryMove): boolean =>
+  Boolean(move.filePaths.length);
+
 export class VirtualFileService {
   private _onDidChangeArchives = new EventEmitter<string>();
   public readonly onDidChangeArchives = this._onDidChangeArchives.event;
@@ -264,59 +273,132 @@ export class VirtualFileService {
    * Renames or moves a file or a directory with everything below it
    */
   public async rename(oldUri: Uri, newUri: Uri): Promise<void> {
-    const source = this.getArchiveContext(oldUri);
     const target = this.getArchiveContext(newUri);
-    const node = this.getNode(oldUri);
-
-    if (!node) {
-      throw FileSystemError.FileNotFound(oldUri);
-    }
-
-    if (source.archivePath !== target.archivePath) {
-      throw FileSystemError.NoPermissions('Cannot move between archives');
-    }
-
-    if (!source.entryPath || !target.entryPath) {
-      throw FileSystemError.NoPermissions('Cannot rename the archive root');
-    }
-
-    if (this.isPathBelow(target.entryPath, source.entryPath)) {
-      throw FileSystemError.NoPermissions('Cannot move an entry into itself');
-    }
-
-    const filePaths = this.getEntryPaths(node);
-
-    this.moveEmptyDirectories(
-      source.archivePath,
-      source.entryPath,
+    const move = this.getEntryMove(
+      oldUri,
+      target.archivePath,
       target.entryPath,
     );
 
-    if (!filePaths.length) {
-      this.rebuildTree(source.archivePath);
+    await this.applyMoves(target.archivePath, [move]);
+  }
+
+  /**
+   * Moves entries into a directory with their names.
+   */
+  public async moveEntries(
+    sourceUris: Uri[],
+    targetDirectoryUri: Uri,
+  ): Promise<void> {
+    const target = this.getArchiveContext(targetDirectoryUri);
+    const moves: EntryMove[] = [];
+
+    for (const sourceUri of sourceUris) {
+      const name = path.posix.basename(sourceUri.path);
+      const targetPath = target.entryPath
+        ? `${target.entryPath}/${name}`
+        : name;
+
+      moves.push(this.getEntryMove(sourceUri, target.archivePath, targetPath));
+    }
+
+    await this.applyMoves(target.archivePath, moves);
+  }
+
+  /**
+   * Adds files to a directory.
+   */
+  public async addFiles(
+    targetDirectoryUri: Uri,
+    files: { name: string; content: Uint8Array }[],
+  ): Promise<void> {
+    const { archivePath, entryPath } =
+      this.getArchiveContext(targetDirectoryUri);
+
+    const addEntries: EntriesCallback = (entries) => {
+      for (const { name, content } of files) {
+        const filePath = entryPath ? `${entryPath}/${name}` : name;
+
+        entries.set(filePath, {
+          name: filePath,
+          offset: 0, // assigned when the archive is written
+          size: content.length,
+          pendingData: content,
+        });
+      }
+    };
+
+    await this.saveArchive(archivePath, addEntries);
+  }
+
+  /**
+   * Check affected URIs and if move is valid
+   */
+  private getEntryMove(
+    sourceUri: Uri,
+    targetArchivePath: string,
+    targetPath: string,
+  ): EntryMove {
+    const source = this.getArchiveContext(sourceUri);
+    const node = this.getNode(sourceUri);
+
+    if (!node) {
+      throw FileSystemError.FileNotFound(sourceUri);
+    }
+
+    if (source.archivePath !== targetArchivePath) {
+      throw FileSystemError.NoPermissions('Cannot move between archives');
+    }
+
+    if (!source.entryPath || !targetPath) {
+      throw FileSystemError.NoPermissions('Cannot move the archive itself');
+    }
+
+    if (this.isPathBelow(targetPath, source.entryPath)) {
+      throw FileSystemError.NoPermissions('Cannot move an entry into itself');
+    }
+
+    return {
+      sourcePath: source.entryPath,
+      targetPath,
+      filePaths: this.getEntryPaths(node),
+    };
+  }
+
+  /**
+   * Apply planned moves as a batch
+   */
+  private async applyMoves(
+    archivePath: string,
+    moves: EntryMove[],
+  ): Promise<void> {
+    for (const { sourcePath, targetPath } of moves) {
+      this.moveEmptyDirectories(archivePath, sourcePath, targetPath);
+    }
+
+    if (!moves.some(hasStoredEntries)) {
+      this.rebuildTree(archivePath);
       return;
     }
 
-    const moveEntries: EntriesCallback = (entries) => {
-      filePaths.forEach((filePath) => {
-        const entry = entries.get(filePath);
+    const moveEntryPaths: EntriesCallback = (entries) => {
+      for (const { sourcePath, targetPath, filePaths } of moves) {
+        for (const filePath of filePaths) {
+          const entry = entries.get(filePath);
 
-        if (!entry) {
-          throw new Error(`Entry missing from archive: ${filePath}`);
+          if (!entry) {
+            throw new Error(`Entry missing from archive: ${filePath}`);
+          }
+
+          const movedPath = this.movePath(filePath, sourcePath, targetPath);
+
+          entries.delete(filePath);
+          entries.set(movedPath, { ...entry, name: movedPath });
         }
-
-        const movedPath = this.movePath(
-          filePath,
-          source.entryPath,
-          target.entryPath,
-        );
-
-        entries.delete(filePath);
-        entries.set(movedPath, { ...entry, name: movedPath });
-      });
+      }
     };
 
-    await this.saveArchive(source.archivePath, moveEntries);
+    await this.saveArchive(archivePath, moveEntryPaths);
   }
 
   /**
