@@ -6,7 +6,7 @@ import {
   computeArchiveLayout,
   serializeIndexTable,
 } from './bigParser';
-import type { ParsedArchive } from '../types';
+import type { ArchiveLayout, ParsedArchive } from '../types';
 
 export interface IndexTableEntry {
   name: string;
@@ -126,9 +126,10 @@ export const readArchiveFile = async (
 export const writeArchiveFile = async (
   archivePath: string,
   archive: ParsedArchive,
-): Promise<void> => {
+): Promise<ArchiveLayout> => {
   const layout = computeArchiveLayout(archive.entries);
   const indexTable = serializeIndexTable(archive.magic, layout);
+
   const tempPath = `${archivePath}.${process.pid}.tmp`;
 
   try {
@@ -145,19 +146,16 @@ export const writeArchiveFile = async (
       }
 
       await tempFile.truncate(layout.totalSize);
+      await tempFile.sync();
     } finally {
       await tempFile.close();
     }
+
+    await rename(tempPath, archivePath);
   } catch (error) {
     await unlink(tempPath).catch(() => undefined);
     throw error;
   }
 
-  await rename(tempPath, archivePath);
-
-  layout.placedEntries.forEach(({ entry, offset, size }) => {
-    entry.offset = offset;
-    entry.size = size;
-  });
-  archive.archiveSize = layout.totalSize;
+  return layout;
 };

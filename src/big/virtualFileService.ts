@@ -243,7 +243,14 @@ export class VirtualFileService {
     }
 
     try {
-      await writeArchiveFile(archivePath, archive);
+      const layout = await writeArchiveFile(archivePath, archive);
+
+      layout.placedEntries.forEach(({ entry, offset, size }) => {
+        entry.offset = offset;
+        entry.size = size;
+      });
+
+      archive.archiveSize = layout.totalSize;
     } catch (error) {
       console.error('Failed to save archive:', error);
       throw error;
