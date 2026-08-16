@@ -217,10 +217,6 @@ export class VirtualFileService {
     };
 
     await this.saveArchive(node.archivePath, removeEntries);
-
-    parentNode.children.delete(node.name);
-
-    this._onDidChangeArchives.fire(Uri.file(node.archivePath));
   }
 
   /**
@@ -244,8 +240,8 @@ export class VirtualFileService {
    * Loads an archive file and adds it to the virtual file tree
    */
   private async addArchiveToTree(uri: Uri): Promise<void> {
-    const archiveName = path.basename(uri.path);
     const archivePath = uri.fsPath;
+    const archiveName = path.basename(archivePath);
     const archiveData = await readArchiveIndexTable(archivePath);
 
     this.archiveStorage.set(archivePath, archiveData);
@@ -391,9 +387,27 @@ export class VirtualFileService {
     });
 
     archive.entries = entries;
-    archive.entryCount = entries.size;
-    archive.archiveSize = layout.totalSize;
-    archive.indexTableEndOffset = layout.indexTableEndOffset;
+
+    this.rebuildTree(archivePath);
+  }
+
+  /**
+   * Rebuilds archive's tree from its entries
+   */
+  private rebuildTree(archivePath: string): void {
+    const archive = this.archiveStorage.get(archivePath);
+    const archiveName = path.basename(archivePath);
+
+    if (!archive || !this.virtualFileTree.has(archiveName)) {
+      return;
+    }
+
+    this.virtualFileTree.set(
+      archiveName,
+      this.createVirtualFileTree(archiveName, archivePath, archive.entries),
+    );
+
+    this._onDidChangeArchives.fire(Uri.file(archivePath));
   }
 
   /**

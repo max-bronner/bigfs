@@ -17,9 +17,6 @@ export interface BigFileEntry {
 
 export interface ParsedArchive {
   magic: string;
-  archiveSize: number;
-  entryCount: number;
-  indexTableEndOffset: number;
   entries: Map<string, BigFileEntry>;
 }
 

@@ -22,6 +22,7 @@ export class BigTreeNode extends TreeItem {
   ) {
     super(node.name, collapsibleState);
 
+    this.id = node.path;
     this.resourceUri = Uri.from({ scheme: SCHEME, path: node.path });
     this.tooltip = node.path;
 

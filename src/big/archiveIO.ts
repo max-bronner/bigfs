@@ -19,23 +19,47 @@ export const readArchiveIndexTable = async (
 
   try {
     const headerBuffer = Buffer.alloc(HEADER_LENGTH);
-    const { bytesRead } = await archiveFile.read(
+    const { bytesRead: headerBytesRead } = await archiveFile.read(
       headerBuffer,
       0,
       HEADER_LENGTH,
       0,
     );
 
-    if (bytesRead < HEADER_LENGTH) {
+    if (headerBytesRead < HEADER_LENGTH) {
       throw new Error('File too small to be a valid BIG archive');
     }
 
     const header = parseHeader(headerBuffer);
+    const { size: fileSize } = await archiveFile.stat();
 
-    const tableLength = Math.max(header.indexTableEndOffset - HEADER_LENGTH, 0);
+    const hasValidIndexTable =
+      header.indexTableEndOffset < HEADER_LENGTH ||
+      header.indexTableEndOffset > fileSize;
+
+    if (hasValidIndexTable) {
+      throw new Error(
+        `Index table ends at ${header.indexTableEndOffset}, ` +
+          `outside the archive of ${fileSize} bytes`,
+      );
+    }
+
+    const tableLength = header.indexTableEndOffset - HEADER_LENGTH;
     const table = Buffer.alloc(tableLength);
+
     if (tableLength) {
-      await archiveFile.read(table, 0, tableLength, HEADER_LENGTH);
+      const { bytesRead: tableBytesRead } = await archiveFile.read(
+        table,
+        0,
+        tableLength,
+        HEADER_LENGTH,
+      );
+
+      if (tableBytesRead < tableLength) {
+        throw new Error(
+          `Archive ends inside its index table, ${tableBytesRead} of ${tableLength} bytes`,
+        );
+      }
     }
 
     const entries = new Map<string, BigFileEntry>();
@@ -43,13 +67,7 @@ export const readArchiveIndexTable = async (
 
     indexTable.forEach((entry) => entries.set(entry.name, entry));
 
-    return {
-      magic: header.magic,
-      archiveSize: header.archiveSize,
-      entryCount: header.entryCount,
-      indexTableEndOffset: header.indexTableEndOffset,
-      entries,
-    };
+    return { magic: header.magic, entries };
   } finally {
     await archiveFile.close();
   }
