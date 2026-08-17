@@ -7,11 +7,15 @@
     "sourceMap": true,
     "rootDir": "src",
     "types": ["node", "mocha"],
+    "incremental": true,
     "strict": true /* enable all strict type-checking options */
     /* Additional Checks */
     // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
     // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
     // "noUnusedParameters": true,  /* Report errors on unused parameters. */
+  },
+  "watchOptions": {
+    "excludeDirectories": ["**/node_modules", ".vscode-test", "out"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "out", ".vscode-test"]
