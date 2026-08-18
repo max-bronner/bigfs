@@ -10,12 +10,13 @@ import type { ExtensionContext, Progress, TreeView } from 'vscode';
 import { SCHEME } from '../constants';
 import {
   deleteNodes,
-  getNodeUri,
-  getParentPath,
   getTopLevelNodes,
   importFromDisk,
   resolveConflicts,
 } from './fileOperations';
+import { formatCount } from '../common/messages';
+import { getParentPath, splitPath } from '../common/paths';
+import { getNodeUri } from '../common/uri';
 import type { VirtualNode } from '../types';
 import type { VirtualFileService } from './virtualFileService';
 
@@ -151,7 +152,7 @@ const getExtractedFiles = (
       extractedFiles.push({
         name: relativePath,
         nodePath: fileNode.path,
-        targetUri: Uri.joinPath(targetDirectoryUri, ...relativePath.split('/')),
+        targetUri: Uri.joinPath(targetDirectoryUri, ...splitPath(relativePath)),
       });
     }
   }
@@ -344,9 +345,9 @@ export const registerArchiveCommands = (
     );
 
     if (importedData) {
-      const files = `${importedData} file${importedData === 1 ? '' : 's'}`;
-
-      window.showInformationMessage(`Added ${files} to ${directory.name}.`);
+      window.showInformationMessage(
+        `Added ${formatCount(importedData, 'file')} to ${directory.name}.`,
+      );
     }
   };
 

@@ -1,13 +1,9 @@
 import { commands, env, window, FileType } from 'vscode';
 import type { ExtensionContext, TreeView } from 'vscode';
 import { SCHEME } from '../constants';
-import {
-  copyNodes,
-  getNodeUri,
-  getParentPath,
-  getTopLevelNodes,
-  moveNodes,
-} from './fileOperations';
+import { copyNodes, getTopLevelNodes, moveNodes } from './fileOperations';
+import { getParentPath, splitPath } from '../common/paths';
+import { getNodeUri } from '../common/uri';
 import type { VirtualNode } from '../types';
 import type { VirtualFileService } from './virtualFileService';
 
@@ -19,7 +15,7 @@ interface ClipboardContent {
 }
 
 const getEntryPath = (node: VirtualNode): string => {
-  const [, ...segments] = node.path.split('/').filter(Boolean);
+  const [, ...segments] = splitPath(node.path);
 
   return segments.join('\\');
 };

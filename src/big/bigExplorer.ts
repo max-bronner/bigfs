@@ -12,12 +12,10 @@ import {
   window,
 } from 'vscode';
 import type { VirtualFileService } from './virtualFileService';
-import {
-  getNodeUri,
-  getParentPath,
-  importFromDisk,
-  moveNodes,
-} from './fileOperations';
+import { importFromDisk, moveNodes } from './fileOperations';
+import { formatCount } from '../common/messages';
+import { getParentPath } from '../common/paths';
+import { getNodeUri } from '../common/uri';
 import type { VirtualNode } from '../types';
 
 const nameCollator = new Intl.Collator(undefined, {
@@ -134,9 +132,9 @@ export class BigExplorerProvider
         );
 
         if (moved) {
-          const items = `${moved} item${moved === 1 ? '' : 's'}`;
-
-          window.showInformationMessage(`Moved ${items} to ${directory.name}.`);
+          window.showInformationMessage(
+            `Moved ${formatCount(moved, 'item')} to ${directory.name}.`,
+          );
         }
 
         return;
@@ -158,9 +156,9 @@ export class BigExplorerProvider
         );
 
         if (imported) {
-          const files = `${imported} file${imported === 1 ? '' : 's'}`;
-
-          window.showInformationMessage(`Added ${files} to ${directory.name}.`);
+          window.showInformationMessage(
+            `Added ${formatCount(imported, 'file')} to ${directory.name}.`,
+          );
         }
       }
     } catch (error) {

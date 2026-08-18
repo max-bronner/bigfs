@@ -1,6 +1,12 @@
 import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
-import { SCHEME } from '../constants';
+import {
+  getAvailableName,
+  getParentPath,
+  isPathBelow,
+  splitPath,
+} from '../common/paths';
+import { getNodeUri } from '../common/uri';
 import type { VirtualNode } from '../types';
 import type { VirtualFileService } from './virtualFileService';
 
@@ -16,15 +22,6 @@ const MAX_LISTED_NAMES = 5;
 const REPLACE_LABEL = 'Replace';
 const SKIP_LABEL = 'Skip';
 const DELETE_LABEL = 'Delete';
-
-export const getNodeUri = (nodePath: string): Uri =>
-  Uri.from({ scheme: SCHEME, path: nodePath });
-
-export const getParentPath = (nodePath: string): string =>
-  nodePath.slice(0, nodePath.lastIndexOf('/'));
-
-const isPathBelow = (nodePath: string, ancestorPath: string): boolean =>
-  nodePath === ancestorPath || nodePath.startsWith(`${ancestorPath}/`);
 
 const getListedNames = (names: string[]): string => {
   const listedNames = names.slice(0, MAX_LISTED_NAMES);
@@ -112,9 +109,7 @@ const findChild = (
 ): VirtualNode | undefined => {
   let node: VirtualNode | undefined = directory;
 
-  const pathSegments = relativePath.split('/');
-
-  for (const segment of pathSegments) {
+  for (const segment of splitPath(relativePath)) {
     node = node?.children?.get(segment);
   }
 
@@ -174,25 +169,6 @@ export const moveNodes = async (
   await fileService.moveEntries(acceptedUris, getNodeUri(targetDirectory.path));
 
   return acceptedNodes.length;
-};
-
-const getAvailableName = (takenNames: Set<string>, name: string): string => {
-  if (!takenNames.has(name)) {
-    return name;
-  }
-
-  const extension = path.posix.extname(name);
-  const baseName = name.slice(0, name.length - extension.length);
-
-  let availableName = `${baseName} copy${extension}`;
-  let copyNumber = 2;
-
-  while (takenNames.has(availableName)) {
-    availableName = `${baseName} copy ${copyNumber}${extension}`;
-    copyNumber += 1;
-  }
-
-  return availableName;
 };
 
 export const copyNodes = async (

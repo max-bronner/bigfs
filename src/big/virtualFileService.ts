@@ -15,6 +15,13 @@ import {
   writeArchiveFile,
 } from './archiveIO';
 import { VirtualNode } from '../types';
+import {
+  getParentPath,
+  isPathBelow,
+  movePath,
+  splitPath,
+} from '../common/paths';
+import { parseNodeUri } from '../common/uri';
 import path from 'path';
 
 type EntriesCallback = (entries: Map<string, BigFileEntry>) => void;
@@ -166,7 +173,7 @@ export class VirtualFileService {
    * Gets a node together with every directory above it, starting at the archive
    */
   private getNodeChain(uri: Uri): VirtualNode[] {
-    const { archiveName, nodes } = this.parseUri(uri);
+    const { archiveName, entrySegments } = parseNodeUri(uri);
     const rootNode = this.virtualFileTree.get(archiveName);
 
     if (!rootNode) {
@@ -175,7 +182,7 @@ export class VirtualFileService {
 
     const chain = [rootNode];
 
-    for (const nodeName of nodes) {
+    for (const nodeName of entrySegments) {
       const childNode = chain.at(-1)!.children?.get(nodeName);
 
       if (!childNode) {
@@ -255,14 +262,17 @@ export class VirtualFileService {
     archivePath: string;
     entryPath: string;
   } {
-    const { archiveName, nodes } = this.parseUri(uri);
+    const { archiveName, entrySegments } = parseNodeUri(uri);
     const rootNode = this.virtualFileTree.get(archiveName);
 
     if (!rootNode) {
       throw FileSystemError.FileNotFound(uri);
     }
 
-    return { archivePath: rootNode.archivePath, entryPath: nodes.join('/') };
+    return {
+      archivePath: rootNode.archivePath,
+      entryPath: entrySegments.join('/'),
+    };
   }
 
   /**
@@ -343,22 +353,13 @@ export class VirtualFileService {
     };
 
     for (const removedPath of removedPaths) {
-      let directoryPath = this.getEntryDirectory(removedPath);
+      let directoryPath = getParentPath(removedPath);
 
       while (directoryPath && !hasEntriesBelow(directoryPath)) {
         this.keepEmptyDirectory(archivePath, directoryPath);
-        directoryPath = this.getEntryDirectory(directoryPath);
+        directoryPath = getParentPath(directoryPath);
       }
     }
-  }
-
-  /**
-   * Get directory of an entry path
-   */
-  private getEntryDirectory(entryPath: string): string {
-    const separatorIndex = entryPath.lastIndexOf('/');
-
-    return separatorIndex < 0 ? '' : entryPath.slice(0, separatorIndex);
   }
 
   /**
@@ -506,11 +507,11 @@ export class VirtualFileService {
 
           if (!entry) {
             throw FileSystemError.FileNotFound(
-            `Entry missing from archive: ${filePath}`,
-          );
+              `Entry missing from archive: ${filePath}`,
+            );
           }
 
-          const copiedPath = this.movePath(filePath, sourcePath, targetPath);
+          const copiedPath = movePath(filePath, sourcePath, targetPath);
 
           entries.set(copiedPath, { ...entry, name: copiedPath });
         }
@@ -569,7 +570,7 @@ export class VirtualFileService {
       throw FileSystemError.NoPermissions('Cannot move the archive itself');
     }
 
-    if (this.isPathBelow(targetPath, source.entryPath)) {
+    if (isPathBelow(targetPath, source.entryPath)) {
       throw FileSystemError.NoPermissions('Cannot move an entry into itself');
     }
 
@@ -606,11 +607,11 @@ export class VirtualFileService {
 
           if (!entry) {
             throw FileSystemError.FileNotFound(
-            `Entry missing from archive: ${filePath}`,
-          );
+              `Entry missing from archive: ${filePath}`,
+            );
           }
 
-          const movedPath = this.movePath(filePath, sourcePath, targetPath);
+          const movedPath = movePath(filePath, sourcePath, targetPath);
 
           entries.delete(filePath);
           entries.set(movedPath, { ...entry, name: movedPath });
@@ -674,7 +675,7 @@ export class VirtualFileService {
     archiveFile: BigFileEntry,
     archiveNode: VirtualNode,
   ): void {
-    const filePathParts = this.parseFilePath(archiveFile.name);
+    const filePathParts = splitPath(archiveFile.name);
     let parentNode = archiveNode;
 
     filePathParts.forEach((nodeName, index) => {
@@ -751,7 +752,7 @@ export class VirtualFileService {
   ): void {
     let parentNode = rootNode;
 
-    for (const segment of directoryPath.split('/')) {
+    for (const segment of splitPath(directoryPath)) {
       const existingNode = parentNode.children?.get(segment);
 
       if (existingNode && existingNode.type !== FileType.Directory) {
@@ -773,7 +774,7 @@ export class VirtualFileService {
     }
 
     directories.forEach((directoryPath) => {
-      if (this.isPathBelow(directoryPath, entryPath)) {
+      if (isPathBelow(directoryPath, entryPath)) {
         directories.delete(directoryPath);
       }
     });
@@ -794,40 +795,18 @@ export class VirtualFileService {
     }
 
     Array.from(directories)
-      .filter((directoryPath) => this.isPathBelow(directoryPath, sourcePath))
+      .filter((directoryPath) => isPathBelow(directoryPath, sourcePath))
       .forEach((directoryPath) => {
         directories.delete(directoryPath);
-        directories.add(this.movePath(directoryPath, sourcePath, targetPath));
+        directories.add(movePath(directoryPath, sourcePath, targetPath));
       });
   }
 
   /**
-   * Whether a path is another path or sits below it
-   */
-  private isPathBelow(filePath: string, ancestorPath: string): boolean {
-    return filePath === ancestorPath || filePath.startsWith(`${ancestorPath}/`);
-  }
-
-  /**
-   * Repoints a path from below one entry to below another
-   */
-  private movePath(
-    filePath: string,
-    sourcePath: string,
-    targetPath: string,
-  ): string {
-    return filePath === sourcePath
-      ? targetPath
-      : `${targetPath}${filePath.slice(sourcePath.length)}`;
-  }
-
-  /**
-   * Gets the file path from a node (for archive lookup)
+   * Gets the archive entry path a node stands for
    */
   private getFilePathFromNode(node: VirtualNode): string {
-    // Extract the file path from the node's path by removing the archive name
-    const pathParts = node.path.split('/').filter((part) => part.length);
-    return pathParts.slice(1).join('/'); // Remove archive name, keep the rest
+    return splitPath(node.path).slice(1).join('/');
   }
 
   /**
@@ -908,30 +887,6 @@ export class VirtualFileService {
     );
 
     this._onDidChangeArchives.fire(archivePath);
-  }
-
-  /**
-   * Parses a BIG file URI into the archive name and the nodes of the file path as an array
-   */
-  private parseUri(uri: Uri): { archiveName: string; nodes: string[] } {
-    const [archiveName, ...nodes] = uri.path
-      .split('/')
-      .filter((part) => part.length);
-
-    return { archiveName, nodes };
-  }
-
-  /**
-   * Parses a file path into its components
-   */
-  private parseFilePath(filePath: string): string[] {
-    const parsedPath = path.parse(filePath);
-    const filePathParts = parsedPath.dir
-      .split('/')
-      .filter((part) => part.length);
-
-    filePathParts.push(parsedPath.base);
-    return filePathParts;
   }
 
   /**
