@@ -36,7 +36,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     }
   }
 
-  watch(uri: vscode.Uri): vscode.Disposable {
+  watch(_uri: vscode.Uri): vscode.Disposable {
     return new vscode.Disposable(() => {});
   }
 

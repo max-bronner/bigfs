@@ -1,8 +1,13 @@
 {
   "name": "bigfs",
   "displayName": "bigFS",
-  "description": "",
+  "description": "Browse and edit BIG archives directly in VS Code",
   "version": "0.0.1",
+  "publisher": "max-bronner",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/max-bronner/bigfs.git"
+  },
   "engines": {
     "vscode": "^1.125.0",
     "node": ">=22"
@@ -10,11 +15,21 @@
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "big",
+    "archive",
+    "battle for middle earth",
+    "bfme",
+    "command and conquer",
+    "c&c",
+    "ea games",
+    "modding"
+  ],
   "activationEvents": [
     "onStartupFinished",
     "onFileSystem:bigfs"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.mjs",
   "contributes": {
     "views": {
       "explorer": [
@@ -256,12 +271,17 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./ --preserveWatchOutput",
-    "pretest": "npm run compile && npm run lint",
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && node esbuild.mjs",
+    "package": "npm run check-types && npm run lint && node esbuild.mjs --production",
+    "check-types": "tsc --noEmit",
+    "watch:esbuild": "node esbuild.mjs --watch",
+    "watch:tsc": "tsc --noEmit --watch --preserveWatchOutput --project tsconfig.json",
+    "compile-tests": "tsc -p ./ --outDir out",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "pretest": "npm run compile && npm run lint",
+    "test": "npm run test:unit && vscode-test",
+    "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\""
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -271,7 +291,9 @@
     "@typescript-eslint/parser": "^8.67.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.28.2",
     "eslint": "^10.8.1",
+    "mocha": "^11.8.0",
     "typescript": "~6.0.3"
   }
 }
