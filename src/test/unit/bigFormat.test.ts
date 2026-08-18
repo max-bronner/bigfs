@@ -50,7 +50,10 @@ suite('BIG format', () => {
     assert.strictEqual(header.archiveSize, layout.totalSize);
     assert.strictEqual(header.indexTableEndOffset, layout.indexTableEndOffset);
 
-    const table = indexTable.subarray(HEADER_LENGTH, header.indexTableEndOffset);
+    const table = indexTable.subarray(
+      HEADER_LENGTH,
+      header.indexTableEndOffset,
+    );
     const parsedEntries = parseIndexTable(table, header.entryCount);
 
     assert.deepStrictEqual(
@@ -71,8 +74,12 @@ suite('BIG format', () => {
     ]);
     const { indexTable } = serializeArchive(entries);
 
-    assert.ok(indexTable.includes(Buffer.from('data\\ini\\weapon.ini', 'utf-8')));
-    assert.ok(!indexTable.includes(Buffer.from('data/ini/weapon.ini', 'utf-8')));
+    assert.ok(
+      indexTable.includes(Buffer.from('data\\ini\\weapon.ini', 'utf-8')),
+    );
+    assert.ok(
+      !indexTable.includes(Buffer.from('data/ini/weapon.ini', 'utf-8')),
+    );
   });
 
   test('aligns data offsets to four bytes', () => {
@@ -115,10 +122,36 @@ suite('BIG format', () => {
     assert.strictEqual(layout.totalSize, HEADER_LENGTH);
   });
 
+  test('accepts only the supported magics', () => {
+    const headerWith = (magic: string): Buffer => {
+      const header = Buffer.alloc(HEADER_LENGTH);
+
+      header.write(magic, 0, 'ascii');
+
+      return header;
+    };
+
+    assert.strictEqual(parseHeader(headerWith('BIGF')).magic, 'BIGF');
+    assert.strictEqual(parseHeader(headerWith('BIG4')).magic, 'BIG4');
+
+    assert.throws(
+      () => parseHeader(headerWith('ZZZZ')),
+      /Invalid BIG file magic/,
+    );
+
+    assert.throws(
+      () => parseHeader(headerWith('XBIG')),
+      /Invalid BIG file magic/,
+    );
+  });
+
   test('rejects an index table with missing entries', () => {
     const entries = createEntries([{ name: 'a.txt', content: 'abc' }]);
     const { layout, indexTable } = serializeArchive(entries);
-    const table = indexTable.subarray(HEADER_LENGTH, layout.indexTableEndOffset);
+    const table = indexTable.subarray(
+      HEADER_LENGTH,
+      layout.indexTableEndOffset,
+    );
 
     assert.throws(() => parseIndexTable(table, 2), /1 of 2 entries/);
   });

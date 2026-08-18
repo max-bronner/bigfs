@@ -89,7 +89,20 @@ export const readEntryData = async (
 
   try {
     const buffer = Buffer.alloc(entry.size);
-    await archiveFile.read(buffer, 0, entry.size, entry.offset);
+    const { bytesRead } = await archiveFile.read(
+      buffer,
+      0,
+      entry.size,
+      entry.offset,
+    );
+
+    if (bytesRead < entry.size) {
+      throw new Error(
+        `Archive ends inside entry '${entry.name}', ` +
+          `${bytesRead} of ${entry.size} bytes`,
+      );
+    }
+
     return buffer;
   } finally {
     await archiveFile.close();

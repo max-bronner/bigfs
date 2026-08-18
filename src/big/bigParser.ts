@@ -2,6 +2,9 @@ import type { ArchiveLayout, BigFileEntry, PlacedEntry } from '../types';
 
 export const HEADER_LENGTH = 16;
 
+/** Magics of the supported archive formats */
+const MAGICS = new Set(['BIGF', 'BIG4']);
+
 const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
@@ -13,7 +16,7 @@ const toStoredName = (name: string): string => name.replace(/\//g, '\\');
 export const parseHeader = (buffer: Buffer) => {
   // Read header (16 bytes total)
   const magic = buffer.toString('ascii', 0, 4);
-  if (!magic.includes('BIG')) {
+  if (!MAGICS.has(magic)) {
     throw new Error(`Invalid BIG file magic: '${magic}'`);
   }
 
