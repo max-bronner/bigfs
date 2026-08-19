@@ -8,8 +8,11 @@ import {
 } from '../../format/bigFormat';
 import type { BigFileEntry } from '../../format/bigFormat';
 import { ArchiveModel } from '../../model/archiveModel';
-import { BigTreeDataProvider } from '../../providers/treeDataProvider';
-import { getFileNodes } from '../../model/virtualNode';
+import {
+  BigTreeDataProvider,
+  BigTreeItem,
+} from '../../providers/treeDataProvider';
+import { findChild, getFileNodes } from '../../model/virtualNode';
 import type { VirtualNode } from '../../model/virtualNode';
 
 const ARCHIVE_NAME = 'generated.big';
@@ -316,8 +319,13 @@ suite('Tree refresh', () => {
   const REFRESH_ARCHIVE = 'refresh.big';
 
   let archiveFsPath: string;
+  let nestedDirectory: string;
+  let nestedFsPath: string;
   let log: vscode.LogOutputChannel;
   let model: ArchiveModel;
+
+  const treeItem = (node: VirtualNode): BigTreeItem =>
+    new BigTreeItem(node, vscode.TreeItemCollapsibleState.Collapsed);
 
   suiteSetup(async function () {
     this.timeout(30_000);
@@ -325,10 +333,22 @@ suite('Tree refresh', () => {
     const workspaceFolder = vscode.workspace.workspaceFolders![0];
 
     archiveFsPath = path.join(workspaceFolder.uri.fsPath, REFRESH_ARCHIVE);
+    nestedDirectory = path.join(workspaceFolder.uri.fsPath, 'nested');
+    nestedFsPath = path.join(nestedDirectory, REFRESH_ARCHIVE);
+
+    await mkdir(nestedDirectory, { recursive: true });
+    await writeFile(
+      nestedFsPath,
+      buildArchive([{ name: 'inside.txt', content: 'Nested' }]),
+    );
 
     await writeFile(
       archiveFsPath,
-      buildArchive([{ name: 'a.txt', content: 'A' }]),
+      buildArchive([
+        { name: 'a.txt', content: 'A' },
+        { name: 'data/one.txt', content: '1' },
+        { name: 'data/two.txt', content: '2' },
+      ]),
     );
 
     log = vscode.window.createOutputChannel('bigFS tests', { log: true });
@@ -342,6 +362,32 @@ suite('Tree refresh', () => {
     log.dispose();
 
     await unlink(archiveFsPath).catch(() => undefined);
+    await rm(nestedDirectory, { recursive: true, force: true });
+  });
+
+  test('marks an archive below a directory as an archive', () => {
+    const nested = model.getArchiveByPath(nestedFsPath);
+
+    assert.ok(nested, 'the nested archive was not loaded');
+
+    // The root sits at /nested/refresh.big, which is not /refresh.big
+    assert.strictEqual(treeItem(nested.root).contextValue, 'bigArchive');
+    assert.strictEqual(
+      treeItem(model.getArchiveByPath(archiveFsPath)!.root).contextValue,
+      'bigArchive',
+    );
+  });
+
+  test('counts the files below a folder', () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+
+    assert.ok(archive, 'the archive was not loaded');
+
+    const folder = findChild(archive.root, 'data');
+
+    assert.ok(folder, 'the folder is missing');
+    assert.strictEqual(treeItem(folder).contextValue, 'bigFolder');
+    assert.strictEqual(treeItem(folder).description, '(2 files)');
   });
 
   test('refreshes the archive that changed instead of the whole view', async () => {

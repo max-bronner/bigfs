@@ -42,9 +42,7 @@ export class BigTreeItem extends TreeItem {
         arguments: [this.resourceUri],
       };
     } else {
-      const isArchiveRoot = node.path === `/${node.name}`;
-
-      this.contextValue = isArchiveRoot ? 'bigArchive' : 'bigFolder';
+      this.contextValue = node.isArchiveRoot ? 'bigArchive' : 'bigFolder';
       this.description = `(${formatCount(countFileNodes(node), 'file')})`;
     }
   }

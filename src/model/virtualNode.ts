@@ -11,6 +11,8 @@ export interface VirtualNode {
   path: string;
   archivePath: string;
   children?: Map<string, VirtualNode>;
+  /** Set on the node an archive is mounted at, which cannot be edited */
+  isArchiveRoot?: boolean;
 }
 
 /**
@@ -88,6 +90,7 @@ export const buildVirtualTree = (
     path: rootPath,
     archivePath,
     children: new Map<string, VirtualNode>(),
+    isArchiveRoot: true,
   };
 
   for (const entryPath of entryPaths) {
