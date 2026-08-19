@@ -117,6 +117,23 @@ export const getFileNodes = (node: VirtualNode): VirtualNode[] => {
 };
 
 /**
+ * Counts the files at or below a node
+ */
+export const countFileNodes = (node: VirtualNode): number => {
+  if (node.type === FileType.File) {
+    return 1;
+  }
+
+  let count = 0;
+
+  for (const child of node.children?.values() ?? []) {
+    count += countFileNodes(child);
+  }
+
+  return count;
+};
+
+/**
  * Drops the nodes that sit below another node of the same selection
  */
 export const getTopLevelNodes = (

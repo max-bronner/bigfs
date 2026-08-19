@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { ArchiveModel } from './model/archiveModel';
-import { BigFileSystemProvider } from './big/fsProvider';
-import { BigExplorerProvider } from './big/bigExplorer';
+import { BigFileSystemProvider } from './providers/fileSystemProvider';
+import { BigTreeDataProvider } from './providers/treeDataProvider';
+import { BigDragAndDropController } from './providers/dragAndDropController';
 import { createNodeCommandRegister } from './commands/commandCenter';
 import { registerFileCommands } from './commands/fileCommands';
 import { registerExtractCommands } from './commands/extractCommands';
@@ -27,12 +28,13 @@ export function activate(context: vscode.ExtensionContext) {
 
   archiveModel.whenReady().finally(markScanned);
 
-  const fsProvider = new BigFileSystemProvider(archiveModel);
-  const explorerProvider = new BigExplorerProvider(archiveModel);
+  const fileSystemProvider = new BigFileSystemProvider(archiveModel);
+  const treeDataProvider = new BigTreeDataProvider(archiveModel);
+  const dragAndDropController = new BigDragAndDropController(archiveModel);
 
   // Registration of file system provider
   context.subscriptions.push(
-    vscode.workspace.registerFileSystemProvider(SCHEME, fsProvider, {
+    vscode.workspace.registerFileSystemProvider(SCHEME, fileSystemProvider, {
       isCaseSensitive: false,
       isReadonly: false,
     }),
@@ -40,8 +42,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Registration of tree data provider
   const treeView = vscode.window.createTreeView('bigArchiveExplorer', {
-    treeDataProvider: explorerProvider,
-    dragAndDropController: explorerProvider,
+    treeDataProvider,
+    dragAndDropController,
     showCollapseAll: true,
     canSelectMany: true,
   });
@@ -62,7 +64,7 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         await archiveModel.scanWorkspace();
       } finally {
-        explorerProvider.refresh();
+        treeDataProvider.refresh();
         await markScanned();
       }
     }),
