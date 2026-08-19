@@ -58,4 +58,19 @@ suite('Path helpers', () => {
       'plain copy',
     );
   });
+
+  test('getAvailableName compares names case insensitively', () => {
+    const takenNames = new Set(['File.ini']);
+
+    assert.strictEqual(
+      getAvailableName(takenNames, 'file.ini'),
+      'file copy.ini',
+    );
+
+    // The suffix keeps the casing of the name it was asked about
+    assert.strictEqual(
+      getAvailableName(takenNames, 'FILE.INI'),
+      'FILE copy.INI',
+    );
+  });
 });

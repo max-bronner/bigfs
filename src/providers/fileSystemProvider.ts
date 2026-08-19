@@ -1,5 +1,4 @@
 ﻿import * as vscode from 'vscode';
-import path from 'path';
 import type { ArchiveModel } from '../model/archiveModel';
 import { SCHEME } from '../constants';
 import type { VirtualNode } from '../model/virtualNode';
@@ -11,20 +10,20 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
   constructor(private archiveModel: ArchiveModel) {
-    archiveModel.onDidChangeArchive((archivePath) => {
-      this.fireChangedDocuments(archivePath);
+    archiveModel.onDidChangeArchive(({ rootPath }) => {
+      this.fireChangedDocuments(rootPath);
     });
   }
 
-  private fireChangedDocuments(archivePath: string): void {
-    const archivePrefix = `/${path.basename(archivePath)}/`;
+  private fireChangedDocuments(rootPath: string): void {
+    const archivePrefix = `${rootPath.toLowerCase()}/`;
 
     const changes = vscode.workspace.textDocuments
       .filter(
         (document) =>
           document.uri.scheme === SCHEME &&
           !document.isDirty &&
-          document.uri.path.startsWith(archivePrefix),
+          document.uri.path.toLowerCase().startsWith(archivePrefix),
       )
       .map((document) => ({
         type: vscode.FileChangeType.Changed,
@@ -81,8 +80,9 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
     const result: [string, vscode.FileType][] = [];
     if (node.children) {
-      for (const [name, childNode] of node.children) {
-        result.push([name, childNode.type]);
+      // The children are keyed case insensitively, the names are what is stored
+      for (const childNode of node.children.values()) {
+        result.push([childNode.name, childNode.type]);
       }
     }
 
@@ -160,11 +160,16 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     newUri: vscode.Uri,
     options: { overwrite: boolean },
   ): Promise<void> {
-    if (!this.archiveModel.getNode(oldUri)) {
+    const sourceNode = this.archiveModel.getNode(oldUri);
+
+    if (!sourceNode) {
       throw vscode.FileSystemError.FileNotFound(oldUri);
     }
 
-    if (this.archiveModel.getNode(newUri) && !options.overwrite) {
+    const targetNode = this.archiveModel.getNode(newUri);
+
+    // Resolving to the same node means a rename that only changes the casing
+    if (targetNode && targetNode !== sourceNode && !options.overwrite) {
       throw vscode.FileSystemError.FileExists(newUri);
     }
 

@@ -1,8 +1,9 @@
-import { FileType } from 'vscode';
-import { isPathBelow, splitPath } from '../common/paths';
+﻿import { FileType } from 'vscode';
+import { getParentPath, isPathBelow, splitPath } from '../common/paths';
 
 /**
- * A file or directory inside an archive
+ * A file or directory inside an archive. Children are keyed case
+ * insensitively, while `name` keeps the casing the entry is stored with.
  */
 export interface VirtualNode {
   name: string;
@@ -24,8 +25,9 @@ const addChild = (
     throw Error(`Node is already a file`);
   }
 
+  const childKey = childName.toLowerCase();
   const type = isFile ? FileType.File : FileType.Directory;
-  const childNode: VirtualNode = parentNode.children.get(childName) ?? {
+  const childNode: VirtualNode = parentNode.children.get(childKey) ?? {
     name: childName,
     type,
     path: `${parentNode.path}/${childName}`,
@@ -36,7 +38,7 @@ const addChild = (
     childNode.children = new Map<string, VirtualNode>();
   }
 
-  parentNode.children.set(childName, childNode);
+  parentNode.children.set(childKey, childNode);
 
   return childNode;
 };
@@ -59,7 +61,7 @@ const addDirectoryPath = (
   let parentNode = rootNode;
 
   for (const segment of splitPath(directoryPath)) {
-    const existingNode = parentNode.children?.get(segment);
+    const existingNode = parentNode.children?.get(segment.toLowerCase());
 
     if (existingNode && existingNode.type !== FileType.Directory) {
       return;
@@ -146,6 +148,31 @@ export const getTopLevelNodes = (
 };
 
 /**
+ * Finds the file that stands where a path expects a directory, if any.
+ * Archives store file paths, so nothing can be written below a file.
+ */
+export const findBlockingFile = (
+  rootNode: VirtualNode,
+  entryPath: string,
+): VirtualNode | undefined => {
+  let node: VirtualNode | undefined = rootNode;
+
+  for (const segment of splitPath(getParentPath(entryPath))) {
+    node = node?.children?.get(segment.toLowerCase());
+
+    if (!node) {
+      return undefined; // the rest of the chain does not exist yet
+    }
+
+    if (node.type === FileType.File) {
+      return node;
+    }
+  }
+
+  return undefined;
+};
+
+/**
  * Finds a node below a directory by its relative path
  */
 export const findChild = (
@@ -155,7 +182,7 @@ export const findChild = (
   let node: VirtualNode | undefined = directory;
 
   for (const segment of splitPath(relativePath)) {
-    node = node?.children?.get(segment);
+    node = node?.children?.get(segment.toLowerCase());
   }
 
   return node;

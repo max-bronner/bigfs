@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
-import { unlink, writeFile } from 'fs/promises';
+import { mkdir, rm, unlink, writeFile } from 'fs/promises';
 import {
   computeArchiveLayout,
   serializeIndexTable,
@@ -137,6 +137,37 @@ suite('BIG archive file system', () => {
     );
   });
 
+  test('resolves entries whose casing does not match', async () => {
+    assert.strictEqual(
+      await readText(`/${ARCHIVE_NAME.toUpperCase()}/data/ini/OBJECT.INI`),
+      'ObjectData',
+    );
+  });
+
+  test('lists entries with the casing they are stored with', async () => {
+    assert.deepStrictEqual(await readNames(`/${ARCHIVE_NAME}/Data/INI`), [
+      'Object.ini',
+    ]);
+  });
+
+  test('renames an entry to a different casing', async () => {
+    await vscode.workspace.fs.rename(
+      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+      nodeUri(`/${ARCHIVE_NAME}/README.TXT`),
+    );
+
+    assert.ok((await readNames(`/${ARCHIVE_NAME}`)).includes('README.TXT'));
+    assert.strictEqual(
+      await readText(`/${ARCHIVE_NAME}/README.TXT`),
+      'Top level',
+    );
+
+    await vscode.workspace.fs.rename(
+      nodeUri(`/${ARCHIVE_NAME}/README.TXT`),
+      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+    );
+  });
+
   test('writes a new file and keeps the existing entries', async () => {
     await vscode.workspace.fs.writeFile(
       nodeUri(`/${ARCHIVE_NAME}/Data/new.txt`),
@@ -224,6 +255,41 @@ suite('BIG archive file system', () => {
       await readText(`/${ARCHIVE_NAME}/readme.txt`),
       'Top level',
     );
+  });
+
+  test('keeps archives that share a name apart', async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+    const nestedDirectory = path.join(workspaceFolder, 'mods');
+    const nestedPath = path.join(nestedDirectory, ARCHIVE_NAME);
+
+    await mkdir(nestedDirectory, { recursive: true });
+    await writeFile(
+      nestedPath,
+      buildArchive([{ name: 'readme.txt', content: 'From the mods folder' }]),
+    );
+
+    try {
+      await waitFor(() =>
+        vscode.workspace.fs.stat(nodeUri(`/mods/${ARCHIVE_NAME}/readme.txt`)),
+      );
+
+      // Each archive keeps its own content under its own path
+      assert.strictEqual(
+        await readText(`/mods/${ARCHIVE_NAME}/readme.txt`),
+        'From the mods folder',
+      );
+      assert.strictEqual(
+        await readText(`/${ARCHIVE_NAME}/readme.txt`),
+        'Top level',
+      );
+
+      // The nested archive holds nothing the top level one has
+      await assert.rejects(async () => {
+        await readText(`/mods/${ARCHIVE_NAME}/Data/renamed.txt`);
+      });
+    } finally {
+      await rm(nestedDirectory, { recursive: true, force: true });
+    }
   });
 
   test('picks up an archive rewritten outside the editor', async () => {

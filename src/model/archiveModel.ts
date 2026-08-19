@@ -1,4 +1,4 @@
-import {
+﻿import {
   workspace,
   window,
   EventEmitter,
@@ -10,16 +10,10 @@ import type { FileSystemWatcher, LogOutputChannel } from 'vscode';
 import path from 'path';
 import { BIG_PATTERN } from '../constants';
 import type { BigFileEntry } from '../format/bigFormat';
-import {
-  getParentPath,
-  isPathBelow,
-  movePath,
-  splitPath,
-} from '../common/paths';
-import { parseNodeUri } from '../common/uri';
+import { isPathBelow, movePath, splitPath } from '../common/paths';
 import { Archive } from './archive';
 import type { EntriesCallback } from './archive';
-import { findChild } from './virtualNode';
+import { findBlockingFile, findChild } from './virtualNode';
 import type { VirtualNode } from './virtualNode';
 
 interface EntryMove {
@@ -28,17 +22,33 @@ interface EntryMove {
   filePaths: string[];
 }
 
+/**
+ * What changed about an archive, and where it sits in the virtual file system
+ */
+export interface ArchiveChange {
+  archivePath: string;
+  rootPath: string;
+}
+
 const hasStoredEntries = (move: EntryMove): boolean =>
   Boolean(move.filePaths.length);
+
+/**
+ * Gets where an archive sits in the virtual file system: its workspace
+ * relative path, so archives that share a name stay distinct
+ */
+const getArchiveRootPath = (uri: Uri): string =>
+  `/${workspace.asRelativePath(uri).replace(/\\/g, '/')}`;
 
 /**
  * The archives of the workspace: finds them on disk, keeps them loaded, and
  * runs the operations that span resolving a URI and changing an archive.
  */
 export class ArchiveModel {
-  private _onDidChangeArchive = new EventEmitter<string>();
+  private _onDidChangeArchive = new EventEmitter<ArchiveChange>();
   public readonly onDidChangeArchive = this._onDidChangeArchive.event;
 
+  /** Keyed by each archive's root key */
   private archives = new Map<string, Archive>();
 
   private readonly archiveWatcher: FileSystemWatcher;
@@ -72,7 +82,7 @@ export class ArchiveModel {
    */
   private async reloadArchive(uri: Uri): Promise<void> {
     const archivePath = uri.fsPath;
-    const archive = this.getArchiveByPath(archivePath);
+    let archive = this.getArchiveByPath(archivePath);
 
     try {
       if (archive) {
@@ -82,16 +92,16 @@ export class ArchiveModel {
           return;
         }
       } else {
-        const loadedArchive = await Archive.load(archivePath);
+        archive = await Archive.load(archivePath, getArchiveRootPath(uri));
 
-        this.archives.set(loadedArchive.name, loadedArchive);
+        this.archives.set(archive.rootKey, archive);
       }
     } catch (error) {
       this.log.error(`Failed to reload archive ${archivePath}`, error);
       return;
     }
 
-    this._onDidChangeArchive.fire(archivePath);
+    this.fireChanged(archive);
   }
 
   /**
@@ -104,9 +114,16 @@ export class ArchiveModel {
       return;
     }
 
-    this.archives.delete(archive.name);
+    this.archives.delete(archive.rootKey);
 
-    this._onDidChangeArchive.fire(archive.archivePath);
+    this.fireChanged(archive);
+  }
+
+  private fireChanged(archive: Archive): void {
+    this._onDidChangeArchive.fire({
+      archivePath: archive.archivePath,
+      rootPath: archive.rootPath,
+    });
   }
 
   /**
@@ -138,14 +155,17 @@ export class ArchiveModel {
 
     const results = await Promise.allSettled(
       archiveUris.map(async (uri) => {
-        const archive = await Archive.load(uri.fsPath);
-        const previous = previousArchives.get(archive.name);
+        const archive = await Archive.load(
+          uri.fsPath,
+          getArchiveRootPath(uri),
+        );
+        const previous = previousArchives.get(archive.rootKey);
 
         if (previous) {
           archive.adoptEmptyDirectories(previous.getEmptyDirectories());
         }
 
-        this.archives.set(archive.name, archive);
+        this.archives.set(archive.rootKey, archive);
       }),
     );
 
@@ -173,31 +193,80 @@ export class ArchiveModel {
    * Gets the archive loaded from a path on disk
    */
   public getArchiveByPath(archivePath: string): Archive | undefined {
-    return this.archives.get(path.basename(archivePath));
+    const wantedPath = archivePath.toLowerCase();
+
+    for (const archive of this.archives.values()) {
+      if (archive.archivePath.toLowerCase() === wantedPath) {
+        return archive;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Finds the archive a node URI points into. The longest root path wins, so
+   * an archive below a directory named like another archive still resolves.
+   */
+  private findArchiveForUri(uriPath: string): Archive | undefined {
+    const wantedPath = uriPath.toLowerCase();
+    let match: Archive | undefined;
+
+    for (const archive of this.archives.values()) {
+      if (
+        isPathBelow(wantedPath, archive.rootKey) &&
+        archive.rootKey.length > (match?.rootKey.length ?? 0)
+      ) {
+        match = archive;
+      }
+    }
+
+    return match;
+  }
+
+  private resolveUri(
+    uri: Uri,
+  ): { archive: Archive; entryPath: string } | undefined {
+    const archive = this.findArchiveForUri(uri.path);
+
+    if (!archive) {
+      return undefined;
+    }
+
+    const entryPath = splitPath(uri.path.slice(archive.rootPath.length)).join(
+      '/',
+    );
+
+    return { archive, entryPath };
+  }
+
+  /**
+   * Gets the entry path a node stands for
+   */
+  public getEntryPath(node: VirtualNode): string | undefined {
+    return this.getArchiveByPath(node.archivePath)?.getEntryPath(node);
   }
 
   /**
    * Gets a node by URI
    */
   public getNode(uri: Uri): VirtualNode | undefined {
-    const { archiveName, entrySegments } = parseNodeUri(uri);
-    const archive = this.archives.get(archiveName);
+    const resolved = this.resolveUri(uri);
 
-    return archive && findChild(archive.root, entrySegments.join('/'));
+    return resolved && findChild(resolved.archive.root, resolved.entryPath);
   }
 
   /**
    * Resolves a URI to its archive and the entry path inside it
    */
   private getArchiveContext(uri: Uri): { archive: Archive; entryPath: string } {
-    const { archiveName, entrySegments } = parseNodeUri(uri);
-    const archive = this.archives.get(archiveName);
+    const resolved = this.resolveUri(uri);
 
-    if (!archive) {
+    if (!resolved) {
       throw FileSystemError.FileNotFound(uri);
     }
 
-    return { archive, entryPath: entrySegments.join('/') };
+    return resolved;
   }
 
   private getEntryForNode(node: VirtualNode): BigFileEntry | undefined {
@@ -256,25 +325,17 @@ export class ArchiveModel {
   private refreshArchive(archive: Archive): void {
     archive.rebuildTree();
 
-    this._onDidChangeArchive.fire(archive.archivePath);
+    this.fireChanged(archive);
   }
 
   /**
    * Rejects a path whose parents run through an existing file
    */
   private ensureWritablePath(archive: Archive, entryPath: string): void {
-    let node: VirtualNode | undefined = archive.root;
+    const blockingFile = findBlockingFile(archive.root, entryPath);
 
-    for (const segment of splitPath(getParentPath(entryPath))) {
-      node = node?.children?.get(segment);
-
-      if (!node) {
-        return; // the rest of the chain does not exist yet
-      }
-
-      if (node.type === FileType.File) {
-        throw FileSystemError.FileNotADirectory(node.path);
-      }
+    if (blockingFile) {
+      throw FileSystemError.FileNotADirectory(blockingFile.path);
     }
   }
 
@@ -459,7 +520,10 @@ export class ArchiveModel {
 
           const copiedPath = movePath(filePath, sourcePath, targetPath);
 
-          entries.set(copiedPath, { ...entry, name: copiedPath });
+          entries.set(copiedPath, {
+            ...entry,
+            name: copiedPath,
+          });
         }
       }
     });
@@ -522,7 +586,11 @@ export class ArchiveModel {
       throw FileSystemError.NoPermissions('Cannot move the archive itself');
     }
 
-    if (isPathBelow(targetPath, source.entryPath)) {
+    const sourceKey = source.entryPath.toLowerCase();
+    const targetKey = targetPath.toLowerCase();
+
+    // Equal paths are a rename that only changes the casing, not a move
+    if (targetKey !== sourceKey && isPathBelow(targetKey, sourceKey)) {
       throw FileSystemError.NoPermissions('Cannot move an entry into itself');
     }
 
@@ -555,7 +623,10 @@ export class ArchiveModel {
             const movedPath = movePath(filePath, sourcePath, targetPath);
 
             entries.delete(filePath);
-            entries.set(movedPath, { ...entry, name: movedPath });
+            entries.set(movedPath, {
+              ...entry,
+              name: movedPath,
+            });
           }
         }
       });

@@ -1,6 +1,6 @@
 import { commands, env } from 'vscode';
 import { SCHEME } from '../constants';
-import { getParentPath, splitPath } from '../common/paths';
+import { getParentPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import {
   copyNodes,
@@ -19,20 +19,17 @@ interface ClipboardContent {
   operation: ClipboardOperation;
 }
 
-const getEntryPath = (node: VirtualNode): string => {
-  const [, ...segments] = splitPath(node.path);
-
-  return segments.join('\\');
-};
-
-const getAbsolutePath = (node: VirtualNode): string =>
-  `${node.archivePath}\\${getEntryPath(node)}`;
-
 export const registerClipboardCommands = (
   register: RegisterNodeCommand,
   archiveModel: ArchiveModel,
 ): void => {
   let clipboard: ClipboardContent | undefined;
+
+  const getEntryPath = (node: VirtualNode): string =>
+    (archiveModel.getEntryPath(node) ?? '').replace(/\//g, '\\');
+
+  const getAbsolutePath = (node: VirtualNode): string =>
+    `${node.archivePath}\\${getEntryPath(node)}`;
 
   const setClipboard = async (
     content: ClipboardContent | undefined,

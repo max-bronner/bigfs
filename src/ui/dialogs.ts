@@ -1,4 +1,4 @@
-import { window } from 'vscode';
+﻿import { window } from 'vscode';
 
 const MAX_LISTED_NAMES = 5;
 
@@ -22,6 +22,11 @@ export interface NamePrompt {
 export const askForName = async (
   prompt: NamePrompt,
 ): Promise<string | undefined> => {
+  const takenKeys = new Set(
+    Array.from(prompt.takenNames, (takenName) => takenName.toLowerCase()),
+  );
+  const currentKey = prompt.currentName?.toLowerCase();
+
   const validateName = (input: string): string | undefined => {
     const name = input.trim();
 
@@ -33,7 +38,9 @@ export const askForName = async (
       return 'A name cannot contain a path separator.';
     }
 
-    if (name !== prompt.currentName && prompt.takenNames.has(name)) {
+    const key = name.toLowerCase();
+
+    if (key !== currentKey && takenKeys.has(key)) {
       return `${name} already exists here.`;
     }
 

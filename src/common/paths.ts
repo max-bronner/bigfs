@@ -1,4 +1,4 @@
-import path from 'path';
+﻿import path from 'path';
 
 /**
  * Helpers for the '/' separated paths.
@@ -38,13 +38,17 @@ export const movePath = (
     : `${targetPath}${nodePath.slice(sourcePath.length)}`;
 
 /**
- * Finds a name that is not taken yet by appending a copy suffix
+ * Finds a name that is not taken yet by appending a copy suffix.
  */
 export const getAvailableName = (
-  takenNames: Set<string>,
+  takenNames: Iterable<string>,
   name: string,
 ): string => {
-  if (!takenNames.has(name)) {
+  const taken = new Set(
+    Array.from(takenNames, (takenName) => takenName.toLowerCase()),
+  );
+
+  if (!taken.has(name.toLowerCase())) {
     return name;
   }
 
@@ -54,7 +58,7 @@ export const getAvailableName = (
   let availableName = `${baseName} copy${extension}`;
   let copyNumber = 2;
 
-  while (takenNames.has(availableName)) {
+  while (taken.has(availableName.toLowerCase())) {
     availableName = `${baseName} copy ${copyNumber}${extension}`;
     copyNumber += 1;
   }

@@ -1,4 +1,4 @@
-import { Uri, workspace } from 'vscode';
+﻿import { Uri, workspace } from 'vscode';
 import path from 'path';
 import {
   readArchiveIndexTable,
@@ -10,7 +10,17 @@ import { getParentPath, isPathBelow, movePath } from '../common/paths';
 import { buildVirtualTree, getFileNodes } from './virtualNode';
 import type { VirtualNode } from './virtualNode';
 
-export type EntriesCallback = (entries: Map<string, BigFileEntry>) => void;
+/**
+ * The entries of an archive, addressed by entry path. Handed to a change so
+ * the caller never has to know how the entries are keyed.
+ */
+export interface ArchiveEntries {
+  get(entryPath: string): BigFileEntry | undefined;
+  set(entryPath: string, entry: BigFileEntry): void;
+  delete(entryPath: string): boolean;
+}
+
+export type EntriesCallback = (entries: ArchiveEntries) => void;
 
 /**
  * One archive on disk: the entries read from its index table, the tree built
@@ -25,6 +35,8 @@ export class Archive {
   public root: VirtualNode;
 
   private magic: string;
+
+  /** Keyed case insensitively; each entry keeps its stored name */
   private entries: Map<string, BigFileEntry>;
 
   /** Directories that exist in the tree while nothing is stored below them */
@@ -35,24 +47,47 @@ export class Archive {
 
   private constructor(
     archivePath: string,
+    rootPath: string,
     magic: string,
     entries: Map<string, BigFileEntry>,
   ) {
     this.archivePath = archivePath;
     this.name = path.basename(archivePath);
-    this.rootPath = `/${this.name}`;
+    this.rootPath = rootPath;
     this.magic = magic;
-    this.entries = entries;
+    this.entries = Archive.keyEntries(entries);
     this.root = this.buildTree();
   }
 
   /**
-   * Reads an archive's index table from disk
+   * Reads an archive's index table from disk. The root path is where the
+   * archive sits in the virtual file system, e.g. `/mods/textures.big`.
    */
-  public static async load(archivePath: string): Promise<Archive> {
+  public static async load(
+    archivePath: string,
+    rootPath: string,
+  ): Promise<Archive> {
     const { magic, entries } = await readArchiveIndexTable(archivePath);
 
-    return new Archive(archivePath, magic, entries);
+    return new Archive(archivePath, rootPath, magic, entries);
+  }
+
+  /**
+   * How the archive is identified, case insensitively like its content
+   */
+  public get rootKey(): string {
+    return this.rootPath.toLowerCase();
+  }
+
+  private static keyEntries(
+    entries: Map<string, BigFileEntry>,
+  ): Map<string, BigFileEntry> {
+    return new Map(
+      Array.from(entries.values(), (entry) => [
+        entry.name.toLowerCase(),
+        entry,
+      ]),
+    );
   }
 
   /**
@@ -79,7 +114,7 @@ export class Archive {
       const { magic, entries } = await readArchiveIndexTable(this.archivePath);
 
       this.magic = magic;
-      this.entries = entries;
+      this.entries = Archive.keyEntries(entries);
       this.rebuildTree();
 
       return true;
@@ -113,7 +148,13 @@ export class Archive {
   private async writeToDisk(modify: EntriesCallback): Promise<void> {
     const entries = new Map(this.entries);
 
-    modify(entries);
+    modify({
+      get: (entryPath) => entries.get(entryPath.toLowerCase()),
+      set: (entryPath, entry) => {
+        entries.set(entryPath.toLowerCase(), entry);
+      },
+      delete: (entryPath) => entries.delete(entryPath.toLowerCase()),
+    });
 
     const layout = await writeArchiveFile(this.archivePath, this.magic, entries);
 
@@ -135,7 +176,7 @@ export class Archive {
    * Gets the entry stored under an entry path
    */
   public getEntry(entryPath: string): BigFileEntry | undefined {
-    return this.entries.get(entryPath);
+    return this.entries.get(entryPath.toLowerCase());
   }
 
   /**
@@ -163,10 +204,10 @@ export class Archive {
    * Whether any entry is stored below a directory path
    */
   public hasEntriesBelow(directoryPath: string): boolean {
-    const prefix = `${directoryPath}/`;
+    const prefix = `${directoryPath.toLowerCase()}/`;
 
-    for (const entryPath of this.entries.keys()) {
-      if (entryPath.startsWith(prefix)) {
+    for (const entryKey of this.entries.keys()) {
+      if (entryKey.startsWith(prefix)) {
         return true;
       }
     }
@@ -199,8 +240,10 @@ export class Archive {
    * Drops the tracked directories at or below an entry path
    */
   public forgetEmptyDirectories(entryPath: string): void {
+    const ancestorKey = entryPath.toLowerCase();
+
     this.emptyDirectories.forEach((directoryPath) => {
-      if (isPathBelow(directoryPath, entryPath)) {
+      if (isPathBelow(directoryPath.toLowerCase(), ancestorKey)) {
         this.emptyDirectories.delete(directoryPath);
       }
     });
@@ -210,8 +253,12 @@ export class Archive {
    * Moves the tracked directories along with the entry they sit under
    */
   public moveEmptyDirectories(sourcePath: string, targetPath: string): void {
+    const sourceKey = sourcePath.toLowerCase();
+
     Array.from(this.emptyDirectories)
-      .filter((directoryPath) => isPathBelow(directoryPath, sourcePath))
+      .filter((directoryPath) =>
+        isPathBelow(directoryPath.toLowerCase(), sourceKey),
+      )
       .forEach((directoryPath) => {
         this.emptyDirectories.delete(directoryPath);
         this.emptyDirectories.add(
@@ -250,7 +297,7 @@ export class Archive {
       this.name,
       this.rootPath,
       this.archivePath,
-      this.entries.keys(),
+      Array.from(this.entries.values(), (entry) => entry.name),
       this.emptyDirectories,
     );
   }

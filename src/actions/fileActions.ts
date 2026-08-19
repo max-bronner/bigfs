@@ -1,4 +1,4 @@
-import { FileType, Uri, window, workspace } from 'vscode';
+﻿import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
 import { getAvailableName, getParentPath, isPathBelow } from '../common/paths';
 import { getNodeUri } from '../common/uri';
@@ -73,7 +73,7 @@ export const moveNodes = async (
   );
 
   const hasNodeConflict = (node: VirtualNode) =>
-    targetDirectory.children?.has(node.name) ?? false;
+    Boolean(findChild(targetDirectory, node.name));
 
   const acceptedNodes = await resolveConflicts(movableSources, hasNodeConflict);
 
