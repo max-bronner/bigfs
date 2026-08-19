@@ -5,8 +5,8 @@ import {
   parseHeader,
   parseIndexTable,
   serializeIndexTable,
-} from '../../big/bigParser';
-import type { BigFileEntry } from '../../types';
+} from '../../format/bigFormat';
+import type { BigFileEntry } from '../../format/bigFormat';
 
 const createEntries = (
   files: { name: string; content: string }[],

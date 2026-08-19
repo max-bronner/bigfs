@@ -12,7 +12,7 @@ import { getNodeUri } from '../common/uri';
 import { resolveConflicts } from '../ui/dialogs';
 import { getTopLevelNodes } from '../actions/fileActions';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../types';
+import type { VirtualNode } from '../model/virtualNode';
 
 const REVEAL_LABEL = 'Reveal in File Explorer';
 

@@ -1,7 +1,7 @@
 import { commands, window } from 'vscode';
 import type { ExtensionContext, TreeView } from 'vscode';
 import { SCHEME } from '../constants';
-import type { VirtualNode } from '../types';
+import type { VirtualNode } from '../model/virtualNode';
 
 export type NodeCommandRun = (targets: VirtualNode[]) => Promise<void>;
 

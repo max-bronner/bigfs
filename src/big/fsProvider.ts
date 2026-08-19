@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import path from 'path';
 import { VirtualFileService } from './virtualFileService';
 import { SCHEME } from '../constants';
-import type { VirtualNode } from '../types';
+import type { VirtualNode } from '../model/virtualNode';
 
 export class BigFileSystemProvider implements vscode.FileSystemProvider {
   private onDidChangeFileEmitter = new vscode.EventEmitter<

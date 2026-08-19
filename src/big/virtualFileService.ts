@@ -8,13 +8,17 @@ import {
 } from 'vscode';
 import type { FileSystemWatcher } from 'vscode';
 import { BIG_PATTERN } from '../constants';
-import type { ArchiveLayout, ParsedArchive, BigFileEntry } from '../types';
+import type {
+  ArchiveLayout,
+  ParsedArchive,
+  BigFileEntry,
+} from '../format/bigFormat';
 import {
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
-} from './archiveIO';
-import { VirtualNode } from '../types';
+} from '../format/archiveFile';
+import { VirtualNode } from '../model/virtualNode';
 import {
   getParentPath,
   isPathBelow,

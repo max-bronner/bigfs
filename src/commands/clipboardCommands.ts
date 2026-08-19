@@ -9,7 +9,7 @@ import {
   resolveTargetDirectory,
 } from '../actions/fileActions';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../types';
+import type { VirtualNode } from '../model/virtualNode';
 import type { VirtualFileService } from '../big/virtualFileService';
 
 type ClipboardOperation = 'cut' | 'copy';

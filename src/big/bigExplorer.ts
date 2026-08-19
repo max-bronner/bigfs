@@ -16,7 +16,7 @@ import { importFromDisk, moveNodes } from '../actions/fileActions';
 import { formatCount } from '../common/messages';
 import { getParentPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
-import type { VirtualNode } from '../types';
+import type { VirtualNode } from '../model/virtualNode';
 
 const nameCollator = new Intl.Collator(undefined, {
   numeric: true,

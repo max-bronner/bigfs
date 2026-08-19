@@ -6,8 +6,8 @@ import {
   parseIndexTable,
   computeArchiveLayout,
   serializeIndexTable,
-} from './bigParser';
-import type { ArchiveLayout, BigFileEntry, ParsedArchive } from '../types';
+} from './bigFormat';
+import type { ArchiveLayout, BigFileEntry, ParsedArchive } from './bigFormat';
 
 /** Buffer size for moving an entry's data between archives */
 const COPY_CHUNK_SIZE = 256 * 1024;

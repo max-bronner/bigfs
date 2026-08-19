@@ -8,7 +8,7 @@ import {
 } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import { confirmDelete, resolveConflicts } from '../ui/dialogs';
-import type { VirtualNode } from '../types';
+import type { VirtualNode } from '../model/virtualNode';
 import type { VirtualFileService } from '../big/virtualFileService';
 
 interface ImportedFile {
