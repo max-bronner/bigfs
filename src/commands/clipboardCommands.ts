@@ -4,13 +4,13 @@ import { getParentPath, splitPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import {
   copyNodes,
-  getTopLevelNodes,
   moveNodes,
   resolveTargetDirectory,
 } from '../actions/fileActions';
+import { getTopLevelNodes } from '../model/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../model/virtualNode';
-import type { VirtualFileService } from '../big/virtualFileService';
+import type { ArchiveModel } from '../model/archiveModel';
 
 type ClipboardOperation = 'cut' | 'copy';
 
@@ -30,7 +30,7 @@ const getAbsolutePath = (node: VirtualNode): string =>
 
 export const registerClipboardCommands = (
   register: RegisterNodeCommand,
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
 ): void => {
   let clipboard: ClipboardContent | undefined;
 
@@ -47,18 +47,18 @@ export const registerClipboardCommands = (
   };
 
   const paste = async (target: VirtualNode): Promise<void> => {
-    const directory = resolveTargetDirectory(fileService, target);
+    const directory = resolveTargetDirectory(archiveModel, target);
 
     if (!clipboard || !directory) {
       return;
     }
 
     if (clipboard.operation === 'copy') {
-      await copyNodes(fileService, clipboard.nodes, directory);
+      await copyNodes(archiveModel, clipboard.nodes, directory);
       return;
     }
 
-    await moveNodes(fileService, clipboard.nodes, directory);
+    await moveNodes(archiveModel, clipboard.nodes, directory);
 
     await setClipboard(undefined);
   };
@@ -75,10 +75,10 @@ export const registerClipboardCommands = (
     }
 
     for (const [directoryPath, siblings] of nodesByDirectory) {
-      const directory = fileService.getNode(getNodeUri(directoryPath));
+      const directory = archiveModel.getNode(getNodeUri(directoryPath));
 
       if (directory) {
-        await copyNodes(fileService, siblings, directory);
+        await copyNodes(archiveModel, siblings, directory);
       }
     }
   };

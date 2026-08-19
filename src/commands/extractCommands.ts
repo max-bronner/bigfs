@@ -10,7 +10,7 @@ import type { Progress } from 'vscode';
 import { getParentPath, splitPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import { resolveConflicts } from '../ui/dialogs';
-import { getTopLevelNodes } from '../actions/fileActions';
+import { getFileNodes, getTopLevelNodes } from '../model/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../model/virtualNode';
 
@@ -21,20 +21,6 @@ interface ExtractedFile {
   nodePath: string;
   targetUri: Uri;
 }
-
-const getFileNodes = (node: VirtualNode): VirtualNode[] => {
-  if (node.type === FileType.File) {
-    return [node];
-  }
-
-  const fileNodes: VirtualNode[] = [];
-
-  for (const child of node.children?.values() ?? []) {
-    fileNodes.push(...getFileNodes(child));
-  }
-
-  return fileNodes;
-};
 
 const getExtractedFiles = (
   nodes: readonly VirtualNode[],

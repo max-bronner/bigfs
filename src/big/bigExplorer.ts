@@ -1,4 +1,4 @@
-import type { Event } from 'vscode';
+﻿import type { Event } from 'vscode';
 import {
   Uri,
   TreeItem,
@@ -11,7 +11,7 @@ import {
   DataTransferItem,
   window,
 } from 'vscode';
-import type { VirtualFileService } from './virtualFileService';
+import type { ArchiveModel } from '../model/archiveModel';
 import { importFromDisk, moveNodes } from '../actions/fileActions';
 import { formatCount } from '../common/messages';
 import { getParentPath } from '../common/paths';
@@ -72,8 +72,8 @@ export class BigExplorerProvider
   readonly onDidChangeTreeData: Event<VirtualNode | undefined | void> =
     this._onDidChangeTreeData.event;
 
-  constructor(private fileService: VirtualFileService) {
-    this.fileService.onDidChangeArchives(() => {
+  constructor(private archiveModel: ArchiveModel) {
+    this.archiveModel.onDidChangeArchive(() => {
       this.refresh();
     });
   }
@@ -92,9 +92,9 @@ export class BigExplorerProvider
 
   async getChildren(element?: VirtualNode): Promise<VirtualNode[]> {
     if (!element) {
-      await this.fileService.whenReady();
+      await this.archiveModel.whenReady();
 
-      return sortNodes(Array.from(this.fileService.getArchives().values()));
+      return sortNodes(this.archiveModel.getArchiveRoots());
     }
 
     if (element.type === FileType.Directory && element.children) {
@@ -126,7 +126,7 @@ export class BigExplorerProvider
 
       if (internalData) {
         const moved = await moveNodes(
-          this.fileService,
+          this.archiveModel,
           internalData.value as VirtualNode[],
           directory,
         );
@@ -150,7 +150,7 @@ export class BigExplorerProvider
           .map((line) => Uri.parse(line));
 
         const imported = await importFromDisk(
-          this.fileService,
+          this.archiveModel,
           sourceUris,
           directory,
         );
@@ -171,6 +171,6 @@ export class BigExplorerProvider
       return target;
     }
 
-    return this.fileService.getNode(getNodeUri(getParentPath(target.path)));
+    return this.archiveModel.getNode(getNodeUri(getParentPath(target.path)));
   }
 }

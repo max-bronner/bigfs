@@ -11,7 +11,7 @@ import {
 } from '../actions/fileActions';
 import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../model/virtualNode';
-import type { VirtualFileService } from '../big/virtualFileService';
+import type { ArchiveModel } from '../model/archiveModel';
 
 const readChildNames = async (directoryPath: string): Promise<Set<string>> => {
   const children = await workspace.fs.readDirectory(getNodeUri(directoryPath));
@@ -70,10 +70,10 @@ const renameNode = async (target: VirtualNode): Promise<void> => {
 };
 
 const addFiles = async (
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
   target: VirtualNode,
 ): Promise<void> => {
-  const directory = resolveTargetDirectory(fileService, target);
+  const directory = resolveTargetDirectory(archiveModel, target);
 
   if (!directory) {
     return;
@@ -88,7 +88,11 @@ const addFiles = async (
     return;
   }
 
-  const importedCount = await importFromDisk(fileService, sourceUris, directory);
+  const importedCount = await importFromDisk(
+    archiveModel,
+    sourceUris,
+    directory,
+  );
 
   if (importedCount) {
     window.showInformationMessage(
@@ -99,13 +103,13 @@ const addFiles = async (
 
 export const registerFileCommands = (
   register: RegisterNodeCommand,
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
 ): void => {
   register('newFile', ([target]) => createFile(target));
   register('newFolder', ([target]) => createFolder(target));
   register('rename', ([target]) => renameNode(target));
-  register('addFiles', ([target]) => addFiles(fileService, target));
+  register('addFiles', ([target]) => addFiles(archiveModel, target));
   register('delete', async (targets) => {
-    await deleteNodes(fileService, targets);
+    await deleteNodes(archiveModel, targets);
   });
 };

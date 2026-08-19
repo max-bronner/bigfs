@@ -1,6 +1,6 @@
-import * as vscode from 'vscode';
+﻿import * as vscode from 'vscode';
 import path from 'path';
-import { VirtualFileService } from './virtualFileService';
+import type { ArchiveModel } from '../model/archiveModel';
 import { SCHEME } from '../constants';
 import type { VirtualNode } from '../model/virtualNode';
 
@@ -10,8 +10,8 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   >();
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
-  constructor(private fileService: VirtualFileService) {
-    fileService.onDidChangeArchives((archivePath) => {
+  constructor(private archiveModel: ArchiveModel) {
+    archiveModel.onDidChangeArchive((archivePath) => {
       this.fireChangedDocuments(archivePath);
     });
   }
@@ -43,15 +43,15 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   private async resolveNode(
     uri: vscode.Uri,
   ): Promise<VirtualNode | undefined> {
-    const node = this.fileService.getNode(uri);
+    const node = this.archiveModel.getNode(uri);
 
     if (node) {
       return node;
     }
 
-    await this.fileService.whenReady();
+    await this.archiveModel.whenReady();
 
-    return this.fileService.getNode(uri);
+    return this.archiveModel.getNode(uri);
   }
 
   async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
@@ -62,7 +62,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
     const size =
       node.type === vscode.FileType.File
-        ? this.fileService.getFileSize(node)
+        ? this.archiveModel.getFileSize(node)
         : 0;
 
     return {
@@ -95,7 +95,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
       throw vscode.FileSystemError.FileNotFound(uri);
     }
 
-    const content = await this.fileService.getFileContent(node);
+    const content = await this.archiveModel.getFileContent(node);
     if (!content) {
       throw vscode.FileSystemError.FileNotFound(uri);
     }
@@ -103,11 +103,11 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   createDirectory(uri: vscode.Uri): void {
-    if (this.fileService.getNode(uri)) {
+    if (this.archiveModel.getNode(uri)) {
       throw vscode.FileSystemError.FileExists(uri);
     }
 
-    this.fileService.createDirectory(uri);
+    this.archiveModel.createDirectory(uri);
 
     this.onDidChangeFileEmitter.fire([
       {
@@ -122,7 +122,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     content: Uint8Array,
     options: { create: boolean; overwrite: boolean },
   ): Promise<void> {
-    const existingNode = this.fileService.getNode(uri);
+    const existingNode = this.archiveModel.getNode(uri);
 
     if (!existingNode && !options.create) {
       throw vscode.FileSystemError.FileNotFound(uri);
@@ -132,7 +132,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
       throw vscode.FileSystemError.FileExists(uri);
     }
 
-    await this.fileService.writeFile(uri, content);
+    await this.archiveModel.writeFile(uri, content);
 
     this.onDidChangeFileEmitter.fire([
       {
@@ -145,7 +145,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   async delete(uri: vscode.Uri): Promise<void> {
-    await this.fileService.delete(uri);
+    await this.archiveModel.delete(uri);
 
     this.onDidChangeFileEmitter.fire([
       {
@@ -160,15 +160,15 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     newUri: vscode.Uri,
     options: { overwrite: boolean },
   ): Promise<void> {
-    if (!this.fileService.getNode(oldUri)) {
+    if (!this.archiveModel.getNode(oldUri)) {
       throw vscode.FileSystemError.FileNotFound(oldUri);
     }
 
-    if (this.fileService.getNode(newUri) && !options.overwrite) {
+    if (this.archiveModel.getNode(newUri) && !options.overwrite) {
       throw vscode.FileSystemError.FileExists(newUri);
     }
 
-    await this.fileService.rename(oldUri, newUri);
+    await this.archiveModel.rename(oldUri, newUri);
 
     this.onDidChangeFileEmitter.fire([
       { type: vscode.FileChangeType.Deleted, uri: oldUri },

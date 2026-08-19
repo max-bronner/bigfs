@@ -1,15 +1,11 @@
 import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
-import {
-  getAvailableName,
-  getParentPath,
-  isPathBelow,
-  splitPath,
-} from '../common/paths';
+import { getAvailableName, getParentPath, isPathBelow } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import { confirmDelete, resolveConflicts } from '../ui/dialogs';
+import { findChild, getTopLevelNodes } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
-import type { VirtualFileService } from '../big/virtualFileService';
+import type { ArchiveModel } from '../model/archiveModel';
 
 interface ImportedFile {
   name: string;
@@ -26,32 +22,10 @@ export const getTargetDirectoryPath = (node: VirtualNode): string =>
  * Resolves the directory node an operation on a target node applies to
  */
 export const resolveTargetDirectory = (
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
   target: VirtualNode,
 ): VirtualNode | undefined =>
-  fileService.getNode(getNodeUri(getTargetDirectoryPath(target)));
-
-const findChild = (
-  directory: VirtualNode,
-  relativePath: string,
-): VirtualNode | undefined => {
-  let node: VirtualNode | undefined = directory;
-
-  for (const segment of splitPath(relativePath)) {
-    node = node?.children?.get(segment);
-  }
-
-  return node;
-};
-
-export const getTopLevelNodes = (
-  nodes: readonly VirtualNode[],
-): VirtualNode[] => {
-  const isNested = (node: VirtualNode) =>
-    nodes.some((other) => other !== node && isPathBelow(node.path, other.path));
-
-  return nodes.filter((node) => !isNested(node));
-};
+  archiveModel.getNode(getNodeUri(getTargetDirectoryPath(target)));
 
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean => {
   const isAlreadyInTarget = getParentPath(source.path) === target.path;
@@ -84,7 +58,7 @@ const getSourcesInArchive = (
 };
 
 export const moveNodes = async (
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
   sources: readonly VirtualNode[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
@@ -109,13 +83,13 @@ export const moveNodes = async (
 
   const acceptedUris = acceptedNodes.map((node) => getNodeUri(node.path));
 
-  await fileService.moveEntries(acceptedUris, getNodeUri(targetDirectory.path));
+  await archiveModel.moveEntries(acceptedUris, getNodeUri(targetDirectory.path));
 
   return acceptedNodes.length;
 };
 
 export const copyNodes = async (
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
   sources: readonly VirtualNode[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
@@ -139,13 +113,13 @@ export const copyNodes = async (
     copies.push({ sourceUri: getNodeUri(source.path), targetName });
   }
 
-  await fileService.copyEntries(copies, getNodeUri(targetDirectory.path));
+  await archiveModel.copyEntries(copies, getNodeUri(targetDirectory.path));
 
   return copies.length;
 };
 
 export const deleteNodes = async (
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
   nodes: readonly VirtualNode[],
 ): Promise<number> => {
   const topLevelNodes = getTopLevelNodes(nodes);
@@ -170,7 +144,7 @@ export const deleteNodes = async (
   }
 
   for (const uris of urisByArchive.values()) {
-    await fileService.deleteEntries(uris);
+    await archiveModel.deleteEntries(uris);
   }
 
   return topLevelNodes.length;
@@ -212,7 +186,7 @@ const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
 };
 
 export const importFromDisk = async (
-  fileService: VirtualFileService,
+  archiveModel: ArchiveModel,
   sourceUris: Uri[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
@@ -227,7 +201,7 @@ export const importFromDisk = async (
     return 0;
   }
 
-  await fileService.addFiles(getNodeUri(targetDirectory.path), acceptedFiles);
+  await archiveModel.addFiles(getNodeUri(targetDirectory.path), acceptedFiles);
 
   return acceptedFiles.length;
 };

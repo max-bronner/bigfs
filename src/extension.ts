@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { VirtualFileService } from './big/virtualFileService';
+import { ArchiveModel } from './model/archiveModel';
 import { BigFileSystemProvider } from './big/fsProvider';
 import { BigExplorerProvider } from './big/bigExplorer';
 import { createNodeCommandRegister } from './commands/commandCenter';
@@ -9,22 +9,26 @@ import { registerClipboardCommands } from './commands/clipboardCommands';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
-  const fileService = new VirtualFileService();
+  const log = vscode.window.createOutputChannel('bigFS', { log: true });
+  const archiveModel = new ArchiveModel(log);
 
-  context.subscriptions.push(fileService);
+  context.subscriptions.push(log, archiveModel);
 
   const setContextKey = (key: string, value: boolean) =>
     vscode.commands.executeCommand('setContext', `${SCHEME}.${key}`, value);
 
   const markScanned = async () => {
-    await setContextKey('hasArchives', fileService.getArchives().size > 0);
+    await setContextKey(
+      'hasArchives',
+      archiveModel.getArchiveRoots().length > 0,
+    );
     await setContextKey('scanned', true);
   };
 
-  fileService.whenReady().finally(markScanned);
+  archiveModel.whenReady().finally(markScanned);
 
-  const fsProvider = new BigFileSystemProvider(fileService);
-  const explorerProvider = new BigExplorerProvider(fileService);
+  const fsProvider = new BigFileSystemProvider(archiveModel);
+  const explorerProvider = new BigExplorerProvider(archiveModel);
 
   // Registration of file system provider
   context.subscriptions.push(
@@ -46,9 +50,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   const registerNodeCommand = createNodeCommandRegister(context, treeView);
 
-  registerFileCommands(registerNodeCommand, fileService);
+  registerFileCommands(registerNodeCommand, archiveModel);
   registerExtractCommands(registerNodeCommand);
-  registerClipboardCommands(registerNodeCommand, fileService);
+  registerClipboardCommands(registerNodeCommand, archiveModel);
 
   // Manual refresh
   context.subscriptions.push(
@@ -56,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
       await setContextKey('scanned', false);
 
       try {
-        await fileService.scanWorkspace();
+        await archiveModel.scanWorkspace();
       } finally {
         explorerProvider.refresh();
         await markScanned();
