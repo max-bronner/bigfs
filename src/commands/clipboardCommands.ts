@@ -1,11 +1,16 @@
-import { commands, env, window, FileType } from 'vscode';
-import type { ExtensionContext, TreeView } from 'vscode';
+import { commands, env } from 'vscode';
 import { SCHEME } from '../constants';
-import { copyNodes, getTopLevelNodes, moveNodes } from './fileOperations';
 import { getParentPath, splitPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
+import {
+  copyNodes,
+  getTopLevelNodes,
+  moveNodes,
+  resolveTargetDirectory,
+} from '../actions/fileActions';
+import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../types';
-import type { VirtualFileService } from './virtualFileService';
+import type { VirtualFileService } from '../big/virtualFileService';
 
 type ClipboardOperation = 'cut' | 'copy';
 
@@ -23,13 +28,9 @@ const getEntryPath = (node: VirtualNode): string => {
 const getAbsolutePath = (node: VirtualNode): string =>
   `${node.archivePath}\\${getEntryPath(node)}`;
 
-const getTargetDirectoryPath = (node: VirtualNode): string =>
-  node.type === FileType.Directory ? node.path : getParentPath(node.path);
-
 export const registerClipboardCommands = (
-  context: ExtensionContext,
+  register: RegisterNodeCommand,
   fileService: VirtualFileService,
-  treeView: TreeView<VirtualNode>,
 ): void => {
   let clipboard: ClipboardContent | undefined;
 
@@ -45,11 +46,8 @@ export const registerClipboardCommands = (
     );
   };
 
-  const resolveDirectory = (target: VirtualNode): VirtualNode | undefined =>
-    fileService.getNode(getNodeUri(getTargetDirectoryPath(target)));
-
   const paste = async (target: VirtualNode): Promise<void> => {
-    const directory = resolveDirectory(target);
+    const directory = resolveTargetDirectory(fileService, target);
 
     if (!clipboard || !directory) {
       return;
@@ -83,45 +81,6 @@ export const registerClipboardCommands = (
         await copyNodes(fileService, siblings, directory);
       }
     }
-  };
-
-  const getTargets = (
-    target?: VirtualNode,
-    selection?: VirtualNode[],
-  ): VirtualNode[] => {
-    if (selection?.length) {
-      return selection;
-    }
-
-    return target ? [target] : [...treeView.selection];
-  };
-
-  const register = (
-    name: string,
-    run: (targets: VirtualNode[]) => Promise<void>,
-  ): void => {
-    const execute = async (
-      target?: VirtualNode,
-      selection?: VirtualNode[],
-    ): Promise<void> => {
-      const targets = getTargets(target, selection);
-
-      if (!targets.length) {
-        return;
-      }
-
-      try {
-        await run(targets);
-      } catch (error) {
-        window.showErrorMessage(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    };
-
-    context.subscriptions.push(
-      commands.registerCommand(`${SCHEME}.${name}`, execute),
-    );
   };
 
   register('cut', async (targets) => {

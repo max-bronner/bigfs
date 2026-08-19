@@ -12,7 +12,7 @@ import {
   window,
 } from 'vscode';
 import type { VirtualFileService } from './virtualFileService';
-import { importFromDisk, moveNodes } from './fileOperations';
+import { importFromDisk, moveNodes } from '../actions/fileActions';
 import { formatCount } from '../common/messages';
 import { getParentPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';

@@ -7,101 +7,29 @@ import {
   splitPath,
 } from '../common/paths';
 import { getNodeUri } from '../common/uri';
+import { confirmDelete, resolveConflicts } from '../ui/dialogs';
 import type { VirtualNode } from '../types';
-import type { VirtualFileService } from './virtualFileService';
+import type { VirtualFileService } from '../big/virtualFileService';
 
 interface ImportedFile {
   name: string;
   content: Uint8Array;
 }
 
-type OverwriteChoice = 'replace' | 'skip' | 'cancel';
+/**
+ * Gets the directory a node targets: itself for a directory, its parent for a file
+ */
+export const getTargetDirectoryPath = (node: VirtualNode): string =>
+  node.type === FileType.Directory ? node.path : getParentPath(node.path);
 
-const MAX_LISTED_NAMES = 5;
-
-const REPLACE_LABEL = 'Replace';
-const SKIP_LABEL = 'Skip';
-const DELETE_LABEL = 'Delete';
-
-const getListedNames = (names: string[]): string => {
-  const listedNames = names.slice(0, MAX_LISTED_NAMES);
-  const hiddenCount = names.length - listedNames.length;
-
-  if (hiddenCount) {
-    listedNames.push(`and ${hiddenCount} more`);
-  }
-
-  return listedNames.join(', ');
-};
-
-const getOverwriteMessage = (
-  names: string[],
-): { message: string; detail: string } => {
-  const subject =
-    names.length === 1 ? 'item already exists' : 'items already exist';
-
-  return {
-    message: `${names.length} ${subject} here.`,
-    detail: getListedNames(names),
-  };
-};
-
-const getDeleteMessage = (
-  names: string[],
-): { message: string; detail: string } => {
-  const subject =
-    names.length === 1 ? 'this item' : `these ${names.length} items`;
-
-  return {
-    message: `Permanently delete ${subject} from the archive?`,
-    detail: getListedNames(names),
-  };
-};
-
-const askForOverwrite = async (names: string[]): Promise<OverwriteChoice> => {
-  const { message, detail } = getOverwriteMessage(names);
-
-  const selectedOption = await window.showWarningMessage(
-    message,
-    { modal: true, detail },
-    REPLACE_LABEL,
-    SKIP_LABEL,
-  );
-
-  switch (selectedOption) {
-    case REPLACE_LABEL:
-      return 'replace';
-    case SKIP_LABEL:
-      return 'skip';
-    default:
-      return 'cancel';
-  }
-};
-
-export const resolveConflicts = async <T extends { name: string }>(
-  items: T[],
-  isConflicting: (item: T) => boolean,
-): Promise<T[]> => {
-  const conflictingItems = items.filter(isConflicting);
-
-  if (!conflictingItems.length) {
-    return items;
-  }
-
-  const conflictingItemNames = conflictingItems.map((item) => item.name);
-  const selectedOption = await askForOverwrite(conflictingItemNames);
-
-  switch (selectedOption) {
-    case 'replace':
-      return items;
-    case 'skip':
-      return items.filter((item) => !isConflicting(item));
-    case 'cancel':
-      return [];
-    default:
-      return [];
-  }
-};
+/**
+ * Resolves the directory node an operation on a target node applies to
+ */
+export const resolveTargetDirectory = (
+  fileService: VirtualFileService,
+  target: VirtualNode,
+): VirtualNode | undefined =>
+  fileService.getNode(getNodeUri(getTargetDirectoryPath(target)));
 
 const findChild = (
   directory: VirtualNode,
@@ -132,28 +60,43 @@ const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean => {
   return !isAlreadyInTarget && !isTargetInsideSource;
 };
 
+/**
+ * Keeps the sources belonging to the target's archive and warns about the rest
+ */
+const getSourcesInArchive = (
+  sources: readonly VirtualNode[],
+  targetDirectory: VirtualNode,
+  operation: string,
+): VirtualNode[] => {
+  const topLevelSources = getTopLevelNodes(sources);
+
+  const sourcesInArchive = topLevelSources.filter(
+    (source) => source.archivePath === targetDirectory.archivePath,
+  );
+
+  if (sourcesInArchive.length < topLevelSources.length) {
+    window.showWarningMessage(
+      `Entries can only be ${operation} inside the archive they belong to.`,
+    );
+  }
+
+  return sourcesInArchive;
+};
+
 export const moveNodes = async (
   fileService: VirtualFileService,
   sources: readonly VirtualNode[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
-  const topLevelSources = getTopLevelNodes(sources);
+  const sourcesInArchive = getSourcesInArchive(
+    sources,
+    targetDirectory,
+    'moved',
+  );
 
-  const isInTargetArchive = (source: VirtualNode) =>
-    source.archivePath === targetDirectory.archivePath;
-
-  const sourcesInArchive = topLevelSources.filter(isInTargetArchive);
-
-  if (sourcesInArchive.length < topLevelSources.length) {
-    window.showWarningMessage(
-      'Entries can only be moved inside the archive they belong to.',
-    );
-  }
-
-  const isMovable = (source: VirtualNode) =>
-    canMoveInto(source, targetDirectory);
-
-  const movableSources = sourcesInArchive.filter(isMovable);
+  const movableSources = sourcesInArchive.filter((source) =>
+    canMoveInto(source, targetDirectory),
+  );
 
   const hasNodeConflict = (node: VirtualNode) =>
     targetDirectory.children?.has(node.name) ?? false;
@@ -176,18 +119,11 @@ export const copyNodes = async (
   sources: readonly VirtualNode[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
-  const topLevelSources = getTopLevelNodes(sources);
-
-  const isInTargetArchive = (source: VirtualNode) =>
-    source.archivePath === targetDirectory.archivePath;
-
-  const sourcesInArchive = topLevelSources.filter(isInTargetArchive);
-
-  if (sourcesInArchive.length < topLevelSources.length) {
-    window.showWarningMessage(
-      'Entries can only be copied inside the archive they belong to.',
-    );
-  }
+  const sourcesInArchive = getSourcesInArchive(
+    sources,
+    targetDirectory,
+    'copied',
+  );
 
   if (!sourcesInArchive.length) {
     return 0;
@@ -218,17 +154,9 @@ export const deleteNodes = async (
     return 0;
   }
 
-  const { message, detail } = getDeleteMessage(
-    topLevelNodes.map((node) => node.name),
-  );
+  const confirmed = await confirmDelete(topLevelNodes.map((node) => node.name));
 
-  const selectedOption = await window.showWarningMessage(
-    message,
-    { modal: true, detail },
-    DELETE_LABEL,
-  );
-
-  if (selectedOption !== DELETE_LABEL) {
+  if (!confirmed) {
     return 0;
   }
 

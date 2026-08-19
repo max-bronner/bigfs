@@ -2,8 +2,10 @@ import * as vscode from 'vscode';
 import { VirtualFileService } from './big/virtualFileService';
 import { BigFileSystemProvider } from './big/fsProvider';
 import { BigExplorerProvider } from './big/bigExplorer';
-import { registerArchiveCommands } from './big/archiveCommands';
-import { registerClipboardCommands } from './big/clipboardCommands';
+import { createNodeCommandRegister } from './commands/commandCenter';
+import { registerFileCommands } from './commands/fileCommands';
+import { registerExtractCommands } from './commands/extractCommands';
+import { registerClipboardCommands } from './commands/clipboardCommands';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -42,8 +44,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(treeView);
 
-  registerArchiveCommands(context, fileService, treeView);
-  registerClipboardCommands(context, fileService, treeView);
+  const registerNodeCommand = createNodeCommandRegister(context, treeView);
+
+  registerFileCommands(registerNodeCommand, fileService);
+  registerExtractCommands(registerNodeCommand);
+  registerClipboardCommands(registerNodeCommand, fileService);
 
   // Manual refresh
   context.subscriptions.push(

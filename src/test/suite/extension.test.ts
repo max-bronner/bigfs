@@ -2,17 +2,24 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 
 suite('Extension Test Suite', () => {
-	test('activates and registers its commands', async () => {
-		const extension = vscode.extensions.getExtension('max-bronner.bigfs');
+  test('activates and registers every contributed command', async () => {
+    const extension = vscode.extensions.getExtension('max-bronner.bigfs');
 
-		assert.ok(extension, 'extension not found');
+    assert.ok(extension, 'extension not found');
 
-		await extension.activate();
+    await extension.activate();
 
-		assert.strictEqual(extension.isActive, true);
+    assert.strictEqual(extension.isActive, true);
 
-		const commands = await vscode.commands.getCommands(true);
+    const contributed: { command: string }[] =
+      extension.packageJSON.contributes.commands;
 
-		assert.ok(commands.includes('bigfs.refreshArchives'));
-	});
+    assert.ok(contributed.length, 'no commands contributed');
+
+    const registered = await vscode.commands.getCommands(true);
+
+    for (const { command } of contributed) {
+      assert.ok(registered.includes(command), `${command} is not registered`);
+    }
+  });
 });
