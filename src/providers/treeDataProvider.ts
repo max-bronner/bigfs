@@ -57,7 +57,16 @@ export class BigTreeDataProvider implements TreeDataProvider<VirtualNode> {
     this._onDidChangeTreeData.event;
 
   constructor(private archiveModel: ArchiveModel) {
-    this.archiveModel.onDidChangeArchive(() => {
+    this.archiveModel.onDidChangeArchive((change) => {
+      const archive =
+        change.kind === 'changed' &&
+        this.archiveModel.getArchiveByPath(change.archivePath);
+
+      if (archive) {
+        this._onDidChangeTreeData.fire(archive.root);
+        return;
+      }
+
       this.refresh();
     });
   }

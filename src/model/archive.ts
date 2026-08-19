@@ -32,7 +32,7 @@ export class Archive {
   public readonly name: string;
   public readonly rootPath: string;
 
-  public root: VirtualNode;
+  public readonly root: VirtualNode;
 
   private magic: string;
 
@@ -286,10 +286,14 @@ export class Archive {
   }
 
   /**
-   * Rebuilds the tree from the current entries
+   * Rebuilds the tree from the current entries.
+   *
+   * The root node keeps its identity: the tree view holds on to the elements
+   * it was handed, and refreshing one archive means firing the very root it
+   * already knows.
    */
   public rebuildTree(): void {
-    this.root = this.buildTree();
+    this.root.children = this.buildTree().children;
   }
 
   private buildTree(): VirtualNode {

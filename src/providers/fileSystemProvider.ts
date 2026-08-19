@@ -9,6 +9,9 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   >();
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
+  private bufferedEvents: vscode.FileChangeEvent[] = [];
+  private fireSoonHandle?: NodeJS.Timeout;
+
   constructor(private archiveModel: ArchiveModel) {
     archiveModel.onDidChangeArchive(({ rootPath }) => {
       this.fireChangedDocuments(rootPath);
@@ -31,8 +34,24 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
       }));
 
     if (changes.length) {
-      this.onDidChangeFileEmitter.fire(changes);
+      this.fireSoon(...changes);
     }
+  }
+
+  /**
+   * Collects the events of a burst and delivers them as one notification
+   */
+  private fireSoon(...events: vscode.FileChangeEvent[]): void {
+    this.bufferedEvents.push(...events);
+
+    if (this.fireSoonHandle) {
+      clearTimeout(this.fireSoonHandle);
+    }
+
+    this.fireSoonHandle = setTimeout(() => {
+      this.onDidChangeFileEmitter.fire(this.bufferedEvents);
+      this.bufferedEvents = [];
+    }, 5);
   }
 
   watch(_uri: vscode.Uri): vscode.Disposable {
@@ -109,12 +128,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
     this.archiveModel.createDirectory(uri);
 
-    this.onDidChangeFileEmitter.fire([
-      {
-        type: vscode.FileChangeType.Created,
-        uri,
-      },
-    ]);
+    this.fireSoon({ type: vscode.FileChangeType.Created, uri });
   }
 
   async writeFile(
@@ -134,25 +148,18 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
     await this.archiveModel.writeFile(uri, content);
 
-    this.onDidChangeFileEmitter.fire([
-      {
-        type: existingNode
-          ? vscode.FileChangeType.Changed
-          : vscode.FileChangeType.Created,
-        uri,
-      },
-    ]);
+    this.fireSoon({
+      type: existingNode
+        ? vscode.FileChangeType.Changed
+        : vscode.FileChangeType.Created,
+      uri,
+    });
   }
 
   async delete(uri: vscode.Uri): Promise<void> {
     await this.archiveModel.delete(uri);
 
-    this.onDidChangeFileEmitter.fire([
-      {
-        type: vscode.FileChangeType.Deleted,
-        uri,
-      },
-    ]);
+    this.fireSoon({ type: vscode.FileChangeType.Deleted, uri });
   }
 
   async rename(
@@ -175,9 +182,9 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
     await this.archiveModel.rename(oldUri, newUri);
 
-    this.onDidChangeFileEmitter.fire([
+    this.fireSoon(
       { type: vscode.FileChangeType.Deleted, uri: oldUri },
       { type: vscode.FileChangeType.Created, uri: newUri },
-    ]);
+    );
   }
 }

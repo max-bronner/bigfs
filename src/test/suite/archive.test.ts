@@ -7,6 +7,9 @@ import {
   serializeIndexTable,
 } from '../../format/bigFormat';
 import type { BigFileEntry } from '../../format/bigFormat';
+import { ArchiveModel } from '../../model/archiveModel';
+import { BigTreeDataProvider } from '../../providers/treeDataProvider';
+import type { VirtualNode } from '../../model/virtualNode';
 
 const ARCHIVE_NAME = 'generated.big';
 
@@ -305,5 +308,64 @@ suite('BIG archive file system', () => {
     });
 
     assert.deepStrictEqual(await readNames(`/${ARCHIVE_NAME}`), ['Data']);
+  });
+});
+
+suite('Tree refresh', () => {
+  const REFRESH_ARCHIVE = 'refresh.big';
+
+  let archiveFsPath: string;
+  let log: vscode.LogOutputChannel;
+  let model: ArchiveModel;
+
+  suiteSetup(async function () {
+    this.timeout(30_000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders![0];
+
+    archiveFsPath = path.join(workspaceFolder.uri.fsPath, REFRESH_ARCHIVE);
+
+    await writeFile(
+      archiveFsPath,
+      buildArchive([{ name: 'a.txt', content: 'A' }]),
+    );
+
+    log = vscode.window.createOutputChannel('bigFS tests', { log: true });
+    model = new ArchiveModel(log);
+
+    await model.whenReady();
+  });
+
+  suiteTeardown(async () => {
+    model.dispose();
+    log.dispose();
+
+    await unlink(archiveFsPath).catch(() => undefined);
+  });
+
+  test('refreshes the archive that changed instead of the whole view', async () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+
+    assert.ok(archive, 'the archive was not loaded');
+
+    const provider = new BigTreeDataProvider(model);
+    const refreshed: (VirtualNode | undefined | void)[] = [];
+    const subscription = provider.onDidChangeTreeData((element) =>
+      refreshed.push(element),
+    );
+
+    const rootBefore = archive.root;
+
+    await model.writeFile(
+      nodeUri(`/${REFRESH_ARCHIVE}/b.txt`),
+      Buffer.from('B', 'utf-8'),
+    );
+
+    subscription.dispose();
+
+    // The tree view holds on to the root it was handed, so rebuilding the
+    // tree has to keep it rather than replace it
+    assert.strictEqual(archive.root, rootBefore);
+    assert.deepStrictEqual(refreshed, [rootBefore]);
   });
 });

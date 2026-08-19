@@ -23,9 +23,10 @@ interface EntryMove {
 }
 
 /**
- * What changed about an archive, and where it sits in the virtual file system
+ * What happened to an archive, and where it sits in the virtual file system.
  */
 export interface ArchiveChange {
+  kind: 'added' | 'changed' | 'removed';
   archivePath: string;
   rootPath: string;
 }
@@ -82,26 +83,28 @@ export class ArchiveModel {
    */
   private async reloadArchive(uri: Uri): Promise<void> {
     const archivePath = uri.fsPath;
-    let archive = this.getArchiveByPath(archivePath);
+    const loaded = this.getArchiveByPath(archivePath);
 
     try {
-      if (archive) {
-        const reloaded = await archive.reload();
+      if (loaded) {
+        const reloaded = await loaded.reload();
 
         if (!reloaded) {
           return;
         }
-      } else {
-        archive = await Archive.load(archivePath, getArchiveRootPath(uri));
 
-        this.archives.set(archive.rootKey, archive);
+        this.fireChanged(loaded, 'changed');
+        return;
       }
+
+      const archive = await Archive.load(archivePath, getArchiveRootPath(uri));
+
+      this.archives.set(archive.rootKey, archive);
+
+      this.fireChanged(archive, 'added');
     } catch (error) {
       this.log.error(`Failed to reload archive ${archivePath}`, error);
-      return;
     }
-
-    this.fireChanged(archive);
   }
 
   /**
@@ -116,11 +119,12 @@ export class ArchiveModel {
 
     this.archives.delete(archive.rootKey);
 
-    this.fireChanged(archive);
+    this.fireChanged(archive, 'removed');
   }
 
-  private fireChanged(archive: Archive): void {
+  private fireChanged(archive: Archive, kind: ArchiveChange['kind']): void {
     this._onDidChangeArchive.fire({
+      kind,
       archivePath: archive.archivePath,
       rootPath: archive.rootPath,
     });
@@ -325,7 +329,7 @@ export class ArchiveModel {
   private refreshArchive(archive: Archive): void {
     archive.rebuildTree();
 
-    this.fireChanged(archive);
+    this.fireChanged(archive, 'changed');
   }
 
   /**
