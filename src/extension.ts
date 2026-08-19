@@ -53,7 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
   const registerNodeCommand = createNodeCommandRegister(context, treeView);
 
   registerFileCommands(registerNodeCommand, archiveModel);
-  registerExtractCommands(registerNodeCommand);
+  registerExtractCommands(registerNodeCommand, archiveModel);
   registerClipboardCommands(registerNodeCommand, archiveModel);
 
   // Manual refresh

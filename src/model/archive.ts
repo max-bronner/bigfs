@@ -1,6 +1,7 @@
 ﻿import { Uri, workspace } from 'vscode';
 import path from 'path';
 import {
+  openArchiveReader,
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
@@ -163,6 +164,7 @@ export class Archive {
       entry.size = size;
 
       delete entry.pendingData;
+      delete entry.pendingFile;
     });
 
     this.entries = entries;
@@ -184,6 +186,33 @@ export class Archive {
    */
   public readEntry(entry: BigFileEntry): Promise<Uint8Array> {
     return readEntryData(this.archivePath, entry);
+  }
+
+  /**
+   * Reads several file nodes with the archive open only once, queued behind
+   * every earlier access so nothing writes underneath the reader
+   */
+  public readFileNodes<T extends { node: VirtualNode }>(
+    items: readonly T[],
+    onFile: (item: T, content: Uint8Array) => Promise<void>,
+  ): Promise<void> {
+    return this.enqueue(async () => {
+      const reader = await openArchiveReader(this.archivePath);
+
+      try {
+        for (const item of items) {
+          const entry = this.getEntry(this.getEntryPath(item.node));
+
+          if (!entry) {
+            throw new Error(`Entry missing from archive: ${item.node.path}`);
+          }
+
+          await onFile(item, await reader.readEntry(entry));
+        }
+      } finally {
+        await reader.close();
+      }
+    });
   }
 
   /**

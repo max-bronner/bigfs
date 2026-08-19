@@ -2,23 +2,25 @@ import {
   commands,
   window,
   workspace,
+  CancellationError,
   FileType,
   ProgressLocation,
   Uri,
 } from 'vscode';
-import type { Progress } from 'vscode';
+import type { CancellationToken, Progress } from 'vscode';
 import { getParentPath, splitPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import { resolveConflicts } from '../ui/dialogs';
 import { getFileNodes, getTopLevelNodes } from '../model/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../model/virtualNode';
+import type { ArchiveModel } from '../model/archiveModel';
 
 const REVEAL_LABEL = 'Reveal in File Explorer';
 
 interface ExtractedFile {
   name: string;
-  nodePath: string;
+  node: VirtualNode;
   targetUri: Uri;
 }
 
@@ -36,7 +38,7 @@ const getExtractedFiles = (
 
       extractedFiles.push({
         name: relativePath,
-        nodePath: fileNode.path,
+        node: fileNode,
         targetUri: Uri.joinPath(targetDirectoryUri, ...splitPath(relativePath)),
       });
     }
@@ -87,6 +89,7 @@ const extractToFile = async (node: VirtualNode): Promise<Uri | undefined> => {
 };
 
 const extractToDirectory = async (
+  archiveModel: ArchiveModel,
   nodes: readonly VirtualNode[],
 ): Promise<Uri | undefined> => {
   const targetDirectoryUris = await window.showOpenDialog({
@@ -112,32 +115,50 @@ const extractToDirectory = async (
 
   const writeFiles = async (
     progress: Progress<{ message?: string; increment?: number }>,
+    token: CancellationToken,
   ): Promise<void> => {
     const increment = 100 / extractedFiles.length;
     let written = 0;
 
-    for (const { nodePath, targetUri } of extractedFiles) {
+    await archiveModel.readFiles(extractedFiles, async (file, content) => {
+      if (token.isCancellationRequested) {
+        throw new CancellationError();
+      }
+
       written += 1;
       progress.report({
         increment,
         message: `${written} of ${extractedFiles.length}`,
       });
 
-      const content = await workspace.fs.readFile(getNodeUri(nodePath));
-
-      await workspace.fs.writeFile(targetUri, content);
-    }
+      await workspace.fs.writeFile(file.targetUri, content);
+    });
   };
 
-  await window.withProgress(
-    { location: ProgressLocation.Notification, title: 'Extracting' },
-    writeFiles,
-  );
+  try {
+    await window.withProgress(
+      {
+        location: ProgressLocation.Notification,
+        title: 'Extracting',
+        cancellable: true,
+      },
+      writeFiles,
+    );
+  } catch (error) {
+    if (error instanceof CancellationError) {
+      return undefined;
+    }
+
+    throw error;
+  }
 
   return targetDirectoryUri;
 };
 
-const extractNodes = async (nodes: readonly VirtualNode[]): Promise<void> => {
+const extractNodes = async (
+  archiveModel: ArchiveModel,
+  nodes: readonly VirtualNode[],
+): Promise<void> => {
   const topLevelNodes = getTopLevelNodes(nodes);
   const singleFile =
     topLevelNodes.length === 1 && topLevelNodes[0].type === FileType.File
@@ -146,7 +167,7 @@ const extractNodes = async (nodes: readonly VirtualNode[]): Promise<void> => {
 
   const targetUri = singleFile
     ? await extractToFile(singleFile)
-    : await extractToDirectory(topLevelNodes);
+    : await extractToDirectory(archiveModel, topLevelNodes);
 
   if (!targetUri) {
     return;
@@ -164,6 +185,7 @@ const extractNodes = async (nodes: readonly VirtualNode[]): Promise<void> => {
 
 export const registerExtractCommands = (
   register: RegisterNodeCommand,
+  archiveModel: ArchiveModel,
 ): void => {
-  register('extract', (targets) => extractNodes(targets));
+  register('extract', (targets) => extractNodes(archiveModel, targets));
 };

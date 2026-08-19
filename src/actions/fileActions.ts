@@ -5,12 +5,7 @@ import { getNodeUri } from '../common/uri';
 import { confirmDelete, resolveConflicts } from '../ui/dialogs';
 import { findChild, getTopLevelNodes } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
-import type { ArchiveModel } from '../model/archiveModel';
-
-interface ImportedFile {
-  name: string;
-  content: Uint8Array;
-}
+import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
 
 /**
  * Gets the directory a node targets: itself for a directory, its parent for a file
@@ -156,13 +151,16 @@ const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
   const read = async (uri: Uri, parentPath: string): Promise<void> => {
     const name = path.posix.basename(uri.path);
     const relativePath = parentPath ? `${parentPath}/${name}` : name;
-    const { type } = await workspace.fs.stat(uri);
+    const { type, size } = await workspace.fs.stat(uri);
 
     if (type === FileType.File) {
-      files.push({
-        name: relativePath,
-        content: await workspace.fs.readFile(uri),
-      });
+      if (uri.scheme === 'file') {
+        files.push({ name: relativePath, size, sourcePath: uri.fsPath });
+      } else {
+        const content = await workspace.fs.readFile(uri);
+
+        files.push({ name: relativePath, size: content.length, content });
+      }
 
       return;
     }

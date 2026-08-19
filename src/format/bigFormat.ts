@@ -7,7 +7,10 @@ export interface BigFileEntry {
   name: string;
   offset: number;
   size: number;
+  /** Content that is not in the archive yet */
   pendingData?: Uint8Array;
+  /** File on disk whose content is copied in when the archive is written */
+  pendingFile?: string;
 }
 
 export interface ParsedArchive {

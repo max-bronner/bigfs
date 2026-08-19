@@ -31,6 +31,17 @@ export interface ArchiveChange {
   rootPath: string;
 }
 
+/**
+ * A file on its way into an archive. Files that live on disk are copied in
+ * while the archive is written, so their content never sits in memory.
+ */
+export interface ImportedFile {
+  name: string;
+  size: number;
+  sourcePath?: string;
+  content?: Uint8Array;
+}
+
 const hasStoredEntries = (move: EntryMove): boolean =>
   Boolean(move.filePaths.length);
 
@@ -540,7 +551,7 @@ export class ArchiveModel {
    */
   public async addFiles(
     targetDirectoryUri: Uri,
-    files: { name: string; content: Uint8Array }[],
+    files: readonly ImportedFile[],
   ): Promise<void> {
     const { archive, entryPath } = this.getArchiveContext(targetDirectoryUri);
 
@@ -552,19 +563,47 @@ export class ArchiveModel {
     }
 
     await this.modifyEntries(archive, (entries) => {
-      for (const { name, content } of files) {
+      for (const { name, size, sourcePath, content } of files) {
         const filePath = entryPath ? `${entryPath}/${name}` : name;
 
         entries.set(filePath, {
           name: filePath,
           offset: 0, // assigned when the archive is written
-          size: content.length,
+          size,
           pendingData: content,
+          pendingFile: sourcePath,
         });
       }
     });
 
     this.refreshArchive(archive);
+  }
+
+  /**
+   * Reads several file nodes, opening each archive involved only once
+   */
+  public async readFiles<T extends { node: VirtualNode }>(
+    items: readonly T[],
+    onFile: (item: T, content: Uint8Array) => Promise<void>,
+  ): Promise<void> {
+    const itemsByArchive = new Map<string, T[]>();
+
+    for (const item of items) {
+      const group = itemsByArchive.get(item.node.archivePath) ?? [];
+
+      group.push(item);
+      itemsByArchive.set(item.node.archivePath, group);
+    }
+
+    for (const [archivePath, group] of itemsByArchive) {
+      const archive = this.getArchiveByPath(archivePath);
+
+      if (!archive) {
+        throw FileSystemError.FileNotFound(archivePath);
+      }
+
+      await archive.readFileNodes(group, onFile);
+    }
   }
 
   /**

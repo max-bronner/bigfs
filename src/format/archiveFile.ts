@@ -73,6 +73,51 @@ export const readArchiveIndexTable = async (
   }
 };
 
+export interface ArchiveReader {
+  readEntry(entry: BigFileEntry): Promise<Uint8Array>;
+  close(): Promise<void>;
+}
+
+/**
+ * Opens an archive once for reading several entries, instead of paying for
+ * an open and a close per entry
+ */
+export const openArchiveReader = async (
+  archivePath: string,
+): Promise<ArchiveReader> => {
+  const archiveFile = await open(archivePath, 'r');
+
+  return {
+    async readEntry(entry: BigFileEntry): Promise<Uint8Array> {
+      if (entry.pendingData) {
+        return entry.pendingData;
+      }
+
+      if (!entry.size) {
+        return Buffer.alloc(0);
+      }
+
+      const buffer = Buffer.alloc(entry.size);
+      const { bytesRead } = await archiveFile.read(
+        buffer,
+        0,
+        entry.size,
+        entry.offset,
+      );
+
+      if (bytesRead < entry.size) {
+        throw new Error(
+          `Archive ends inside entry '${entry.name}', ` +
+            `${bytesRead} of ${entry.size} bytes`,
+        );
+      }
+
+      return buffer;
+    },
+    close: () => archiveFile.close(),
+  };
+};
+
 export const readEntryData = async (
   archivePath: string,
   entry: BigFileEntry,
@@ -85,27 +130,12 @@ export const readEntryData = async (
     return Buffer.alloc(0);
   }
 
-  const archiveFile = await open(archivePath, 'r');
+  const reader = await openArchiveReader(archivePath);
 
   try {
-    const buffer = Buffer.alloc(entry.size);
-    const { bytesRead } = await archiveFile.read(
-      buffer,
-      0,
-      entry.size,
-      entry.offset,
-    );
-
-    if (bytesRead < entry.size) {
-      throw new Error(
-        `Archive ends inside entry '${entry.name}', ` +
-          `${bytesRead} of ${entry.size} bytes`,
-      );
-    }
-
-    return buffer;
+    return await reader.readEntry(entry);
   } finally {
-    await archiveFile.close();
+    await reader.close();
   }
 };
 
@@ -163,6 +193,18 @@ export const writeArchiveFile = async (
 
         if (entry.pendingData) {
           await tempFile.write(entry.pendingData, 0, size, offset);
+          continue;
+        }
+
+        if (entry.pendingFile) {
+          const importedFile = await open(entry.pendingFile, 'r');
+
+          try {
+            await copyEntryData(importedFile, tempFile, 0, offset, size);
+          } finally {
+            await importedFile.close();
+          }
+
           continue;
         }
 

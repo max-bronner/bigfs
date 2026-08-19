@@ -1,4 +1,4 @@
-import * as assert from 'assert';
+﻿import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
 import { mkdir, rm, unlink, writeFile } from 'fs/promises';
@@ -9,6 +9,7 @@ import {
 import type { BigFileEntry } from '../../format/bigFormat';
 import { ArchiveModel } from '../../model/archiveModel';
 import { BigTreeDataProvider } from '../../providers/treeDataProvider';
+import { getFileNodes } from '../../model/virtualNode';
 import type { VirtualNode } from '../../model/virtualNode';
 
 const ARCHIVE_NAME = 'generated.big';
@@ -367,5 +368,94 @@ suite('Tree refresh', () => {
     // tree has to keep it rather than replace it
     assert.strictEqual(archive.root, rootBefore);
     assert.deepStrictEqual(refreshed, [rootBefore]);
+  });
+});
+
+suite('Bulk transfers', () => {
+  const BULK_ARCHIVE = 'bulk.big';
+  const IMPORTED_CONTENT = 'Streamed from disk';
+
+  let archiveFsPath: string;
+  let importFsPath: string;
+  let log: vscode.LogOutputChannel;
+  let model: ArchiveModel;
+
+  const readEntry = async (entryPath: string): Promise<string> => {
+    const node = model.getNode(nodeUri(`/${BULK_ARCHIVE}/${entryPath}`));
+
+    assert.ok(node, `${entryPath} is missing`);
+
+    const content = await model.getFileContent(node);
+
+    return Buffer.from(content!).toString('utf-8');
+  };
+
+  suiteSetup(async function () {
+    this.timeout(30_000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+
+    archiveFsPath = path.join(workspaceFolder, BULK_ARCHIVE);
+    importFsPath = path.join(workspaceFolder, 'source.txt');
+
+    await writeFile(
+      archiveFsPath,
+      buildArchive([
+        { name: 'a.txt', content: 'A' },
+        { name: 'nested/b.txt', content: 'B' },
+      ]),
+    );
+    await writeFile(importFsPath, Buffer.from(IMPORTED_CONTENT, 'utf-8'));
+
+    log = vscode.window.createOutputChannel('bigFS bulk tests', { log: true });
+    model = new ArchiveModel(log);
+
+    await model.whenReady();
+  });
+
+  suiteTeardown(async () => {
+    model.dispose();
+    log.dispose();
+
+    await unlink(archiveFsPath).catch(() => undefined);
+    await unlink(importFsPath).catch(() => undefined);
+  });
+
+  test('adds a file by copying it out of the file on disk', async () => {
+    await model.addFiles(nodeUri(`/${BULK_ARCHIVE}`), [
+      {
+        name: 'imported.txt',
+        size: IMPORTED_CONTENT.length,
+        sourcePath: importFsPath,
+      },
+    ]);
+
+    assert.strictEqual(await readEntry('imported.txt'), IMPORTED_CONTENT);
+
+    // The entries already in the archive come through the rewrite intact
+    assert.strictEqual(await readEntry('a.txt'), 'A');
+    assert.strictEqual(await readEntry('nested/b.txt'), 'B');
+  });
+
+  test('reads several entries through one open archive', async () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+
+    assert.ok(archive, 'the archive was not loaded');
+
+    const items = getFileNodes(archive.root).map((node) => ({ node }));
+    const read = new Map<string, string>();
+
+    await model.readFiles(items, async (item, content) => {
+      read.set(item.node.name, Buffer.from(content).toString('utf-8'));
+    });
+
+    assert.deepStrictEqual(
+      read,
+      new Map([
+        ['a.txt', 'A'],
+        ['b.txt', 'B'],
+        ['imported.txt', IMPORTED_CONTENT],
+      ]),
+    );
   });
 });
