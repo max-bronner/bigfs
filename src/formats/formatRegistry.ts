@@ -2,7 +2,7 @@
 import type { VirtualNode } from '../model/virtualNode';
 import { findChild, getFileNodes } from '../model/virtualNode';
 import { getParentPath } from '../common/paths';
-import type { ToolBox } from '../tools/registry';
+import type { ToolBox } from '../tools/toolRegistry';
 
 /**
  * Formats: they open an entry.

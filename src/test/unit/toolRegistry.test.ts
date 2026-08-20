@@ -1,6 +1,6 @@
-import * as assert from 'assert';
-import { createToolRegistry } from '../../tools/registry';
-import type { Tool } from '../../tools/registry';
+﻿import * as assert from 'assert';
+import { createToolRegistry } from '../../tools/toolRegistry';
+import type { Tool } from '../../tools/toolRegistry';
 
 const upperCase: Tool<string, string> = {
   id: 'test.upper',

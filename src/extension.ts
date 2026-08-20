@@ -7,8 +7,8 @@ import { createNodeCommandRegister } from './commands/commandCenter';
 import { registerFileCommands } from './commands/fileCommands';
 import { registerExtractCommands } from './commands/extractCommands';
 import { registerClipboardCommands } from './commands/clipboardCommands';
-import { createToolRegistry } from './tools/registry';
-import { createFormatRegistry } from './formats/registry';
+import { createToolRegistry } from './tools/toolRegistry';
+import { createFormatRegistry } from './formats/formatRegistry';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {

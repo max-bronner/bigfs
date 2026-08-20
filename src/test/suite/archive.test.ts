@@ -14,8 +14,8 @@ import {
 } from '../../providers/treeDataProvider';
 import { findChild, getFileNodes } from '../../model/virtualNode';
 import { getExtractedFiles } from '../../commands/extractCommands';
-import { createToolRegistry } from '../../tools/registry';
-import { createFormatRegistry } from '../../formats/registry';
+import { createToolRegistry } from '../../tools/toolRegistry';
+import { createFormatRegistry } from '../../formats/formatRegistry';
 import type { VirtualNode } from '../../model/virtualNode';
 
 const ARCHIVE_NAME = 'generated.big';
@@ -51,8 +51,15 @@ const buildArchive = (files: { name: string; content: string }[]): Buffer => {
   return archive;
 };
 
-const nodeUri = (nodePath: string): vscode.Uri =>
-  vscode.Uri.from({ scheme: 'bigfs', path: nodePath });
+/**
+ * A uri names its source first, so the tests address entries the way the
+ * extension does rather than assuming the workspace is the only place
+ */
+const nodeUri = (nodePath: string): vscode.Uri => {
+  const source = vscode.workspace.workspaceFolders![0].name.toLowerCase();
+
+  return vscode.Uri.from({ scheme: 'bigfs', path: `/${source}${nodePath}` });
+};
 
 const readText = async (nodePath: string): Promise<string> => {
   const content = await vscode.workspace.fs.readFile(nodeUri(nodePath));
@@ -359,9 +366,15 @@ suite('Tree refresh', () => {
 
     await model.whenReady();
 
-    // An archive is only read when something asks for its content
+    // A file written moments ago may not be indexed yet, and an archive is
+    // only read once something asks for its content
+    await waitFor(async () => {
+      const archive = model.getArchiveByPath(archiveFsPath);
 
-    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
+      assert.ok(archive, 'the archive was not listed');
+
+      await archive.ensureLoaded();
+    });
   });
 
   suiteTeardown(async () => {
@@ -494,9 +507,15 @@ suite('Bulk transfers', () => {
 
     await model.whenReady();
 
-    // An archive is only read when something asks for its content
+    // A file written moments ago may not be indexed yet, and an archive is
+    // only read once something asks for its content
+    await waitFor(async () => {
+      const archive = model.getArchiveByPath(archiveFsPath);
 
-    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
+      assert.ok(archive, 'the archive was not listed');
+
+      await archive.ensureLoaded();
+    });
   });
 
   suiteTeardown(async () => {
@@ -586,9 +605,15 @@ suite('Extraction layout', () => {
 
     await model.whenReady();
 
-    // An archive is only read when something asks for its content
+    // A file written moments ago may not be indexed yet, and an archive is
+    // only read once something asks for its content
+    await waitFor(async () => {
+      const archive = model.getArchiveByPath(archiveFsPath);
 
-    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
+      assert.ok(archive, 'the archive was not listed');
+
+      await archive.ensureLoaded();
+    });
   });
 
   suiteTeardown(async () => {
@@ -683,9 +708,15 @@ suite('Format registry', () => {
 
     await model.whenReady();
 
-    // An archive is only read when something asks for its content
+    // A file written moments ago may not be indexed yet, and an archive is
+    // only read once something asks for its content
+    await waitFor(async () => {
+      const archive = model.getArchiveByPath(archiveFsPath);
 
-    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
+      assert.ok(archive, 'the archive was not listed');
+
+      await archive.ensureLoaded();
+    });
   });
 
   suiteTeardown(async () => {
@@ -844,5 +875,68 @@ suite('Lazy loading', () => {
     } finally {
       await unlink(archiveFsPath).catch(() => undefined);
     }
+  });
+});
+
+suite('Archive sources', () => {
+  const SOURCE_ARCHIVE = 'sourced.big';
+
+  let archiveFsPath: string;
+  let log: vscode.LogOutputChannel;
+  let model: ArchiveModel;
+
+  suiteSetup(async function () {
+    this.timeout(30_000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+
+    archiveFsPath = path.join(workspaceFolder, SOURCE_ARCHIVE);
+
+    await writeFile(
+      archiveFsPath,
+      buildArchive([{ name: 'readme.txt', content: 'Sourced' }]),
+    );
+
+    log = vscode.window.createOutputChannel('bigFS source tests', {
+      log: true,
+    });
+    model = new ArchiveModel(log);
+
+    await model.whenReady();
+  });
+
+  suiteTeardown(async () => {
+    model.dispose();
+    log.dispose();
+
+    await unlink(archiveFsPath).catch(() => undefined);
+  });
+
+  test('names the source before the path inside it', () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+    const source = vscode.workspace.workspaceFolders![0].name.toLowerCase();
+
+    assert.ok(archive, 'the archive was not listed');
+    assert.strictEqual(archive.rootPath, `/${source}/${SOURCE_ARCHIVE}`);
+  });
+
+  test('does not resolve a path that leaves out its source', async () => {
+    // The old shape, which two archives of the same name could both claim
+    const withoutSource = vscode.Uri.from({
+      scheme: 'bigfs',
+      path: `/${SOURCE_ARCHIVE}/readme.txt`,
+    });
+
+    await assert.rejects(async () => {
+      await vscode.workspace.fs.stat(withoutSource);
+    });
+
+    // The same entry resolves once the source is named
+    await waitFor(async () => {
+      assert.strictEqual(
+        await readText(`/${SOURCE_ARCHIVE}/readme.txt`),
+        'Sourced',
+      );
+    });
   });
 });

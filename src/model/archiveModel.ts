@@ -13,6 +13,12 @@ import type { BigFileEntry } from '../binary/bigFormat';
 import { getParentPath, isPathBelow, splitPath } from '../common/paths';
 import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
+import {
+  createWorkspaceSources,
+  findSourceFor,
+  getArchiveRootPath,
+} from './archiveSource';
+import type { ArchiveSource } from './archiveSource';
 import { findBlockingFile, findChild } from './virtualNode';
 import type { VirtualNode } from './virtualNode';
 
@@ -37,10 +43,6 @@ export interface ImportedFile {
   sourcePath?: string;
   content?: Uint8Array;
 }
-
-/** Where an archive sits in the virtual file system */
-const getArchiveRootPath = (uri: Uri): string =>
-  `/${workspace.asRelativePath(uri).replace(/\\/g, '/')}`;
 
 const isFile = async (uri: Uri): Promise<boolean> => {
   try {
@@ -70,6 +72,9 @@ export class ArchiveModel {
 
   /** Keyed by each archive's root key */
   private archives = new Map<string, Archive>();
+
+  /** The places archives are found in, which a uri names first */
+  private sources: ArchiveSource[] = [];
 
   private readonly archiveWatcher: FileSystemWatcher;
 
@@ -112,7 +117,13 @@ export class ArchiveModel {
         return;
       }
 
-      const archive = Archive.create(archivePath, getArchiveRootPath(uri));
+      const source = findSourceFor(this.sources, uri);
+
+      if (!source) {
+        return; // outside every source, so not ours to show
+      }
+
+      const archive = Archive.create(archivePath, getArchiveRootPath(source, uri));
 
       await archive.verify();
 
@@ -161,7 +172,11 @@ export class ArchiveModel {
   }
 
   private async runScan(): Promise<void> {
-    if (!workspace.workspaceFolders) {
+    this.sources = createWorkspaceSources();
+
+    if (!this.sources.length) {
+      this.archives = new Map<string, Archive>();
+
       return;
     }
 
@@ -173,7 +188,13 @@ export class ArchiveModel {
 
     const results = await Promise.allSettled(
       archiveUris.map(async (uri) => {
-        const rootPath = getArchiveRootPath(uri);
+        const source = findSourceFor(this.sources, uri);
+
+        if (!source) {
+          return;
+        }
+
+        const rootPath = getArchiveRootPath(source, uri);
         const known = loaded.get(rootPath.toLowerCase());
 
         // Reusing the instance keeps the tree the view already holds, and
