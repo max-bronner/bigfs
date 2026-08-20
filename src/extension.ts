@@ -7,6 +7,8 @@ import { createNodeCommandRegister } from './commands/commandCenter';
 import { registerFileCommands } from './commands/fileCommands';
 import { registerExtractCommands } from './commands/extractCommands';
 import { registerClipboardCommands } from './commands/clipboardCommands';
+import { createToolRegistry } from './tools/registry';
+import { createFormatRegistry } from './formats/registry';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -27,6 +29,14 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   archiveModel.whenReady().finally(markScanned);
+
+  // The plug-in surface. Tools transform data, formats open an entry, and
+  // both are registered here so adding one touches a single line.
+  const tools = createToolRegistry();
+  const formats = createFormatRegistry(archiveModel, tools);
+
+  tools.register();
+  formats.register();
 
   const fileSystemProvider = new BigFileSystemProvider(archiveModel);
   const treeDataProvider = new BigTreeDataProvider(archiveModel);

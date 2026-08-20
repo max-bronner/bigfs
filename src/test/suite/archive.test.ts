@@ -14,6 +14,8 @@ import {
 } from '../../providers/treeDataProvider';
 import { findChild, getFileNodes } from '../../core/virtualNode';
 import { getExtractedFiles } from '../../commands/extractCommands';
+import { createToolRegistry } from '../../tools/registry';
+import { createFormatRegistry } from '../../formats/registry';
 import type { VirtualNode } from '../../core/virtualNode';
 
 const ARCHIVE_NAME = 'generated.big';
@@ -635,5 +637,125 @@ suite('Extraction layout', () => {
       .filter((rootPath) => rootPath.endsWith('notreally.big'));
 
     assert.deepStrictEqual(loaded, []);
+  });
+});
+
+suite('Format registry', () => {
+  const FORMAT_ARCHIVE = 'formats.big';
+
+  let archiveFsPath: string;
+  let log: vscode.LogOutputChannel;
+  let model: ArchiveModel;
+
+  suiteSetup(async function () {
+    this.timeout(30_000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+
+    archiveFsPath = path.join(workspaceFolder, FORMAT_ARCHIVE);
+
+    await writeFile(
+      archiveFsPath,
+      buildArchive([
+        { name: 'movies/unit.apt', content: 'APT' },
+        { name: 'movies/unit.const', content: 'CONST' },
+        { name: 'movies/unit.dat', content: 'DAT' },
+        { name: 'movies/other.apt', content: 'OTHER' },
+      ]),
+    );
+
+    log = vscode.window.createOutputChannel('bigFS format tests', {
+      log: true,
+    });
+    model = new ArchiveModel(log);
+
+    await model.whenReady();
+  });
+
+  suiteTeardown(async () => {
+    model.dispose();
+    log.dispose();
+
+    await unlink(archiveFsPath).catch(() => undefined);
+  });
+
+  const contextFor = (entryPath: string) => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+
+    assert.ok(archive, 'the archive was not loaded');
+
+    const node = findChild(archive.root, entryPath);
+
+    assert.ok(node, `${entryPath} is missing`);
+
+    const registry = createFormatRegistry(model, createToolRegistry());
+    const context = registry.createContext(node);
+
+    assert.ok(context, 'no context for the entry');
+
+    return context;
+  };
+
+  test('finds the siblings an entry needs', () => {
+    const context = contextFor('movies/unit.apt');
+
+    assert.strictEqual(context.sibling('.const')?.name, 'unit.const');
+    assert.strictEqual(context.sibling('.dat')?.name, 'unit.dat');
+
+    // A sibling that does not exist is absent, not an error
+    assert.strictEqual(context.sibling('.missing'), undefined);
+  });
+
+  test('does not mistake another entry for a sibling', () => {
+    const context = contextFor('movies/unit.apt');
+
+    assert.strictEqual(context.sibling('.apt')?.name, 'unit.apt');
+  });
+
+  test('reads the bytes of a group of entries', async () => {
+    const context = contextFor('movies/unit.apt');
+
+    const group = [
+      context.entry,
+      context.sibling('.const')!,
+      context.sibling('.dat')!,
+    ];
+
+    const contents = await context.readAll(group);
+    const asText = new Map(
+      Array.from(contents, ([entryPath, bytes]) => [
+        entryPath,
+        Buffer.from(bytes).toString('utf-8'),
+      ]),
+    );
+
+    assert.deepStrictEqual(
+      asText,
+      new Map([
+        ['movies/unit.apt', 'APT'],
+        ['movies/unit.const', 'CONST'],
+        ['movies/unit.dat', 'DAT'],
+      ]),
+    );
+  });
+
+  test('claims an entry only when a format matches it', () => {
+    const archive = model.getArchiveByPath(archiveFsPath)!;
+    const registry = createFormatRegistry(model, createToolRegistry());
+    const apt = findChild(archive.root, 'movies/unit.apt')!;
+
+    assert.strictEqual(registry.find(apt), undefined);
+
+    registry.register({
+      id: 'test.apt',
+      matches: (entry) => entry.name.toLowerCase().endsWith('.apt'),
+      parse: async () => undefined,
+    });
+
+    assert.strictEqual(registry.find(apt)?.id, 'test.apt');
+    assert.strictEqual(
+      registry.find(findChild(archive.root, 'movies/unit.dat')!),
+      undefined,
+    );
   });
 });
