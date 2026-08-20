@@ -13,6 +13,7 @@ import {
   BigTreeItem,
 } from '../../providers/treeDataProvider';
 import { findChild, getFileNodes } from '../../model/virtualNode';
+import { getExtractedFiles } from '../../commands/extractCommands';
 import type { VirtualNode } from '../../model/virtualNode';
 
 const ARCHIVE_NAME = 'generated.big';
@@ -413,7 +414,14 @@ suite('Tree refresh', () => {
     // The tree view holds on to the root it was handed, so rebuilding the
     // tree has to keep it rather than replace it
     assert.strictEqual(archive.root, rootBefore);
-    assert.deepStrictEqual(refreshed, [rootBefore]);
+
+    // The watcher can report the write as well, so the count is not fixed.
+    // What matters is that no refresh asks for the whole view.
+    assert.ok(refreshed.length > 0, 'nothing was refreshed');
+    assert.ok(
+      refreshed.every((element) => element === rootBefore),
+      'the whole view was refreshed instead of the archive that changed',
+    );
   });
 });
 
@@ -503,5 +511,103 @@ suite('Bulk transfers', () => {
         ['imported.txt', IMPORTED_CONTENT],
       ]),
     );
+  });
+});
+
+suite('Extraction layout', () => {
+  const LAYOUT_ARCHIVE = 'layout.big';
+
+  let archiveFsPath: string;
+  let strayFsPath: string;
+  let log: vscode.LogOutputChannel;
+  let model: ArchiveModel;
+
+  const targetDirectory = vscode.Uri.file(path.join('C:', 'out'));
+
+  suiteSetup(async function () {
+    this.timeout(30_000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+
+    archiveFsPath = path.join(workspaceFolder, LAYOUT_ARCHIVE);
+    strayFsPath = path.join(workspaceFolder, 'notreally.big');
+
+    await writeFile(
+      archiveFsPath,
+      buildArchive([
+        { name: 'data/one.txt', content: '1' },
+        { name: 'top.txt', content: 'T' },
+      ]),
+    );
+
+    // Carries the extension but is not an archive
+    await writeFile(strayFsPath, Buffer.from('nothing like a header', 'utf-8'));
+
+    log = vscode.window.createOutputChannel('bigFS layout tests', {
+      log: true,
+    });
+    model = new ArchiveModel(log);
+
+    await model.whenReady();
+  });
+
+  suiteTeardown(async () => {
+    model.dispose();
+    log.dispose();
+
+    await unlink(archiveFsPath).catch(() => undefined);
+    await unlink(strayFsPath).catch(() => undefined);
+  });
+
+  test('extracts an archive without the extension in the folder name', () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+
+    assert.ok(archive, 'the archive was not loaded');
+
+    const extracted = getExtractedFiles([archive.root], targetDirectory);
+
+    assert.deepStrictEqual(
+      extracted.map((file) => file.name).sort(),
+      ['layout/data/one.txt', 'layout/top.txt'],
+    );
+  });
+
+  test('extracts a folder under its own name', () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+    const folder = findChild(archive!.root, 'data');
+
+    assert.ok(folder, 'the folder is missing');
+
+    const extracted = getExtractedFiles([folder], targetDirectory);
+
+    assert.deepStrictEqual(
+      extracted.map((file) => file.name),
+      ['data/one.txt'],
+    );
+  });
+
+  test('extracts a single file under its own name', () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+    const file = findChild(archive!.root, 'top.txt');
+
+    assert.ok(file, 'the file is missing');
+
+    const extracted = getExtractedFiles([file], targetDirectory);
+
+    assert.deepStrictEqual(
+      extracted.map((file) => file.name),
+      ['top.txt'],
+    );
+  });
+
+  test('ignores a file that carries the extension but is not an archive', () => {
+    assert.strictEqual(model.getArchiveByPath(strayFsPath), undefined);
+
+    const loaded = model
+      .getArchiveRoots()
+      .map((root) => root.path)
+      .filter((rootPath) => rootPath.endsWith('notreally.big'));
+
+    assert.deepStrictEqual(loaded, []);
   });
 });

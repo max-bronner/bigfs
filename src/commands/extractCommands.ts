@@ -8,7 +8,8 @@ import {
   Uri,
 } from 'vscode';
 import type { CancellationToken, Progress } from 'vscode';
-import { getParentPath, splitPath } from '../common/paths';
+import path from 'path';
+import { splitPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import { resolveConflicts } from '../ui/dialogs';
 import { getFileNodes, getTopLevelNodes } from '../model/virtualNode';
@@ -24,17 +25,38 @@ interface ExtractedFile {
   targetUri: Uri;
 }
 
-const getExtractedFiles = (
+/**
+ * Gets the folder an extracted node is written into. An archive drops the
+ * extension it is named by, so extracting textures.big writes textures/.
+ */
+const getExtractedName = (node: VirtualNode): string =>
+  node.isArchiveRoot
+    ? node.name.slice(0, node.name.length - path.posix.extname(node.name).length)
+    : node.name;
+
+/**
+ * Gets the path an extracted file is written to, relative to the directory
+ * the user picked
+ */
+const getExtractedPath = (node: VirtualNode, fileNode: VirtualNode): string => {
+  if (fileNode === node) {
+    return node.name;
+  }
+
+  const pathInsideNode = fileNode.path.slice(node.path.length + 1);
+
+  return `${getExtractedName(node)}/${pathInsideNode}`;
+};
+
+export const getExtractedFiles = (
   nodes: readonly VirtualNode[],
   targetDirectoryUri: Uri,
 ): ExtractedFile[] => {
   const extractedFiles: ExtractedFile[] = [];
 
   for (const node of nodes) {
-    const basePath = getParentPath(node.path);
-
     for (const fileNode of getFileNodes(node)) {
-      const relativePath = fileNode.path.slice(basePath.length + 1);
+      const relativePath = getExtractedPath(node, fileNode);
 
       extractedFiles.push({
         name: relativePath,

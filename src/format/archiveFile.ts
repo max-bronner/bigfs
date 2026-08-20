@@ -2,6 +2,7 @@ import { open, rename, unlink } from 'fs/promises';
 import type { FileHandle } from 'fs/promises';
 import {
   HEADER_LENGTH,
+  NotAnArchiveError,
   parseHeader,
   parseIndexTable,
   computeArchiveLayout,
@@ -27,7 +28,7 @@ export const readArchiveIndexTable = async (
     );
 
     if (headerBytesRead < HEADER_LENGTH) {
-      throw new Error('File too small to be a valid BIG archive');
+      throw new NotAnArchiveError('File too small to hold a BIG header');
     }
 
     const header = parseHeader(headerBuffer);

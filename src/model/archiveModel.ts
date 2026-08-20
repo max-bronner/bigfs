@@ -9,6 +9,7 @@
 import type { FileSystemWatcher, LogOutputChannel } from 'vscode';
 import path from 'path';
 import { BIG_PATTERN } from '../constants';
+import { NotAnArchiveError } from '../format/bigFormat';
 import type { BigFileEntry } from '../format/bigFormat';
 import { isPathBelow, movePath, splitPath } from '../common/paths';
 import { Archive } from './archive';
@@ -51,6 +52,16 @@ const hasStoredEntries = (move: EntryMove): boolean =>
  */
 const getArchiveRootPath = (uri: Uri): string =>
   `/${workspace.asRelativePath(uri).replace(/\\/g, '/')}`;
+
+const isFile = async (uri: Uri): Promise<boolean> => {
+  try {
+    const { type } = await workspace.fs.stat(uri);
+
+    return type === FileType.File;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * The archives of the workspace: finds them on disk, keeps them loaded, and
@@ -96,6 +107,10 @@ export class ArchiveModel {
     const archivePath = uri.fsPath;
     const loaded = this.getArchiveByPath(archivePath);
 
+    if (!loaded && !(await isFile(uri))) {
+      return; // a directory can carry the extension too
+    }
+
     try {
       if (loaded) {
         const reloaded = await loaded.reload();
@@ -114,6 +129,11 @@ export class ArchiveModel {
 
       this.fireChanged(archive, 'added');
     } catch (error) {
+      if (error instanceof NotAnArchiveError) {
+        this.log.info(`Ignoring ${archivePath}: ${error.message}`);
+        return;
+      }
+
       this.log.error(`Failed to reload archive ${archivePath}`, error);
     }
   }
@@ -186,13 +206,23 @@ export class ArchiveModel {
 
     const failed = results.filter((result) => result.status === 'rejected');
 
-    if (failed.length) {
-      failed.forEach((result) =>
-        this.log.error('Failed to read archive', result.reason),
-      );
+    // A file that is not an archive at all is not a failure worth reporting,
+    // the extension it carries is only a naming convention
+    const unreadable = failed.filter(
+      (result) => !(result.reason instanceof NotAnArchiveError),
+    );
 
+    failed.forEach((result) => {
+      if (result.reason instanceof NotAnArchiveError) {
+        this.log.info(`Ignoring a file that is not an archive: ${result.reason.message}`);
+      } else {
+        this.log.error('Failed to read archive', result.reason);
+      }
+    });
+
+    if (unreadable.length) {
       window.showWarningMessage(
-        `${failed.length} of ${archiveUris.length} BIG archives could not be read.`,
+        `${unreadable.length} of ${archiveUris.length} BIG archives could not be read.`,
       );
     }
   }

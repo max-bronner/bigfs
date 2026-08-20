@@ -37,6 +37,12 @@ export const HEADER_LENGTH = 16;
 /** Magics of the supported archive formats */
 const MAGICS = new Set(['BIGF', 'BIG4']);
 
+/**
+ * A file that is not a BIG archive at all. The extension is a naming
+ * convention, so this means "not ours" rather than "broken".
+ */
+export class NotAnArchiveError extends Error {}
+
 const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
@@ -49,7 +55,7 @@ export const parseHeader = (buffer: Buffer) => {
   // Read header (16 bytes total)
   const magic = buffer.toString('ascii', 0, 4);
   if (!MAGICS.has(magic)) {
-    throw new Error(`Invalid BIG file magic: '${magic}'`);
+    throw new NotAnArchiveError(`Invalid BIG file magic: '${magic}'`);
   }
 
   const archiveSize = buffer.readUInt32LE(4);
