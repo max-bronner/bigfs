@@ -1,12 +1,12 @@
-import * as assert from 'assert';
+﻿import * as assert from 'assert';
 import {
   HEADER_LENGTH,
   computeArchiveLayout,
   parseHeader,
   parseIndexTable,
   serializeIndexTable,
-} from '../../format/bigFormat';
-import type { BigFileEntry } from '../../format/bigFormat';
+} from '../../core/binary/bigFormat';
+import type { BigFileEntry } from '../../core/binary/bigFormat';
 
 const createEntries = (
   files: { name: string; content: string }[],

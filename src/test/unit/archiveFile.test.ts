@@ -1,8 +1,8 @@
-import * as assert from 'assert';
+﻿import * as assert from 'assert';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
-import { readEntryData } from '../../format/archiveFile';
+import { readEntryData } from '../../core/binary/archiveFile';
 
 const MISSING_ARCHIVE = path.join(tmpdir(), 'bigfs-does-not-exist.big');
 

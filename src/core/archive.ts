@@ -1,12 +1,12 @@
-import { Uri, workspace } from 'vscode';
+﻿import { Uri, workspace } from 'vscode';
 import path from 'path';
 import {
   openArchiveReader,
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
-} from '../format/archiveFile';
-import type { BigFileEntry } from '../format/bigFormat';
+} from '../core/binary/archiveFile';
+import type { BigFileEntry } from '../core/binary/bigFormat';
 import { movePath } from '../common/paths';
 import {
   buildVirtualTree,

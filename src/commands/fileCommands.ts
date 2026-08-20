@@ -1,4 +1,4 @@
-import { commands, window, workspace } from 'vscode';
+﻿import { commands, window, workspace } from 'vscode';
 import { formatCount } from '../common/messages';
 import { getParentPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
@@ -10,8 +10,8 @@ import {
   resolveTargetDirectory,
 } from '../actions/fileActions';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../model/virtualNode';
-import type { ArchiveModel } from '../model/archiveModel';
+import type { VirtualNode } from '../core/virtualNode';
+import type { ArchiveModel } from '../core/archiveModel';
 
 const readChildNames = async (directoryPath: string): Promise<Set<string>> => {
   const children = await workspace.fs.readDirectory(getNodeUri(directoryPath));

@@ -1,4 +1,4 @@
-import {
+﻿import {
   commands,
   window,
   workspace,
@@ -12,10 +12,10 @@ import path from 'path';
 import { splitPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import { resolveConflicts } from '../ui/dialogs';
-import { getFileNodes, getTopLevelNodes } from '../model/virtualNode';
+import { getFileNodes, getTopLevelNodes } from '../core/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../model/virtualNode';
-import type { ArchiveModel } from '../model/archiveModel';
+import type { VirtualNode } from '../core/virtualNode';
+import type { ArchiveModel } from '../core/archiveModel';
 
 const REVEAL_LABEL = 'Reveal in File Explorer';
 

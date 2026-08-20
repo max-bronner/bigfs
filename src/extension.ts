@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ArchiveModel } from './model/archiveModel';
+import { ArchiveModel } from './core/archiveModel';
 import { BigFileSystemProvider } from './providers/fileSystemProvider';
 import { BigTreeDataProvider } from './providers/treeDataProvider';
 import { BigDragAndDropController } from './providers/dragAndDropController';

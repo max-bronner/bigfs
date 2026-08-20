@@ -1,4 +1,4 @@
-import {
+﻿import {
   workspace,
   window,
   EventEmitter,
@@ -8,8 +8,8 @@ import {
 } from 'vscode';
 import type { FileSystemWatcher, LogOutputChannel } from 'vscode';
 import { BIG_PATTERN } from '../constants';
-import { NotAnArchiveError } from '../format/bigFormat';
-import type { BigFileEntry } from '../format/bigFormat';
+import { NotAnArchiveError } from '../core/binary/bigFormat';
+import type { BigFileEntry } from '../core/binary/bigFormat';
 import { getParentPath, isPathBelow, splitPath } from '../common/paths';
 import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
