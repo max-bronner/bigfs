@@ -498,7 +498,11 @@ suite('Bulk transfers', () => {
   });
 
   test('adds a file by copying it out of the file on disk', async () => {
-    await model.addFiles(nodeUri(`/${BULK_ARCHIVE}`), [
+    const archive = model.getArchiveByPath(archiveFsPath);
+
+    assert.ok(archive, 'the archive was not loaded');
+
+    await model.addFiles(archive.root, [
       {
         name: 'imported.txt',
         size: IMPORTED_CONTENT.length,

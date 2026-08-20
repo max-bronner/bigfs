@@ -1,7 +1,5 @@
 import { commands, env } from 'vscode';
 import { SCHEME } from '../constants';
-import { getParentPath } from '../common/paths';
-import { getNodeUri } from '../common/uri';
 import {
   copyNodes,
   moveNodes,
@@ -61,22 +59,23 @@ export const registerClipboardCommands = (
   };
 
   const duplicate = async (nodes: readonly VirtualNode[]): Promise<void> => {
-    const nodesByDirectory = new Map<string, VirtualNode[]>();
+    const siblingsByDirectory = new Map<VirtualNode, VirtualNode[]>();
 
     for (const node of getTopLevelNodes(nodes)) {
-      const directoryPath = getParentPath(node.path);
-      const siblings = nodesByDirectory.get(directoryPath) ?? [];
+      const directory = archiveModel.getParent(node);
+
+      if (!directory) {
+        continue;
+      }
+
+      const siblings = siblingsByDirectory.get(directory) ?? [];
 
       siblings.push(node);
-      nodesByDirectory.set(directoryPath, siblings);
+      siblingsByDirectory.set(directory, siblings);
     }
 
-    for (const [directoryPath, siblings] of nodesByDirectory) {
-      const directory = archiveModel.getNode(getNodeUri(directoryPath));
-
-      if (directory) {
-        await copyNodes(archiveModel, siblings, directory);
-      }
+    for (const [directory, siblings] of siblingsByDirectory) {
+      await copyNodes(archiveModel, siblings, directory);
     }
   };
 

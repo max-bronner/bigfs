@@ -8,8 +8,6 @@ import {
 import type { TreeDragAndDropController } from 'vscode';
 import { importFromDisk, moveNodes } from '../actions/fileActions';
 import { formatCount } from '../common/messages';
-import { getParentPath } from '../common/paths';
-import { getNodeUri } from '../common/uri';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
 
@@ -91,6 +89,6 @@ export class BigDragAndDropController
       return target;
     }
 
-    return this.archiveModel.getNode(getNodeUri(getParentPath(target.path)));
+    return this.archiveModel.getParent(target);
   }
 }

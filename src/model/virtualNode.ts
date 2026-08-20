@@ -56,23 +56,6 @@ const addEntryPath = (rootNode: VirtualNode, entryPath: string): void => {
   });
 };
 
-const addDirectoryPath = (
-  rootNode: VirtualNode,
-  directoryPath: string,
-): void => {
-  let parentNode = rootNode;
-
-  for (const segment of splitPath(directoryPath)) {
-    const existingNode = parentNode.children?.get(segment.toLowerCase());
-
-    if (existingNode && existingNode.type !== FileType.Directory) {
-      return;
-    }
-
-    parentNode = addChild(parentNode, segment, false);
-  }
-};
-
 /**
  * Builds an archive's tree from its entry paths, plus the directories that
  * are tracked while nothing is stored below them
@@ -82,7 +65,6 @@ export const buildVirtualTree = (
   rootPath: string,
   archivePath: string,
   entryPaths: Iterable<string>,
-  emptyDirectories: Iterable<string>,
 ): VirtualNode => {
   const rootNode: VirtualNode = {
     name,
@@ -97,11 +79,152 @@ export const buildVirtualTree = (
     addEntryPath(rootNode, entryPath);
   }
 
-  for (const directoryPath of emptyDirectories) {
-    addDirectoryPath(rootNode, directoryPath);
+  return rootNode;
+};
+
+const repath = (node: VirtualNode, nodePath: string): void => {
+  node.path = nodePath;
+
+  node.children?.forEach((child) => repath(child, `${nodePath}/${child.name}`));
+};
+
+/**
+ * Inserts a file, creating the directories above it
+ */
+export const insertFile = (
+  rootNode: VirtualNode,
+  entryPath: string,
+): VirtualNode => {
+  const segments = splitPath(entryPath);
+  let node = rootNode;
+
+  segments.forEach((segment, index) => {
+    node = addChild(node, segment, index === segments.length - 1);
+  });
+
+  return node;
+};
+
+/**
+ * Inserts a directory and the directories above it. A directory exists only
+ * in the tree, since an archive stores file paths and nothing else.
+ */
+export const insertDirectory = (
+  rootNode: VirtualNode,
+  directoryPath: string,
+): VirtualNode => {
+  let node = rootNode;
+
+  for (const segment of splitPath(directoryPath)) {
+    node = addChild(node, segment, false);
   }
 
-  return rootNode;
+  return node;
+};
+
+/**
+ * Removes a node and everything below it
+ */
+export const removeNode = (rootNode: VirtualNode, entryPath: string): void => {
+  const segments = splitPath(entryPath);
+  const name = segments.pop();
+
+  if (!name) {
+    return;
+  }
+
+  findChild(rootNode, segments.join('/'))?.children?.delete(name.toLowerCase());
+};
+
+/**
+ * Moves a node, carrying everything below it including directories that hold
+ * no files of their own
+ */
+export const moveNode = (
+  rootNode: VirtualNode,
+  from: string,
+  to: string,
+): void => {
+  const node = findChild(rootNode, from);
+
+  if (!node) {
+    return;
+  }
+
+  removeNode(rootNode, from);
+
+  const name = splitPath(to).at(-1);
+
+  if (!name) {
+    return;
+  }
+
+  const parent = insertDirectory(rootNode, getParentPath(to));
+
+  node.name = name;
+  parent.children?.set(name.toLowerCase(), node);
+  repath(node, `${parent.path}/${name}`);
+};
+
+/**
+ * Mirrors a node at another path
+ */
+export const copyNode = (
+  rootNode: VirtualNode,
+  from: string,
+  to: string,
+): void => {
+  const source = findChild(rootNode, from);
+
+  if (!source) {
+    return;
+  }
+
+  if (source.type === FileType.File) {
+    insertFile(rootNode, to);
+    return;
+  }
+
+  insertDirectory(rootNode, to);
+
+  source.children?.forEach((child) =>
+    copyNode(rootNode, `${from}/${child.name}`, `${to}/${child.name}`),
+  );
+};
+
+/**
+ * Brings the files of a tree in line with the entries of an archive that was
+ * read again. Directories are left alone, so the ones a user created and the
+ * ones whose files were removed elsewhere both survive.
+ */
+export const syncFiles = (
+  rootNode: VirtualNode,
+  entryPaths: Iterable<string>,
+): void => {
+  const wanted = new Set(
+    Array.from(entryPaths, (entryPath) => entryPath.toLowerCase()),
+  );
+
+  const prune = (node: VirtualNode, prefix: string): void => {
+    node.children?.forEach((child, key) => {
+      const childPath = prefix ? `${prefix}/${child.name}` : child.name;
+
+      if (child.type !== FileType.File) {
+        prune(child, childPath);
+        return;
+      }
+
+      if (!wanted.has(childPath.toLowerCase())) {
+        node.children?.delete(key);
+      }
+    });
+  };
+
+  prune(rootNode, '');
+
+  for (const entryPath of entryPaths) {
+    insertFile(rootNode, entryPath);
+  }
 };
 
 /**

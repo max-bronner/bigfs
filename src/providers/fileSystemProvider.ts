@@ -121,12 +121,12 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     return content;
   }
 
-  createDirectory(uri: vscode.Uri): void {
+  async createDirectory(uri: vscode.Uri): Promise<void> {
     if (this.archiveModel.getNode(uri)) {
       throw vscode.FileSystemError.FileExists(uri);
     }
 
-    this.archiveModel.createDirectory(uri);
+    await this.archiveModel.createDirectory(uri);
 
     this.fireSoon({ type: vscode.FileChangeType.Created, uri });
   }

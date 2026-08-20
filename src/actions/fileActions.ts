@@ -1,7 +1,6 @@
 ﻿import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
 import { getAvailableName, getParentPath, isPathBelow } from '../common/paths';
-import { getNodeUri } from '../common/uri';
 import { confirmDelete, resolveConflicts } from '../ui/dialogs';
 import { findChild, getTopLevelNodes } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
@@ -20,7 +19,7 @@ export const resolveTargetDirectory = (
   archiveModel: ArchiveModel,
   target: VirtualNode,
 ): VirtualNode | undefined =>
-  archiveModel.getNode(getNodeUri(getTargetDirectoryPath(target)));
+  target.type === FileType.Directory ? target : archiveModel.getParent(target);
 
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean => {
   const isAlreadyInTarget = getParentPath(source.path) === target.path;
@@ -76,9 +75,7 @@ export const moveNodes = async (
     return 0;
   }
 
-  const acceptedUris = acceptedNodes.map((node) => getNodeUri(node.path));
-
-  await archiveModel.moveEntries(acceptedUris, getNodeUri(targetDirectory.path));
+  await archiveModel.moveNodes(acceptedNodes, targetDirectory);
 
   return acceptedNodes.length;
 };
@@ -98,17 +95,20 @@ export const copyNodes = async (
     return 0;
   }
 
-  const takenNames = new Set(targetDirectory.children?.keys() ?? []);
-  const copies: { sourceUri: Uri; targetName: string }[] = [];
+  const takenNames = Array.from(
+    targetDirectory.children?.values() ?? [],
+    (child) => child.name,
+  );
+  const copies: { source: VirtualNode; targetName: string }[] = [];
 
   for (const source of sourcesInArchive) {
     const targetName = getAvailableName(takenNames, source.name);
 
-    takenNames.add(targetName);
-    copies.push({ sourceUri: getNodeUri(source.path), targetName });
+    takenNames.push(targetName);
+    copies.push({ source, targetName });
   }
 
-  await archiveModel.copyEntries(copies, getNodeUri(targetDirectory.path));
+  await archiveModel.copyNodes(copies, targetDirectory);
 
   return copies.length;
 };
@@ -129,18 +129,7 @@ export const deleteNodes = async (
     return 0;
   }
 
-  const urisByArchive = new Map<string, Uri[]>();
-
-  for (const node of topLevelNodes) {
-    const uris = urisByArchive.get(node.archivePath) ?? [];
-
-    uris.push(getNodeUri(node.path));
-    urisByArchive.set(node.archivePath, uris);
-  }
-
-  for (const uris of urisByArchive.values()) {
-    await archiveModel.deleteEntries(uris);
-  }
+  await archiveModel.deleteNodes(topLevelNodes);
 
   return topLevelNodes.length;
 };
@@ -199,7 +188,7 @@ export const importFromDisk = async (
     return 0;
   }
 
-  await archiveModel.addFiles(getNodeUri(targetDirectory.path), acceptedFiles);
+  await archiveModel.addFiles(targetDirectory, acceptedFiles);
 
   return acceptedFiles.length;
 };
