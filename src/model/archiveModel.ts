@@ -112,7 +112,9 @@ export class ArchiveModel {
         return;
       }
 
-      const archive = await Archive.load(archivePath, getArchiveRootPath(uri));
+      const archive = Archive.create(archivePath, getArchiveRootPath(uri));
+
+      await archive.verify();
 
       this.archives.set(archive.rootKey, archive);
 
@@ -176,10 +178,13 @@ export class ArchiveModel {
 
         // Reusing the instance keeps the tree the view already holds, and
         // with it the directories that exist only there
-        const archive = known ?? (await Archive.load(uri.fsPath, rootPath));
+        const archive = known ?? Archive.create(uri.fsPath, rootPath);
 
         if (known) {
           await known.reload();
+        } else {
+          // Only the header, so a scan stays cheap however many there are
+          await archive.verify();
         }
 
         this.archives.set(archive.rootKey, archive);
@@ -289,6 +294,32 @@ export class ArchiveModel {
     const resolved = this.resolveUri(uri);
 
     return resolved && findChild(resolved.archive.root, resolved.entryPath);
+  }
+
+  /**
+   * Resolves a URI, reading the archive it points into if that has not
+   * happened yet. The file system provider uses this rather than `getNode`,
+   * since a URI can arrive for an archive nobody has opened.
+   */
+  public async resolveNode(uri: Uri): Promise<VirtualNode | undefined> {
+    if (!this.findArchiveForUri(uri.path)) {
+      await this.whenReady();
+    }
+
+    const archive = this.findArchiveForUri(uri.path);
+
+    if (!archive) {
+      return undefined;
+    }
+
+    await archive.ensureLoaded();
+
+    return this.getNode(uri);
+  }
+
+  /** Reads the archive a node belongs to, for a view about to show it */
+  public async loadArchiveOf(node: VirtualNode): Promise<void> {
+    await this.getArchiveByPath(node.archivePath)?.ensureLoaded();
   }
 
   /** Gets the directory a node sits in, or nothing for an archive root */

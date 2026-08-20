@@ -13,6 +13,28 @@ import type { ArchiveLayout, BigFileEntry, ParsedArchive } from './bigFormat';
 /** Buffer size for moving an entry's data between archives */
 const COPY_CHUNK_SIZE = 256 * 1024;
 
+/**
+ * Reads only the header, which is enough to tell an archive from a file that
+ * merely carries the extension. Costs one open and sixteen bytes, so it can
+ * be done for every archive found without delaying anything.
+ */
+export const readArchiveHeader = async (archivePath: string) => {
+  const archiveFile = await open(archivePath, 'r');
+
+  try {
+    const buffer = Buffer.alloc(HEADER_LENGTH);
+    const { bytesRead } = await archiveFile.read(buffer, 0, HEADER_LENGTH, 0);
+
+    if (bytesRead < HEADER_LENGTH) {
+      throw new NotAnArchiveError('File too small to hold a BIG header');
+    }
+
+    return parseHeader(buffer);
+  } finally {
+    await archiveFile.close();
+  }
+};
+
 export const readArchiveIndexTable = async (
   archivePath: string,
 ): Promise<ParsedArchive> => {

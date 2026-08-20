@@ -358,6 +358,10 @@ suite('Tree refresh', () => {
     model = new ArchiveModel(log);
 
     await model.whenReady();
+
+    // An archive is only read when something asks for its content
+
+    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
   });
 
   suiteTeardown(async () => {
@@ -489,6 +493,10 @@ suite('Bulk transfers', () => {
     model = new ArchiveModel(log);
 
     await model.whenReady();
+
+    // An archive is only read when something asks for its content
+
+    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
   });
 
   suiteTeardown(async () => {
@@ -577,6 +585,10 @@ suite('Extraction layout', () => {
     model = new ArchiveModel(log);
 
     await model.whenReady();
+
+    // An archive is only read when something asks for its content
+
+    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
   });
 
   suiteTeardown(async () => {
@@ -670,6 +682,10 @@ suite('Format registry', () => {
     model = new ArchiveModel(log);
 
     await model.whenReady();
+
+    // An archive is only read when something asks for its content
+
+    await model.getArchiveByPath(archiveFsPath)?.ensureLoaded();
   });
 
   suiteTeardown(async () => {
@@ -757,5 +773,76 @@ suite('Format registry', () => {
       registry.find(findChild(archive.root, 'movies/unit.dat')!),
       undefined,
     );
+  });
+});
+
+suite('Lazy loading', () => {
+  const LAZY_ARCHIVE = 'lazy.big';
+
+  test('lists an archive without reading it, and reads it when opened', async function () {
+    this.timeout(30_000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+    const archiveFsPath = path.join(workspaceFolder, LAZY_ARCHIVE);
+
+    await writeFile(
+      archiveFsPath,
+      buildArchive([{ name: 'data/deep/file.txt', content: 'X' }]),
+    );
+
+    const log = vscode.window.createOutputChannel('bigFS lazy tests', {
+      log: true,
+    });
+    const model = new ArchiveModel(log);
+
+    try {
+      await model.whenReady();
+
+      const archive = model.getArchiveByPath(archiveFsPath);
+
+      assert.ok(archive, 'the archive was not listed');
+
+      // Listed from its header alone: the index table is untouched
+      assert.strictEqual(archive.isLoaded, false);
+      assert.strictEqual(archive.root.children?.size, 0);
+
+      const provider = new BigTreeDataProvider(model);
+      const children = await provider.getChildren(archive.root);
+
+      assert.strictEqual(archive.isLoaded, true);
+      assert.deepStrictEqual(
+        children.map((child) => child.name),
+        ['data'],
+      );
+    } finally {
+      model.dispose();
+      log.dispose();
+
+      await unlink(archiveFsPath).catch(() => undefined);
+    }
+  });
+
+  test('reads the archive a uri points into', async function () {
+    this.timeout(30_000);
+
+    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
+    const archiveFsPath = path.join(workspaceFolder, LAZY_ARCHIVE);
+
+    await writeFile(
+      archiveFsPath,
+      buildArchive([{ name: 'data/deep/file.txt', content: 'X' }]),
+    );
+
+    try {
+      // Nothing has expanded this archive, so opening a file has to read it
+      await waitFor(async () => {
+        assert.strictEqual(
+          await readText(`/${LAZY_ARCHIVE}/data/deep/file.txt`),
+          'X',
+        );
+      });
+    } finally {
+      await unlink(archiveFsPath).catch(() => undefined);
+    }
   });
 });

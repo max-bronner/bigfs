@@ -101,10 +101,15 @@ export class BigTreeDataProvider implements TreeDataProvider<VirtualNode> {
       return sortNodes(this.archiveModel.getArchiveRoots());
     }
 
-    if (element.type === FileType.Directory && element.children) {
-      return sortNodes(Array.from(element.children.values()));
+    if (element.type !== FileType.Directory) {
+      return [];
     }
 
-    return [];
+    if (element.isArchiveRoot) {
+      // The content is read the first time an archive is opened
+      await this.archiveModel.loadArchiveOf(element);
+    }
+
+    return sortNodes(Array.from(element.children?.values() ?? []));
   }
 }

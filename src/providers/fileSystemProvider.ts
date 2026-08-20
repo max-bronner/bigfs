@@ -58,18 +58,8 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     return new vscode.Disposable(() => {});
   }
 
-  private async resolveNode(
-    uri: vscode.Uri,
-  ): Promise<VirtualNode | undefined> {
-    const node = this.archiveModel.getNode(uri);
-
-    if (node) {
-      return node;
-    }
-
-    await this.archiveModel.whenReady();
-
-    return this.archiveModel.getNode(uri);
+  private resolveNode(uri: vscode.Uri): Promise<VirtualNode | undefined> {
+    return this.archiveModel.resolveNode(uri);
   }
 
   async stat(uri: vscode.Uri): Promise<vscode.FileStat> {

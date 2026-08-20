@@ -2,6 +2,7 @@
 import path from 'path';
 import {
   openArchiveReader,
+  readArchiveHeader,
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
@@ -143,44 +144,61 @@ export class Archive {
   /** Kept for the life of the archive: the tree view holds on to it */
   public readonly root: VirtualNode;
 
-  private magic: string;
+  private magic = '';
 
   /** Keyed case insensitively; each entry keeps its stored name */
-  private entries: Map<string, BigFileEntry>;
+  private entries = new Map<string, BigFileEntry>();
+
+  /** Set once the index table has been read, which happens on first use */
+  private loading?: Promise<void>;
 
   private queue: Promise<unknown> = Promise.resolve();
   private lastWrittenAt = 0;
 
-  private constructor(
-    archivePath: string,
-    rootPath: string,
-    magic: string,
-    entries: Map<string, BigFileEntry>,
-  ) {
+  private constructor(archivePath: string, rootPath: string) {
     this.archivePath = archivePath;
     this.name = path.basename(archivePath);
     this.rootPath = rootPath;
-    this.magic = magic;
-    this.entries = Archive.keyEntries(entries);
-    this.root = buildVirtualTree(
-      this.name,
-      this.rootPath,
-      this.archivePath,
-      Array.from(this.entries.values(), (entry) => entry.name),
-    );
+    this.root = buildVirtualTree(this.name, this.rootPath, this.archivePath, []);
   }
 
   /**
-   * Reads an archive's index table from disk. The root path is where the
-   * archive sits in the virtual file system, e.g. `/mods/textures.big`.
+   * Puts an archive in the tree without reading it. The root path is where it
+   * sits in the virtual file system, e.g. `/mods/textures.big`.
+   *
+   * Reading the index table of a large archive costs a noticeable fraction of
+   * a second, and a workspace holds many, so it waits until something asks
+   * for the content.
    */
-  public static async load(
-    archivePath: string,
-    rootPath: string,
-  ): Promise<Archive> {
-    const { magic, entries } = await readArchiveIndexTable(archivePath);
+  public static create(archivePath: string, rootPath: string): Archive {
+    return new Archive(archivePath, rootPath);
+  }
 
-    return new Archive(archivePath, rootPath, magic, entries);
+  /** Checks the file is an archive at all, reading only its header */
+  public async verify(): Promise<void> {
+    this.magic = (await readArchiveHeader(this.archivePath)).magic;
+  }
+
+  /** Reads the index table, once, however many callers ask for it */
+  public ensureLoaded(): Promise<void> {
+    this.loading ??= this.enqueue(async () => {
+      const { magic, entries } = await readArchiveIndexTable(this.archivePath);
+
+      this.magic = magic;
+      this.entries = Archive.keyEntries(entries);
+
+      syncFiles(
+        this.root,
+        Array.from(this.entries.values(), (entry) => entry.name),
+      );
+    });
+
+    return this.loading;
+  }
+
+  /** Whether the content has been read, as opposed to only listed */
+  public get isLoaded(): boolean {
+    return Boolean(this.loading);
   }
 
   /** How the archive is identified, case insensitively like its content */
@@ -213,6 +231,10 @@ export class Archive {
    * anything was reloaded.
    */
   public reload(): Promise<boolean> {
+    if (!this.loading) {
+      return Promise.resolve(false); // never read, so nothing to bring up to date
+    }
+
     return this.enqueue(async () => {
       if (await this.hasOwnWrite()) {
         return false;
@@ -252,7 +274,10 @@ export class Archive {
    * only when the entries actually moved. Creating a directory touches no
    * bytes on disk.
    */
-  public applyChanges(changes: readonly EntryChange[]): Promise<void> {
+  public async applyChanges(changes: readonly EntryChange[]): Promise<void> {
+    // Outside the queue: the entries have to be there before they can change
+    await this.ensureLoaded();
+
     return this.enqueue(async () => {
       const entries = new Map(this.entries);
       let writeNeeded = false;
@@ -303,10 +328,12 @@ export class Archive {
    * Reads several file nodes with the archive open only once, queued behind
    * every earlier access so nothing writes underneath the reader
    */
-  public readFileNodes<T extends { node: VirtualNode }>(
+  public async readFileNodes<T extends { node: VirtualNode }>(
     items: readonly T[],
     onFile: (item: T, content: Uint8Array) => Promise<void>,
   ): Promise<void> {
+    await this.ensureLoaded();
+
     return this.enqueue(async () => {
       const reader = await openArchiveReader(this.archivePath);
 
