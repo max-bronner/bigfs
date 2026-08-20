@@ -1,7 +1,7 @@
 ﻿import * as vscode from 'vscode';
-import type { ArchiveModel } from '../core/archiveModel';
+import type { ArchiveModel } from '../model/archiveModel';
 import { SCHEME } from '../constants';
-import type { VirtualNode } from '../core/virtualNode';
+import type { VirtualNode } from '../model/virtualNode';
 
 export class BigFileSystemProvider implements vscode.FileSystemProvider {
   private onDidChangeFileEmitter = new vscode.EventEmitter<

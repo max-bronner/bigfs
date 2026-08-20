@@ -2,9 +2,9 @@
 import path from 'path';
 import { getAvailableName, getParentPath, isPathBelow } from '../common/paths';
 import { confirmDelete, resolveConflicts } from '../ui/dialogs';
-import { findChild, getTopLevelNodes } from '../core/virtualNode';
-import type { VirtualNode } from '../core/virtualNode';
-import type { ArchiveModel, ImportedFile } from '../core/archiveModel';
+import { findChild, getTopLevelNodes } from '../model/virtualNode';
+import type { VirtualNode } from '../model/virtualNode';
+import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
 
 /**
  * Gets the directory a node targets: itself for a directory, its parent for a file

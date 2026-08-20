@@ -5,10 +5,10 @@ import {
   moveNodes,
   resolveTargetDirectory,
 } from '../actions/fileActions';
-import { getTopLevelNodes } from '../core/virtualNode';
+import { getTopLevelNodes } from '../model/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../core/virtualNode';
-import type { ArchiveModel } from '../core/archiveModel';
+import type { VirtualNode } from '../model/virtualNode';
+import type { ArchiveModel } from '../model/archiveModel';
 
 type ClipboardOperation = 'cut' | 'copy';
 

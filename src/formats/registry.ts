@@ -1,6 +1,6 @@
-import type { ArchiveModel } from '../core/archiveModel';
-import type { VirtualNode } from '../core/virtualNode';
-import { findChild, getFileNodes } from '../core/virtualNode';
+﻿import type { ArchiveModel } from '../model/archiveModel';
+import type { VirtualNode } from '../model/virtualNode';
+import { findChild, getFileNodes } from '../model/virtualNode';
 import { getParentPath } from '../common/paths';
 import type { ToolBox } from '../tools/registry';
 

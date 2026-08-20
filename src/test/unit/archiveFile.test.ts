@@ -2,7 +2,7 @@
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
-import { readEntryData } from '../../core/binary/archiveFile';
+import { readEntryData } from '../../binary/archiveFile';
 
 const MISSING_ARCHIVE = path.join(tmpdir(), 'bigfs-does-not-exist.big');
 

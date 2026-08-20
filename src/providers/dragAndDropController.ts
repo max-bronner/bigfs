@@ -8,8 +8,8 @@
 import type { TreeDragAndDropController } from 'vscode';
 import { importFromDisk, moveNodes } from '../actions/fileActions';
 import { formatCount } from '../common/messages';
-import type { ArchiveModel } from '../core/archiveModel';
-import type { VirtualNode } from '../core/virtualNode';
+import type { ArchiveModel } from '../model/archiveModel';
+import type { VirtualNode } from '../model/virtualNode';
 
 export class BigDragAndDropController
   implements TreeDragAndDropController<VirtualNode>

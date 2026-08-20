@@ -8,9 +8,9 @@ import {
 } from 'vscode';
 import { formatCount } from '../common/messages';
 import { getNodeUri } from '../common/uri';
-import { countFileNodes } from '../core/virtualNode';
-import type { ArchiveModel } from '../core/archiveModel';
-import type { VirtualNode } from '../core/virtualNode';
+import { countFileNodes } from '../model/virtualNode';
+import type { ArchiveModel } from '../model/archiveModel';
+import type { VirtualNode } from '../model/virtualNode';
 
 const nameCollator = new Intl.Collator(undefined, {
   numeric: true,

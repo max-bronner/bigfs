@@ -5,8 +5,8 @@ import {
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
-} from '../core/binary/archiveFile';
-import type { BigFileEntry } from '../core/binary/bigFormat';
+} from '../binary/archiveFile';
+import type { BigFileEntry } from '../binary/bigFormat';
 import { movePath } from '../common/paths';
 import {
   buildVirtualTree,

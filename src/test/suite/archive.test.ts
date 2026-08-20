@@ -5,18 +5,18 @@ import { mkdir, rm, unlink, writeFile } from 'fs/promises';
 import {
   computeArchiveLayout,
   serializeIndexTable,
-} from '../../core/binary/bigFormat';
-import type { BigFileEntry } from '../../core/binary/bigFormat';
-import { ArchiveModel } from '../../core/archiveModel';
+} from '../../binary/bigFormat';
+import type { BigFileEntry } from '../../binary/bigFormat';
+import { ArchiveModel } from '../../model/archiveModel';
 import {
   BigTreeDataProvider,
   BigTreeItem,
 } from '../../providers/treeDataProvider';
-import { findChild, getFileNodes } from '../../core/virtualNode';
+import { findChild, getFileNodes } from '../../model/virtualNode';
 import { getExtractedFiles } from '../../commands/extractCommands';
 import { createToolRegistry } from '../../tools/registry';
 import { createFormatRegistry } from '../../formats/registry';
-import type { VirtualNode } from '../../core/virtualNode';
+import type { VirtualNode } from '../../model/virtualNode';
 
 const ARCHIVE_NAME = 'generated.big';
 
