@@ -17,11 +17,23 @@ const nameCollator = new Intl.Collator(undefined, {
   sensitivity: 'base',
 });
 
-const compareNames = (a: VirtualNode, b: VirtualNode): number =>
-  nameCollator.compare(a.name, b.name);
+/**
+ * Orders a row the way the explorer does: directories first, then files,
+ * each by name
+ */
+const compareNodes = (a: VirtualNode, b: VirtualNode): number => {
+  const aIsDirectory = a.type === FileType.Directory;
+  const bIsDirectory = b.type === FileType.Directory;
+
+  if (aIsDirectory !== bIsDirectory) {
+    return aIsDirectory ? -1 : 1;
+  }
+
+  return nameCollator.compare(a.name, b.name);
+};
 
 const sortNodes = (nodes: VirtualNode[]): VirtualNode[] =>
-  nodes.sort(compareNames);
+  nodes.sort(compareNodes);
 
 export class BigTreeItem extends TreeItem {
   constructor(

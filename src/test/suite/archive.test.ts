@@ -391,6 +391,28 @@ suite('Tree refresh', () => {
     assert.strictEqual(treeItem(folder).description, '(2 files)');
   });
 
+  test('lists directories before files, each by name', async () => {
+    const archive = model.getArchiveByPath(archiveFsPath);
+
+    assert.ok(archive, 'the archive was not loaded');
+
+    const provider = new BigTreeDataProvider(model);
+    const children = await provider.getChildren(archive.root);
+
+    // data sorts after a.txt by name, and still comes first
+    assert.deepStrictEqual(
+      children.map((child) => child.name),
+      ['data', 'a.txt'],
+    );
+
+    const inside = await provider.getChildren(children[0]);
+
+    assert.deepStrictEqual(
+      inside.map((child) => child.name),
+      ['one.txt', 'two.txt'],
+    );
+  });
+
   test('refreshes the archive that changed instead of the whole view', async () => {
     const archive = model.getArchiveByPath(archiveFsPath);
 
