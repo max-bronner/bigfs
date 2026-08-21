@@ -1,6 +1,8 @@
 ﻿import { commands, window } from 'vscode';
 import type { ExtensionContext, TreeView } from 'vscode';
 import { SCHEME } from '../constants';
+import { isVirtualNode } from '../providers/explorerNode';
+import type { ExplorerNode } from '../providers/explorerNode';
 import type { VirtualNode } from '../model/virtualNode';
 
 export type NodeCommandRun = (targets: VirtualNode[]) => Promise<void>;
@@ -13,23 +15,27 @@ export type RegisterNodeCommand = (name: string, run: NodeCommandRun) => void;
  */
 export const createNodeCommandRegister = (
   context: ExtensionContext,
-  treeView: TreeView<VirtualNode>,
+  treeView: TreeView<ExplorerNode>,
 ): RegisterNodeCommand => {
   const getTargets = (
-    target?: VirtualNode,
-    selection?: VirtualNode[],
+    target?: ExplorerNode,
+    selection?: ExplorerNode[],
   ): VirtualNode[] => {
-    if (selection?.length) {
-      return selection;
-    }
+    const rows = selection?.length
+      ? selection
+      : target
+        ? [target]
+        : [...treeView.selection];
 
-    return target ? [target] : [...treeView.selection];
+    // A source or a folder on disk holds no entries, so a command that acts
+    // on archive content has nothing to do with it
+    return rows.filter(isVirtualNode);
   };
 
   return (name, run) => {
     const execute = async (
-      target?: VirtualNode,
-      selection?: VirtualNode[],
+      target?: ExplorerNode,
+      selection?: ExplorerNode[],
     ): Promise<void> => {
       const targets = getTargets(target, selection);
 

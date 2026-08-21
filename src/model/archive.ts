@@ -2,7 +2,6 @@
 import path from 'path';
 import {
   openArchiveReader,
-  readArchiveHeader,
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
@@ -141,6 +140,10 @@ export class Archive {
   public readonly name: string;
   public readonly rootPath: string;
 
+  /** Which source holds it, and where inside that source it sits */
+  public readonly sourceId: string;
+  public readonly pathInSource: string;
+
   /** Kept for the life of the archive: the tree view holds on to it */
   public readonly root: VirtualNode;
 
@@ -149,16 +152,23 @@ export class Archive {
   /** Keyed case insensitively; each entry keeps its stored name */
   private entries = new Map<string, BigFileEntry>();
 
-  /** Set once the index table has been read, which happens on first use */
+  /** Set while the index table is being read, which happens on first use */
   private loading?: Promise<void>;
+  private loaded = false;
 
   private queue: Promise<unknown> = Promise.resolve();
   private lastWrittenAt = 0;
 
-  private constructor(archivePath: string, rootPath: string) {
+  private constructor(
+    archivePath: string,
+    sourceId: string,
+    pathInSource: string,
+  ) {
     this.archivePath = archivePath;
     this.name = path.basename(archivePath);
-    this.rootPath = rootPath;
+    this.sourceId = sourceId;
+    this.pathInSource = pathInSource;
+    this.rootPath = `/${sourceId}/${pathInSource}`;
     this.root = buildVirtualTree(this.name, this.rootPath, this.archivePath, []);
   }
 
@@ -170,13 +180,12 @@ export class Archive {
    * a second, and a workspace holds many, so it waits until something asks
    * for the content.
    */
-  public static create(archivePath: string, rootPath: string): Archive {
-    return new Archive(archivePath, rootPath);
-  }
-
-  /** Checks the file is an archive at all, reading only its header */
-  public async verify(): Promise<void> {
-    this.magic = (await readArchiveHeader(this.archivePath)).magic;
+  public static create(
+    archivePath: string,
+    sourceId: string,
+    pathInSource: string,
+  ): Archive {
+    return new Archive(archivePath, sourceId, pathInSource);
   }
 
   /** Reads the index table, once, however many callers ask for it */
@@ -191,6 +200,8 @@ export class Archive {
         this.root,
         Array.from(this.entries.values(), (entry) => entry.name),
       );
+
+      this.loaded = true;
     });
 
     return this.loading;
@@ -198,7 +209,12 @@ export class Archive {
 
   /** Whether the content has been read, as opposed to only listed */
   public get isLoaded(): boolean {
-    return Boolean(this.loading);
+    return this.loaded;
+  }
+
+  /** Whether a read is under way, which a view shows as being busy */
+  public get isLoading(): boolean {
+    return Boolean(this.loading) && !this.loaded;
   }
 
   /** How the archive is identified, case insensitively like its content */

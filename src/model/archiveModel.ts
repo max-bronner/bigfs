@@ -16,7 +16,7 @@ import type { EntryChange, EntrySource } from './archive';
 import {
   createWorkspaceSources,
   findSourceFor,
-  getArchiveRootPath,
+  getPathInSource,
 } from './archiveSource';
 import type { ArchiveSource } from './archiveSource';
 import { findBlockingFile, findChild } from './virtualNode';
@@ -43,6 +43,20 @@ export interface ImportedFile {
   sourcePath?: string;
   content?: Uint8Array;
 }
+
+export interface ArchiveModelOptions {
+  /**
+   * Read the archives nobody opened, once the workspace is quiet. On by
+   * default: it costs nothing visible and makes opening one later instant.
+   */
+  readAhead?: boolean;
+}
+
+/** Long enough that reading ahead never competes with opening something */
+const BACKGROUND_LOAD_DELAY = 500;
+
+const delay = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const isFile = async (uri: Uri): Promise<boolean> => {
   try {
@@ -76,16 +90,26 @@ export class ArchiveModel {
   /** The places archives are found in, which a uri names first */
   private sources: ArchiveSource[] = [];
 
+  private disposed = false;
+
+  /** Reads the user is waiting on, which the background work steps aside for */
+  private awaitedLoads = 0;
+  private backgroundLoading?: Promise<void>;
+
   private readonly archiveWatcher: FileSystemWatcher;
 
   private currentScan: Promise<void>;
 
-  constructor(private log: LogOutputChannel) {
+  constructor(
+    private log: LogOutputChannel,
+    private options: ArchiveModelOptions = {},
+  ) {
     this.currentScan = this.scanWorkspace();
     this.archiveWatcher = this.watchArchives();
   }
 
   public dispose(): void {
+    this.disposed = true;
     this.archiveWatcher.dispose();
   }
 
@@ -123,20 +147,41 @@ export class ArchiveModel {
         return; // outside every source, so not ours to show
       }
 
-      const archive = Archive.create(archivePath, getArchiveRootPath(source, uri));
-
-      await archive.verify();
+      const archive = Archive.create(
+        archivePath,
+        source.id,
+        getPathInSource(source, uri),
+      );
 
       this.archives.set(archive.rootKey, archive);
 
       this.fireChanged(archive, 'added');
     } catch (error) {
+      this.log.error(`Failed to reload archive ${archivePath}`, error);
+    }
+  }
+
+  /**
+   * Reads an archive's index table, and drops it if the file turns out not to
+   * be an archive. The extension is only a name, so this is where that is
+   * settled rather than by opening every file the scan finds.
+   */
+  private async readArchive(archive: Archive): Promise<boolean> {
+    try {
+      await archive.ensureLoaded();
+
+      return true;
+    } catch (error) {
       if (error instanceof NotAnArchiveError) {
-        this.log.info(`Ignoring ${archivePath}: ${error.message}`);
-        return;
+        this.log.info(`Ignoring ${archive.archivePath}: ${error.message}`);
+      } else {
+        this.log.error(`Failed to read archive ${archive.archivePath}`, error);
       }
 
-      this.log.error(`Failed to reload archive ${archivePath}`, error);
+      this.archives.delete(archive.rootKey);
+      this.fireChanged(archive, 'removed');
+
+      return false;
     }
   }
 
@@ -194,20 +239,21 @@ export class ArchiveModel {
           return;
         }
 
-        const rootPath = getArchiveRootPath(source, uri);
+        const pathInSource = getPathInSource(source, uri);
+        const rootPath = `/${source.id}/${pathInSource}`;
         const known = loaded.get(rootPath.toLowerCase());
 
         // Reusing the instance keeps the tree the view already holds, and
         // with it the directories that exist only there
-        const archive = known ?? Archive.create(uri.fsPath, rootPath);
+        const archive =
+          known ?? Archive.create(uri.fsPath, source.id, pathInSource);
 
         if (known) {
           await known.reload();
-        } else {
-          // Only the header, so a scan stays cheap however many there are
-          await archive.verify();
         }
 
+        // Nothing is opened here: the scan lists what carries the extension
+        // and each archive is read when it is needed or read ahead
         this.archives.set(archive.rootKey, archive);
       }),
     );
@@ -232,10 +278,31 @@ export class ArchiveModel {
         `${unreadable.length} of ${archiveUris.length} BIG archives could not be read.`,
       );
     }
+
+    if (this.options.readAhead !== false) {
+      this.startBackgroundLoading();
+    }
   }
 
   public getArchiveRoots(): VirtualNode[] {
     return Array.from(this.archives.values(), (archive) => archive.root);
+  }
+
+  /** The places archives were found in */
+  public getSources(): readonly ArchiveSource[] {
+    return this.sources;
+  }
+
+  /** Every archive of a source, for a view that groups them by folder */
+  public getArchivesOf(sourceId: string): readonly Archive[] {
+    return Array.from(this.archives.values()).filter(
+      (archive) => archive.sourceId === sourceId,
+    );
+  }
+
+  /** Whether an archive has read its index table yet */
+  public isLoaded(node: VirtualNode): boolean {
+    return this.getArchiveByPath(node.archivePath)?.isLoaded ?? false;
   }
 
   public getArchiveByPath(archivePath: string): Archive | undefined {
@@ -333,14 +400,68 @@ export class ArchiveModel {
       return undefined;
     }
 
-    await archive.ensureLoaded();
+    if (!(await this.readArchive(archive))) {
+      return undefined;
+    }
 
     return this.getNode(uri);
   }
 
   /** Reads the archive a node belongs to, for a view about to show it */
   public async loadArchiveOf(node: VirtualNode): Promise<void> {
-    await this.getArchiveByPath(node.archivePath)?.ensureLoaded();
+    const archive = this.getArchiveByPath(node.archivePath);
+
+    if (!archive || archive.isLoaded) {
+      return;
+    }
+
+    // Counted so the background reads wait rather than compete for the thread
+    this.awaitedLoads += 1;
+
+    try {
+      if (await this.readArchive(archive)) {
+        // The row had nothing to say about its content until now
+        this.fireChanged(archive, 'changed');
+      }
+    } finally {
+      this.awaitedLoads -= 1;
+    }
+  }
+
+  /**
+   * Reads the archives nobody has opened, one at a time and out of the way,
+   * so opening one later is instant without any of it delaying startup.
+   */
+  private startBackgroundLoading(): void {
+    this.backgroundLoading ??= this.loadRemaining().finally(() => {
+      this.backgroundLoading = undefined;
+    });
+  }
+
+  private async loadRemaining(): Promise<void> {
+    await delay(BACKGROUND_LOAD_DELAY);
+
+    for (const archive of Array.from(this.archives.values())) {
+      if (this.disposed) {
+        return;
+      }
+
+      if (archive.isLoaded) {
+        continue;
+      }
+
+      // Whatever the user opened goes first
+      while (this.awaitedLoads > 0 && !this.disposed) {
+        await delay(BACKGROUND_LOAD_DELAY);
+      }
+
+      if (await this.readArchive(archive)) {
+        this.fireChanged(archive, 'changed');
+      }
+
+      // Hand the thread back between archives, parsing one is not free
+      await delay(0);
+    }
   }
 
   /** Gets the directory a node sits in, or nothing for an archive root */

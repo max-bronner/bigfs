@@ -64,18 +64,12 @@ export const findSourceFor = (
 };
 
 /**
- * Where an archive sits in the virtual file system: its source, then its path
- * inside that source. Two archives that share a name stay apart because their
- * paths differ, and archives outside the workspace get a place of their own.
+ * Where an archive sits inside its source, which together with the source id
+ * gives it a place of its own: two archives that share a name stay apart
+ * because the folders holding them differ.
  */
-export const getArchiveRootPath = (
-  source: ArchiveSource,
-  uri: Uri,
-): string => {
-  const relativePath = uri.fsPath
+export const getPathInSource = (source: ArchiveSource, uri: Uri): string =>
+  uri.fsPath
     .slice(source.baseUri.fsPath.length)
     .replace(/\\/g, '/')
     .replace(/^\/+/, '');
-
-  return `/${source.id}/${relativePath}`;
-};
