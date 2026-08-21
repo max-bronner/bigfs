@@ -688,7 +688,7 @@ suite('Extraction layout', () => {
     assert.deepStrictEqual(
       model
         .getArchiveRoots()
-        .map((root) => root.path)
+        .map((root) => root.archive.rootPath)
         .filter((rootPath) => rootPath.endsWith('notreally.big')),
       [],
     );

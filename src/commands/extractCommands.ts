@@ -12,7 +12,12 @@ import path from 'path';
 import { splitPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
 import { resolveConflicts } from '../ui/dialogs';
-import { getFileNodes, getTopLevelNodes } from '../model/virtualNode';
+import {
+  getFileNodes,
+  getNodePath,
+  getTopLevelNodes,
+  isArchiveRoot,
+} from '../model/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../model/virtualNode';
 import type { ArchiveModel } from '../model/archiveModel';
@@ -30,7 +35,7 @@ interface ExtractedFile {
  * extension it is named by, so extracting textures.big writes textures/.
  */
 const getExtractedName = (node: VirtualNode): string =>
-  node.isArchiveRoot
+  isArchiveRoot(node)
     ? node.name.slice(0, node.name.length - path.posix.extname(node.name).length)
     : node.name;
 
@@ -43,7 +48,7 @@ const getExtractedPath = (node: VirtualNode, fileNode: VirtualNode): string => {
     return node.name;
   }
 
-  const pathInsideNode = fileNode.path.slice(node.path.length + 1);
+  const pathInsideNode = getNodePath(fileNode).slice(getNodePath(node).length + 1);
 
   return `${getExtractedName(node)}/${pathInsideNode}`;
 };
@@ -103,7 +108,7 @@ const extractToFile = async (node: VirtualNode): Promise<Uri | undefined> => {
     return undefined;
   }
 
-  const content = await workspace.fs.readFile(getNodeUri(node.path));
+  const content = await workspace.fs.readFile(getNodeUri(getNodePath(node)));
 
   await workspace.fs.writeFile(targetUri, content);
 

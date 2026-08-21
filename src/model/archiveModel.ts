@@ -19,7 +19,12 @@ import {
   getPathInSource,
 } from './archiveSource';
 import type { ArchiveSource } from './archiveSource';
-import { findBlockingFile, findChild } from './virtualNode';
+import {
+  findBlockingFile,
+  findChild,
+  getNodePath,
+  isArchiveRoot,
+} from './virtualNode';
 import type { VirtualNode } from './virtualNode';
 
 /**
@@ -302,7 +307,7 @@ export class ArchiveModel {
 
   /** Whether an archive has read its index table yet */
   public isLoaded(node: VirtualNode): boolean {
-    return this.getArchiveByPath(node.archivePath)?.isLoaded ?? false;
+    return node.archive.isLoaded;
   }
 
   public getArchiveByPath(archivePath: string): Archive | undefined {
@@ -369,10 +374,10 @@ export class ArchiveModel {
 
   /** Gets the archive a node belongs to, or reports the node as missing */
   private getArchiveOf(node: VirtualNode): Archive {
-    const archive = this.getArchiveByPath(node.archivePath);
+    const archive = node.archive;
 
     if (!archive) {
-      throw FileSystemError.FileNotFound(node.path);
+      throw FileSystemError.FileNotFound(getNodePath(node));
     }
 
     return archive;
@@ -409,7 +414,7 @@ export class ArchiveModel {
 
   /** Reads the archive a node belongs to, for a view about to show it */
   public async loadArchiveOf(node: VirtualNode): Promise<void> {
-    const archive = this.getArchiveByPath(node.archivePath);
+    const archive = node.archive;
 
     if (!archive || archive.isLoaded) {
       return;
@@ -466,20 +471,20 @@ export class ArchiveModel {
 
   /** Gets the directory a node sits in, or nothing for an archive root */
   public getParent(node: VirtualNode): VirtualNode | undefined {
-    if (node.isArchiveRoot) {
+    if (isArchiveRoot(node)) {
       return undefined;
     }
 
-    const archive = this.getArchiveByPath(node.archivePath);
+    const archive = node.archive;
 
     return (
       archive &&
-      findChild(archive.root, getParentPath(archive.getEntryPath(node)))
+      findChild(archive.root, getParentPath(node.entryPath))
     );
   }
 
   public getEntryPath(node: VirtualNode): string | undefined {
-    return this.getArchiveByPath(node.archivePath)?.getEntryPath(node);
+    return node.entryPath;
   }
 
   private getEntryForNode(node: VirtualNode): BigFileEntry | undefined {
@@ -487,15 +492,15 @@ export class ArchiveModel {
       return undefined;
     }
 
-    const archive = this.getArchiveByPath(node.archivePath);
+    const archive = node.archive;
 
-    return archive?.getEntry(archive.getEntryPath(node));
+    return archive?.getEntry(node.entryPath);
   }
 
   public async getFileContent(
     node: VirtualNode,
   ): Promise<Uint8Array | undefined> {
-    const archive = this.getArchiveByPath(node.archivePath);
+    const archive = node.archive;
     const entry = this.getEntryForNode(node);
 
     return archive && entry ? archive.readEntry(entry) : undefined;
@@ -536,7 +541,7 @@ export class ArchiveModel {
     const blockingFile = findBlockingFile(archive.root, entryPath);
 
     if (blockingFile) {
-      throw FileSystemError.FileNotADirectory(blockingFile.path);
+      throw FileSystemError.FileNotADirectory(getNodePath(blockingFile));
     }
   }
 
@@ -592,7 +597,7 @@ export class ArchiveModel {
         archive,
         group.map((node) => ({
           kind: 'remove' as const,
-          path: archive.getEntryPath(node),
+          path: node.entryPath,
         })),
       );
     }
@@ -624,10 +629,10 @@ export class ArchiveModel {
     targetDirectory: VirtualNode,
   ): Promise<void> {
     const archive = this.getArchiveOf(targetDirectory);
-    const targetPath = archive.getEntryPath(targetDirectory);
+    const targetPath = targetDirectory.entryPath;
 
     const changes = sources.map((source) => {
-      const from = archive.getEntryPath(source);
+      const from = source.entryPath;
       const to = joinEntryPath(targetPath, source.name);
 
       this.ensureMovable(from, to);
@@ -644,11 +649,11 @@ export class ArchiveModel {
     targetDirectory: VirtualNode,
   ): Promise<void> {
     const archive = this.getArchiveOf(targetDirectory);
-    const targetPath = archive.getEntryPath(targetDirectory);
+    const targetPath = targetDirectory.entryPath;
 
     const changes = copies.map(({ source, targetName }) => ({
       kind: 'copy' as const,
-      from: archive.getEntryPath(source),
+      from: source.entryPath,
       to: joinEntryPath(targetPath, targetName),
     }));
 
@@ -661,7 +666,7 @@ export class ArchiveModel {
     files: readonly ImportedFile[],
   ): Promise<void> {
     const archive = this.getArchiveOf(targetDirectory);
-    const targetPath = archive.getEntryPath(targetDirectory);
+    const targetPath = targetDirectory.entryPath;
 
     const changes = files.map((file) => {
       const entryPath = joinEntryPath(targetPath, file.name);
@@ -708,7 +713,7 @@ export class ArchiveModel {
     const grouped = new Map<Archive, VirtualNode[]>();
 
     for (const node of nodes) {
-      if (node.isArchiveRoot) {
+      if (isArchiveRoot(node)) {
         throw FileSystemError.NoPermissions('Archives cannot be changed');
       }
 

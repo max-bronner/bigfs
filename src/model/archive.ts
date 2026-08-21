@@ -169,7 +169,7 @@ export class Archive {
     this.sourceId = sourceId;
     this.pathInSource = pathInSource;
     this.rootPath = `/${sourceId}/${pathInSource}`;
-    this.root = buildVirtualTree(this.name, this.rootPath, this.archivePath, []);
+    this.root = buildVirtualTree(this, []);
   }
 
   /**
@@ -355,10 +355,12 @@ export class Archive {
 
       try {
         for (const item of items) {
-          const entry = this.getEntry(this.getEntryPath(item.node));
+          const entry = this.getEntry(item.node.entryPath);
 
           if (!entry) {
-            throw new Error(`Entry missing from archive: ${item.node.path}`);
+            throw new Error(
+              `Entry missing from archive: ${item.node.entryPath}`,
+            );
           }
 
           await onFile(item, await reader.readEntry(entry));
@@ -369,13 +371,8 @@ export class Archive {
     });
   }
 
-  /** Gets the entry path a node stands for */
-  public getEntryPath(node: VirtualNode): string {
-    return node.path.slice(this.rootPath.length + 1);
-  }
-
   /** Gets the entry paths of all files at or below a node */
   public getFileEntryPaths(node: VirtualNode): string[] {
-    return getFileNodes(node).map((fileNode) => this.getEntryPath(fileNode));
+    return getFileNodes(node).map((fileNode) => fileNode.entryPath);
   }
 }

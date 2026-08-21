@@ -1,23 +1,41 @@
-﻿import { FileType } from 'vscode';
-import { getParentPath, isPathBelow, splitPath } from '../common/paths';
+import { FileType } from 'vscode';
+import { getParentPath, splitPath } from '../common/paths';
+import type { Archive } from './archive';
 
 /**
- * A file or directory inside an archive. Children are keyed case
- * insensitively, while `name` keeps the casing the entry is stored with.
+ * A file or directory inside an archive.
+ *
+ * A node stores the least that identifies it: which archive holds it and
+ * where inside that archive it sits. Everything else about its address, the
+ * path through the tree and the uri VS Code uses, is rendered from those two
+ * rather than stored, so there is one place that knows the shape of an
+ * address instead of a string being sliced wherever one is needed.
+ *
+ * Children are keyed case insensitively, while `name` keeps the casing the
+ * entry is stored with.
  */
 export interface VirtualNode {
   name: string;
   type: FileType;
-  path: string;
-  archivePath: string;
+  /** Relative to the archive, empty for the archive itself */
+  entryPath: string;
+  archive: Archive;
   children?: Map<string, VirtualNode>;
-  /** Set on the node an archive is mounted at, which cannot be edited */
-  isArchiveRoot?: boolean;
 }
 
-/**
- * Adds a child to a node, reusing it when the tree already holds one
- */
+/** The archive itself, which nothing inside an archive may be confused with */
+export const isArchiveRoot = (node: VirtualNode): boolean => !node.entryPath;
+
+/** Where the node sits in the virtual file system, for VS Code to address */
+export const getNodePath = (node: VirtualNode): string =>
+  node.entryPath
+    ? `${node.archive.rootPath}/${node.entryPath}`
+    : node.archive.rootPath;
+
+const joinEntryPath = (parentPath: string, name: string): string =>
+  parentPath ? `${parentPath}/${name}` : name;
+
+/** Adds a child to a node, reusing it when the tree already holds one */
 const addChild = (
   parentNode: VirtualNode,
   childName: string,
@@ -32,8 +50,8 @@ const addChild = (
   const childNode: VirtualNode = parentNode.children.get(childKey) ?? {
     name: childName,
     type,
-    path: `${parentNode.path}/${childName}`,
-    archivePath: parentNode.archivePath,
+    entryPath: joinEntryPath(parentNode.entryPath, childName),
+    archive: parentNode.archive,
   };
 
   if (!isFile && !childNode.children) {
@@ -45,52 +63,35 @@ const addChild = (
   return childNode;
 };
 
-const addEntryPath = (rootNode: VirtualNode, entryPath: string): void => {
-  const segments = splitPath(entryPath);
-  let parentNode = rootNode;
-
-  segments.forEach((segment, index) => {
-    const isFile = index === segments.length - 1;
-
-    parentNode = addChild(parentNode, segment, isFile);
-  });
-};
-
-/**
- * Builds an archive's tree from its entry paths, plus the directories that
- * are tracked while nothing is stored below them
- */
+/** Builds the tree of an archive from the entry paths it holds */
 export const buildVirtualTree = (
-  name: string,
-  rootPath: string,
-  archivePath: string,
+  archive: Archive,
   entryPaths: Iterable<string>,
 ): VirtualNode => {
   const rootNode: VirtualNode = {
-    name,
+    name: archive.name,
     type: FileType.Directory,
-    path: rootPath,
-    archivePath,
+    entryPath: '',
+    archive,
     children: new Map<string, VirtualNode>(),
-    isArchiveRoot: true,
   };
 
   for (const entryPath of entryPaths) {
-    addEntryPath(rootNode, entryPath);
+    insertFile(rootNode, entryPath);
   }
 
   return rootNode;
 };
 
-const repath = (node: VirtualNode, nodePath: string): void => {
-  node.path = nodePath;
+const reEntryPath = (node: VirtualNode, entryPath: string): void => {
+  node.entryPath = entryPath;
 
-  node.children?.forEach((child) => repath(child, `${nodePath}/${child.name}`));
+  node.children?.forEach((child) =>
+    reEntryPath(child, joinEntryPath(entryPath, child.name)),
+  );
 };
 
-/**
- * Inserts a file, creating the directories above it
- */
+/** Inserts a file, creating the directories above it */
 export const insertFile = (
   rootNode: VirtualNode,
   entryPath: string,
@@ -122,9 +123,7 @@ export const insertDirectory = (
   return node;
 };
 
-/**
- * Removes a node and everything below it
- */
+/** Removes a node and everything below it */
 export const removeNode = (rootNode: VirtualNode, entryPath: string): void => {
   const segments = splitPath(entryPath);
   const name = segments.pop();
@@ -163,12 +162,10 @@ export const moveNode = (
 
   node.name = name;
   parent.children?.set(name.toLowerCase(), node);
-  repath(node, `${parent.path}/${name}`);
+  reEntryPath(node, joinEntryPath(parent.entryPath, name));
 };
 
-/**
- * Mirrors a node at another path
- */
+/** Mirrors a node at another path */
 export const copyNode = (
   rootNode: VirtualNode,
   from: string,
@@ -205,72 +202,24 @@ export const syncFiles = (
     Array.from(entryPaths, (entryPath) => entryPath.toLowerCase()),
   );
 
-  const prune = (node: VirtualNode, prefix: string): void => {
+  const prune = (node: VirtualNode): void => {
     node.children?.forEach((child, key) => {
-      const childPath = prefix ? `${prefix}/${child.name}` : child.name;
-
       if (child.type !== FileType.File) {
-        prune(child, childPath);
+        prune(child);
         return;
       }
 
-      if (!wanted.has(childPath.toLowerCase())) {
+      if (!wanted.has(child.entryPath.toLowerCase())) {
         node.children?.delete(key);
       }
     });
   };
 
-  prune(rootNode, '');
+  prune(rootNode);
 
   for (const entryPath of entryPaths) {
     insertFile(rootNode, entryPath);
   }
-};
-
-/**
- * Gets the file nodes at or below a node
- */
-export const getFileNodes = (node: VirtualNode): VirtualNode[] => {
-  if (node.type === FileType.File) {
-    return [node];
-  }
-
-  const fileNodes: VirtualNode[] = [];
-
-  for (const child of node.children?.values() ?? []) {
-    fileNodes.push(...getFileNodes(child));
-  }
-
-  return fileNodes;
-};
-
-/**
- * Counts the files at or below a node
- */
-export const countFileNodes = (node: VirtualNode): number => {
-  if (node.type === FileType.File) {
-    return 1;
-  }
-
-  let count = 0;
-
-  for (const child of node.children?.values() ?? []) {
-    count += countFileNodes(child);
-  }
-
-  return count;
-};
-
-/**
- * Drops the nodes that sit below another node of the same selection
- */
-export const getTopLevelNodes = (
-  nodes: readonly VirtualNode[],
-): VirtualNode[] => {
-  const isNested = (node: VirtualNode) =>
-    nodes.some((other) => other !== node && isPathBelow(node.path, other.path));
-
-  return nodes.filter((node) => !isNested(node));
 };
 
 /**
@@ -298,9 +247,7 @@ export const findBlockingFile = (
   return undefined;
 };
 
-/**
- * Finds a node below a directory by its relative path
- */
+/** Finds a node below a directory by its relative path */
 export const findChild = (
   directory: VirtualNode,
   relativePath: string,
@@ -312,4 +259,51 @@ export const findChild = (
   }
 
   return node;
+};
+
+/** Counts the files at or below a node */
+export const countFileNodes = (node: VirtualNode): number => {
+  if (node.type === FileType.File) {
+    return 1;
+  }
+
+  let count = 0;
+
+  for (const child of node.children?.values() ?? []) {
+    count += countFileNodes(child);
+  }
+
+  return count;
+};
+
+/** Gets the file nodes at or below a node */
+export const getFileNodes = (node: VirtualNode): VirtualNode[] => {
+  if (node.type === FileType.File) {
+    return [node];
+  }
+
+  const fileNodes: VirtualNode[] = [];
+
+  for (const child of node.children?.values() ?? []) {
+    fileNodes.push(...getFileNodes(child));
+  }
+
+  return fileNodes;
+};
+
+/**
+ * Drops the nodes that sit below another node of the same selection. Two
+ * archives can hold the same entry path, so the archive is part of the
+ * comparison rather than the path alone.
+ */
+export const getTopLevelNodes = (
+  nodes: readonly VirtualNode[],
+): VirtualNode[] => {
+  const isBelow = (node: VirtualNode, other: VirtualNode): boolean =>
+    node.archive === other.archive &&
+    node.entryPath.startsWith(`${other.entryPath}/`);
+
+  return nodes.filter(
+    (node) => !nodes.some((other) => other !== node && isBelow(node, other)),
+  );
 };

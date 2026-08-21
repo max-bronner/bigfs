@@ -76,7 +76,7 @@ export const createFormatRegistry = (
 
   const createContext = (node: VirtualNode): FormatContext | undefined => {
     const entry = toRef(node);
-    const archive = archiveModel.getArchiveByPath(node.archivePath);
+    const archive = node.archive;
 
     if (!archive) {
       return undefined;

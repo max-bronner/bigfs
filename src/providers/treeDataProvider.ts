@@ -1,4 +1,4 @@
-import type { Event } from 'vscode';
+﻿import type { Event } from 'vscode';
 import {
   TreeItem,
   TreeDataProvider,
@@ -9,7 +9,11 @@ import {
 } from 'vscode';
 import { formatCount } from '../common/messages';
 import { getNodeUri } from '../common/uri';
-import { countFileNodes } from '../model/virtualNode';
+import {
+  countFileNodes,
+  getNodePath,
+  isArchiveRoot,
+} from '../model/virtualNode';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
 import {
@@ -49,9 +53,9 @@ export class BigTreeItem extends TreeItem {
   ) {
     super(node.name, collapsibleState);
 
-    this.id = node.path;
-    this.resourceUri = getNodeUri(node.path);
-    this.tooltip = node.path;
+    this.id = getNodePath(node);
+    this.resourceUri = getNodeUri(getNodePath(node));
+    this.tooltip = getNodePath(node);
 
     if (node.type === FileType.File) {
       this.contextValue = 'bigFile';
@@ -64,7 +68,7 @@ export class BigTreeItem extends TreeItem {
       return;
     }
 
-    this.contextValue = node.isArchiveRoot ? 'bigArchive' : 'bigFolder';
+    this.contextValue = isArchiveRoot(node) ? 'bigArchive' : 'bigFolder';
 
     // An archive that has not been read yet says nothing about its content
     if (isLoaded) {
@@ -132,7 +136,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
       element.type === FileType.Directory
         ? TreeItemCollapsibleState.Collapsed
         : TreeItemCollapsibleState.None,
-      !element.isArchiveRoot || this.archiveModel.isLoaded(element),
+      !isArchiveRoot(element) || this.archiveModel.isLoaded(element),
     );
   }
 
@@ -160,7 +164,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
       return [];
     }
 
-    if (element.isArchiveRoot) {
+    if (isArchiveRoot(element)) {
       // The content is read the first time an archive is opened
       await this.archiveModel.loadArchiveOf(element);
     }

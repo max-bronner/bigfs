@@ -27,7 +27,7 @@ export const registerClipboardCommands = (
     (archiveModel.getEntryPath(node) ?? '').replace(/\//g, '\\');
 
   const getAbsolutePath = (node: VirtualNode): string =>
-    `${node.archivePath}\\${getEntryPath(node)}`;
+    `${node.archive.archivePath}\\${getEntryPath(node)}`;
 
   const setClipboard = async (
     content: ClipboardContent | undefined,

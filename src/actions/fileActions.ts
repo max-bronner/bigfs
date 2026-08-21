@@ -2,7 +2,11 @@
 import path from 'path';
 import { getAvailableName, getParentPath, isPathBelow } from '../common/paths';
 import { confirmDelete, resolveConflicts } from '../ui/dialogs';
-import { findChild, getTopLevelNodes } from '../model/virtualNode';
+import {
+  findChild,
+  getNodePath,
+  getTopLevelNodes,
+} from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
 
@@ -10,7 +14,7 @@ import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
  * Gets the directory a node targets: itself for a directory, its parent for a file
  */
 export const getTargetDirectoryPath = (node: VirtualNode): string =>
-  node.type === FileType.Directory ? node.path : getParentPath(node.path);
+  node.type === FileType.Directory ? getNodePath(node) : getParentPath(getNodePath(node));
 
 /**
  * Resolves the directory node an operation on a target node applies to
@@ -22,8 +26,8 @@ export const resolveTargetDirectory = (
   target.type === FileType.Directory ? target : archiveModel.getParent(target);
 
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean => {
-  const isAlreadyInTarget = getParentPath(source.path) === target.path;
-  const isTargetInsideSource = isPathBelow(target.path, source.path);
+  const isAlreadyInTarget = getParentPath(getNodePath(source)) === getNodePath(target);
+  const isTargetInsideSource = isPathBelow(getNodePath(target), getNodePath(source));
 
   return !isAlreadyInTarget && !isTargetInsideSource;
 };
@@ -39,7 +43,7 @@ const getSourcesInArchive = (
   const topLevelSources = getTopLevelNodes(sources);
 
   const sourcesInArchive = topLevelSources.filter(
-    (source) => source.archivePath === targetDirectory.archivePath,
+    (source) => source.archive === targetDirectory.archive,
   );
 
   if (sourcesInArchive.length < topLevelSources.length) {

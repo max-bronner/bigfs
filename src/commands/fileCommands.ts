@@ -2,6 +2,7 @@
 import { formatCount } from '../common/messages';
 import { getParentPath } from '../common/paths';
 import { getNodeUri } from '../common/uri';
+import { getNodePath } from '../model/virtualNode';
 import { askForName } from '../ui/dialogs';
 import {
   deleteNodes,
@@ -49,7 +50,7 @@ const createFolder = async (target: VirtualNode): Promise<void> => {
 };
 
 const renameNode = async (target: VirtualNode): Promise<void> => {
-  const parentPath = getParentPath(target.path);
+  const parentPath = getParentPath(getNodePath(target));
   const takenNames = await readChildNames(parentPath);
 
   const name = await askForName({
@@ -63,7 +64,7 @@ const renameNode = async (target: VirtualNode): Promise<void> => {
   }
 
   await workspace.fs.rename(
-    getNodeUri(target.path),
+    getNodeUri(getNodePath(target)),
     getNodeUri(`${parentPath}/${name}`),
     { overwrite: false },
   );

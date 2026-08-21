@@ -23,7 +23,7 @@ export interface FolderNode {
 
 /** An archive, or something inside one, as opposed to a row above them */
 export const isVirtualNode = (element: ExplorerNode): element is VirtualNode =>
-  'archivePath' in element;
+  'entryPath' in element;
 
 export const isSourceNode = (element: ExplorerNode): element is SourceNode =>
   !isVirtualNode(element) && element.kind === 'source';
