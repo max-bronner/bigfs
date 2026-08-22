@@ -1,36 +1,26 @@
 ﻿import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
-import { getAvailableName, getParentPath, isPathBelow } from '../common/paths';
+import { getAvailableName } from '../common/paths';
 import { confirmDelete, resolveConflicts } from '../ui/dialogs';
 import {
   findChild,
-  getNodePath,
   getTopLevelNodes,
+  isInside,
 } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
 
 /**
- * Gets the directory a node targets: itself for a directory, its parent for a file
+ * Gets the directory an operation on a node applies to: the node itself for a
+ * directory, the one holding it for a file
  */
-export const getTargetDirectoryPath = (node: VirtualNode): string =>
-  node.type === FileType.Directory ? getNodePath(node) : getParentPath(getNodePath(node));
-
-/**
- * Resolves the directory node an operation on a target node applies to
- */
-export const resolveTargetDirectory = (
-  archiveModel: ArchiveModel,
-  target: VirtualNode,
+export const getTargetDirectory = (
+  node: VirtualNode,
 ): VirtualNode | undefined =>
-  target.type === FileType.Directory ? target : archiveModel.getParent(target);
+  node.type === FileType.Directory ? node : node.parent;
 
-const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean => {
-  const isAlreadyInTarget = getParentPath(getNodePath(source)) === getNodePath(target);
-  const isTargetInsideSource = isPathBelow(getNodePath(target), getNodePath(source));
-
-  return !isAlreadyInTarget && !isTargetInsideSource;
-};
+const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean =>
+  source.parent !== target && !isInside(target, source) && target !== source;
 
 /**
  * Keeps the sources belonging to the target's archive and warns about the rest

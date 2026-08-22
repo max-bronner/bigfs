@@ -2,8 +2,8 @@
 import { SCHEME } from '../constants';
 import {
   copyNodes,
+  getTargetDirectory,
   moveNodes,
-  resolveTargetDirectory,
 } from '../actions/fileActions';
 import { getTopLevelNodes } from '../model/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
@@ -23,8 +23,10 @@ export const registerClipboardCommands = (
 ): void => {
   let clipboard: ClipboardContent | undefined;
 
+  // Copied for use outside the editor, where the archive separator is a
+  // backslash the way the index table stores it
   const getEntryPath = (node: VirtualNode): string =>
-    (archiveModel.getEntryPath(node) ?? '').replace(/\//g, '\\');
+    node.entryPath.replace(/\//g, '\\');
 
   const getAbsolutePath = (node: VirtualNode): string =>
     `${node.archive.archivePath}\\${getEntryPath(node)}`;
@@ -42,7 +44,7 @@ export const registerClipboardCommands = (
   };
 
   const paste = async (target: VirtualNode): Promise<void> => {
-    const directory = resolveTargetDirectory(archiveModel, target);
+    const directory = getTargetDirectory(target);
 
     if (!clipboard || !directory) {
       return;
@@ -62,7 +64,7 @@ export const registerClipboardCommands = (
     const siblingsByDirectory = new Map<VirtualNode, VirtualNode[]>();
 
     for (const node of getTopLevelNodes(nodes)) {
-      const directory = archiveModel.getParent(node);
+      const directory = node.parent;
 
       if (!directory) {
         continue;

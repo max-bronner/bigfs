@@ -70,7 +70,7 @@ export const createFormatRegistry = (
 
   const toRef = (node: VirtualNode): EntryRef => ({
     name: node.name,
-    path: archiveModel.getEntryPath(node) ?? '',
+    path: node.entryPath,
     node,
   });
 

@@ -98,6 +98,6 @@ export class BigDragAndDropController
       return target;
     }
 
-    return this.archiveModel.getParent(target);
+    return target.parent;
   }
 }

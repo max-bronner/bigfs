@@ -10,7 +10,7 @@ import type { FileSystemWatcher, LogOutputChannel } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import { NotAnArchiveError } from '../binary/bigFormat';
 import type { BigFileEntry } from '../binary/bigFormat';
-import { getParentPath, isPathBelow, splitPath } from '../common/paths';
+import { isPathBelow } from '../common/paths';
 import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
 import {
@@ -22,9 +22,10 @@ import type { ArchiveSource } from './archiveSource';
 import {
   findBlockingFile,
   findChild,
-  getNodePath,
   isArchiveRoot,
 } from './virtualNode';
+import { getNodePath, parseNodeUri } from './nodeAddress';
+import type { ResolvedUri } from './nodeAddress';
 import type { VirtualNode } from './virtualNode';
 
 /**
@@ -323,46 +324,14 @@ export class ArchiveModel {
   }
 
   /**
-   * Finds the archive a node URI points into. The longest root path wins, so
-   * an archive below a directory named like another archive still resolves.
-   */
-  private findArchiveForUri(uriPath: string): Archive | undefined {
-    const wanted = uriPath.toLowerCase();
-    let match: Archive | undefined;
-
-    for (const archive of this.archives.values()) {
-      if (
-        isPathBelow(wanted, archive.rootKey) &&
-        archive.rootKey.length > (match?.rootKey.length ?? 0)
-      ) {
-        match = archive;
-      }
-    }
-
-    return match;
-  }
-
-  /**
    * Resolves a URI, which only the file system provider has: everything else
    * works with the nodes it hands out.
    */
-  private resolveUri(
-    uri: Uri,
-  ): { archive: Archive; entryPath: string } | undefined {
-    const archive = this.findArchiveForUri(uri.path);
-
-    if (!archive) {
-      return undefined;
-    }
-
-    const entryPath = splitPath(uri.path.slice(archive.rootPath.length)).join(
-      '/',
-    );
-
-    return { archive, entryPath };
+  private resolveUri(uri: Uri): ResolvedUri | undefined {
+    return parseNodeUri(uri, this.archives.values());
   }
 
-  private getArchiveContext(uri: Uri): { archive: Archive; entryPath: string } {
+  private getArchiveContext(uri: Uri): ResolvedUri {
     const resolved = this.resolveUri(uri);
 
     if (!resolved) {
@@ -395,17 +364,13 @@ export class ArchiveModel {
    * since a URI can arrive for an archive nobody has opened.
    */
   public async resolveNode(uri: Uri): Promise<VirtualNode | undefined> {
-    if (!this.findArchiveForUri(uri.path)) {
+    if (!this.resolveUri(uri)) {
       await this.whenReady();
     }
 
-    const archive = this.findArchiveForUri(uri.path);
+    const resolved = this.resolveUri(uri);
 
-    if (!archive) {
-      return undefined;
-    }
-
-    if (!(await this.readArchive(archive))) {
+    if (!resolved || !(await this.readArchive(resolved.archive))) {
       return undefined;
     }
 
@@ -470,23 +435,6 @@ export class ArchiveModel {
   }
 
   /** Gets the directory a node sits in, or nothing for an archive root */
-  public getParent(node: VirtualNode): VirtualNode | undefined {
-    if (isArchiveRoot(node)) {
-      return undefined;
-    }
-
-    const archive = node.archive;
-
-    return (
-      archive &&
-      findChild(archive.root, getParentPath(node.entryPath))
-    );
-  }
-
-  public getEntryPath(node: VirtualNode): string | undefined {
-    return node.entryPath;
-  }
-
   private getEntryForNode(node: VirtualNode): BigFileEntry | undefined {
     if (node.type !== FileType.File) {
       return undefined;

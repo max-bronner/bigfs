@@ -8,12 +8,8 @@ import {
   FileType,
 } from 'vscode';
 import { formatCount } from '../common/messages';
-import { getNodeUri } from '../common/uri';
-import {
-  countFileNodes,
-  getNodePath,
-  isArchiveRoot,
-} from '../model/virtualNode';
+import { countFileNodes, isArchiveRoot } from '../model/virtualNode';
+import { getNodePath, getNodeUri } from '../model/nodeAddress';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
 import {
@@ -54,7 +50,7 @@ export class BigTreeItem extends TreeItem {
     super(node.name, collapsibleState);
 
     this.id = getNodePath(node);
-    this.resourceUri = getNodeUri(getNodePath(node));
+    this.resourceUri = getNodeUri(node);
     this.tooltip = getNodePath(node);
 
     if (node.type === FileType.File) {

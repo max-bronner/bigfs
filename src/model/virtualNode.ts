@@ -1,4 +1,4 @@
-import { FileType } from 'vscode';
+﻿import { FileType } from 'vscode';
 import { getParentPath, splitPath } from '../common/paths';
 import type { Archive } from './archive';
 
@@ -20,17 +20,27 @@ export interface VirtualNode {
   /** Relative to the archive, empty for the archive itself */
   entryPath: string;
   archive: Archive;
+  /** Unset on the archive itself, which is the top of its tree */
+  parent?: VirtualNode;
   children?: Map<string, VirtualNode>;
 }
 
 /** The archive itself, which nothing inside an archive may be confused with */
 export const isArchiveRoot = (node: VirtualNode): boolean => !node.entryPath;
 
-/** Where the node sits in the virtual file system, for VS Code to address */
-export const getNodePath = (node: VirtualNode): string =>
-  node.entryPath
-    ? `${node.archive.rootPath}/${node.entryPath}`
-    : node.archive.rootPath;
+/** Whether a node sits below another, which two archives cannot share */
+export const isInside = (node: VirtualNode, other: VirtualNode): boolean =>
+  node.archive === other.archive &&
+  node.entryPath.startsWith(`${other.entryPath}/`);
+
+/** Where a node sits relative to one above it */
+export const getRelativeEntryPath = (
+  ancestor: VirtualNode,
+  node: VirtualNode,
+): string =>
+  ancestor.entryPath
+    ? node.entryPath.slice(ancestor.entryPath.length + 1)
+    : node.entryPath;
 
 const joinEntryPath = (parentPath: string, name: string): string =>
   parentPath ? `${parentPath}/${name}` : name;
@@ -52,6 +62,7 @@ const addChild = (
     type,
     entryPath: joinEntryPath(parentNode.entryPath, childName),
     archive: parentNode.archive,
+    parent: parentNode,
   };
 
   if (!isFile && !childNode.children) {
@@ -161,6 +172,7 @@ export const moveNode = (
   const parent = insertDirectory(rootNode, getParentPath(to));
 
   node.name = name;
+  node.parent = parent;
   parent.children?.set(name.toLowerCase(), node);
   reEntryPath(node, joinEntryPath(parent.entryPath, name));
 };
@@ -298,12 +310,7 @@ export const getFileNodes = (node: VirtualNode): VirtualNode[] => {
  */
 export const getTopLevelNodes = (
   nodes: readonly VirtualNode[],
-): VirtualNode[] => {
-  const isBelow = (node: VirtualNode, other: VirtualNode): boolean =>
-    node.archive === other.archive &&
-    node.entryPath.startsWith(`${other.entryPath}/`);
-
-  return nodes.filter(
-    (node) => !nodes.some((other) => other !== node && isBelow(node, other)),
+): VirtualNode[] =>
+  nodes.filter(
+    (node) => !nodes.some((other) => other !== node && isInside(node, other)),
   );
-};

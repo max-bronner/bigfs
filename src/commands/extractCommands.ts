@@ -10,14 +10,14 @@
 import type { CancellationToken, Progress } from 'vscode';
 import path from 'path';
 import { splitPath } from '../common/paths';
-import { getNodeUri } from '../common/uri';
 import { resolveConflicts } from '../ui/dialogs';
 import {
   getFileNodes,
-  getNodePath,
+  getRelativeEntryPath,
   getTopLevelNodes,
   isArchiveRoot,
 } from '../model/virtualNode';
+import { getNodeUri } from '../model/nodeAddress';
 import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../model/virtualNode';
 import type { ArchiveModel } from '../model/archiveModel';
@@ -43,15 +43,10 @@ const getExtractedName = (node: VirtualNode): string =>
  * Gets the path an extracted file is written to, relative to the directory
  * the user picked
  */
-const getExtractedPath = (node: VirtualNode, fileNode: VirtualNode): string => {
-  if (fileNode === node) {
-    return node.name;
-  }
-
-  const pathInsideNode = getNodePath(fileNode).slice(getNodePath(node).length + 1);
-
-  return `${getExtractedName(node)}/${pathInsideNode}`;
-};
+const getExtractedPath = (node: VirtualNode, fileNode: VirtualNode): string =>
+  fileNode === node
+    ? node.name
+    : `${getExtractedName(node)}/${getRelativeEntryPath(node, fileNode)}`;
 
 export const getExtractedFiles = (
   nodes: readonly VirtualNode[],
@@ -108,7 +103,7 @@ const extractToFile = async (node: VirtualNode): Promise<Uri | undefined> => {
     return undefined;
   }
 
-  const content = await workspace.fs.readFile(getNodeUri(getNodePath(node)));
+  const content = await workspace.fs.readFile(getNodeUri(node));
 
   await workspace.fs.writeFile(targetUri, content);
 
