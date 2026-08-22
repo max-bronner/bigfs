@@ -1,783 +1,419 @@
 # bigFS architecture
 
-Where the code stands after the refactor, the two things that still make
-responsibilities feel fluid, and a proposed shape that turns the model into a
-core with plug-in points for file formats.
+How the extension is put together: the layers, the data, how a read and a
+write flow through them, and where new file formats and tools plug in.
 
-Nothing here is implemented yet. It is a proposal to argue with.
+This describes the code as it stands. Open questions are at the end.
 
 ---
 
-## 1. Where we are now
+## 1. What a BIG archive actually is
+
+Three properties of the format decide most of the design, so they come first.
+
+**An archive stores file paths and nothing else.** There are no directory
+records. A directory exists because some file's path contains it, which is why
+a directory the user creates lives only in the tree and writes no bytes.
+
+**The index table is derived, never edited.** It is a header, then one record
+per entry giving an offset, a size and a name. You do not update it
+independently: it is written from the entry set.
+
+**There is no partial write.** Changing one entry shifts every offset after it,
+so any change rewrites the whole file, through a temporary file that is renamed
+over the original.
+
+Entry names are stored with backslashes and matched case insensitively, which
+is why the tree and the entry map are keyed case insensitively while keeping
+the casing an entry was stored with.
+
+---
+
+## 2. The layers
 
 ```mermaid
 flowchart TD
   VS["VS Code"]
 
-  subgraph adapters["providers/ - VS Code adapters"]
+  subgraph providers["providers - VS Code adapters"]
     FSP["fileSystemProvider"]
     TDP["treeDataProvider"]
     DND["dragAndDropController"]
+    EXN["explorerNode"]
   end
 
-  subgraph cmd["commands/"]
+  subgraph cmd["commands"]
     CC["commandCenter"]
     FC["fileCommands"]
     CLC["clipboardCommands"]
     EC["extractCommands"]
   end
 
-  ACT["actions/fileActions"]
-  UI["ui/dialogs"]
+  ACT["actions - fileActions"]
+  UI["ui - dialogs"]
 
-  subgraph model["model/"]
+  subgraph model["model - owns the rules"]
     AM["archiveModel"]
     AR["archive"]
     VN["virtualNode"]
+    NA["nodeAddress"]
+    AS["archiveSource"]
   end
 
-  subgraph fmt["format/ - no vscode import"]
+  subgraph plugins["plug-in surface"]
+    TR["tools - toolRegistry"]
+    FR["formats - formatRegistry"]
+  end
+
+  subgraph binary["binary - no vscode import"]
     AF["archiveFile"]
     BF["bigFormat"]
   end
 
-  COM["common/ - paths, uri, messages"]
+  COM["common - paths, messages"]
 
-  VS --> FSP
-  VS --> TDP
-  VS --> DND
-  VS --> CC
+  VS --> FSP & TDP & DND & CC
   CC --> FC & CLC & EC
   FC & CLC --> ACT
-  EC --> AM
   DND --> ACT
   ACT --> UI
   ACT --> AM
-  FSP --> AM
-  TDP --> AM
-  AM --> AR
-  AM --> VN
-  AR --> VN
-  AR --> AF
+  FSP & TDP --> AM
+  EC --> AM
+  FR --> AM
+  FR --> TR
+  AM --> AR & VN & NA & AS
+  AR --> VN & AF
   AF --> BF
   ACT -.-> COM
   AM -.-> COM
 ```
 
-The layering is sound: `format` knows nothing about VS Code, `model` knows
-nothing about commands, and the adapters are thin. Two problems remain, and
-both are about **who owns a rule**, not about classes.
+The rule the arrows follow: **`binary` knows nothing about VS Code, `model`
+knows nothing about commands or views, `common` knows nothing about this
+extension at all.** Everything above the model works with nodes.
+
+| directory | holds |
+| --- | --- |
+| `binary/` | the BIG file format: parse, serialize, read, write |
+| `model/` | archives, the virtual tree, addressing, sources |
+| `providers/` | the three VS Code adapters |
+| `commands/` | what the palette and context menu invoke |
+| `actions/` | operations shared by commands and drag and drop |
+| `ui/` | prompts and confirmations |
+| `tools/`, `formats/` | the plug-in surface |
+| `common/` | generic helpers, no domain knowledge |
 
 ---
 
-## 2. Problem one: three names for the same thing
+## 3. The data
 
-The same entry is addressed three different ways, and two of them are plain
-`string`, so nothing stops you mixing them up.
+```mermaid
+classDiagram
+  class ArchiveSource {
+    +id: string
+    +label: string
+    +baseUri: Uri
+  }
 
-| name | example | spoken by |
+  class Archive {
+    +archivePath: string
+    +rootPath: string
+    +sourceId: string
+    +pathInSource: string
+    +root: VirtualNode
+    -entries: Map~string, BigFileEntry~
+    -queue: Promise
+    +ensureLoaded()
+    +applyChanges(changes)
+    +readFileNodes(items, onFile)
+  }
+
+  class VirtualNode {
+    +name: string
+    +type: FileType
+    +entryPath: string
+    +archive: Archive
+    +parent: VirtualNode
+    +children: Map~string, VirtualNode~
+  }
+
+  class BigFileEntry {
+    +name: string
+    +offset: number
+    +size: number
+    +pendingData: Uint8Array
+    +pendingFile: string
+  }
+
+  class EntryChange {
+    <<union>>
+    put, remove, move, copy, addDirectory
+  }
+
+  ArchiveSource "1" --> "many" Archive : holds
+  Archive "1" --> "1" VirtualNode : root
+  Archive "1" --> "many" BigFileEntry : entries
+  VirtualNode "1" --> "many" VirtualNode : children
+  Archive ..> EntryChange : applies
+```
+
+**The entries own the content, the tree owns the structure.** A file appears in
+both; a directory only in the tree. That is what lets a directory survive
+losing its last file without anything tracking it separately, and it is why
+the tree is mutated alongside the entries rather than rebuilt from them.
+
+`pendingData` and `pendingFile` are how content that is not in the archive yet
+travels to the writer: bytes held in memory, or a file on disk copied straight
+across while the archive is written so it never passes through memory.
+
+---
+
+## 4. Addressing
+
+The same entry has three names, and only one of them is stored.
+
+| name | example | who uses it |
 | --- | --- | --- |
-| URI | `bigfs:/mods/textures.big/data/a.ini` | VS Code |
-| node path | `/mods/textures.big/data/a.ini` | tree, commands, actions |
-| entry path | `data/a.ini` | archive, format layer |
+| **entry path** *(stored)* | `data/ini/object.ini` | the index table, the entry map, the tree |
+| node path *(rendered)* | `/bfme2/mods/textures.big/data/ini/object.ini` | tree row ids, tooltips, error messages |
+| uri *(rendered)* | `bigfs:/bfme2/mods/textures.big/data/ini/object.ini` | VS Code only |
 
-### The round trip
-
-There are **16 places** that turn a node into a URI. Most hand it straight to
-the model, which turns it back into the node the caller already had:
-
-```mermaid
-sequenceDiagram
-  participant A as fileActions.moveNodes
-  participant M as ArchiveModel
-  participant AR as Archive
-
-  Note over A: already holds VirtualNode[]
-  A->>A: nodes.map(node => getNodeUri(node.path))
-  A->>M: moveEntries(uris, targetUri)
-  M->>M: resolveUri(uri) - longest matching root
-  M->>M: findChild(root, entryPath)
-  Note over M: back to the same VirtualNode
-  M->>AR: modifyEntries(...)
-```
-
-Concretely, in `actions/fileActions.ts`:
-
-```ts
-const acceptedUris = acceptedNodes.map((node) => getNodeUri(node.path));
-
-await archiveModel.moveEntries(acceptedUris, getNodeUri(targetDirectory.path));
-```
-
-Nobody in that path had a URI to begin with. `moveNodes` is called from the
-clipboard command and from the drop controller, both of which hold nodes.
-
-### Why it matters
-
-A URI is VS Code's currency. It should enter at the adapter boundary, be
-resolved once, and never be reconstructed again. Today the model's public API
-demands URIs, so every caller has to know how to build one, which means every
-caller has to know the node path shape, which means the path shape is a rule
-maintained in seven files instead of one.
-
-### Proposed
-
-**a. Brand the two path types** so the compiler separates them:
-
-```ts
-// common/paths.ts
-declare const pathBrand: unique symbol;
-
-export type NodePath = string & { readonly [pathBrand]: 'node' };
-export type EntryPath = string & { readonly [pathBrand]: 'entry' };
-```
-
-`getParentPath` and friends become generic over the brand, so they still work
-for both but never let one become the other by accident.
-
-**b. Make the core speak nodes, not URIs.** URIs are translated in exactly one
-place:
+A node stores its `entryPath` and a reference to its `Archive`. Everything else
+is derived, by `model/nodeAddress`:
 
 ```mermaid
 flowchart LR
-  VS["VS Code - URI"] --> FSP["fileSystemProvider"]
-  FSP -->|"resolve once"| CORE["core - VirtualNode"]
-  CMD["commands, actions, drop"] -->|"already hold nodes"| CORE
+  subgraph stored["stored on the node"]
+    EP["entryPath: data/ini/object.ini"]
+    ARC["archive"]
+  end
+
+  subgraph archiveState["stored on the archive"]
+    SRC["sourceId: bfme2"]
+    PIS["pathInSource: mods/textures.big"]
+  end
+
+  EP --> RENDER["getNodePath"]
+  ARC --> RENDER
+  SRC --> ROOT["rootPath"]
+  PIS --> ROOT
+  ROOT --> RENDER
+  RENDER --> URI["getNodeUri / getChildUri"]
+  URI --> VSCODE["VS Code"]
+  VSCODE -->|"a uri comes back"| PARSE["parseNodeUri"]
+  PARSE -->|"longest matching root"| ARC2["archive + entryPath"]
 ```
 
-The signature change is small:
+Two consequences worth knowing:
 
-```ts
-// before
-moveEntries(sourceUris: Uri[], targetDirectoryUri: Uri): Promise<void>
-
-// after
-moveEntries(sources: readonly VirtualNode[], target: VirtualNode): Promise<void>
-```
-
-`fileSystemProvider` keeps a `resolve(uri): VirtualNode | undefined` and is the
-only caller that needs it.
+- **A uri names its source first.** Two archives called `INI.big` in different
+  folders have different paths, so neither can claim the other's entries.
+- **Nothing outside `nodeAddress` takes an address apart.** `parseNodeUri` is
+  the only parser, and it is reached only through the file system provider,
+  which is the only place a uri arrives from outside.
 
 ---
 
-## 3. Problem two: one operation shape, written six times
+## 5. Reading
 
-Every mutation runs the same sequence, and each one is hand-written with a
-different subset remembered:
-
-| operation | validate | entry change | empty directory work |
-| --- | --- | --- | --- |
-| `writeFile` | writable path | put one | none |
-| `createDirectory` | writable path | none | keep one |
-| `deleteEntries` | not the root | remove many | keep emptied, forget below target |
-| `applyMoves` | not into itself | move many | keep emptied, relocate tracked |
-| `copyEntries` | not into itself | copy many | none |
-| `addFiles` | writable path per file | put many | none |
-
-Then all six end with rebuild the tree and fire the event.
-
-```mermaid
-flowchart LR
-  subgraph today["today - six hand written sequences"]
-    W["writeFile"] --> WR["rebuild + fire"]
-    D["deleteEntries"] --> DK["keep emptied"] --> DF["forget below"] --> DR["rebuild + fire"]
-    M["applyMoves"] --> MK["keep emptied"] --> MM["relocate"] --> MR["rebuild + fire"]
-  end
-```
-
-Nothing enforces the order and nothing enforces that a new operation does the
-bookkeeping at all. That is the "multiple places have to take care of
-consistency" feeling, and it is the single biggest source of it.
-
-### The key observation
-
-**The directory bookkeeping is derivable from the changes.** It does not need to
-be specified per operation:
-
-- removing an entry means its ancestors may have just become empty, so they must
-  be kept if the tree should still show them
-- moving an entry means tracked empty directories underneath it move with it
-- adding an entry means any tracked empty directory it fills is no longer empty
-
-Which means an operation only has to say **what changes**, and one runner can do
-the rest, always in the same order.
-
-### Proposed
-
-```ts
-// model/plan.ts
-export type EntryChange =
-  | { kind: 'put'; path: EntryPath; source: EntrySource }
-  | { kind: 'remove'; path: EntryPath }
-  | { kind: 'move'; from: EntryPath; to: EntryPath }
-  | { kind: 'copy'; from: EntryPath; to: EntryPath }
-  | { kind: 'keepDirectory'; path: EntryPath };
-
-export type EntrySource =
-  | { kind: 'data'; content: Uint8Array }
-  | { kind: 'file'; path: string };
-
-export interface ArchivePlan {
-  archive: Archive;
-  changes: readonly EntryChange[];
-}
-```
-
-One runner owns the sequence:
-
-```ts
-const apply = async (plan: ArchivePlan): Promise<void> => {
-  validate(plan);                                   // throws FileSystemError
-  await plan.archive.modifyEntries((entries) =>
-    plan.changes.forEach((change) => applyChange(entries, change)),
-  );
-  updateDirectories(plan.archive, plan.changes);    // derived, not passed in
-  plan.archive.rebuildTree();
-  fireChanged(plan.archive);
-};
-```
-
-And each operation becomes a pure function that returns a plan:
-
-```ts
-const planDelete = (archive: Archive, nodes: readonly VirtualNode[]): ArchivePlan => ({
-  archive,
-  changes: nodes
-    .flatMap((node) => archive.getFileEntryPaths(node))
-    .map((path) => ({ kind: 'remove', path })),
-});
-```
-
-```mermaid
-flowchart LR
-  P1["planWrite"] --> R
-  P2["planDelete"] --> R
-  P3["planMove"] --> R
-  P4["planCopy"] --> R
-  P5["planAdd"] --> R
-  R["apply - one sequence"] --> V["validate"] --> C["change entries"] --> DIR["derive directory work"] --> T["rebuild"] --> E["fire change"]
-```
-
-The payoff: adding an operation means writing one pure function that returns
-changes. It cannot forget step four, because step four is not its job. The plans
-are also trivially testable without an extension host, since they are data.
-
----
-
-## 4. Target shape: a core with API layers
-
-```mermaid
-flowchart TD
-  subgraph core["core - owns every rule"]
-    WS["workspace<br/>scan · watch · resolve · read · apply"]
-    PLAN["plans - pure functions returning changes"]
-    TREE["virtual tree - plain data"]
-    BIN["archive binary layer"]
-  end
-
-  subgraph api["exposed API layers"]
-    A1["vscode adapters<br/>file system, tree, drag and drop"]
-    A2["commands<br/>file, clipboard, extract"]
-    A3["registry<br/>formats and tools"]
-  end
-
-  subgraph plugins["contributions"]
-    FMTS["formats - open an entry"]
-    TLS["tools - transform data"]
-  end
-
-  WS --> PLAN --> TREE
-  WS --> BIN
-  A1 --> WS
-  A2 --> WS
-  A3 --> WS
-  FMTS --> A3
-  TLS --> A3
-  FMTS -->|"uses"| TLS
-```
-
-The core owns every rule that is currently spread out: casing, path shape, URI
-resolution, operation order, queueing, batching, change notification. Everything
-above it works with nodes and bytes.
-
-> **Naming collision to settle first.** `src/format/` currently means "the BIG
-> archive binary format", which clashes with formats as a plug-in concept. The
-> binary layer should move to `core/archive/` so `formats/` is free for the
-> thing you actually call a format.
-
-### Proposed layout
-
-```
-src/
-  core/
-    archive/       bigFormat, archiveFile      (today: format/)
-    workspace/     scan, watch, resolve, apply (today: model/archiveModel)
-    tree/          virtualNode                 (today: model/virtualNode)
-    plans/         one plan per operation, pure
-  tools/           pure transforms - no vscode, no archive
-    dds/decodeDds
-    apt/parseApt, apt/writeApt
-    image/encodePng
-  formats/         entry to rendered thing - archive and editor bound
-    dds
-    apt
-  providers/       vscode adapters, unchanged in spirit
-  commands/        unchanged in spirit
-  actions/         orchestration shared by commands and drop
-  ui/              dialogs
-  common/          paths, uri, messages
-```
-
-The dependency rule is one directional and easy to check: `tools` import
-nothing from `core`, `formats` may import both, `providers` and `commands`
-import `core` and the registries but never a tool directly.
-
----
-
-## 5. Tools and formats
-
-Two different kinds of contribution, and they compose.
-
-| | **tool** | **format** |
-| --- | --- | --- |
-| answers | "transform this data" | "open this entry" |
-| input | bytes or a parsed structure | an entry in an archive |
-| knows about archives | **no** | yes |
-| knows about VS Code | **no** | yes, it renders |
-| example | decode DDS to pixels, encode PNG | show a `.dds` in an editor |
-| testable in the unit lane | yes, no host needed | no, needs the host |
-
-The rule that keeps them apart: **a tool never touches an archive, a URI, or the
-editor.** It is data in, data out. That makes tools reusable, unit testable
-without an extension host, and usable by each other. A format is the thin
-binding that gets bytes out of an archive, runs tools over them, and renders the
-result.
-
-### Why `.apt` is a mix, and how that resolves
-
-An `.apt` is both: something you open, and something you convert. Split along
-the rule above and it stops being ambiguous:
-
-```mermaid
-flowchart LR
-  subgraph tools["tools - pure, no vscode, no archive"]
-    APTP["apt parser<br/>bytes to movie"]
-    APTW["apt writer<br/>movie to bytes"]
-    DDSD["dds decoder<br/>bytes to pixels"]
-    PNGE["png encoder<br/>pixels to bytes"]
-  end
-
-  subgraph formats["formats - archive and editor bound"]
-    FAPT["apt format"]
-    FDDS["dds format"]
-  end
-
-  subgraph cmds["commands"]
-    EXP["export as png"]
-  end
-
-  FAPT --> APTP
-  FAPT --> DDSD
-  FDDS --> DDSD
-  EXP --> DDSD
-  EXP --> PNGE
-  APTW -.->|"used when saving"| FAPT
-```
-
-The `.apt` parser is a tool: give it the three buffers, get a structure back. It
-can be tested against fixtures with no editor running. The `.apt` **format** is
-what knows that `unit.apt` needs `unit.const` and `unit.dat`, fetches them, calls
-the parser tool, and hands the result to a renderer. When the movie references
-textures, the format fetches those and runs the **dds decoder tool** over them —
-one tool used by two formats and by a command.
-
-### The awkward requirement
-
-An `.apt` is useless alone. It needs its `.const` and `.dat` siblings, and it
-references textures whose names are **only known after parsing**. So a format
-cannot declare its dependencies up front as a static list. It needs to ask for
-more entries while it works.
-
-That rules out the obvious design of "declare related files, receive buffers"
-and points at handing the format a **reader** instead.
-
-### Proposed shape
-
-A tool is a named function with typed input and output. Nothing else:
-
-```ts
-// tools/registry.ts
-export interface Tool<Input, Output> {
-  readonly id: string;
-  run(input: Input, tools: ToolBox): Promise<Output> | Output;
-}
-
-/** Lets a tool reach another tool by id, resolved lazily so order of
- *  registration does not matter and two tools may reference each other */
-export interface ToolBox {
-  use<I, O>(tool: Tool<I, O>): (input: I) => Promise<O>;
-}
-```
-
-A format binds an entry to tools and to a renderer:
-
-```ts
-// formats/registry.ts
-export interface FormatContext {
-  /** The entry the format was invoked on */
-  readonly entry: EntryRef;
-
-  /** Same base name, different extension - x.apt finds x.const */
-  sibling(extension: string): EntryRef | undefined;
-
-  /** Entries in a directory, for formats that scan */
-  list(directory: EntryPath): readonly EntryRef[];
-
-  /** Bytes of an entry, batched behind one open archive handle */
-  read(entry: EntryRef): Promise<Uint8Array>;
-  readAll(entries: readonly EntryRef[]): Promise<Map<EntryPath, Uint8Array>>;
-
-  /** The same tools a command or another format would use */
-  readonly tools: ToolBox;
-}
-
-export interface ArchiveFormat<T> {
-  readonly id: string;
-  matches(entry: EntryRef): boolean;
-  parse(context: FormatContext): Promise<T>;
-  /** Optional, only for formats that can write back */
-  serialize?(value: T, context: FormatContext): Promise<EntryChange[]>;
-}
-```
-
-A format never sees a URI, never folds a case, never opens a file, and never
-learns which archive it is in. A tool additionally never sees an entry.
-
-Note `serialize` returns **changes**, not bytes written to disk. An editor
-saving an `.apt` produces a plan that goes through the same runner as every
-other mutation, which means it inherits the queueing, the bookkeeping and the
-tree refresh for free.
-
-### Opening an .apt
+Nothing is opened at startup. The scan lists what carries the extension, and an
+archive is read when something needs it.
 
 ```mermaid
 sequenceDiagram
   actor U as User
-  participant ED as editor / webview
-  participant REG as format registry
-  participant CORE as core
-  participant APT as apt format
+  participant TV as treeDataProvider
+  participant AM as archiveModel
+  participant AR as Archive
+  participant BIN as binary
 
-  U->>ED: open unit.apt
-  ED->>REG: formatFor(entry)
-  REG->>APT: parse(context)
-  APT->>CORE: sibling(".const")
-  APT->>CORE: sibling(".dat")
-  APT->>CORE: readAll([apt, const, dat])
-  Note over CORE: one open handle, one queued read
-  CORE-->>APT: bytes
-  APT->>APT: parse, discover texture names
-  APT->>CORE: readAll(textures)
-  CORE-->>APT: bytes
-  APT-->>REG: parsed movie
-  REG-->>ED: render
+  Note over AM: activation
+  AM->>AM: createWorkspaceSources
+  AM->>AM: findFiles(**/*.big)
+  AM->>AR: create, one per archive, nothing read
+  Note over AM: tree is usable here
+
+  U->>TV: expand an archive
+  TV->>AM: loadArchiveOf(node)
+  AM->>AR: ensureLoaded
+  AR->>BIN: readArchiveIndexTable
+  BIN-->>AR: magic + entries
+  AR->>AR: syncFiles, entries into the tree
+  AM-->>TV: changed, redraw this archive
+  TV-->>U: rows, and the file count appears
+
+  Note over AM: once quiet, read the rest ahead
+  AM->>AR: ensureLoaded, one at a time, behind anything awaited
 ```
 
-The batching that step 12 built is exactly what makes the second `readAll`
-cheap, and the format author never has to know it exists.
+A file that carries the extension but is not an archive is dropped when reading
+it says so, rather than by opening every candidate during the scan.
 
-### A simpler one, .dds
-
-The tool, which knows nothing about archives and is unit testable today:
-
-```ts
-// tools/dds/decodeDds.ts
-export const decodeDds: Tool<Uint8Array, DecodedTexture> = {
-  id: 'dds.decode',
-  run: (bytes) => decode(bytes),
-};
-```
-
-The format, which is the binding and nothing more:
-
-```ts
-// formats/dds.ts
-export const ddsFormat: ArchiveFormat<DecodedTexture> = {
-  id: 'dds',
-  matches: (entry) => entry.name.toLowerCase().endsWith('.dds'),
-  parse: async (context) =>
-    context.tools.use(decodeDds)(await context.read(context.entry)),
-};
-```
-
-### Adding a new format or tool later
-
-This is the ergonomic target. Adding either should touch **one new file and one
-registration line**, and nothing else:
-
-```ts
-// extension.ts
-registerTools(decodeDds, encodePng, parseApt, writeApt);
-registerFormats(ddsFormat, aptFormat, geometryFormat);
-```
-
-| you want to | you write | you touch |
-| --- | --- | --- |
-| decode a new texture kind | a tool | `tools/`, one registration |
-| open a new file kind | a format | `formats/`, one registration |
-| convert A to B from the menu | a tool plus a command | `tools/`, `commands/` |
-| open a kind that needs siblings | a format using `sibling` | `formats/` only |
-
-### What the registry gives the rest of the extension
-
-- a custom editor asks "is there a format for this entry" and renders it
-- the tree can show a format specific icon or description
-- a command like "export as PNG" composes two tools without either knowing
-  about the archive
-- a format that implements `serialize` becomes editable, through the same plan
-  runner as everything else
+Reading content is a positional read: `openArchiveReader` keeps one handle open
+so extracting a folder does not reopen the archive per entry.
 
 ---
 
-## 6. What is deliberately not changing
+## 6. Writing
 
-- **`BigTreeItem extends TreeItem` stays.** It is the one place inheritance
-  actually buys something and you are happy with it.
-- **Row ordering matches the explorer**, directories first and then files, each
-  by name. Already implemented in `providers/treeDataProvider`.
-- **`VirtualNode` stays plain data** operated on by free functions. It is the
-  one type with tens of thousands of instances per archive, so no methods, no
-  prototypes, no closures per node.
-- **Errors stay exceptions** at the VS Code boundary, because the provider API
-  requires thrown `FileSystemError`s. Tagged errors like `NotAnArchiveError`
-  cover the few cases callers branch on.
-- **The `format/` layer stays as is.** It is already pure, testable and
-  vscode-free.
-
----
-
-## 7. What the roadmap changes
-
-Five planned features, checked against the design above. Two fit as they are,
-three break an assumption, and one of those changes what should be done first.
-
-| feature | fits the design | what it breaks |
-| --- | --- | --- |
-| manually added archives, grouped by their folder | no | identity is workspace relative |
-| archives shown in the folders they live in | no | the tree top level is flat, and rows are always archive content |
-| merged game file system with overrides | no | one archive owns one entry |
-| cross archive move and copy | no | a plan targets one archive |
-| INI and INC language support | yes, as a new API layer | needs a derived data cache |
-| in game previewers for parts of a file | yes, as formats | needs sub entry granularity |
-
-### Why the folder structure waits for sources
-
-Showing `mods/textures.big` nested under a `mods` row rather than flat looks
-like a view change, and it is not, for two reasons.
-
-**A folder row is a node kind that does not exist.** Every row today is a
-`VirtualNode`, which requires an `archivePath` because it describes something
-*inside* an archive. A folder on disk has no archive. It also breaks
-`BigTreeItem`, which sets `resourceUri` to a `bigfs:` URI: for a folder row that
-URI resolves to nothing, so VS Code would ask the file system provider to stat
-it and get a not found back, losing the icon. Such a row wants either the real
-`file:` URI or none at all, plus its own `contextValue` so the context menu and
-drop handling can refuse it.
-
-**The top level is exactly what sources restructures.** Once archives can come
-from several places the tree becomes source, then folders, then archives.
-Building the folder grouping against workspace only identity means building it
-twice.
-
-So it belongs *with* step 1, not before it: one pass that introduces sources,
-folder rows and the new URI shape together.
-
-### The one thing to settle before anything else: identity
-
-Today an archive is identified by its **workspace relative path**, and an entry
-by its position inside one archive. Three roadmap features contradict that:
-
-- an archive in `D:\test` has no workspace relative path
-- in the merged view an entry is identified by its **game path**, and several
-  archives may hold that same path
-- during a cross archive move the same content exists in two archives at once
-
-So the URI shape has to grow a **view** and a **source** before the rest is
-built on it. Doing this during step 1 costs nothing extra; doing it later means
-rewriting every path rule twice.
-
-```
-bigfs:/archives/<source>/<archive path>/<entry path>    the tree you have today
-bigfs:/game/<source>/<entry path>                       the merged view
-```
-
-### Sources: the layer below archives
-
-The core stops being workspace scoped. A **source** is a place archives come
-from: the workspace, or a folder you added by hand. Archives group under it,
-and adding another archive from the same folder joins the same node.
+Every mutation is described as changes and carried out by one runner. An
+operation says *what changes*; nothing else.
 
 ```mermaid
 flowchart TD
-  CORE["core"]
+  CMD["a command or a drop"] --> ACT["actions: resolve conflicts, confirm"]
+  ACT --> OP["archiveModel operation"]
+  OP --> PLAN["a list of EntryChange"]
+  PLAN --> APPLY["Archive.applyChanges"]
 
-  subgraph sources["sources - persisted in workspace state"]
-    WSS["workspace<br/>the folder that is open"]
-    MAN["D:\\test<br/>added by hand"]
-    MAN2["E:\\bfme2<br/>added by hand"]
+  subgraph runner["one sequence, in the archive's queue"]
+    APPLY --> ENT["change the entries"]
+    ENT --> NEED{"did the entries move?"}
+    NEED -->|yes| WRITE["write the archive, temp file then rename"]
+    NEED -->|no| SKIP["nothing on disk"]
+    WRITE --> TREE["apply the same changes to the tree"]
+    SKIP --> TREE
   end
 
-  subgraph a1["archives"]
-    A["INI.big"]
-    B["W3D.big"]
-  end
-
-  subgraph a2["archives"]
-    C["textures.big"]
-  end
-
-  CORE --> WSS --> a1
-  CORE --> MAN --> a2
-  CORE --> MAN2
+  TREE --> EVENT["onDidChangeArchive"]
+  EVENT --> TDP["tree redraws that archive"]
+  EVENT --> FSP["file events, batched"]
 ```
 
-Consequences worth knowing now:
+The queue is per archive and shared with reads, so a reload triggered by the
+watcher cannot land in the middle of a save.
 
-- `workspace.findFiles` and `asRelativePath` only work inside the workspace, so
-  discovery becomes per source, with `RelativePattern` watchers for the folders
-  you add by hand
-- sources need to survive a reload, so they go in workspace state
-- a source needs a **load order**, because the merged view depends on it
+| operation | changes | touches disk |
+| --- | --- | --- |
+| write a file | `put` | yes |
+| create a directory | `addDirectory` | **no** |
+| delete | `remove` | yes, unless nothing was stored |
+| rename or move | `move` | yes |
+| copy or duplicate | `copy` | yes |
+| add files from disk | `put` per file, streamed | yes |
 
-### The merged view is a second projection, not a second tree
+---
 
-The important part: merging and override resolution are **core rules**, not view
-code. The core builds an index once and both trees read from it.
+## 7. The plug-in surface
+
+Two kinds of contribution, told apart by what they are allowed to know.
 
 ```mermaid
 flowchart LR
-  subgraph core["core"]
-    ENT["entries per archive"]
-    IDX["merged index<br/>game path to candidates, ordered by load order"]
+  subgraph tools["tools - pure"]
+    T1["decode a texture"]
+    T2["parse a movie"]
+    T3["encode an image"]
   end
 
-  subgraph views["projections"]
-    T1["archive tree<br/>as today"]
-    T2["game tree<br/>merged, overrides applied"]
+  subgraph formats["formats - bound to archive and editor"]
+    F1["open a dds"]
+    F2["open an apt"]
   end
 
-  ENT --> IDX
-  ENT --> T1
-  IDX --> T2
-  IDX --> HOV["hover: 3 versions, winner is mods/patch.big"]
+  CORE["model"]
+
+  F1 --> T1
+  F2 --> T2
+  F2 --> T1
+  F1 & F2 --> CORE
+  CMDS["commands"] --> T3
 ```
 
-The index entry is the shape that answers your hover question directly:
+| | tool | format |
+| --- | --- | --- |
+| answers | transform this data | open this entry |
+| knows about archives | no | yes |
+| knows about VS Code | no | yes |
+| testable without a host | yes | no |
 
-```ts
-export interface MergedEntry {
-  path: EntryPath;                     // the path the game sees
-  candidates: readonly EntryRef[];     // every archive that holds it, in load order
-  winner: EntryRef;                    // the one the game actually reads
-}
-```
+A tool is a pure function with an id. A format is handed a context that can
+find a sibling by extension, list a directory, and read entries in a batch. It
+gets a **reader**, not pre-resolved buffers, because a format cannot always
+declare what it needs in advance: an `.apt` finds its `.const` and `.dat` by
+name, then asks for textures it only discovers while parsing.
 
-This is also what INI cross referencing needs: a symbol lookup has to resolve
-against the **merged** file system, not one archive, or a reference from a mod
-file into a base game file will not resolve.
+Both registries exist and are empty. Registering either is one line in
+`extension.ts`.
 
-### Cross archive operations change the plan type
-
-Section 3 proposes a plan with a single `archive` field. If cross archive moves
-are coming, make the plan a **transaction over several archives from the start**,
-otherwise every operation gets rewritten later:
-
-```ts
-export interface ArchivePlan {
-  steps: readonly ArchiveStep[];       // ordered, one archive each
-}
-
-export interface ArchiveStep {
-  archive: Archive;
-  changes: readonly EntryChange[];
-}
-```
-
-Ordering matters and belongs in the runner, not in each operation: a cross
-archive move **writes the target first and only then removes the source**, so a
-failure halfway leaves a duplicate rather than a hole. Two archives cannot be
-rewritten atomically, so the runner should make the safe order structural.
-
-A new change kind carries content between archives without going through
-memory:
-
-```ts
-| { kind: 'copyFrom'; source: EntryRef; to: EntryPath }
-```
-
-which reuses the streaming path that already exists for importing from disk.
-
-### Language support and previewers need one thing added
-
-Both need parsed results to be **cached and invalidated**, or every keystroke
-reparses an INI that may live in another archive. The core already knows when an
-archive changed, so it is the right owner:
-
-```ts
-derive<T>(entry: EntryRef, tool: Tool<Uint8Array, T>): Promise<T>
-```
-
-keyed by entry identity plus archive version, dropped when the archive changes.
-With that, INI language features and previewers are both just consumers:
-
-```mermaid
-flowchart TD
-  CORE["core: merged index + derived cache"]
-  LANG["language layer<br/>completion, definition, references"]
-  PREV["previewers<br/>interface parts, animation"]
-  FMT["formats"]
-  TOOL["tools: parsers"]
-
-  CORE --> LANG
-  CORE --> PREV
-  CORE --> FMT
-  LANG --> TOOL
-  PREV --> TOOL
-  FMT --> TOOL
-```
-
-Previewers do add one requirement to the format API: they preview **part** of a
-file, so a format needs an optional entry point that takes a location or symbol,
-not just the whole entry.
+**Not yet decided:** a format that needs its own viewer also needs a
+`contributes.customEditors` entry in `package.json`, whose file pattern is
+static. Either each format adds a manifest entry, or one editor registers at
+`priority: "option"` so it is reachable through *Reopen With* without
+hijacking anything.
 
 ---
 
-## 8. Suggested order
+## 8. Measurements
 
-Revised for the roadmap. The first two items swapped places compared to the
-earlier draft, because identity has to be right before anything is built on it.
+Taken against a real Battle for Middle-earth 2 install, 105 archives and
+3.4 GB on disk.
 
-| # | change | why there | risk |
-| --- | --- | --- | --- |
-| 1 | Sources, folder rows and the view/source URI shape | four roadmap features contradict workspace relative identity, and the tree top level is rebuilt once | medium, changes every path rule once instead of twice |
-| 2 | Core speaks nodes, brand the path types | removes 16 round trips, and lands with the new shape | low, mechanical, tests cover it |
-| 3 | Plans and one runner, **multi archive from the start** | removes ordering rules from six places, and makes cross archive possible | medium, touches every operation |
-| 4 | Move the binary layer to `core/archive/`, free the name `formats` | must happen before anything is called a format | low, a move |
-| 5 | Tool registry plus the DDS decoder as the first tool | pure, unit testable, no host, no archive | low, additive |
-| 6 | Format registry plus the DDS format | proves the binding with the simplest case | low, additive |
-| 7 | Merged index and the game tree | needs 1 and 3, unlocks language support later | medium, new domain rule: load order |
-| 8 | Cross archive move and copy | falls out of 3 plus `copyFrom` | low once 3 is done |
-| 9 | `.apt` parser and writer as tools | you are writing these anyway, and they need no editor | medium, your parser |
-| 10 | `.apt` format, the grouped entry case | exercises `sibling`, the second read, and `serialize` | medium |
-| 11 | Derived cache, then INI and INC language support | needs 7 for cross archive references | large, own project |
+| | |
+| --- | --- |
+| reading every index table | 174 ms total, 1.7 ms per archive |
+| heap held for all 105 | 9.2 MB, 0.09 MB per archive |
+| tree nodes across all of them | 41,049 |
+| largest archive | `W3D.big`, 12,893 nodes |
+| opening one file | 0.3 ms, independent of archive size |
+| expanding a folder of 30,000 rows | 20 ms |
 
-Steps 1 to 4 are refactors with the existing tests as the safety net. Steps 5
-onwards are new surface area and do not touch what exists.
+The lesson worth keeping: **archive size on disk says nothing about index
+size.** 3.4 GB of BFME is textures and audio, not many files. Estimates made
+from synthetic archives with tens of thousands of entries each were wrong by
+more than an order of magnitude.
 
-**Manually added archives can land any time after step 1.** They are a source
-implementation plus a command, not a change to the core.
+---
 
-**If you want to start on the parser sooner:** step 6 does not actually depend
-on 1 to 5. A tool is a pure function over buffers, so the `.apt` parser can be
-written and unit tested against fixtures right now, and wired into a format
-later. That is the main practical argument for the tool and format split.
+## 9. Decisions worth remembering
+
+- **Node's `fs`, not `workspace.fs`, in `binary/`** — reading one entry out of
+  a 2 GB archive needs a positional read, and `workspace.fs` can only read a
+  whole file. The cost is that only local files work: a remote workspace has no
+  path to open.
+- **The tree is mutated, not rebuilt.** Rebuilding it from entries would lose
+  every directory that holds no files, which is what a side table used to
+  compensate for.
+- **A node keeps its identity.** The tree view holds the elements it was
+  handed, so refreshing one archive means firing the very root it already
+  knows.
+- **Errors are exceptions at the VS Code boundary**, because the provider API
+  requires thrown `FileSystemError`s. Tagged errors such as `NotAnArchiveError`
+  cover the cases callers branch on.
+- **Mutation is confined by structure, not by interception.** Tree mutation
+  happens only in `virtualNode`, entry mutation only in `archive`.
+
+---
+
+## 10. Still open
+
+**Core**
+
+- A plan targets one archive, so **cross archive move and copy** need the plan
+  widened into a transaction over several. Ordering belongs in the runner:
+  write the target before removing the source, so a failure leaves a duplicate
+  rather than a hole.
+- **The merged game view**: one index per source, entries resolved by load
+  order, with the hover showing which archive wins. Needed before INI cross
+  referencing, since a reference from a mod into the base game has to resolve.
+- **Archives added by hand** from outside the workspace. The source layer takes
+  this without changing: it is a source implementation, a command, and
+  persistence.
+
+**Plug-ins**
+
+- `.dds` decoder and viewer, `.apt` parser and writer. The `.apt` tools depend
+  on nothing here and can be written against fixtures whenever.
+- Language support for `.ini` and `.inc`, which needs the merged view and a
+  cache of parsed results keyed by archive version.
+
+**Known gaps**
+
+- Saving a large archive has no progress and cannot be cancelled.
+- Every save rewrites the whole archive. Writing into free space and rewriting
+  only the index would avoid it, at the cost of a compaction step.
+- Drag and drop and the clipboard commands have no automated cover; neither is
+  reachable through the extension host API the suite uses.
+- Release: README and CHANGELOG are still scaffold text, there is no LICENSE or
+  `license` field, no icon, and the publisher name is a guess.
