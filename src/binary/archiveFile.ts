@@ -10,9 +10,16 @@ import {
 } from './bigFormat';
 import type { ArchiveLayout, BigFileEntry, ParsedArchive } from './bigFormat';
 
-/** Buffer size for moving an entry's data between archives */
+/** How much of an entry is held in memory at a time while its data is copied */
 const COPY_CHUNK_SIZE = 256 * 1024;
 
+/**
+ * Reads an archive's header and index table, leaving the entry data unread.
+ * This is the whole cost of opening an archive: nothing else is read until a
+ * caller asks for an entry.
+ * @throws NotAnArchiveError when the file is too short to hold a header, or
+ * does not start with a BIG magic
+ */
 export const readArchiveIndexTable = async (
   archivePath: string,
 ): Promise<ParsedArchive> => {
@@ -74,7 +81,12 @@ export const readArchiveIndexTable = async (
   }
 };
 
+/**
+ * One archive held open across a run of reads, handed out by
+ * `openArchiveReader`. The caller closes it.
+ */
 export interface ArchiveReader {
+  /** Reads one entry's data, or its pending content when it is not in the archive yet */
   readEntry(entry: BigFileEntry): Promise<Uint8Array>;
   close(): Promise<void>;
 }
@@ -119,6 +131,11 @@ export const openArchiveReader = async (
   };
 };
 
+/**
+ * Reads one entry, opening and closing the archive around it; reading several
+ * goes through `openArchiveReader` instead. A pending or empty entry is
+ * answered without touching the file, which need not exist for those.
+ */
 export const readEntryData = async (
   archivePath: string,
   entry: BigFileEntry,
@@ -140,6 +157,7 @@ export const readEntryData = async (
   }
 };
 
+/** Copies bytes between two open files in chunks, so an entry never sits in memory whole */
 const copyEntryData = async (
   sourceFile: FileHandle,
   targetFile: FileHandle,
@@ -168,6 +186,12 @@ const copyEntryData = async (
   }
 };
 
+/**
+ * Rewrites the whole archive through a temporary file that is renamed over the
+ * original; one changed entry shifts every offset after it, so there is no
+ * partial write. The entries keep their old offsets, so the caller has to
+ * apply the layout that comes back.
+ */
 export const writeArchiveFile = async (
   archivePath: string,
   magic: string,
@@ -186,7 +210,6 @@ export const writeArchiveFile = async (
     try {
       await tempFile.write(indexTable, 0, indexTable.length, 0);
 
-      // Write one entry at a time
       for (const { entry, offset, size } of layout.placedEntries) {
         if (!size) {
           continue;
@@ -209,6 +232,7 @@ export const writeArchiveFile = async (
           continue;
         }
 
+        // only opened once an entry's data still has to come from the original
         sourceFile ??= await open(archivePath, 'r');
         await copyEntryData(sourceFile, tempFile, entry.offset, offset, size);
       }

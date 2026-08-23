@@ -13,6 +13,7 @@ export interface ArchiveSource {
   readonly baseUri: Uri;
 }
 
+/** Turns a folder name into a uri segment, named `source` when nothing is left */
 const toSlug = (text: string): string =>
   text
     .toLowerCase()
@@ -31,8 +32,8 @@ const toSuffix = (text: string): string => {
 };
 
 /**
- * One source per workspace folder, so a multi root workspace keeps its
- * folders apart the way the explorer does
+ * Creates one source per workspace folder, so a multi root workspace keeps
+ * its folders apart the way the explorer does
  */
 export const createWorkspaceSources = (): ArchiveSource[] => {
   const taken = new Set<string>();
@@ -49,7 +50,7 @@ export const createWorkspaceSources = (): ArchiveSource[] => {
   });
 };
 
-/** The source a file on disk belongs to, if any of them holds it */
+/** Finds the source a file on disk belongs to, if one of them holds it */
 export const findSourceFor = (
   sources: readonly ArchiveSource[],
   uri: Uri,
@@ -64,9 +65,9 @@ export const findSourceFor = (
 };
 
 /**
- * Where an archive sits inside its source, which together with the source id
- * gives it a place of its own: two archives that share a name stay apart
- * because the folders holding them differ.
+ * Gets where an archive sits inside its source, which together with the
+ * source id gives it a place of its own: two archives that share a name stay
+ * apart because the folders holding them differ.
  */
 export const getPathInSource = (source: ArchiveSource, uri: Uri): string =>
   uri.fsPath

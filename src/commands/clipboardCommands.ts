@@ -12,25 +12,38 @@ import type { ArchiveModel } from '../model/archiveModel';
 
 type ClipboardOperation = 'cut' | 'copy';
 
+/**
+ * What a cut or copy left on the tree's own clipboard: held in memory for the
+ * session, separate from the system clipboard the copy path commands write to
+ */
 interface ClipboardContent {
   nodes: VirtualNode[];
   operation: ClipboardOperation;
 }
 
+/**
+ * Registers the palette and context menu entries for cut, copy, paste,
+ * duplicate and the two copy path commands, through the register callback the
+ * command center hands out
+ */
 export const registerClipboardCommands = (
   register: RegisterNodeCommand,
   archiveModel: ArchiveModel,
 ): void => {
   let clipboard: ClipboardContent | undefined;
 
-  // Copied for use outside the editor, where the archive separator is a
-  // backslash the way the index table stores it
+  /**
+   * Gets the entry path with the backslash separators the index table stores,
+   * which is the form a path pasted outside the editor is expected in
+   */
   const getEntryPath = (node: VirtualNode): string =>
     node.entryPath.replace(/\//g, '\\');
 
+  /** Gets the archive's path on disk with the entry appended, which no file system will open */
   const getAbsolutePath = (node: VirtualNode): string =>
     `${node.archive.archivePath}\\${getEntryPath(node)}`;
 
+  /** Sets the clipboard and the context key the paste menu entry is gated on */
   const setClipboard = async (
     content: ClipboardContent | undefined,
   ): Promise<void> => {
@@ -43,6 +56,7 @@ export const registerClipboardCommands = (
     );
   };
 
+  /** Pastes into the target's directory, moving for a cut and copying for a copy */
   const paste = async (target: VirtualNode): Promise<void> => {
     const directory = getTargetDirectory(target);
 
@@ -52,7 +66,7 @@ export const registerClipboardCommands = (
 
     if (clipboard.operation === 'copy') {
       await copyNodes(archiveModel, clipboard.nodes, directory);
-      return;
+      return; // a copy can be pasted again, a cut is spent by the paste
     }
 
     await moveNodes(archiveModel, clipboard.nodes, directory);
@@ -60,6 +74,10 @@ export const registerClipboardCommands = (
     await setClipboard(undefined);
   };
 
+  /**
+   * Copies each node beside itself under a free name, a directory at a time
+   * because a copy targets one directory
+   */
   const duplicate = async (nodes: readonly VirtualNode[]): Promise<void> => {
     const siblingsByDirectory = new Map<VirtualNode, VirtualNode[]>();
 

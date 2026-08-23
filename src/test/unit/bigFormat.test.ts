@@ -8,6 +8,7 @@ import {
 } from '../../binary/bigFormat';
 import type { BigFileEntry } from '../../binary/bigFormat';
 
+/** Entries holding their content as pending data, the shape a write starts from */
 const createEntries = (
   files: { name: string; content: string }[],
 ): Map<string, BigFileEntry> => {
@@ -27,6 +28,7 @@ const createEntries = (
   return entries;
 };
 
+/** Lays entries out and serializes the index table, the two steps a save pairs */
 const serializeArchive = (entries: Map<string, BigFileEntry>) => {
   const layout = computeArchiveLayout(entries);
   const indexTable = serializeIndexTable('BIGF', layout);
@@ -139,6 +141,8 @@ suite('BIG format', () => {
       /Invalid BIG file magic/,
     );
 
+    // XBIG carries BIG without being one of the magics, which anything looser
+    // than the four byte comparison would let through
     assert.throws(
       () => parseHeader(headerWith('XBIG')),
       /Invalid BIG file magic/,

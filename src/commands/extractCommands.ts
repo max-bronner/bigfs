@@ -24,6 +24,10 @@ import type { ArchiveModel } from '../model/archiveModel';
 
 const REVEAL_LABEL = 'Reveal in File Explorer';
 
+/**
+ * One file an extraction will write: the node to read it from, the uri it goes
+ * to, and the path below the picked directory that names it in a prompt
+ */
 interface ExtractedFile {
   name: string;
   node: VirtualNode;
@@ -31,23 +35,26 @@ interface ExtractedFile {
 }
 
 /**
- * Gets the folder an extracted node is written into. An archive drops the
- * extension it is named by, so extracting textures.big writes textures/.
+ * Gets the name a node's contents are written under. An archive drops the
+ * extension it is named by, so extracting `textures.big` writes into
+ * `textures/`.
  */
 const getExtractedName = (node: VirtualNode): string =>
   isArchiveRoot(node)
     ? node.name.slice(0, node.name.length - path.posix.extname(node.name).length)
     : node.name;
 
-/**
- * Gets the path an extracted file is written to, relative to the directory
- * the user picked
- */
+/** Gets the path an extracted file is written to, relative to the directory the user picked */
 const getExtractedPath = (node: VirtualNode, fileNode: VirtualNode): string =>
   fileNode === node
     ? node.name
     : `${getExtractedName(node)}/${getRelativeEntryPath(node, fileNode)}`;
 
+/**
+ * Plans what an extraction writes: every file at or below each node, paired
+ * with the uri it goes to under the picked directory. Reads and writes
+ * nothing, so it can be checked on its own.
+ */
 export const getExtractedFiles = (
   nodes: readonly VirtualNode[],
   targetDirectoryUri: Uri,
@@ -79,6 +86,10 @@ const exists = async (uri: Uri): Promise<boolean> => {
   }
 };
 
+/**
+ * Drops the files the user will not overwrite, asking once for every target
+ * that already exists on disk
+ */
 const withoutRefusedFiles = async (
   extractedFiles: ExtractedFile[],
 ): Promise<ExtractedFile[]> => {
@@ -93,6 +104,10 @@ const withoutRefusedFiles = async (
   return resolveConflicts(extractedFiles, (file) => takenNames.has(file.name));
 };
 
+/**
+ * Writes one file wherever the user saves it, keeping nothing of the path it
+ * had in the archive. Undefined when the dialog is dismissed.
+ */
 const extractToFile = async (node: VirtualNode): Promise<Uri | undefined> => {
   const targetUri = await window.showSaveDialog({
     defaultUri: Uri.file(node.name),
@@ -110,6 +125,11 @@ const extractToFile = async (node: VirtualNode): Promise<Uri | undefined> => {
   return targetUri;
 };
 
+/**
+ * Writes nodes below a directory the user picks, under a cancellable progress
+ * notification. Undefined when the user cancels, dismisses a dialog, or
+ * refuses every overwrite.
+ */
 const extractToDirectory = async (
   archiveModel: ArchiveModel,
   nodes: readonly VirtualNode[],
@@ -144,6 +164,8 @@ const extractToDirectory = async (
 
     await archiveModel.readFiles(extractedFiles, async (file, content) => {
       if (token.isCancellationRequested) {
+        // Thrown rather than returned, as it is the only way out of a batch
+        // read already in progress
         throw new CancellationError();
       }
 
@@ -177,6 +199,11 @@ const extractToDirectory = async (
   return targetDirectoryUri;
 };
 
+/**
+ * Extracts a selection to disk, then offers to reveal what was written. A lone
+ * file is saved wherever the user names it; anything else is written below a
+ * directory they pick.
+ */
 const extractNodes = async (
   archiveModel: ArchiveModel,
   nodes: readonly VirtualNode[],
@@ -205,6 +232,10 @@ const extractNodes = async (
   }
 };
 
+/**
+ * Registers the palette and context menu entry for extracting nodes to disk,
+ * through the register callback the command center hands out
+ */
 export const registerExtractCommands = (
   register: RegisterNodeCommand,
   archiveModel: ArchiveModel,

@@ -19,11 +19,14 @@ export const getTargetDirectory = (
 ): VirtualNode | undefined =>
   node.type === FileType.Directory ? node : node.parent;
 
+/** Whether a node can move into a directory: not already there, and not into itself or below it */
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean =>
   source.parent !== target && !isInside(target, source) && target !== source;
 
 /**
- * Keeps the sources belonging to the target's archive and warns about the rest
+ * Keeps the sources that belong to the target's archive and warns about the
+ * rest, since a plan targets one archive
+ * @param operation - Past tense, as the warning reads it: `moved`, `copied`
  */
 const getSourcesInArchive = (
   sources: readonly VirtualNode[],
@@ -45,6 +48,12 @@ const getSourcesInArchive = (
   return sourcesInArchive;
 };
 
+/**
+ * Moves nodes into a directory under their own names, and reports how many
+ * moved. A selection spanning several archives is safe to pass: sources
+ * outside the target's archive are dropped with a warning. A name already
+ * taken in the target prompts to replace, skip or cancel.
+ */
 export const moveNodes = async (
   archiveModel: ArchiveModel,
   sources: readonly VirtualNode[],
@@ -74,6 +83,12 @@ export const moveNodes = async (
   return acceptedNodes.length;
 };
 
+/**
+ * Copies nodes into a directory, and reports how many were copied. A selection
+ * spanning several archives is safe to pass: sources outside the target's
+ * archive are dropped with a warning. The user is never prompted and nothing
+ * is overwritten — a name already taken takes a copy suffix.
+ */
 export const copyNodes = async (
   archiveModel: ArchiveModel,
   sources: readonly VirtualNode[],
@@ -107,6 +122,11 @@ export const copyNodes = async (
   return copies.length;
 };
 
+/**
+ * Deletes nodes and everything below them, and reports how many top level
+ * nodes went. Always confirms with the user first. Unlike a move or a copy,
+ * the selection may span several archives.
+ */
 export const deleteNodes = async (
   archiveModel: ArchiveModel,
   nodes: readonly VirtualNode[],
@@ -128,6 +148,12 @@ export const deleteNodes = async (
   return topLevelNodes.length;
 };
 
+/**
+ * Walks the picked uris into a flat list of files, naming each one by its path
+ * below the uri it came from. A local file is passed on by path so its bytes
+ * only move when the archive is written; anything else has to be read into
+ * memory first.
+ */
 const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
   const files: ImportedFile[] = [];
 
@@ -149,7 +175,7 @@ const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
     }
 
     if (type !== FileType.Directory) {
-      return;
+      return; // a symlink or an unknown type has nothing to import
     }
 
     const children = await workspace.fs.readDirectory(uri);
@@ -166,6 +192,11 @@ const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
   return files;
 };
 
+/**
+ * Adds files from disk into a directory, walking a picked folder for
+ * everything below it, and reports how many were added. A name already taken
+ * in the target prompts to replace, skip or cancel.
+ */
 export const importFromDisk = async (
   archiveModel: ArchiveModel,
   sourceUris: Uri[],

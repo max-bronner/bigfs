@@ -13,25 +13,26 @@ import type { VirtualNode } from './virtualNode';
  * beside the rendering it has to agree with.
  */
 
+/** What a uri resolves to: the archive it points into, and where inside it */
 export interface ResolvedUri {
   archive: Archive;
   /** Empty when the uri names the archive itself */
   entryPath: string;
 }
 
-/** Where the node sits in the virtual file system */
+/** Renders where a node sits in the virtual file system, source segment first */
 export const getNodePath = (node: VirtualNode): string =>
   node.entryPath
     ? `${node.archive.rootPath}/${node.entryPath}`
     : node.archive.rootPath;
 
-/** How VS Code addresses the node */
+/** Renders the uri VS Code addresses a node by */
 export const getNodeUri = (node: VirtualNode): Uri =>
   Uri.from({ scheme: SCHEME, path: getNodePath(node) });
 
 /**
- * How VS Code addresses something in a directory that may not exist yet,
- * which is how a file is created: the uri comes first, the node follows
+ * Renders the uri for a name inside a directory, for a node that does not
+ * exist yet: creating a file starts from the uri, and the node follows
  */
 export const getChildUri = (directory: VirtualNode, name: string): Uri =>
   Uri.from({ scheme: SCHEME, path: `${getNodePath(directory)}/${name}` });

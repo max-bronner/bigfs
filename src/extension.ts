@@ -17,6 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(log, archiveModel);
 
+  // scanned and hasArchives gate the welcome views declared in package.json
   const setContextKey = (key: string, value: boolean) =>
     vscode.commands.executeCommand('setContext', `${SCHEME}.${key}`, value);
 
@@ -28,10 +29,11 @@ export function activate(context: vscode.ExtensionContext) {
     await setContextKey('scanned', true);
   };
 
+  // not awaited: activation returns before the scan does, and the tree is
+  // usable while it runs
   archiveModel.whenReady().finally(markScanned);
 
-  // The plug-in surface. Tools transform data, formats open an entry, and
-  // both are registered here so adding one touches a single line.
+  // Both registries are empty; registering a tool or a format is one line here
   const tools = createToolRegistry();
   const formats = createFormatRegistry(archiveModel, tools);
 
@@ -42,7 +44,6 @@ export function activate(context: vscode.ExtensionContext) {
   const treeDataProvider = new BigTreeDataProvider(archiveModel);
   const dragAndDropController = new BigDragAndDropController(archiveModel);
 
-  // Registration of file system provider
   context.subscriptions.push(
     vscode.workspace.registerFileSystemProvider(SCHEME, fileSystemProvider, {
       isCaseSensitive: false,
@@ -50,7 +51,6 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  // Registration of tree data provider
   const treeView = vscode.window.createTreeView('bigArchiveExplorer', {
     treeDataProvider,
     dragAndDropController,
@@ -66,7 +66,6 @@ export function activate(context: vscode.ExtensionContext) {
   registerExtractCommands(registerNodeCommand, archiveModel);
   registerClipboardCommands(registerNodeCommand, archiveModel);
 
-  // Manual refresh
   context.subscriptions.push(
     vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, async () => {
       await setContextKey('scanned', false);
@@ -80,7 +79,6 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  // Show message when file is saved
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       if (document.uri.scheme === SCHEME) {
@@ -93,4 +91,8 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
+/**
+ * Shutdown hook VS Code calls when the extension is unloaded. Empty because
+ * everything `activate` registers is disposed through `context.subscriptions`.
+ */
 export function deactivate() {}

@@ -12,13 +12,10 @@ import { countFileNodes, isArchiveRoot } from '../model/virtualNode';
 import { getNodePath, getNodeUri } from '../model/nodeAddress';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
-import {
-  isFolderNode,
-  isSourceNode,
-  isVirtualNode,
-} from './explorerNode';
+import { isFolderNode, isSourceNode, isVirtualNode } from './explorerNode';
 import type { ExplorerNode, FolderNode } from './explorerNode';
 
+/** Compares names as an explorer does: `a2` before `a10`, casing ignored */
 const nameCollator = new Intl.Collator(undefined, {
   numeric: true,
   sensitivity: 'base',
@@ -36,12 +33,23 @@ const compareRows = (a: ExplorerNode, b: ExplorerNode): number => {
   return nameCollator.compare(rowName(a), rowName(b));
 };
 
+/** The text a row is ordered by: a source's label, everything else's name */
 const rowName = (element: ExplorerNode): string =>
   isSourceNode(element) ? element.source.label : element.name;
 
-const sortRows = (rows: ExplorerNode[]): ExplorerNode[] => rows.sort(compareRows);
+const sortRows = (rows: ExplorerNode[]): ExplorerNode[] =>
+  rows.sort(compareRows);
 
+/**
+ * Tree row for an archive or something inside one. Its id is the node path, so
+ * the view can hold on to a row across a redraw, and a file row carries the
+ * command that opens it
+ */
 export class BigTreeItem extends TreeItem {
+  /**
+   * @param isLoaded - False for an archive whose index table has not been read,
+   * which leaves the file count off the row until it has
+   */
   constructor(
     public readonly node: VirtualNode,
     public readonly collapsibleState: TreeItemCollapsibleState,
@@ -73,7 +81,16 @@ export class BigTreeItem extends TreeItem {
   }
 }
 
+/**
+ * Tree data provider backing the archive explorer. It shows the sources, the
+ * folders on disk that hold archives, and the tree inside each archive, and an
+ * archive is read only when a row of it is expanded
+ */
 export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
+  /**
+   * Fired with one archive root to redraw that archive, or with nothing to
+   * redraw the whole view
+   */
   private _onDidChangeTreeData: EventEmitter<ExplorerNode | undefined | void> =
     new EventEmitter<ExplorerNode | undefined | void>();
   readonly onDidChangeTreeData: Event<ExplorerNode | undefined | void> =
@@ -82,11 +99,11 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
   constructor(private archiveModel: ArchiveModel) {
     this.archiveModel.onDidChangeArchive((change) => {
       const archive =
-        change.kind === 'changed' &&
+        change.type === 'changed' &&
         this.archiveModel.getArchiveByPath(change.archivePath);
 
       if (archive) {
-        // Redraw the archive that changed, not every archive in the view
+        // The view holds this root, so firing it redraws only this archive
         this._onDidChangeTreeData.fire(archive.root);
         return;
       }
@@ -95,6 +112,10 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
     });
   }
 
+  /**
+   * Redraws the whole view, for when the set of archives may have changed
+   * rather than the content of one of them
+   */
   refresh(): void {
     this._onDidChangeTreeData.fire();
   }
@@ -169,8 +190,9 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
   }
 
   /**
-   * The rows of one folder on disk: the archives directly in it, and the
-   * folders that hold archives further down
+   * Lists the rows of one folder on disk: the archives directly in it, and the
+   * folders that hold archives further down. A folder with no archive anywhere
+   * below it never appears
    */
   private listIn(sourceId: string, directoryPath: string): ExplorerNode[] {
     const prefix = directoryPath ? `${directoryPath}/` : '';

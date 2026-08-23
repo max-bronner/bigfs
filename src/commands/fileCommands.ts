@@ -11,6 +11,10 @@ import type { RegisterNodeCommand } from './commandCenter';
 import type { VirtualNode } from '../model/virtualNode';
 import type { ArchiveModel } from '../model/archiveModel';
 
+/**
+ * Gets the names already used in a directory, through the file system provider
+ * so an archive that has not been read yet is loaded first
+ */
 const readChildNames = async (
   directory: VirtualNode,
 ): Promise<Set<string>> => {
@@ -20,8 +24,9 @@ const readChildNames = async (
 };
 
 /**
- * Creating goes through the file system api rather than the model, so the
- * editor learns about the new file the same way it would on disk
+ * Creates an empty file beside or below the target and opens it. Goes through
+ * the file system api rather than the model, so the editor learns about the
+ * new file the same way it would on disk.
  */
 const createFile = async (target: VirtualNode): Promise<void> => {
   const directory = getTargetDirectory(target);
@@ -45,6 +50,10 @@ const createFile = async (target: VirtualNode): Promise<void> => {
   await commands.executeCommand('vscode.open', uri);
 };
 
+/**
+ * Creates a directory beside or below the target. Nothing reaches the archive:
+ * a directory exists only in the tree until a file below it is stored.
+ */
 const createFolder = async (target: VirtualNode): Promise<void> => {
   const directory = getTargetDirectory(target);
 
@@ -64,6 +73,7 @@ const createFolder = async (target: VirtualNode): Promise<void> => {
   await workspace.fs.createDirectory(getChildUri(directory, name));
 };
 
+/** Renames a node from a prompt, refusing a name already taken beside it */
 const renameNode = async (target: VirtualNode): Promise<void> => {
   const directory = target.parent;
 
@@ -86,6 +96,10 @@ const renameNode = async (target: VirtualNode): Promise<void> => {
   });
 };
 
+/**
+ * Adds files picked from disk to the target's directory, and tells the user
+ * how many landed
+ */
 const addFiles = async (
   archiveModel: ArchiveModel,
   target: VirtualNode,
@@ -118,6 +132,11 @@ const addFiles = async (
   }
 };
 
+/**
+ * Registers the palette and context menu entries for creating, renaming,
+ * adding and deleting nodes, through the register callback the command center
+ * hands out
+ */
 export const registerFileCommands = (
   register: RegisterNodeCommand,
   archiveModel: ArchiveModel,

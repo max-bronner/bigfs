@@ -3,12 +3,18 @@ import type { ArchiveModel } from '../model/archiveModel';
 import { SCHEME } from '../constants';
 import type { VirtualNode } from '../model/virtualNode';
 
+/**
+ * File system provider behind the `bigfs` scheme, through which an entry
+ * reaches the editor. It reports failures as thrown `FileSystemError`s, which
+ * the API requires, and hears about changes from the archive model
+ */
 export class BigFileSystemProvider implements vscode.FileSystemProvider {
   private onDidChangeFileEmitter = new vscode.EventEmitter<
     vscode.FileChangeEvent[]
   >();
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
+  /** Events of the current burst, held until `fireSoon` delivers them as one */
   private bufferedEvents: vscode.FileChangeEvent[] = [];
   private fireSoonHandle?: NodeJS.Timeout;
 
@@ -18,6 +24,11 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     });
   }
 
+  /**
+   * Announces the open documents of one archive as changed, so their editors
+   * reload after it was rewritten. A dirty document is left out rather than
+   * having the edits the user has not saved replaced under them
+   */
   private fireChangedDocuments(rootPath: string): void {
     const archivePrefix = `${rootPath.toLowerCase()}/`;
 
@@ -38,9 +49,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     }
   }
 
-  /**
-   * Collects the events of a burst and delivers them as one notification
-   */
+  /** Collects the events of a burst and delivers them as one notification */
   private fireSoon(...events: vscode.FileChangeEvent[]): void {
     this.bufferedEvents.push(...events);
 
@@ -55,9 +64,15 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   watch(_uri: vscode.Uri): vscode.Disposable {
+    // Required by the API; changes arrive through the archive model instead
     return new vscode.Disposable(() => {});
   }
 
+  /**
+   * Finds the node a uri names, reading the archive it points into first. A
+   * uri can arrive here for an archive nobody has opened, which is why the
+   * provider goes through this rather than `ArchiveModel.getNode`
+   */
   private resolveNode(uri: vscode.Uri): Promise<VirtualNode | undefined> {
     return this.archiveModel.resolveNode(uri);
   }
@@ -75,6 +90,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
 
     return {
       type: node.type,
+      // The index table records no times, and the archive's own would be a lie
       ctime: 0,
       mtime: 0,
       size,

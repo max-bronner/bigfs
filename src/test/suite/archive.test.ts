@@ -20,7 +20,7 @@ import type { VirtualNode } from '../../model/virtualNode';
 import { isVirtualNode } from '../../providers/explorerNode';
 import type { ExplorerNode } from '../../providers/explorerNode';
 
-/** The entry rows of a node, which is all these tests care about */
+/** Names of a node's child rows, in the order the tree lists them */
 const childNames = async (
   provider: BigTreeDataProvider,
   node: VirtualNode,
@@ -33,8 +33,8 @@ const childNames = async (
 const ARCHIVE_NAME = 'generated.big';
 
 /**
- * Builds a complete archive, so the tests run against real bytes on disk
- * rather than a fixture that has to be kept in the repository
+ * Serializes files into the bytes of a whole archive. Real bytes, so the tests
+ * need no fixture kept in the repository.
  */
 const buildArchive = (files: { name: string; content: string }[]): Buffer => {
   const entries = new Map<string, BigFileEntry>();
@@ -64,8 +64,9 @@ const buildArchive = (files: { name: string; content: string }[]): Buffer => {
 };
 
 /**
- * A uri names its source first, so the tests address entries the way the
- * extension does rather than assuming the workspace is the only place
+ * Builds the uri for a node path inside the workspace source. A uri names its
+ * source first, so the tests address entries the way the extension does rather
+ * than assuming the workspace is the only place archives come from.
  */
 const nodeUri = (nodePath: string): vscode.Uri => {
   const source = vscode.workspace.workspaceFolders![0].name.toLowerCase();
@@ -73,12 +74,14 @@ const nodeUri = (nodePath: string): vscode.Uri => {
   return vscode.Uri.from({ scheme: 'bigfs', path: `/${source}${nodePath}` });
 };
 
+/** Reads an entry as text, through the file system provider */
 const readText = async (nodePath: string): Promise<string> => {
   const content = await vscode.workspace.fs.readFile(nodeUri(nodePath));
 
   return Buffer.from(content).toString('utf-8');
 };
 
+/** Sorted names of a directory's rows, so a test never depends on read order */
 const readNames = async (nodePath: string): Promise<string[]> => {
   const entries = await vscode.workspace.fs.readDirectory(nodeUri(nodePath));
 
@@ -86,7 +89,8 @@ const readNames = async (nodePath: string): Promise<string[]> => {
 };
 
 /**
- * Retries until the check passes, for the steps that wait on the watcher
+ * Retries a check until it passes, giving up after 15 seconds, for the steps
+ * that wait on the watcher
  */
 const waitFor = async (check: () => Thenable<unknown>): Promise<void> => {
   const timeoutAt = Date.now() + 15_000;
@@ -108,6 +112,7 @@ const waitFor = async (check: () => Thenable<unknown>): Promise<void> => {
 suite('BIG archive file system', () => {
   let archiveFsPath: string;
 
+  /** Replaces the suite's archive on disk, which the watcher then picks up */
   const writeArchiveToDisk = async (
     files: { name: string; content: string }[],
   ): Promise<void> => {
@@ -302,7 +307,6 @@ suite('BIG archive file system', () => {
         vscode.workspace.fs.stat(nodeUri(`/mods/${ARCHIVE_NAME}/readme.txt`)),
       );
 
-      // Each archive keeps its own content under its own path
       assert.strictEqual(
         await readText(`/mods/${ARCHIVE_NAME}/readme.txt`),
         'From the mods folder',
@@ -346,6 +350,7 @@ suite('Tree refresh', () => {
   let log: vscode.LogOutputChannel;
   let model: ArchiveModel;
 
+  /** The row the explorer would draw for a node, collapsed */
   const treeItem = (node: VirtualNode): BigTreeItem =>
     new BigTreeItem(node, vscode.TreeItemCollapsibleState.Collapsed);
 
@@ -487,6 +492,7 @@ suite('Bulk transfers', () => {
   let log: vscode.LogOutputChannel;
   let model: ArchiveModel;
 
+  /** Reads an entry through the model, so the assertions never go via a uri */
   const readEntry = async (entryPath: string): Promise<string> => {
     const node = model.getNode(nodeUri(`/${BULK_ARCHIVE}/${entryPath}`));
 
@@ -744,6 +750,7 @@ suite('Format registry', () => {
     await unlink(archiveFsPath).catch(() => undefined);
   });
 
+  /** The context an entry of the suite's archive would be parsed through */
   const contextFor = (entryPath: string) => {
     const archive = model.getArchiveByPath(archiveFsPath);
 
@@ -774,6 +781,7 @@ suite('Format registry', () => {
   test('does not mistake another entry for a sibling', () => {
     const context = contextFor('movies/unit.apt');
 
+    // other.apt sits beside it, so matching on the extension alone would win
     assert.strictEqual(context.sibling('.apt')?.name, 'unit.apt');
   });
 
@@ -851,7 +859,7 @@ suite('Lazy loading', () => {
 
       assert.ok(archive, 'the archive was not listed');
 
-      // Listed from its header alone: the index table is untouched
+      // Listed from its name alone: the index table is untouched
       assert.strictEqual(archive.isLoaded, false);
       assert.strictEqual(archive.root.children?.size, 0);
 
@@ -976,7 +984,7 @@ suite('Archive sources', () => {
   });
 
   test('does not resolve a path that leaves out its source', async () => {
-    // The old shape, which two archives of the same name could both claim
+    // A path with no source, which two archives of the same name could both claim
     const withoutSource = vscode.Uri.from({
       scheme: 'bigfs',
       path: `/${SOURCE_ARCHIVE}/readme.txt`,

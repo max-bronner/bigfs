@@ -13,9 +13,18 @@ import type { VirtualNode } from '../model/virtualNode';
 import { isVirtualNode } from './explorerNode';
 import type { ExplorerNode } from './explorerNode';
 
+/**
+ * Drag and drop controller for the archive explorer. It moves nodes inside an
+ * archive and takes files dropped in from outside VS Code, both through the
+ * same actions the commands use
+ */
 export class BigDragAndDropController
   implements TreeDragAndDropController<ExplorerNode>
 {
+  /**
+   * The explorer's own drag type, whose last segment has to be the view id, and
+   * the type a drop from outside VS Code arrives as
+   */
   readonly dropMimeTypes = [
     'application/vnd.code.tree.bigArchiveExplorer',
     'text/uri-list',
@@ -28,7 +37,7 @@ export class BigDragAndDropController
     source: readonly ExplorerNode[],
     dataTransfer: DataTransfer,
   ): Promise<void> {
-    // Only entries can be dragged: a source or a folder on disk is not ours
+    // Only nodes can be dragged: a source or a folder on disk is not ours
     dataTransfer.set(
       this.dragMimeTypes[0],
       new DataTransferItem(source.filter(isVirtualNode)),
@@ -45,7 +54,7 @@ export class BigDragAndDropController
         : undefined;
 
     if (!directory) {
-      return;
+      return; // a source or a folder on disk holds no entries to drop into
     }
 
     try {
@@ -93,6 +102,7 @@ export class BigDragAndDropController
     }
   }
 
+  /** Where a drop lands: the target, or the directory holding a target file */
   private resolveDropDirectory(target: VirtualNode): VirtualNode | undefined {
     if (target.type === FileType.Directory) {
       return target;

@@ -15,8 +15,6 @@ suite('Path helpers', () => {
     );
     assert.strictEqual(getParentPath('/archive.big'), '');
     assert.strictEqual(getParentPath('data/a.ini'), 'data');
-
-    // An entry path without a parent keeps its name intact
     assert.strictEqual(getParentPath('a.ini'), '');
   });
 

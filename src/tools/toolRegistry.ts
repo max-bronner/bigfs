@@ -1,12 +1,15 @@
 /**
- * Tools: pure transformations over data.
- *
- * A tool knows nothing about archives, URIs or the editor, which is what
- * makes it reusable and testable without an extension host. Decoding a
- * texture, parsing a movie, encoding an image are all tools. Anything that
- * has to fetch an entry or render something is a format instead.
+ * Tools are pure transformations over data: decoding a texture, parsing a
+ * movie, encoding an image. A tool knows nothing about archives, uris or the
+ * editor, which is what makes it reusable and testable without an extension
+ * host. Anything that has to fetch an entry or render something is a format.
  */
 
+/**
+ * The handle a running tool, a format or a command uses to reach tools.
+ * Deliberately narrower than `ToolRegistry`: what is handed out can run a
+ * tool, but not register one.
+ */
 export interface ToolBox {
   /**
    * Reaches another tool. Resolved when it is called rather than when it is
@@ -16,18 +19,38 @@ export interface ToolBox {
   use<Input, Output>(tool: Tool<Input, Output>): (input: Input) => Promise<Output>;
 }
 
+/**
+ * A contribution that transforms data under an id. An implementor supplies the
+ * id and `run`, and `run` must be a function of its input alone — no archive,
+ * no uri, no editor. `Input` and `Output` belong to the tool: the registry
+ * stores every tool as `Tool<never, unknown>` and only a caller naming the
+ * tool it wants sees the real types.
+ */
 export interface Tool<Input, Output> {
   /** Stable across releases: it identifies the tool in settings and logs */
   readonly id: string;
+  /** Transforms one input. Another tool is reached through `tools`, never by importing it */
   run(input: Input, tools: ToolBox): Promise<Output> | Output;
 }
 
+/**
+ * The tools a session knows about, and the box that runs them. `extension.ts`
+ * holds a single instance for the life of the session; it starts empty, and a
+ * tool that was never registered still runs when a caller passes it to `use`.
+ */
 export interface ToolRegistry extends ToolBox {
+  /** Adds tools. Ids must be unique across all of them: registering one twice throws */
   register(...tools: Tool<never, unknown>[]): void;
+  /** The tool registered under an id, if any */
   get(id: string): Tool<never, unknown> | undefined;
+  /** Every registered tool, in registration order */
   all(): readonly Tool<never, unknown>[];
 }
 
+/**
+ * Creates the tool registry `extension.ts` holds for the life of the session
+ * and passes to `createFormatRegistry` as its `ToolBox`.
+ */
 export const createToolRegistry = (): ToolRegistry => {
   const tools = new Map<string, Tool<never, unknown>>();
 

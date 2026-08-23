@@ -6,10 +6,7 @@ import type { Archive } from './archive';
  * A file or directory inside an archive.
  *
  * A node stores the least that identifies it: which archive holds it and
- * where inside that archive it sits. Everything else about its address, the
- * path through the tree and the uri VS Code uses, is rendered from those two
- * rather than stored, so there is one place that knows the shape of an
- * address instead of a string being sliced wherever one is needed.
+ * where inside that archive it sits. `nodeAddress` renders the rest.
  *
  * Children are keyed case insensitively, while `name` keeps the casing the
  * entry is stored with.
@@ -22,18 +19,25 @@ export interface VirtualNode {
   archive: Archive;
   /** Unset on the archive itself, which is the top of its tree */
   parent?: VirtualNode;
+  /** Unset on a file, which is the bottom of the tree */
   children?: Map<string, VirtualNode>;
 }
 
-/** The archive itself, which nothing inside an archive may be confused with */
+/** Whether a node is the archive itself, the one node with no entry path */
 export const isArchiveRoot = (node: VirtualNode): boolean => !node.entryPath;
 
-/** Whether a node sits below another, which two archives cannot share */
+/**
+ * Whether a node sits below another, in the same archive: two archives can
+ * hold the same entry path, so the path alone does not settle it
+ */
 export const isInside = (node: VirtualNode, other: VirtualNode): boolean =>
   node.archive === other.archive &&
   node.entryPath.startsWith(`${other.entryPath}/`);
 
-/** Where a node sits relative to one above it */
+/**
+ * Gets a node's path below one of its ancestors, which is the path an extract
+ * writes it to inside the target folder
+ */
 export const getRelativeEntryPath = (
   ancestor: VirtualNode,
   node: VirtualNode,
@@ -94,6 +98,7 @@ export const buildVirtualTree = (
   return rootNode;
 };
 
+/** Rewrites the entry path of a node and of everything below it, after a move */
 const reEntryPath = (node: VirtualNode, entryPath: string): void => {
   node.entryPath = entryPath;
 
@@ -259,7 +264,7 @@ export const findBlockingFile = (
   return undefined;
 };
 
-/** Finds a node below a directory by its relative path */
+/** An empty path finds the directory itself, which is how a root resolves */
 export const findChild = (
   directory: VirtualNode,
   relativePath: string,

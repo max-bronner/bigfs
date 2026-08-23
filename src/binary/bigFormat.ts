@@ -3,6 +3,10 @@
  * with its data offset and size, and the entry data itself.
  */
 
+/**
+ * One file stored in an archive, as the index table records it. `name` is the
+ * entry path with '/' separators; the archive stores it with backslashes.
+ */
 export interface BigFileEntry {
   name: string;
   offset: number;
@@ -13,28 +17,44 @@ export interface BigFileEntry {
   pendingFile?: string;
 }
 
+/**
+ * Result of reading one archive's index table: the magic to write back
+ * unchanged, and the entries keyed by entry path in the casing the archive
+ * stored, which the model re-keys for case insensitive lookup.
+ */
 export interface ParsedArchive {
   magic: string;
   entries: Map<string, BigFileEntry>;
 }
 
-/** Entry for ArchiveLayout with its location */
+/** Where an entry lands in the archive being written, not where it sits now */
 export interface PlacedEntry {
   entry: BigFileEntry;
   offset: number;
   size: number;
 }
 
-/** Layout for writing archive file */
+/**
+ * Where every entry lands in the archive about to be written: the entries in
+ * write order, the offset the index table ends at, and the size of the
+ * finished file.
+ */
 export interface ArchiveLayout {
   placedEntries: PlacedEntry[];
   indexTableEndOffset: number;
   totalSize: number;
 }
 
+/**
+ * Bytes before the first index table record: magic, archive size, entry count
+ * and index table end offset, four bytes each.
+ */
 export const HEADER_LENGTH = 16;
 
-/** Magics of the supported archive formats */
+/**
+ * The four ascii bytes an archive starts with. Both are read the same way, and
+ * an archive is written back with the magic it had.
+ */
 const MAGICS = new Set(['BIGF', 'BIG4']);
 
 /**
@@ -43,22 +63,30 @@ const MAGICS = new Set(['BIGF', 'BIG4']);
  */
 export class NotAnArchiveError extends Error {}
 
+/** Rounds up to the next 4 byte boundary, where entry data has to start */
 const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
+/** Entry names are stored with backslashes; everything above this layer uses '/' */
 const toTreeName = (name: string): string => name.replace(/\\/g, '/');
 
+/** The inverse of `toTreeName`, applied to every name on the way back to disk */
 const toStoredName = (name: string): string => name.replace(/\//g, '\\');
 
+/**
+ * Reads the 16 byte header: magic, archive size, entry count, and the offset
+ * the index table ends at. Only the archive size is little endian; every other
+ * number in the format is big endian.
+ * @throws NotAnArchiveError when the magic is neither BIGF nor BIG4
+ */
 export const parseHeader = (buffer: Buffer) => {
-  // Read header (16 bytes total)
   const magic = buffer.toString('ascii', 0, 4);
   if (!MAGICS.has(magic)) {
     throw new NotAnArchiveError(`Invalid BIG file magic: '${magic}'`);
   }
 
-  const archiveSize = buffer.readUInt32LE(4);
+  const archiveSize = buffer.readUInt32LE(4); // the one little endian field
   const entryCount = buffer.readUInt32BE(8);
   const indexTableEndOffset = buffer.readUInt32BE(12);
 
@@ -70,6 +98,11 @@ export const parseHeader = (buffer: Buffer) => {
   };
 };
 
+/**
+ * Reads `entryCount` records from the table that follows the header, each a
+ * big endian offset and size followed by a null terminated name. Throws when
+ * the table ends before the count is met, rather than returning what it got.
+ */
 export const parseIndexTable = (
   table: Buffer,
   entryCount: number,
@@ -110,6 +143,11 @@ export const parseIndexTable = (
   return entries;
 };
 
+/**
+ * Places every entry after the index table in map order, each start rounded up
+ * to a 4 byte boundary. A size comes from pending content where there is any,
+ * so the layout describes the archive about to be written, not the one on disk.
+ */
 export const computeArchiveLayout = (
   entries: Map<string, BigFileEntry>,
 ): ArchiveLayout => {
@@ -136,6 +174,7 @@ export const computeArchiveLayout = (
   return { placedEntries, indexTableEndOffset, totalSize };
 };
 
+/** Writes one record and returns the offset the next one starts at */
 const writeIndexTableEntry = (
   buffer: Buffer,
   offset: number,
@@ -151,6 +190,11 @@ const writeIndexTableEntry = (
   return offset + 8 + nameBytes.length + 1;
 };
 
+/**
+ * Writes the header and the index table into one buffer, padded out to the
+ * boundary where entry data begins. The archive size in the header is the
+ * total size the layout arrived at, counting data not yet written.
+ */
 export const serializeIndexTable = (
   magic: string,
   layout: ArchiveLayout,

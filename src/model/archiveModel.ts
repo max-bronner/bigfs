@@ -19,22 +19,18 @@ import {
   getPathInSource,
 } from './archiveSource';
 import type { ArchiveSource } from './archiveSource';
-import {
-  findBlockingFile,
-  findChild,
-  isArchiveRoot,
-} from './virtualNode';
+import { findBlockingFile, findChild, isArchiveRoot } from './virtualNode';
 import { getNodePath, parseNodeUri } from './nodeAddress';
 import type { ResolvedUri } from './nodeAddress';
 import type { VirtualNode } from './virtualNode';
 
 /**
- * What happened to an archive, and where it sits in the virtual file system.
- * Only a changed archive can be refreshed on its own; adding or removing one
- * changes the set of roots.
+ * Event payload emitted by `ArchiveModel.onDidChangeArchive` when an archive
+ * is added, changed or removed. Only a changed archive can be refreshed on its
+ * own; adding or removing one changes the set of roots.
  */
 export interface ArchiveChange {
-  kind: 'added' | 'changed' | 'removed';
+  type: 'added' | 'changed' | 'removed';
   archivePath: string;
   rootPath: string;
 }
@@ -50,6 +46,7 @@ export interface ImportedFile {
   content?: Uint8Array;
 }
 
+/** What a caller can turn off when it creates an `ArchiveModel` */
 export interface ArchiveModelOptions {
   /**
    * Read the archives nobody opened, once the workspace is quiet. On by
@@ -58,7 +55,10 @@ export interface ArchiveModelOptions {
   readAhead?: boolean;
 }
 
-/** Long enough that reading ahead never competes with opening something */
+/**
+ * Milliseconds the read ahead waits before it starts, and again each time it
+ * steps aside for a read the user is waiting on
+ */
 const BACKGROUND_LOAD_DELAY = 500;
 
 const delay = (milliseconds: number): Promise<void> =>
@@ -88,6 +88,12 @@ const toEntrySource = (file: ImportedFile): EntrySource =>
  */
 export class ArchiveModel {
   private _onDidChangeArchive = new EventEmitter<ArchiveChange>();
+
+  /**
+   * Fires when an archive is added, changed or removed, however that came
+   * about: a save, the watcher, or a scan. The tree redraws from it and the
+   * file system provider turns it into file events.
+   */
   public readonly onDidChangeArchive = this._onDidChangeArchive.event;
 
   /** Keyed by each archive's root key */
@@ -102,10 +108,17 @@ export class ArchiveModel {
   private awaitedLoads = 0;
   private backgroundLoading?: Promise<void>;
 
+  /** Follows the archives on disk for the life of the model */
   private readonly archiveWatcher: FileSystemWatcher;
 
+  /** The scan in flight, replaced by each rescan and awaited by `whenReady` */
   private currentScan: Promise<void>;
 
+  /**
+   * Starts the first scan and the watcher straight away, so the model can be
+   * asked for roots as soon as it exists. Nothing is read here: the scan only
+   * lists the files that carry the extension.
+   */
   constructor(
     private log: LogOutputChannel,
     private options: ArchiveModelOptions = {},
@@ -114,6 +127,10 @@ export class ArchiveModel {
     this.archiveWatcher = this.watchArchives();
   }
 
+  /**
+   * Stops the watcher and the reads running behind the scenes. The model is
+   * not usable afterwards, since nothing brings the archives back up to date.
+   */
   public dispose(): void {
     this.disposed = true;
     this.archiveWatcher.dispose();
@@ -130,6 +147,11 @@ export class ArchiveModel {
     return watcher;
   }
 
+  /**
+   * Brings an archive up to date after the watcher saw its file appear or
+   * change, taking on one that was created inside a source. A write the
+   * extension made itself reloads nothing and fires no change.
+   */
   private async reloadArchive(uri: Uri): Promise<void> {
     const archivePath = uri.fsPath;
     const loaded = this.getArchiveByPath(archivePath);
@@ -191,6 +213,7 @@ export class ArchiveModel {
     }
   }
 
+  /** Drops an archive whose file is gone, which changes the set of roots */
   private forgetArchive(uri: Uri): void {
     const archive = this.getArchiveByPath(uri.fsPath);
 
@@ -203,9 +226,13 @@ export class ArchiveModel {
     this.fireChanged(archive, 'removed');
   }
 
-  private fireChanged(archive: Archive, kind: ArchiveChange['kind']): void {
+  /**
+   * Announces an archive on `onDidChangeArchive`, which is the only place it
+   * is fired from: the views redraw from this and nothing else
+   */
+  private fireChanged(archive: Archive, kind: ArchiveChange['type']): void {
     this._onDidChangeArchive.fire({
-      kind,
+      type: kind,
       archivePath: archive.archivePath,
       rootPath: archive.rootPath,
     });
@@ -216,12 +243,22 @@ export class ArchiveModel {
     return this.currentScan;
   }
 
+  /**
+   * Finds the archives again, after the workspace folders changed. An archive
+   * that is still there keeps its instance, so the tree the view holds and the
+   * directories that live only in it survive the rescan.
+   */
   public scanWorkspace(): Promise<void> {
     this.currentScan = this.runScan();
 
     return this.currentScan;
   }
 
+  /**
+   * Rebuilds the sources and the archives from what is on disk, and starts the
+   * read ahead. Reports how many candidates could not be read, counting a file
+   * that is not an archive at all as one to ignore rather than one that failed.
+   */
   private async runScan(): Promise<void> {
     this.sources = createWorkspaceSources();
 
@@ -273,7 +310,9 @@ export class ArchiveModel {
 
     failed.forEach((result) => {
       if (result.reason instanceof NotAnArchiveError) {
-        this.log.info(`Ignoring a file that is not an archive: ${result.reason.message}`);
+        this.log.info(
+          `Ignoring a file that is not an archive: ${result.reason.message}`,
+        );
       } else {
         this.log.error('Failed to read archive', result.reason);
       }
@@ -290,11 +329,12 @@ export class ArchiveModel {
     }
   }
 
+  /** The root node of every archive found, for a view that shows them flat */
   public getArchiveRoots(): VirtualNode[] {
     return Array.from(this.archives.values(), (archive) => archive.root);
   }
 
-  /** The places archives were found in */
+  /** The places archives were found in, which the tree shows as its top rows */
   public getSources(): readonly ArchiveSource[] {
     return this.sources;
   }
@@ -311,6 +351,10 @@ export class ArchiveModel {
     return node.archive.isLoaded;
   }
 
+  /**
+   * Finds an archive by its path on disk, matched case insensitively. This is
+   * how a change coming back from the watcher or the event is tied to one.
+   */
   public getArchiveByPath(archivePath: string): Archive | undefined {
     const wanted = archivePath.toLowerCase();
 
@@ -331,6 +375,11 @@ export class ArchiveModel {
     return parseNodeUri(uri, this.archives.values());
   }
 
+  /**
+   * Resolves a uri for an operation that cannot go on without one, throwing
+   * the `FileNotFound` the file system provider API asks for when the uri
+   * names no archive this model knows.
+   */
   private getArchiveContext(uri: Uri): ResolvedUri {
     const resolved = this.resolveUri(uri);
 
@@ -352,6 +401,10 @@ export class ArchiveModel {
     return archive;
   }
 
+  /**
+   * Finds the node a uri names among the archives already read. Nothing for a
+   * uri into an archive nobody has opened, which is what `resolveNode` is for.
+   */
   public getNode(uri: Uri): VirtualNode | undefined {
     const resolved = this.resolveUri(uri);
 
@@ -408,6 +461,10 @@ export class ArchiveModel {
     });
   }
 
+  /**
+   * Walks the archives that are still unread, one at a time and behind
+   * anything the user is waiting on. Stops as soon as the model is disposed.
+   */
   private async loadRemaining(): Promise<void> {
     await delay(BACKGROUND_LOAD_DELAY);
 
@@ -434,7 +491,7 @@ export class ArchiveModel {
     }
   }
 
-  /** Gets the directory a node sits in, or nothing for an archive root */
+  /** Nothing for a directory, which an archive stores no entry for */
   private getEntryForNode(node: VirtualNode): BigFileEntry | undefined {
     if (node.type !== FileType.File) {
       return undefined;
@@ -445,6 +502,10 @@ export class ArchiveModel {
     return archive?.getEntry(node.entryPath);
   }
 
+  /**
+   * Reads the content of a file node straight from the archive on disk.
+   * Nothing for a directory, or for a node the entries no longer hold.
+   */
   public async getFileContent(
     node: VirtualNode,
   ): Promise<Uint8Array | undefined> {
@@ -454,7 +515,7 @@ export class ArchiveModel {
     return archive && entry ? archive.readEntry(entry) : undefined;
   }
 
-  /** Gets a file's size from the index, never from its content */
+  /** From the index table, or from a write that has not been saved yet */
   public getFileSize(node: VirtualNode): number {
     const entry = this.getEntryForNode(node);
 
@@ -493,6 +554,11 @@ export class ArchiveModel {
     }
   }
 
+  /**
+   * Writes an entry, creating it when the archive holds none at that path.
+   * The whole archive is rewritten, since changing one entry shifts every
+   * offset after it.
+   */
   public async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
     const { archive, entryPath } = this.getArchiveContext(uri);
 
@@ -608,7 +674,10 @@ export class ArchiveModel {
     await this.apply(archive, changes);
   }
 
-  /** Adds files to a directory */
+  /**
+   * Adds imported files to a directory under the names they carry, as one
+   * change to the archive however many files there are
+   */
   public async addFiles(
     targetDirectory: VirtualNode,
     files: readonly ImportedFile[],
@@ -645,6 +714,7 @@ export class ArchiveModel {
     }
   }
 
+  /** Rejects a move of a directory into itself, which would strand its files */
   private ensureMovable(from: string, to: string): void {
     const fromKey = from.toLowerCase();
     const toKey = to.toLowerCase();
@@ -655,6 +725,11 @@ export class ArchiveModel {
     }
   }
 
+  /**
+   * Groups nodes by the archive holding them, since changes are applied one
+   * archive at a time. An archive root is refused: it is a file on disk, not
+   * an entry any archive could change.
+   */
   private groupByArchive(
     nodes: readonly VirtualNode[],
   ): Map<Archive, VirtualNode[]> {

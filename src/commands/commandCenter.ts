@@ -5,13 +5,22 @@ import { isVirtualNode } from '../providers/explorerNode';
 import type { ExplorerNode } from '../providers/explorerNode';
 import type { VirtualNode } from '../model/virtualNode';
 
+/**
+ * Body of a tree node command, handed the nodes it was invoked on. Never run
+ * with an empty array, so a command may take `targets[0]`.
+ */
 export type NodeCommandRun = (targets: VirtualNode[]) => Promise<void>;
 
+/**
+ * Callback a command module is handed to register one command; `name` is the
+ * id without the `bigfs.` prefix
+ */
 export type RegisterNodeCommand = (name: string, run: NodeCommandRun) => void;
 
 /**
- * Creates the shared registration for tree node commands: it resolves the
- * nodes a command was invoked on and reports thrown errors to the user.
+ * Creates the register callback the command modules are handed: it resolves
+ * the nodes a command was invoked on, reports a thrown error to the user, and
+ * disposes each command with the extension.
  */
 export const createNodeCommandRegister = (
   context: ExtensionContext,
@@ -40,7 +49,7 @@ export const createNodeCommandRegister = (
       const targets = getTargets(target, selection);
 
       if (!targets.length) {
-        return;
+        return; // nothing of ours in the selection, so there is nothing to act on
       }
 
       try {

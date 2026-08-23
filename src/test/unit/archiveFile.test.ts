@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import path from 'path';
 import { readEntryData } from '../../binary/archiveFile';
 
+/** A path with no file behind it, so a read that touches disk fails loudly */
 const MISSING_ARCHIVE = path.join(tmpdir(), 'bigfs-does-not-exist.big');
 
 suite('Archive entry reads', () => {
@@ -17,6 +18,10 @@ suite('Archive entry reads', () => {
     await rm(directory, { recursive: true, force: true });
   });
 
+  /**
+   * Writes the given text as the whole archive and returns its path. No header,
+   * because these reads are positional and never parse one.
+   */
   const writeArchive = async (content: string): Promise<string> => {
     const archivePath = path.join(directory, 'archive.big');
 

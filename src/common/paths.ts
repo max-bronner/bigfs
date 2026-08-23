@@ -1,33 +1,23 @@
 ﻿import path from 'path';
 
-/**
- * Helpers for the '/' separated paths.
- */
+/** Helpers for '/' separated paths, never the platform's separator */
 
-/**
- * Gets the parent path, or an empty string for a path without a parent
- */
+/** Gets the parent path, empty for a path that has no parent */
 export const getParentPath = (nodePath: string): string => {
   const separatorIndex = nodePath.lastIndexOf('/');
 
   return separatorIndex < 0 ? '' : nodePath.slice(0, separatorIndex);
 };
 
-/**
- * Splits a path into its non-empty segments
- */
+/** Splits a path into segments, dropping empty ones so a leading slash costs nothing */
 export const splitPath = (nodePath: string): string[] =>
   nodePath.split('/').filter((segment) => segment.length);
 
-/**
- * Whether a path is another path or sits below it
- */
+/** Whether a path sits below an ancestor path, counting the ancestor itself */
 export const isPathBelow = (nodePath: string, ancestorPath: string): boolean =>
   nodePath === ancestorPath || nodePath.startsWith(`${ancestorPath}/`);
 
-/**
- * Repoints a path from below one entry to below another
- */
+/** Repoints a path from below one entry to below another */
 export const movePath = (
   nodePath: string,
   sourcePath: string,
@@ -38,7 +28,8 @@ export const movePath = (
     : `${targetPath}${nodePath.slice(sourcePath.length)}`;
 
 /**
- * Finds a name that is not taken yet by appending a copy suffix.
+ * Appends a copy suffix until the name is free. Taken names are matched case
+ * insensitively, as archives match them.
  */
 export const getAvailableName = (
   takenNames: Iterable<string>,

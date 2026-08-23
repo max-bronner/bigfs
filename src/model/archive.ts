@@ -36,6 +36,10 @@ export type EntryChange =
   | { kind: 'copy'; from: string; to: string }
   | { kind: 'addDirectory'; path: string };
 
+/**
+ * Gets the keys of the entries at or below a path, which is how a change to a
+ * directory reaches the files it holds
+ */
 const keysUnder = (
   entries: Map<string, BigFileEntry>,
   entryPath: string,
@@ -136,8 +140,11 @@ const changeTree = (rootNode: VirtualNode, change: EntryChange): void => {
  * removed without anything tracking it.
  */
 export class Archive {
+  /** Absolute path on disk, which is what `binary` opens */
   public readonly archivePath: string;
   public readonly name: string;
+
+  /** Where the archive is mounted in the virtual file system */
   public readonly rootPath: string;
 
   /** Which source holds it, and where inside that source it sits */
@@ -147,18 +154,26 @@ export class Archive {
   /** Kept for the life of the archive: the tree view holds on to it */
   public readonly root: VirtualNode;
 
+  /** The tag the file opens with, kept so a rewrite stays the format it was */
   private magic = '';
 
   /** Keyed case insensitively; each entry keeps its stored name */
   private entries = new Map<string, BigFileEntry>();
 
-  /** Set while the index table is being read, which happens on first use */
+  /** Set by the first read and kept, so later callers join that one */
   private loading?: Promise<void>;
   private loaded = false;
 
+  /** Every access to the file, in the order it was asked for */
   private queue: Promise<unknown> = Promise.resolve();
+
+  /** Mtime of this archive's own last write, zero until it has made one */
   private lastWrittenAt = 0;
 
+  /**
+   * Builds the tree before anything is read, so the root the view holds on to
+   * exists from the start. Reached through `create`.
+   */
   private constructor(
     archivePath: string,
     sourceId: string,
@@ -173,12 +188,9 @@ export class Archive {
   }
 
   /**
-   * Puts an archive in the tree without reading it. The root path is where it
-   * sits in the virtual file system, e.g. `/mods/textures.big`.
-   *
-   * Reading the index table of a large archive costs a noticeable fraction of
-   * a second, and a workspace holds many, so it waits until something asks
-   * for the content.
+   * Creates an archive without reading it. Reading the index table of a large
+   * archive costs a noticeable fraction of a second, and a workspace holds
+   * many, so it waits until something asks for the content.
    */
   public static create(
     archivePath: string,
@@ -207,7 +219,7 @@ export class Archive {
     return this.loading;
   }
 
-  /** Whether the content has been read, as opposed to only listed */
+  /** Whether the index table has been read; the scan only lists the file */
   public get isLoaded(): boolean {
     return this.loaded;
   }
@@ -222,6 +234,11 @@ export class Archive {
     return this.rootPath.toLowerCase();
   }
 
+  /**
+   * Rekeys the entries a read returns by their lowercased name, since the
+   * index table stores the casing an entry was added with and matches without
+   * it
+   */
   private static keyEntries(
     entries: Map<string, BigFileEntry>,
   ): Map<string, BigFileEntry> {
@@ -330,7 +347,10 @@ export class Archive {
     });
   }
 
-  /** Gets the entry stored under an entry path */
+  /**
+   * Gets the entry stored at a path, matched case insensitively. Nothing for a
+   * directory, which the archive stores no entry for.
+   */
   public getEntry(entryPath: string): BigFileEntry | undefined {
     return this.entries.get(entryPath.toLowerCase());
   }
