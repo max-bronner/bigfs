@@ -268,6 +268,30 @@
         "mac": "cmd+v",
         "when": "focusedView == bigArchiveExplorer && bigfs.hasClipboard"
       }
+    ],
+    "languages": [
+      {
+        "id": "sage-ini",
+        "aliases": [
+          "SAGE INI",
+          "BFME INI"
+        ],
+        "extensions": [
+          ".inc",
+          ".bhav"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sage-ini",
+        "scopeName": "source.sage-ini",
+        "path": "./syntaxes/sageIni.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.lua": "lua"
+        }
+      }
     ]
   },
   "scripts": {
@@ -281,7 +305,8 @@
     "lint": "eslint src",
     "pretest": "npm run compile && npm run lint",
     "test": "npm run test:unit && vscode-test",
-    "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\""
+    "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\"",
+    "build:schema": "node scripts/buildSageSchema.mjs"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

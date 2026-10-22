@@ -1,16 +1,22 @@
 ---
 name: naming
 description: >-
-  Naming and comment conventions for the bigFS codebase. Consult this before
-  introducing or renaming any identifier - function, type, constant, class,
-  file or directory - and before writing a doc comment. Use it when adding a
-  feature, extracting a helper, reviewing a diff for readability, or whenever
-  you catch yourself writing a comment to explain what a name means. Also use
-  it when asked to make code cleaner, more readable, or better organised, even
-  if naming is not mentioned.
+  Naming, comment and JSDoc/TSDoc conventions for the bigFS codebase. Consult
+  this before introducing or renaming any identifier - function, type,
+  constant, class, file or directory - and before writing, editing or deleting
+  any comment or doc comment. Use it when adding a feature, extracting a
+  helper, reviewing a diff for readability, auditing or tidying comments,
+  deciding whether something needs a doc comment or which TSDoc tags to use,
+  or whenever you catch yourself writing a comment to explain what a name
+  means. Also use it when asked to make code cleaner, more readable, or better
+  organised, even if naming and comments are not mentioned.
 ---
 
-# Naming in this codebase
+# Naming and comments in this codebase
+
+Naming and commenting are one skill, not two. Most bad comments exist to prop
+up a name that is not carrying its weight, and most good names remove the need
+for a comment. Judge them together.
 
 The target is library-grade names: the kind that would not look out of place in
 VS Code's own source. `extensions/git/src/` and `vs/workbench/.../fileActions.ts`
@@ -108,29 +114,107 @@ If a genuinely new concept appears, add it to this table in the same commit.
 - **Types are PascalCase, constants SCREAMING_SNAKE** only for module level
   literals like `HEADER_LENGTH`.
 
-## Comments
+## Doc comments
 
-Names carry the *what*. Comments carry only what a name cannot: a constraint, a
-reason, a consequence that is not visible locally.
+**Every exported or public symbol carries a doc comment.** Functions, types,
+interfaces, classes, public methods, exported constants. An API surface without
+docs is not finished — the hover is where a caller learns what a thing is, and
+leaving it empty pushes them into the body.
 
-Write a comment when:
+Private helpers are judged case by case: document one when it is doing
+something a reader would not predict, skip it when the name and three lines of
+body say everything.
 
-- an invariant depends on something elsewhere — "the tree view holds on to the
-  root it was handed, so rebuilding has to keep it"
-- a value comes from an external format — "16 bytes total"
-- a decision looks wrong until you know why — "written first so a failure leaves
-  a duplicate rather than a hole"
+### Open with what the thing is
 
-Do not write a comment that:
+The first sentence is a neutral, declarative description. It names the
+*category* of thing and what it is for. It is not an answer to an implied
+question, not a fragment, and not conversational.
 
-- restates the name — `/** Gets the parent path */` above `getParentPath`
-- explains what the previous version did — "anything containing BIG used to
-  pass". That is a message to the reviewer, and it is noise the moment it merges
-- narrates the next line
+This is the failure to watch for, because it reads fine until compared:
 
-Keep them short. One line is the default; three is already long. A doc comment
-that runs to four lines is usually describing a design decision that belongs in
-`docs/`, or a name that needs fixing.
+```ts
+/**
+ * What happened to an archive, and where it sits in the virtual file system.
+ */
+export interface ArchiveChange { … }
+```
+
+"What happened to an archive" answers a question nobody asked, and never says
+what `ArchiveChange` *is* — a reader still does not know it is an event
+payload. State the category:
+
+```ts
+/**
+ * Event payload emitted by `ArchiveModel.onDidChangeArchive` when an archive
+ * is added, changed or removed. Only a changed archive can be refreshed on its
+ * own; adding or removing one changes the set of roots.
+ */
+export interface ArchiveChange { … }
+```
+
+The house openings, by kind:
+
+| kind | opens with | example |
+| --- | --- | --- |
+| function | third-person verb | "Reads the index table…", "Applies the changes…" |
+| boolean function | `Whether…` | "Whether a node sits below another" |
+| interface / type | a noun phrase naming the category | "Event payload…", "A described mutation…", "One archive on disk…" |
+| class | a noun phrase naming the role | "Tree data provider backing the archive explorer" |
+| constant | what the value is and where it is used | "Glob the workspace scan and the watcher both match on" |
+| factory | "Creates…" plus what the result is for | "Creates the registry `extension.ts` holds…" |
+
+### Then add what the name cannot carry
+
+After the opening sentence, add only a constraint, a reason, or a non-local
+consequence — an invariant that depends on something elsewhere, a value from an
+external format, a decision that looks wrong until you know why. If there is
+nothing, stop after the first sentence. Most doc comments here are one line.
+
+**When the opening line only restates the name, that is not a signal to delete
+it — it is a signal that you have not said what kind of thing it is or what it
+is for.** Go up a level and say that instead. Deleting leaves the next reader
+with a bare signature.
+
+### Implementation comments
+
+`//` is for someone reading the body, and sits on the line it concerns. `/** */`
+is for a caller who will never open the body. Getting this backwards hides a
+caller-visible constraint inside the body, or pushes a local trick into every
+hover.
+
+Do not write a comment that restates the type, narrates the next line, or
+explains what the previous version did ("anything containing BIG used to pass")
+— that last one is a message to the reviewer and becomes a lie on merge.
+
+### Tags
+
+No types in tags, ever — `@param {string}` is a JavaScript habit and TypeScript
+already said it. Reach for `@param` or `@returns` only when a parameter or
+result carries a constraint the signature cannot state, and then only for the
+one that needs it. `@throws` is worth it when a caller has to catch something
+specific.
+
+**Read `references/comments.md` before a comment audit, or when writing docs
+for a whole file** — it has the per-kind templates, the failure modes, the tag
+rules in full, and worked before-and-after examples from this repo.
+
+## Renaming existing code
+
+A rename is cheap to suggest and not always cheap to make, so separate the two.
+
+Judge the name on its own merits first, by the questions below. Then weigh the
+blast radius: a local `const` is free, an exported symbol touches every
+importer, and a term from the vocabulary table is a change to how the whole
+team talks — those belong in their own commit with the table updated in the
+same breath.
+
+When you find a name worth changing but are not doing the rename now, record it
+rather than papering over it with a comment. A useful record names the symbol
+and its file, what it is now and what it should be, why the current name
+misleads, and how many call sites move. "Descriptive" wins over "short", but a
+generic name that genuinely fits — `node`, `entry`, `path` in a context where
+nothing else could be meant — is not a defect and should not be inflated.
 
 ## Before you commit a name
 

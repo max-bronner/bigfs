@@ -9,6 +9,7 @@ import { registerExtractCommands } from './commands/extractCommands';
 import { registerClipboardCommands } from './commands/clipboardCommands';
 import { createToolRegistry } from './tools/toolRegistry';
 import { createFormatRegistry } from './formats/formatRegistry';
+import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -39,6 +40,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   tools.register();
   formats.register();
+
+  registerSageIniLanguage(context, archiveModel, log);
 
   const fileSystemProvider = new BigFileSystemProvider(archiveModel);
   const treeDataProvider = new BigTreeDataProvider(archiveModel);

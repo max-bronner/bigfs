@@ -6,3 +6,9 @@ export const SCHEME = 'bigfs';
 
 /** Glob the workspace scan and the file watcher both match archives on */
 export const BIG_PATTERN = '**/*.big';
+
+/**
+ * Language id the SAGE INI grammar and providers are registered under, which
+ * `package.json` repeats literally.
+ */
+export const SAGE_INI_LANGUAGE = 'sage-ini';

@@ -102,6 +102,7 @@ extension at all.** Everything above the model works with nodes.
 | `actions/` | operations shared by commands and drag and drop |
 | `ui/` | prompts and confirmations |
 | `tools/`, `formats/` | the plug-in surface |
+| `language/` | the SAGE INI dialect: schema, parser, providers |
 | `common/` | generic helpers, no domain knowledge |
 
 ---
@@ -405,7 +406,9 @@ more than an order of magnitude.
 
 - `.dds` decoder and viewer, `.apt` parser and writer. The `.apt` tools depend
   on nothing here and can be written against fixtures whenever.
-- Language support for `.ini` and `.inc`, which needs the merged view and a
+- Language support for `.ini` and `.inc`: folding, outline and highlighting are
+  in `language/`. What is still open is the cross-file half — go to definition,
+  find references, duplicate module tags — which needs the merged view and a
   cache of parsed results keyed by archive version.
 
 **Known gaps**
@@ -417,3 +420,151 @@ more than an order of magnitude.
   reachable through the extension host API the suite uses.
 - Release: README and CHANGELOG are still scaffold text, there is no LICENSE or
   `license` field, no icon, and the publisher name is a guess.
+
+---
+
+## 11. The SAGE INI language layer
+
+`.ini` and `.inc` entries are not INI files. They have no `[sections]`, the `=`
+is optional, and a bare `End` closes a block. The hard part is that **nothing
+in a line's syntax says whether it opens a block or is a leaf field**, and the
+same keyword changes meaning with context:
+
+```ini
+Body   = ActiveBody ModuleTag_02     ; opens a block, closed by End
+Armor  = DEFAULT 100%                ; a leaf field, no End
+Color  = DefaultColor                ; a particle module slot, opens a block
+Color  = R:255 G:255 B:255           ; a colour value, a leaf field
+```
+
+### Code layout
+
+`language/` carries the same layering rule as the rest of the extension, one
+level down:
+
+| directory | holds | knows about |
+| --- | --- | --- |
+| `language/model/` | the dialect itself: schema, parser, symbol resolution | nothing outside the dialect - no `vscode` import |
+| `language/providers/` | one VS Code adapter per feature | the model, and the two services below |
+| `language/` (top) | `sageIniDocuments` (per-document parse and schema, cached), `sageIniIndex` (cross-archive definitions, references, macros), `sageIniDialect` (`.ini` recognition), `sageIniInclude` (path resolution) | `vscode`, and for the index, `ArchiveModel` |
+
+`sageIniLanguage.ts` only wires these together. **Adding a feature is adding
+one file to `providers/` and one registration call there** - a new provider
+takes `(documents, index)`, the same two services every existing one takes,
+and needs to know nothing about how another provider works. This is the
+concrete answer to "how do I add another syntax feature later": the file to
+open is `providers/`, not the registration function.
+
+### Where each decision is made
+
+The rule: **a grammar decides only what holds without context.** Everything
+else needs the parse, so it is decided after it. Putting slot and block
+guessing into the grammar is what made `Wind` claim `WindowTransition` and
+`Color` claim the `R` of an RGB value.
+
+```mermaid
+flowchart TD
+  DOC["a document, from disk or an archive"]
+  TM["TextMate grammar<br/>comments, strings, numbers,<br/>End, preprocessor, Lua"]
+  PARSE["model/sageIniParser<br/>block tree + positioned statements"]
+  SCH["model/sageIniSchema"]
+  DOCS["sageIniDocuments<br/>parses once per edit, shared by every provider"]
+  SEM["providers/semanticTokens<br/>block vs field, slot types,<br/>module tags, references"]
+  HOV["providers/hover<br/>engine type, used flag"]
+  SYMB["model/sageIniSymbol<br/>what name is under the cursor"]
+  DEF["providers/definition<br/>LocationLink, whole block"]
+  REF["providers/reference<br/>both directions"]
+  IDX["sageIniIndex<br/>definitions + uses + macros,<br/>every archive"]
+
+  DOC --> TM
+  DOC --> DOCS
+  SCH --> PARSE
+  DOCS --> PARSE
+  DOCS --> SEM & HOV & SYMB & FOLD["providers/folding"] & SYM["providers/outline"]
+  SCH --> SEM & HOV & SYMB
+  SYMB --> DEF & REF
+  IDX --> DEF & REF
+  AM["archiveModel"] --> IDX
+```
+
+Semantic tokens override TextMate scopes, so the grammar keeps working if the
+parse bails.
+
+### The data file
+
+`scripts/buildSageSchema.mjs` merges three sources into `assets/sageIniSchema.json`:
+
+| source | answers |
+| --- | --- |
+| the `data/ini` corpora | does this keyword open a block, in this context |
+| the engine dump | is this field engine defined, what type, is it still read |
+| derivation over the corpora | what does this field reference, decided by where its values are actually declared |
+
+The reference map is **derived, not written by hand**. A field counts as
+pointing into a namespace when at least three of its distinct values, and half
+of them, are names declared there. That is what the engine does at runtime: it
+keeps one global store per type and a name either is in it or is not. Hand
+listing the fields covered 113; derivation covers 374, and it refuses the
+coincidences a hand list would wave through - `ParticleSysBone NONE` is not a
+reference to `WeatherData NONE` even though both spell the same token.
+
+The engine's field types are what make values readable: `Coord3D` says
+`X:0 Y:0 Z:5` is one coordinate rather than three sub-keys, `Color` the same
+for `R:255 G:255 B:255`, and `Ref`/`RefList` mark a value as a name defined
+elsewhere. The `used` flag is why a hover can warn that a field parses but no
+engine table reads it.
+
+| decision | why |
+| --- | --- |
+| every provider takes `(documents, index)` and nothing else | a new one never needs to know how an existing one reads a document or reaches the archives |
+| the data ships as a file, not TypeScript | regenerating for another game is re-running the script |
+| the context key is `Slot:Type` | `Behavior` alone spans 881 field names across 210 unrelated modules |
+| unknown keywords fall back to indentation | the corpus records only what the data used; the engine accepts more, so a miss is never an error |
+| the parser never reports unbalanced blocks | `.inc` files are fragments meant to be pasted inside a block |
+| `.ini` is claimed on content, not extension | declaring it would fight every other INI extension |
+| the index is built at activation, not on first use | reading a full install takes seconds, and a provider that slow is cancelled by the editor, which reads as ctrl-click doing nothing |
+| definition answers even on a declaration | returning the declaration itself is what triggers VS Code's own alternative command, which peeks the references |
+| completion keys on the module context | offering `Behavior`'s 881 fields inside one `ActiveBody` would be noise, not help |
+| find references answers for macros too | a macro use is not a namespace reference, so the namespace tables alone return nothing for the 26,600 places a macro is used |
+| every SCREAMING_SNAKE use is indexed, not just macro uses | whether such a name is a macro or an enum word depends on files not read yet, so the macro table decides at lookup time |
+| an `#include` resolves without the index | the path is relative to the document holding it, so it needs no global state |
+| macros are indexed from the archives, not shipped | a mod's own `#define` has to resolve, and only the user's archives know where it is |
+| the macro table is consulted before any namespace | a macro reference is written exactly like a cross reference, and the engine substitutes it first |
+| the index spans every archive | a mod's `Object` references a `Weapon` in the base game's `INI.big`, not its own file |
+| definitions and uses are indexed in one pass | reading the entries is the cost; both directions need the same parse |
+| definition returns a `LocationLink` | its target range is the whole block, which is what the ctrl-hover preview renders |
+| navigation resolves through one `sageIniSymbol` | definition and references ask the same question first, from opposite ends |
+
+### Measurements
+
+Built from both shipped corpora, 1,429 files, against the RotWK engine dump:
+940 contexts, 154 engine block names, 4,391 engine fields, 113 reference
+fields.
+
+| | RotWK, 763 files | BFME2, 666 files |
+| --- | --- | --- |
+| blocks | 125,149 | 104,428 |
+| module blocks | 35,990 | 30,176 |
+| embedded Lua regions | 2,787 | 2,221 |
+| blocks with no closing `End` | 8, in 8 files | 7, in 7 files |
+
+Those remaining few are extended to the end of the file rather than reported,
+which is the same tolerance `.inc` fragments need.
+
+### What resolves
+
+Resolution is global, the way the engine's own stores are: one namespace per
+block type across every archive, plus one flat table of macros. Against RotWK's
+763 entries that is 8,680 macros and 29,506 declared names.
+
+| category | how it resolves |
+| --- | --- |
+| `#include` path | relative to the including entry, case insensitively, no index needed |
+| `#define` macro | the macro table, checked first; navigable in both directions |
+| a name in a namespace | the derived field to namespace map |
+| an enum value | nothing to resolve - it is a vocabulary word, not a name |
+| a model, texture, bone or audio path | lives in another archive, deliberately not resolved |
+| a localisation key | compiled into `lotr.csf`, not present |
+
+The last three are why a large share of values do not link, and why nothing is
+ever reported as an unresolved reference.

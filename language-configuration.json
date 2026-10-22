@@ -1,0 +1,17 @@
+{
+  "comments": {
+    "lineComment": ";"
+  },
+  "brackets": [],
+  "autoClosingPairs": [{ "open": "\"", "close": "\"" }],
+  "surroundingPairs": [["\"", "\""]],
+  "indentationRules": {
+    // Whether a line opens a block cannot be decided by regex - the same shape
+    // is a block header or a leaf field depending on the schema - so nothing
+    // increases indent automatically. `$^` never matches.
+    "increaseIndentPattern": "$^",
+    // A bare `End` closes a block, in any casing, with a trailing comment.
+    "decreaseIndentPattern": "^\\s*[Ee][Nn][Dd]\\s*(?:[;/].*)?$"
+  },
+  "wordPattern": "[A-Za-z_][A-Za-z0-9_]*"
+}

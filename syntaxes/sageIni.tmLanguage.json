@@ -1,0 +1,121 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SAGE INI",
+  "scopeName": "source.sage-ini",
+  "comment": "Only decisions that hold without context live here. Whether a line opens a block, whether a keyword names a module slot, and what a value refers to all depend on the schema, so they are left to the semantic token provider, which overrides these scopes. This layer keeps working if the parser bails.",
+  "patterns": [
+    { "include": "#script" },
+    { "include": "#comment" },
+    { "include": "#preprocessor" },
+    { "include": "#end" },
+    { "include": "#keyword" },
+    { "include": "#value" }
+  ],
+  "repository": {
+    "script": {
+      "comment": "Lua between BeginScript and EndScript. The engine strips ; comments before Lua sees the text, so ; is a comment inside too.",
+      "begin": "(?i)^\\s*(BeginScript)\\s*$",
+      "end": "(?i)^\\s*(EndScript)\\s*$",
+      "beginCaptures": { "1": { "name": "keyword.control.script.sage-ini" } },
+      "endCaptures": { "1": { "name": "keyword.control.script.sage-ini" } },
+      "contentName": "meta.embedded.block.lua",
+      "patterns": [{ "include": "#comment" }, { "include": "source.lua" }]
+    },
+
+    "comment": {
+      "patterns": [
+        {
+          "match": "(;).*$",
+          "name": "comment.line.semicolon.sage-ini",
+          "captures": {
+            "1": { "name": "punctuation.definition.comment.sage-ini" }
+          }
+        },
+        {
+          "match": "(//).*$",
+          "name": "comment.line.double-slash.sage-ini",
+          "captures": {
+            "1": { "name": "punctuation.definition.comment.sage-ini" }
+          }
+        }
+      ]
+    },
+
+    "preprocessor": {
+      "patterns": [
+        {
+          "match": "(?i)^\\s*(#define)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.directive.define.sage-ini" },
+            "2": { "name": "entity.name.constant.preprocessor.sage-ini" }
+          }
+        },
+        {
+          "match": "(?i)^\\s*(#include)\\s+(\"[^\"]*\")",
+          "captures": {
+            "1": { "name": "keyword.control.directive.include.sage-ini" },
+            "2": { "name": "string.quoted.double.include.sage-ini" }
+          }
+        },
+        {
+          "comment": "#ADD separates its arguments with a space, #DIVIDE with a comma.",
+          "match": "(?i)(#(?:ADD|SUBTRACT|MULTIPLY|DIVIDE))\\s*(\\()",
+          "captures": {
+            "1": { "name": "support.function.preprocessor.sage-ini" },
+            "2": { "name": "punctuation.section.arguments.begin.sage-ini" }
+          }
+        }
+      ]
+    },
+
+    "end": {
+      "comment": "A bare End closes a block, in any casing. Requiring the line to hold nothing else keeps it from matching a value that happens to read End.",
+      "match": "(?i)^\\s*(End)\\s*(?=$|[;/])",
+      "captures": { "1": { "name": "keyword.control.end.sage-ini" } }
+    },
+
+    "keyword": {
+      "comment": "The first identifier on a line. Whether it is a block header or a leaf field needs the schema, so both get the neutral property scope here and the semantic layer refines it.",
+      "match": "^[ \\t]*([A-Za-z_][A-Za-z0-9_]*)[ \\t]*(=)?",
+      "captures": {
+        "1": { "name": "variable.other.property.sage-ini" },
+        "2": { "name": "punctuation.separator.key-value.sage-ini" }
+      }
+    },
+
+    "value": {
+      "patterns": [
+        {
+          "comment": "A window reference: a .wnd file and an element inside it. Matched before the generic sub-key rule, which would otherwise claim the extension.",
+          "match": "(?i)\\b([A-Za-z0-9_\\-]+\\.wnd)(:)([A-Za-z0-9_]+)",
+          "captures": {
+            "1": { "name": "string.unquoted.path.sage-ini" },
+            "2": { "name": "punctuation.separator.reference.sage-ini" },
+            "3": { "name": "entity.name.section.reference.sage-ini" }
+          }
+        },
+        {
+          "comment": "A keyed sub-value such as X:5 or FollowBone:yes. Which key set is legal depends on the field's engine type, so the semantic layer refines coordinates and colours.",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(:)(?=[^\\s:])",
+          "captures": {
+            "1": { "name": "support.type.property-name.sage-ini" },
+            "2": { "name": "punctuation.separator.key-value.sage-ini" }
+          }
+        },
+        { "match": "\"[^\"]*\"", "name": "string.quoted.double.sage-ini" },
+        {
+          "comment": "Assets the engine loads out of another archive.",
+          "match": "(?i)\\b[A-Za-z0-9_\\-]+\\.(?:tga|dds|w3d|wav|mp3|bik|apt|const|ru|wnd|ini|inc|lua|csf|fnt)\\b",
+          "name": "string.unquoted.path.sage-ini"
+        },
+        { "match": "(?i)\\b(Yes|No|True|False)\\b", "name": "constant.language.boolean.sage-ini" },
+        { "match": "[-+]?\\b\\d+(?:\\.\\d+)?%?", "name": "constant.numeric.sage-ini" },
+        {
+          "comment": "SCREAMING_SNAKE_CASE is how every enum value is written. A word boundary on both sides keeps it from claiming part of a mixed-case identifier.",
+          "match": "\\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\\b",
+          "name": "constant.language.sage-ini"
+        }
+      ]
+    }
+  }
+}

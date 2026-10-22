@@ -37,8 +37,9 @@ const toSuffix = (text: string): string => {
  */
 export const createWorkspaceSources = (): ArchiveSource[] => {
   const taken = new Set<string>();
+  const workspaceFolders = workspace.workspaceFolders ?? [];
 
-  return (workspace.workspaceFolders ?? []).map((folder) => {
+  const createWorkspaceSources = workspaceFolders.map((folder) => {
     const slug = toSlug(folder.name);
     const id = taken.has(slug)
       ? `${slug}-${toSuffix(folder.uri.fsPath)}`
@@ -48,6 +49,8 @@ export const createWorkspaceSources = (): ArchiveSource[] => {
 
     return { id, label: folder.name, baseUri: folder.uri };
   });
+
+  return createWorkspaceSources;
 };
 
 /** Finds the source a file on disk belongs to, if one of them holds it */
