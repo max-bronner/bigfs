@@ -1,12 +1,12 @@
-import { FileType, ProgressLocation, Uri, window } from 'vscode';
+import { FileType, ProgressLocation, Uri, window, workspace } from 'vscode';
 import type { Disposable, LogOutputChannel } from 'vscode';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
 import { getFileNodes } from '../model/virtualNode';
 import { getNodeUri } from '../model/nodeAddress';
-import { ROOT_CONTEXT } from './model/sageIniSchema';
+import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './model/sageIniSchema';
 import type { SageIniSchema } from './model/sageIniSchema';
-import { parseSageIni } from './model/sageIniParser';
+import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 
 /**
  * Where every definition, reference and macro in every open archive lives, so
@@ -64,6 +64,9 @@ export interface SageReference {
 }
 
 const ENTRY_PATTERN = /\.(ini|inc|bhav)$/i;
+
+/** Glob for the same files loose in the workspace, as an unpacked mod holds them */
+const LOOSE_PATTERN = '**/*.{ini,inc,bhav,INI,INC,BHAV}';
 /** The shape every macro name takes, which is also how enum words are written */
 const CONSTANT_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
 
@@ -85,9 +88,15 @@ const record = <T>(
   table.set(namespace.toLowerCase(), byName);
 };
 
-/** Whether a place was contributed by the archive an uprooted root names */
-const isUnderRoot = ({ uri }: { uri: Uri }, rootKey: string): boolean =>
-  uri.path.toLowerCase().startsWith(`${rootKey}/`);
+/**
+ * Whether a place was contributed by what a key names: an archive's root,
+ * which holds many files, or one loose file
+ */
+const isUnderRoot = ({ uri }: { uri: Uri }, rootKey: string): boolean => {
+  const path = uri.path.toLowerCase();
+
+  return path === rootKey || path.startsWith(`${rootKey}/`);
+};
 
 /** Drops the places an archive contributed from a flat name-to-places table */
 const purgeList = <T extends { uri: Uri }>(
@@ -141,26 +150,56 @@ export class SageIniIndex implements Disposable {
    */
   private constantUses = new Map<string, SageReference[]>();
 
-  /** Archives already read, by root key, so a rescan only does the new ones */
+  /** Archives and loose files already read, by key, so a rescan only does the new ones */
   private indexed = new Set<string>();
 
   private building?: Promise<void>;
-  private readonly subscription: Disposable;
+  private readonly subscriptions: Disposable[];
 
   public constructor(
     private readonly archiveModel: ArchiveModel,
     private readonly getSchema: () => Promise<SageIniSchema>,
     private readonly log: LogOutputChannel,
   ) {
-    // An archive that changed on disk has to be read again, and one that was
-    // removed has to stop answering lookups
-    this.subscription = archiveModel.onDidChangeArchive(({ rootPath }) => {
-      this.forget(rootPath.toLowerCase());
-    });
+    const watcher = workspace.createFileSystemWatcher(LOOSE_PATTERN);
+    const reindexLooseFile = (uri: Uri) => {
+      this.forget(uri.path.toLowerCase());
+
+      if (this.indexed.size) {
+        void this.indexLooseFile(uri).catch((error: unknown) =>
+          this.log.error(`Failed to index ${uri.fsPath}`, error),
+        );
+      }
+    };
+
+    this.subscriptions = [
+      // An archive that changed on disk has to be read again, and one that was
+      // removed has to stop answering lookups
+      archiveModel.onDidChangeArchive(({ rootPath }) => {
+        this.forget(rootPath.toLowerCase());
+      }),
+      watcher,
+      watcher.onDidChange(reindexLooseFile),
+      watcher.onDidCreate(reindexLooseFile),
+      watcher.onDidDelete((uri) => this.forget(uri.path.toLowerCase())),
+    ];
   }
 
   public dispose(): void {
-    this.subscription.dispose();
+    this.subscriptions.forEach((subscription) => subscription.dispose());
+  }
+
+  /**
+   * Drops everything indexed, after which the next lookup reads every file
+   * again. Called when another game is picked, whose grammar reads some lines
+   * differently.
+   */
+  public reset(): void {
+    this.definitions.clear();
+    this.references.clear();
+    this.macros.clear();
+    this.constantUses.clear();
+    this.indexed.clear();
   }
 
   /**
@@ -283,6 +322,39 @@ export class SageIniIndex implements Disposable {
         this.log.error(`Failed to index ${root.archive.archivePath}`, error);
       }
     }
+
+    // Loose files are read after the archives, so a definition in an unpacked
+    // mod comes after the one it overrides, as it does in the engine
+    for (const uri of await workspace.findFiles(
+      LOOSE_PATTERN,
+      '**/node_modules/**',
+    )) {
+      if (this.indexed.has(uri.path.toLowerCase())) {
+        continue;
+      }
+
+      try {
+        await this.indexLooseFile(uri, schema);
+      } catch (error) {
+        this.log.error(`Failed to index ${uri.fsPath}`, error);
+      }
+    }
+  }
+
+  /** Reads one INI file from disk into the index */
+  private async indexLooseFile(
+    uri: Uri,
+    schema?: SageIniSchema,
+  ): Promise<void> {
+    const content = await workspace.fs.readFile(uri);
+
+    this.indexContent(
+      uri,
+      uri.path,
+      content,
+      schema ?? (await this.getSchema()),
+    );
+    this.indexed.add(uri.path.toLowerCase());
   }
 
   private async indexArchive(
@@ -300,84 +372,97 @@ export class SageIniIndex implements Disposable {
     await this.archiveModel.readFiles(
       entries.map((node) => ({ node })),
       async ({ node }, content) => {
-        const lines = new TextDecoder('latin1').decode(content).split(/\r?\n/);
-        const uri = getNodeUri(node);
-        const parsed = parseSageIni(lines, schema);
-
-        // A later file redefining a name wins, which is how the engine
-        // resolves it: the macro table is overwritten as files load
-        parsed.macros.forEach((macro) => {
-          this.macros.set(macro.name.toLowerCase(), {
-            name: macro.name,
-            value: macro.value,
-            uri,
-            line: macro.line,
-          });
-        });
-
-        parsed.statements.forEach((statement) => {
-          const { block, context, keyword, line, values } = statement;
-
-          // A block at file scope declares a name others can reference
-          if (block && context === ROOT_CONTEXT && values.length) {
-            record(this.definitions, keyword.text, values[0].text, {
-              uri,
-              line,
-              endLine: block.endLine,
-              keyword: keyword.text,
-              name: values[0].text,
-            });
-
-            return;
-          }
-
-          if (block) {
-            return;
-          }
-
-          // A SCREAMING_SNAKE value may turn out to be a macro once every file
-          // has been read, so its use is kept either way
-          values.forEach((value) => {
-            if (!CONSTANT_PATTERN.test(value.text)) {
-              return;
-            }
-
-            const key = value.text.toLowerCase();
-
-            this.constantUses.set(key, [
-              ...(this.constantUses.get(key) ?? []),
-              {
-                uri,
-                line,
-                start: value.start,
-                end: value.end,
-                field: keyword.text,
-              },
-            ]);
-          });
-
-          // A reference field's values name definitions elsewhere. A
-          // polymorphic field is recorded under each namespace it could mean,
-          // since which one holds the name is not known until it is looked up.
-          const namespaces = schema.getReferenceNamespaces(keyword.text);
-
-          if (!namespaces.length) {
-            return;
-          }
-
-          values.forEach((value) =>
-            namespaces.forEach((namespace) =>
-              record(this.references, namespace, value.text, {
-                uri,
-                line,
-                start: value.start,
-                end: value.end,
-                field: keyword.text,
-              }),
-            ),
-          );
-        });
+        this.indexContent(getNodeUri(node), node.entryPath, content, schema);
       },
     );
+  }
+
+  /** Records the definitions, macros and references of one file */
+  private indexContent(
+    uri: Uri,
+    entryPath: string,
+    content: Uint8Array,
+    schema: SageIniSchema,
+  ): void {
+    const lines = new TextDecoder('latin1').decode(content).split(/\r?\n/);
+    const parsed = parseSageIni(lines, schema, {
+      isFragment: isFragmentPath(entryPath),
+    });
+
+    parsed.macros.forEach((macro) => {
+      this.macros.set(macro.name.toLowerCase(), {
+        name: macro.name,
+        value: macro.value,
+        uri,
+        line: macro.line,
+      });
+    });
+
+    parsed.statements.forEach((statement) => {
+      const { block, context, keyword, line, values } = statement;
+
+      // A block at file scope declares a name others can reference
+      const isFileScope =
+        context === ROOT_CONTEXT ||
+        (context === FRAGMENT_CONTEXT && schema.isEngineBlock(keyword.text));
+
+      if (block && isFileScope && values.length) {
+        record(this.definitions, keyword.text, values[0].text, {
+          uri,
+          line,
+          endLine: block.endLine,
+          keyword: keyword.text,
+          name: values[0].text,
+        });
+
+        return;
+      }
+
+      if (block) {
+        return;
+      }
+
+      // A SCREAMING_SNAKE value may turn out to be a macro once every file
+      // has been read, so its use is kept either way
+      values.forEach((value) => {
+        if (!CONSTANT_PATTERN.test(value.text)) {
+          return;
+        }
+
+        const key = value.text.toLowerCase();
+
+        this.constantUses.set(key, [
+          ...(this.constantUses.get(key) ?? []),
+          {
+            uri,
+            line,
+            start: value.start,
+            end: value.end,
+            field: keyword.text,
+          },
+        ]);
+      });
+
+      // A reference field's values name definitions elsewhere. A
+      // polymorphic field is recorded under each namespace it could mean,
+      // since which one holds the name is not known until it is looked up.
+      const namespaces = schema.getReferenceNamespaces(keyword.text);
+
+      if (!namespaces.length) {
+        return;
+      }
+
+      values.forEach((value) =>
+        namespaces.forEach((namespace) =>
+          record(this.references, namespace, value.text, {
+            uri,
+            line,
+            start: value.start,
+            end: value.end,
+            field: keyword.text,
+          }),
+        ),
+      );
+    });
   }
 }
