@@ -292,7 +292,12 @@
           "meta.embedded.block.lua": "lua"
         }
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[sage-ini]": {
+        "files.encoding": "iso88591"
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
