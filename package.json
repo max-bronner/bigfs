@@ -4,6 +4,7 @@
   "description": "Browse and edit BIG archives directly in VS Code",
   "version": "0.0.1",
   "publisher": "max-bronner",
+  "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
     "url": "https://github.com/max-bronner/bigfs.git"

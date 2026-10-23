@@ -1,9 +1,6 @@
-# Change Log
+# Changelog
 
-All notable changes to the "bigfs" extension will be documented in this file.
+## Unreleased
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
-## [Unreleased]
-
-- Initial release
+- BIG archive explorer with editing, extraction and import.
+- SAGE INI language support.
