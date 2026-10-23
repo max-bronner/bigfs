@@ -81,7 +81,7 @@ suite('BIG format', () => {
     );
   });
 
-  test('aligns data offsets to four bytes', () => {
+  test('aligns every data offset after the first to four bytes', () => {
     const entries = createEntries([
       { name: 'a.txt', content: 'abc' },
       { name: 'b.txt', content: 'defg1' },
@@ -90,7 +90,9 @@ suite('BIG format', () => {
 
     const { layout } = serializeArchive(entries);
 
-    for (const { offset } of layout.placedEntries) {
+    assert.strictEqual(layout.placedEntries[0].offset, layout.dataOffset);
+
+    for (const { offset } of layout.placedEntries.slice(1)) {
       assert.strictEqual(offset % 4, 0);
     }
   });

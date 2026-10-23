@@ -184,8 +184,9 @@ export const parseIndexTable = (
 };
 
 /**
- * Places every entry after the index table and its trailer in the order given, each
- * start rounded up to a 4 byte boundary. `trailer` is the gap a read found
+ * Places every entry after the index table and its trailer in the order given:
+ * the first straight after the trailer, as shipped archives have it, and each
+ * later one rounded up to a 4 byte boundary. `trailer` is the gap a read found
  * between the table and the data: eight bytes in every shipped BIG4 archive,
  * none in a BIGF one. A size comes from pending content where there is any,
  * so the layout describes the archive about to be written, not the one on disk.
@@ -205,7 +206,9 @@ export const computeArchiveLayout = (
   );
 
   const placedEntries: PlacedEntry[] = [];
-  const firstDataOffset = alignBytes(indexTableEndOffset + trailer.length);
+  // Not aligned: the next read takes every byte up to the data as trailer, so
+  // padding here would grow the trailer by a few bytes on every save
+  const firstDataOffset = indexTableEndOffset + trailer.length;
   let dataOffset = firstDataOffset;
 
   entriesArray.forEach((entry) => {
