@@ -18,7 +18,9 @@ const COPY_CHUNK_SIZE = 256 * 1024;
  * This is the whole cost of opening an archive: nothing else is read until a
  * caller asks for an entry.
  * @throws NotAnArchiveError when the file is too short to hold a header, or
- * does not start with a BIG magic
+ * does not start with a BIG magic. Other errors when an entry's data runs past
+ * the end of the file, so a damaged archive fails at open rather than when
+ * someone reads the one broken entry.
  */
 export const readArchiveIndexTable = async (
   archivePath: string,
@@ -41,18 +43,17 @@ export const readArchiveIndexTable = async (
     const header = parseHeader(headerBuffer);
     const { size: fileSize } = await archiveFile.stat();
 
-    const hasInvalidIndexTable =
-      header.indexTableEndOffset < HEADER_LENGTH ||
-      header.indexTableEndOffset > fileSize;
+    const hasInvalidDataOffset =
+      header.dataOffset < HEADER_LENGTH || header.dataOffset > fileSize;
 
-    if (hasInvalidIndexTable) {
+    if (hasInvalidDataOffset) {
       throw new Error(
-        `Index table ends at ${header.indexTableEndOffset}, ` +
+        `Entry data starts at ${header.dataOffset}, ` +
           `outside the archive of ${fileSize} bytes`,
       );
     }
 
-    const tableLength = header.indexTableEndOffset - HEADER_LENGTH;
+    const tableLength = header.dataOffset - HEADER_LENGTH;
     const table = Buffer.alloc(tableLength);
 
     if (tableLength) {
@@ -73,9 +74,22 @@ export const readArchiveIndexTable = async (
     const entries = new Map<string, BigFileEntry>();
     const indexTable = parseIndexTable(table, header.entryCount);
 
-    indexTable.forEach((entry) => entries.set(entry.name, entry));
+    indexTable.entries.forEach((entry) => {
+      if (entry.offset + entry.size > fileSize) {
+        throw new Error(
+          `Entry '${entry.name}' spans ${entry.offset} to ` +
+            `${entry.offset + entry.size}, past the archive end at ${fileSize}`,
+        );
+      }
 
-    return { magic: header.magic, entries };
+      entries.set(entry.name, entry);
+    });
+
+    return {
+      magic: header.magic,
+      trailer: Uint8Array.from(table.subarray(indexTable.tableLength)),
+      entries,
+    };
   } finally {
     await archiveFile.close();
   }
@@ -190,14 +204,15 @@ const copyEntryData = async (
  * Rewrites the whole archive through a temporary file that is renamed over the
  * original; one changed entry shifts every offset after it, so there is no
  * partial write. The entries keep their old offsets, so the caller has to
- * apply the layout that comes back.
+ * apply the layout that comes back. `magic` and `trailer` are written back as
+ * the archive was read.
  */
 export const writeArchiveFile = async (
   archivePath: string,
-  magic: string,
+  { magic, trailer }: Pick<ParsedArchive, 'magic' | 'trailer'>,
   entries: Map<string, BigFileEntry>,
 ): Promise<ArchiveLayout> => {
-  const layout = computeArchiveLayout(entries);
+  const layout = computeArchiveLayout(entries, trailer);
   const indexTable = serializeIndexTable(magic, layout);
 
   const tempPath = `${archivePath}.${process.pid}.tmp`;

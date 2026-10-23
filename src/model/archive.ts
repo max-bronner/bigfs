@@ -101,7 +101,12 @@ const changeEntries = (
           entries.delete(key);
         }
 
-        entries.set(movedPath.toLowerCase(), { ...entry, name: movedPath });
+        // A moved entry is written under its new path, not the name it had
+        entries.set(movedPath.toLowerCase(), {
+          ...entry,
+          name: movedPath,
+          storedName: undefined,
+        });
       }
 
       return keys.length > 0;
@@ -157,6 +162,9 @@ export class Archive {
   /** The tag the file opens with, kept so a rewrite stays the format it was */
   private magic = '';
 
+  /** The bytes between the index table and the data, written back as read */
+  private trailer: Uint8Array = new Uint8Array(0);
+
   /** Keyed case insensitively; each entry keeps its stored name */
   private entries = new Map<string, BigFileEntry>();
 
@@ -203,9 +211,12 @@ export class Archive {
   /** Reads the index table, once, however many callers ask for it */
   public ensureLoaded(): Promise<void> {
     this.loading ??= this.enqueue(async () => {
-      const { magic, entries } = await readArchiveIndexTable(this.archivePath);
+      const { magic, trailer, entries } = await readArchiveIndexTable(
+        this.archivePath,
+      );
 
       this.magic = magic;
+      this.trailer = trailer;
       this.entries = Archive.keyEntries(entries);
 
       syncFiles(
@@ -273,9 +284,12 @@ export class Archive {
         return false;
       }
 
-      const { magic, entries } = await readArchiveIndexTable(this.archivePath);
+      const { magic, trailer, entries } = await readArchiveIndexTable(
+        this.archivePath,
+      );
 
       this.magic = magic;
+      this.trailer = trailer;
       this.entries = Archive.keyEntries(entries);
 
       syncFiles(
@@ -322,7 +336,7 @@ export class Archive {
       if (writeNeeded) {
         const layout = await writeArchiveFile(
           this.archivePath,
-          this.magic,
+          { magic: this.magic, trailer: this.trailer },
           entries,
         );
 
@@ -331,7 +345,7 @@ export class Archive {
         this.entries = new Map(
           layout.placedEntries.map(({ entry, offset, size }) => [
             entry.name.toLowerCase(),
-            { name: entry.name, offset, size },
+            { name: entry.name, storedName: entry.storedName, offset, size },
           ]),
         );
 

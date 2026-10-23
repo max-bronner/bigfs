@@ -11,6 +11,12 @@ import { isContainedPath } from '../common/paths';
  */
 export interface BigFileEntry {
   name: string;
+  /**
+   * The name exactly as the index table stored it, separators included. Kept
+   * so an entry nobody renamed is written back unchanged: the `apt` archives
+   * store forward slashes, every other one backslashes.
+   */
+  storedName?: string;
   offset: number;
   size: number;
   /** Content that is not in the archive yet */
@@ -20,12 +26,13 @@ export interface BigFileEntry {
 }
 
 /**
- * Result of reading one archive's index table: the magic to write back
- * unchanged, and the entries keyed by entry path in the casing the archive
+ * Result of reading one archive's index table: the magic and trailer to write
+ * back unchanged, and the entries keyed by entry path in the casing the archive
  * stored, which the model re-keys for case insensitive lookup.
  */
 export interface ParsedArchive {
   magic: string;
+  trailer: Uint8Array;
   entries: Map<string, BigFileEntry>;
 }
 
@@ -44,12 +51,16 @@ export interface PlacedEntry {
 export interface ArchiveLayout {
   placedEntries: PlacedEntry[];
   indexTableEndOffset: number;
+  /** Bytes between the index table and the data, written back as they were read */
+  trailer: Uint8Array;
+  /** Where the first entry's data starts, which the header records at 0x0C */
+  dataOffset: number;
   totalSize: number;
 }
 
 /**
  * Bytes before the first index table record: magic, archive size, entry count
- * and index table end offset, four bytes each.
+ * and the offset the first entry's data starts at, four bytes each.
  */
 export const HEADER_LENGTH = 16;
 
@@ -70,15 +81,35 @@ const alignBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
+/**
+ * Names are 8-bit, not UTF-8. Latin-1 is the one decoding that maps every byte
+ * to a character and back, so a name survives a save whatever it contains.
+ */
+const NAME_ENCODING = 'latin1';
+
 /** Entry names are stored with backslashes; everything above this layer uses '/' */
 const toTreeName = (name: string): string => name.replace(/\\/g, '/');
 
-/** The inverse of `toTreeName`, applied to every name on the way back to disk */
-const toStoredName = (name: string): string => name.replace(/\//g, '\\');
+/**
+ * Gets the name an entry is written with: the stored one when the entry was
+ * not renamed, otherwise its path with backslashes
+ * @throws when the name holds a character Latin-1 cannot store
+ */
+const getStoredName = (entry: BigFileEntry): string => {
+  if (entry.storedName !== undefined) {
+    return entry.storedName;
+  }
+
+  if (/[^\u0000-\u00ff]/.test(entry.name)) {
+    throw new Error(`Entry name cannot be stored in a BIG archive: ${entry.name}`);
+  }
+
+  return entry.name.replace(/\//g, '\\');
+};
 
 /**
  * Reads the 16 byte header: magic, archive size, entry count, and the offset
- * the index table ends at. Only the archive size is little endian; every other
+ * the first entry's data starts at. Only the archive size is little endian; every other
  * number in the format is big endian.
  * @throws NotAnArchiveError when the magic is neither BIGF nor BIG4
  */
@@ -90,11 +121,11 @@ export const parseHeader = (buffer: Buffer) => {
 
   const archiveSize = buffer.readUInt32LE(4); // the one little endian field
   const entryCount = buffer.readUInt32BE(8);
-  const indexTableEndOffset = buffer.readUInt32BE(12);
+  const dataOffset = buffer.readUInt32BE(12);
 
   return {
     archiveSize,
-    indexTableEndOffset,
+    dataOffset,
     magic,
     entryCount,
   };
@@ -102,14 +133,15 @@ export const parseHeader = (buffer: Buffer) => {
 
 /**
  * Reads `entryCount` records from the table that follows the header, each a
- * big endian offset and size followed by a null terminated name. Throws when
+ * big endian offset and size followed by a null terminated name, and reports
+ * how many bytes of the table they took. Throws when
  * the table ends before the count is met, rather than returning what it got,
  * and on a name that would escape the directory it is extracted to.
  */
 export const parseIndexTable = (
   table: Buffer,
   entryCount: number,
-): BigFileEntry[] => {
+): { entries: BigFileEntry[]; tableLength: number } => {
   const entries: BigFileEntry[] = [];
   let cursor = 0;
 
@@ -134,7 +166,8 @@ export const parseIndexTable = (
       throw new Error(`Unterminated name in index table entry ${entryNumber}`);
     }
 
-    const name = toTreeName(table.toString('utf-8', nameStart, nameEnd));
+    const storedName = table.toString(NAME_ENCODING, nameStart, nameEnd);
+    const name = toTreeName(storedName);
 
     if (!isContainedPath(name)) {
       throw new Error(
@@ -142,32 +175,36 @@ export const parseIndexTable = (
       );
     }
 
-    entries.push({ name, offset, size });
+    entries.push({ name, storedName, offset, size });
 
     cursor = nameEnd + 1;
   }
 
-  return entries;
+  return { entries, tableLength: cursor };
 };
 
 /**
- * Places every entry after the index table in map order, each start rounded up
- * to a 4 byte boundary. A size comes from pending content where there is any,
+ * Places every entry after the index table and its trailer in map order, each
+ * start rounded up to a 4 byte boundary. `trailer` is the gap a read found
+ * between the table and the data: eight bytes in every shipped BIG4 archive,
+ * none in a BIGF one. A size comes from pending content where there is any,
  * so the layout describes the archive about to be written, not the one on disk.
  */
 export const computeArchiveLayout = (
   entries: Map<string, BigFileEntry>,
+  trailer: Uint8Array = new Uint8Array(0),
 ): ArchiveLayout => {
   const entriesArray = Array.from(entries.values());
 
   const indexTableEndOffset = entriesArray.reduce(
     (total, entry) =>
-      total + 8 + Buffer.byteLength(toStoredName(entry.name), 'utf-8') + 1,
+      total + 8 + Buffer.byteLength(getStoredName(entry), NAME_ENCODING) + 1,
     HEADER_LENGTH,
   );
 
   const placedEntries: PlacedEntry[] = [];
-  let dataOffset = alignBytes(indexTableEndOffset);
+  const firstDataOffset = alignBytes(indexTableEndOffset + trailer.length);
+  let dataOffset = firstDataOffset;
 
   entriesArray.forEach((entry) => {
     const size = entry.pendingData?.length ?? entry.size;
@@ -176,9 +213,15 @@ export const computeArchiveLayout = (
   });
 
   const last = placedEntries[placedEntries.length - 1];
-  const totalSize = last ? last.offset + last.size : indexTableEndOffset;
+  const totalSize = last ? last.offset + last.size : firstDataOffset;
 
-  return { placedEntries, indexTableEndOffset, totalSize };
+  return {
+    placedEntries,
+    indexTableEndOffset,
+    trailer,
+    dataOffset: firstDataOffset,
+    totalSize,
+  };
 };
 
 /** Writes one record and returns the offset the next one starts at */
@@ -190,7 +233,10 @@ const writeIndexTableEntry = (
   buffer.writeUInt32BE(placedEntry.offset, offset);
   buffer.writeUInt32BE(placedEntry.size, offset + 4);
 
-  const nameBytes = Buffer.from(toStoredName(placedEntry.entry.name), 'utf-8');
+  const nameBytes = Buffer.from(
+    getStoredName(placedEntry.entry),
+    NAME_ENCODING,
+  );
   nameBytes.copy(buffer, offset + 8);
   buffer[offset + 8 + nameBytes.length] = 0; // null terminator
 
@@ -198,26 +244,29 @@ const writeIndexTableEntry = (
 };
 
 /**
- * Writes the header and the index table into one buffer, padded out to the
- * boundary where entry data begins. The archive size in the header is the
- * total size the layout arrived at, counting data not yet written.
+ * Writes the header, the index table and its trailer into one buffer, padded
+ * out to the boundary where entry data begins. The archive size in the header
+ * is the total size the layout arrived at, counting data not yet written.
  */
 export const serializeIndexTable = (
   magic: string,
   layout: ArchiveLayout,
 ): Buffer => {
-  const { placedEntries, indexTableEndOffset, totalSize } = layout;
-  const buffer = Buffer.alloc(alignBytes(indexTableEndOffset));
+  const { placedEntries, indexTableEndOffset, trailer, dataOffset, totalSize } =
+    layout;
+  const buffer = Buffer.alloc(dataOffset);
 
   buffer.write(magic, 0, 4, 'ascii');
   buffer.writeUInt32LE(totalSize, 4);
   buffer.writeUInt32BE(placedEntries.length, 8);
-  buffer.writeUInt32BE(indexTableEndOffset, 12);
+  buffer.writeUInt32BE(dataOffset, 12);
 
   let cursor = HEADER_LENGTH;
   placedEntries.forEach((placedEntry) => {
     cursor = writeIndexTableEntry(buffer, cursor, placedEntry);
   });
+
+  buffer.set(trailer, indexTableEndOffset);
 
   return buffer;
 };
