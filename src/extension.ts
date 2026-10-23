@@ -13,6 +13,8 @@ import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { decodeDdsTool, decodeTgaTool } from './tools/textureTools';
 import { playableAudioTool } from './tools/audioTools';
+import { parseW3dTool } from './tools/w3dTools';
+import { EntryLocator } from './formats/entryLocator';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -41,10 +43,15 @@ export function activate(context: vscode.ExtensionContext) {
   const tools = createToolRegistry();
   const formats = createFormatRegistry(archiveModel, tools);
 
-  tools.register(decodeTgaTool, decodeDdsTool, playableAudioTool);
+  tools.register(decodeTgaTool, decodeDdsTool, playableAudioTool, parseW3dTool);
   formats.register();
 
-  context.subscriptions.push(PreviewEditorProvider.register(tools));
+  const locator = new EntryLocator(archiveModel);
+
+  context.subscriptions.push(
+    locator,
+    PreviewEditorProvider.register(tools, locator),
+  );
 
   registerSageIniLanguage(context, archiveModel, log);
 

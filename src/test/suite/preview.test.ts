@@ -40,4 +40,27 @@ suite('Previews', () => {
     );
     assert.strictEqual(input.viewType, PREVIEW_VIEW_TYPE);
   });
+
+  test('a W3D model opens in the preview too, even one it cannot draw', async () => {
+    const modelPath = path.join(path.dirname(texturePath), 'preview.w3d');
+
+    await writeFile(modelPath, new Uint8Array(4));
+
+    try {
+      await vscode.commands.executeCommand(
+        'vscode.open',
+        vscode.Uri.file(modelPath),
+      );
+
+      const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+
+      assert.ok(
+        input instanceof vscode.TabInputCustom,
+        'expected a custom editor',
+      );
+      assert.strictEqual(input.viewType, PREVIEW_VIEW_TYPE);
+    } finally {
+      await rm(modelPath, { force: true });
+    }
+  });
 });
