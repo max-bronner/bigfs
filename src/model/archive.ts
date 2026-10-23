@@ -326,15 +326,14 @@ export class Archive {
           entries,
         );
 
-        layout.placedEntries.forEach(({ entry, offset, size }) => {
-          entry.offset = offset;
-          entry.size = size;
-
-          delete entry.pendingData;
-          delete entry.pendingFile;
-        });
-
-        this.entries = entries;
+        // Fresh objects rather than edits: an entry handed out before the
+        // write must keep describing the file it was read from
+        this.entries = new Map(
+          layout.placedEntries.map(({ entry, offset, size }) => [
+            entry.name.toLowerCase(),
+            { name: entry.name, offset, size },
+          ]),
+        );
 
         const { mtime } = await workspace.fs.stat(Uri.file(this.archivePath));
 
@@ -355,9 +354,17 @@ export class Archive {
     return this.entries.get(entryPath.toLowerCase());
   }
 
-  /** Reads an entry's data straight from the archive on disk */
-  public readEntry(entry: BigFileEntry): Promise<Uint8Array> {
-    return readEntryData(this.archivePath, entry);
+  /**
+   * Reads the data of the entry at a path, or nothing when there is none.
+   * The entry is looked up inside the queue, after every earlier save, so its
+   * offsets always describe the file the bytes are read from.
+   */
+  public readEntry(entryPath: string): Promise<Uint8Array | undefined> {
+    return this.enqueue(async () => {
+      const entry = this.getEntry(entryPath);
+
+      return entry && readEntryData(this.archivePath, entry);
+    });
   }
 
   /**

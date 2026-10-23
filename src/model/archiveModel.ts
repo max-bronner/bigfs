@@ -509,10 +509,7 @@ export class ArchiveModel {
   public async getFileContent(
     node: VirtualNode,
   ): Promise<Uint8Array | undefined> {
-    const archive = node.archive;
-    const entry = this.getEntryForNode(node);
-
-    return archive && entry ? archive.readEntry(entry) : undefined;
+    return node.archive?.readEntry(node.entryPath);
   }
 
   /** From the index table, or from a write that has not been saved yet */
