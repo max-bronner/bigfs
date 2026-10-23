@@ -5,6 +5,7 @@ import type { ArchiveModel } from '../model/archiveModel';
 import { SageIniDocuments } from './sageIniDocuments';
 import { SageIniIndex } from './sageIniIndex';
 import { watchSageIniDialect } from './sageIniDialect';
+import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { createSageIniFoldingProvider } from './providers/sageIniFoldingProvider';
 import { createSageIniOutlineProvider } from './providers/sageIniOutlineProvider';
 import {
@@ -54,7 +55,10 @@ export const registerSageIniLanguage = (
   context.subscriptions.push(
     documents,
     index,
+    // Another game reads some lines differently, so every file is read again
+    documents.onDidChangeSchema(() => index.reset()),
     watchSageIniDialect(),
+    watchSageIniDiagnostics(documents),
     languages.registerFoldingRangeProvider(
       selector,
       createSageIniFoldingProvider(documents),
