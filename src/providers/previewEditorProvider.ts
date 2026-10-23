@@ -2,11 +2,16 @@ import * as vscode from 'vscode';
 import type { ToolBox } from '../tools/toolRegistry';
 import { decodeDdsTool, decodeTgaTool } from '../tools/textureTools';
 import { playableAudioTool } from '../tools/audioTools';
+import { buildW3dScene } from '../formats/w3dScene';
+import type { ModelScene } from '../formats/w3dScene';
+import type { EntryLocator } from '../formats/entryLocator';
+import { MODEL_SCRIPT } from './previewModelScript';
 
 /**
  * Read-only editor that previews the binary entries a text editor cannot
  * show: TGA and DDS textures, drawn on a canvas with zoom, channel and mip
- * controls, and WAV sounds, played after IMA ADPCM is decoded. It opens files
+ * controls, WAV sounds, played after IMA ADPCM is decoded, and W3D models,
+ * drawn in 3D with their skeleton and textures found wherever they live. It opens files
  * inside archives and loose on disk alike, since it only reads bytes through
  * `workspace.fs`.
  */
@@ -33,12 +38,14 @@ type PreviewMessage =
         durationSeconds: number;
       };
     }
+  | ({ kind: 'model' } & ModelScene)
   | { kind: 'error'; message: string };
 
 /** Decodes an entry into what its preview shows, by its extension */
 const buildMessage = async (
   uri: vscode.Uri,
   tools: ToolBox,
+  locator: EntryLocator,
 ): Promise<PreviewMessage> => {
   const bytes = await vscode.workspace.fs.readFile(uri);
   const extension = uri.path.slice(uri.path.lastIndexOf('.')).toLowerCase();
@@ -53,6 +60,15 @@ const buildMessage = async (
         return {
           kind: 'audio',
           ...(await tools.use(playableAudioTool)(bytes)),
+        };
+      case '.w3d':
+        return {
+          kind: 'model',
+          ...(await buildW3dScene(
+            bytes,
+            (fileName) => locator.read(fileName, uri),
+            tools,
+          )),
         };
       default:
         return { kind: 'error', message: `No preview for ${extension} files` };
@@ -95,6 +111,7 @@ const renderHtml = (webview: vscode.Webview): string => {
   canvas.pixelated { image-rendering: pixelated; }
   .error { color: var(--vscode-errorForeground); }
   audio { width: min(600px, 100%); margin-top: 12px; }
+  canvas.model { display: block; cursor: grab; touch-action: none; }
   dl { display: grid; grid-template-columns: max-content auto; gap: 4px 16px; margin: 0; }
   dt { opacity: 0.8; }
 </style>
@@ -231,8 +248,12 @@ const renderHtml = (webview: vscode.Webview): string => {
     main.replaceChildren(list, audio);
   };
 
+  ${MODEL_SCRIPT}
+
   window.addEventListener('message', ({ data }) => {
-    if (data.kind === 'texture') {
+    if (data.kind === 'model') {
+      showModel(data);
+    } else if (data.kind === 'texture') {
       showTexture(data);
     } else if (data.kind === 'audio') {
       showAudio(data);
@@ -254,13 +275,19 @@ const renderHtml = (webview: vscode.Webview): string => {
 export class PreviewEditorProvider
   implements vscode.CustomReadonlyEditorProvider
 {
-  public constructor(private readonly tools: ToolBox) {}
+  public constructor(
+    private readonly tools: ToolBox,
+    private readonly locator: EntryLocator,
+  ) {}
 
   /** Registers the provider under `PREVIEW_VIEW_TYPE` */
-  public static register(tools: ToolBox): vscode.Disposable {
+  public static register(
+    tools: ToolBox,
+    locator: EntryLocator,
+  ): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       PREVIEW_VIEW_TYPE,
-      new PreviewEditorProvider(tools),
+      new PreviewEditorProvider(tools, locator),
       { supportsMultipleEditorsPerDocument: true },
     );
   }
@@ -278,7 +305,7 @@ export class PreviewEditorProvider
 
     // Decoding starts at once; the page asks for the result when its script
     // has loaded, so the message cannot arrive before anything listens
-    const message = buildMessage(document.uri, this.tools);
+    const message = buildMessage(document.uri, this.tools, this.locator);
     const subscription = panel.webview.onDidReceiveMessage(async (received) => {
       if (received?.kind === 'ready') {
         await panel.webview.postMessage(await message);
