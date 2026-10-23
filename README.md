@@ -10,17 +10,37 @@ your mod's archives.
 
 ## Features
 
+**Archives**
+
 - **BIG Archives view** in the explorer: every `.big` file in the workspace,
   browsable as folders.
-- **Edit in place:** open, save, create, rename, move, copy, delete and
-  drag and drop files inside an archive. Each save rewrites the archive
-  safely through a temporary file.
-- **Extract** files, folders or whole archives to disk, and **add** files
-  from disk.
-- **SAGE INI language support** for `.ini`, `.inc` and `.bhav`: syntax
-  highlighting, outline, folding, hover, completion, go to definition and
-  find references across every archive, `#include` links and `#define`
-  macros.
+- **Edit in place:** open, save, create, rename, move, copy, delete and drag
+  and drop files inside an archive. A save rewrites the archive through a
+  temporary file and keeps names, duplicates and the header layout as the
+  game shipped them.
+- **Extract** files, folders or whole archives, and **add** files from disk.
+- **Pack into BIG Archive** on any folder in the Explorer.
+- **Override in Folder** copies archive files into a mod folder at the same
+  path.
+- **Search in BIG Archives** finds text inside every archive.
+
+**INI language support** for `.ini`, `.inc` and `.bhav`
+
+- Structure from the games' own field tables (via [mint](https://github.com/max-bronner/mint2)),
+  for Rise of the Witch-king or BFME II (`bigfs.ini.game`).
+- Problems panel: unknown fields and modules, unclosed blocks, stray `End`,
+  missing includes. **BIG: Validate INI Files** checks the whole workspace.
+- Highlighting, outline, folding, completion, hover with engine types and the
+  game's own text for string labels, go to definition, find references and
+  rename across archives and loose mod folders, `#include` links and
+  `#define` macros.
+
+**Previews**
+
+- Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip
+  levels.
+- Sounds: WAV, including IMA ADPCM.
+- Models: W3D in 3D, with their skeleton and textures found in any archive.
 
 ## Development
 
