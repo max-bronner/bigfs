@@ -170,6 +170,18 @@ export const createSageIniHoverProvider = (
       return new Hover(text, range);
     }
 
+    // A label in the string tables is shown as the text the game displays
+    const string = index.findString(token.text);
+
+    if (string) {
+      const text = new MarkdownString();
+
+      text.appendMarkdown(`\`${string.label}\` — game text\n\n`);
+      text.appendText(string.text);
+
+      return new Hover(text, range);
+    }
+
     const contents = describeValue(statement, schema, token.text);
 
     return contents ? new Hover(contents, range) : undefined;

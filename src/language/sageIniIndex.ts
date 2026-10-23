@@ -7,6 +7,8 @@ import { getNodeUri } from '../model/nodeAddress';
 import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './model/sageIniSchema';
 import type { SageIniSchema } from './model/sageIniSchema';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
+import { findString, parseStringTable } from './model/sageStringTable';
+import type { SageString } from './model/sageStringTable';
 
 /**
  * Where every definition, reference and macro in every open archive lives, so
@@ -52,6 +54,18 @@ export interface SageMacro {
   line: number;
 }
 
+/** A string table record and the file that holds it */
+export interface SageStringPlace extends SageString {
+  uri: Uri;
+}
+
+/**
+ * Whether a string table is a map's own, which the engine searches only after
+ * the game's main table, so its records never replace the main one's
+ */
+const isMapStringTable = (uri: Uri): boolean =>
+  uri.path.toLowerCase().endsWith('/map.str');
+
 /** Where a name was used, as the value of a reference field or a macro */
 export interface SageReference {
   uri: Uri;
@@ -63,10 +77,10 @@ export interface SageReference {
   field: string;
 }
 
-const ENTRY_PATTERN = /\.(ini|inc|bhav)$/i;
+const ENTRY_PATTERN = /\.(ini|inc|bhav|str)$/i;
 
 /** Glob for the same files loose in the workspace, as an unpacked mod holds them */
-const LOOSE_PATTERN = '**/*.{ini,inc,bhav,INI,INC,BHAV}';
+const LOOSE_PATTERN = '**/*.{ini,inc,bhav,str,INI,INC,BHAV,STR}';
 /** The shape every macro name takes, which is also how enum words are written */
 const CONSTANT_PATTERN = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/;
 
@@ -150,6 +164,9 @@ export class SageIniIndex implements Disposable {
    */
   private constantUses = new Map<string, SageReference[]>();
 
+  /** Every string table record, by lowercased label */
+  private strings = new Map<string, SageStringPlace>();
+
   /** Archives and loose files already read, by key, so a rescan only does the new ones */
   private indexed = new Set<string>();
 
@@ -199,6 +216,7 @@ export class SageIniIndex implements Disposable {
     this.references.clear();
     this.macros.clear();
     this.constantUses.clear();
+    this.strings.clear();
     this.indexed.clear();
   }
 
@@ -209,6 +227,14 @@ export class SageIniIndex implements Disposable {
    */
   public findMacro(name: string): SageMacro | undefined {
     return this.macros.get(name.toLowerCase());
+  }
+
+  /**
+   * The string table record an INI value names, such as the text a
+   * `DisplayName = OBJECT:GondorFighter` shows, if it names one
+   */
+  public findString(value: string): SageStringPlace | undefined {
+    return findString(this.strings, value) as SageStringPlace | undefined;
   }
 
   /** Every place a macro is used, which is what find references answers with */
@@ -302,6 +328,7 @@ export class SageIniIndex implements Disposable {
     purgeNamespaced(this.references, rootKey);
     purgeOne(this.macros, rootKey);
     purgeList(this.constantUses, rootKey);
+    purgeOne(this.strings, rootKey);
   }
 
   private async build(): Promise<void> {
@@ -377,6 +404,19 @@ export class SageIniIndex implements Disposable {
     );
   }
 
+  /** Records the records of one string table, behind the main table's */
+  private indexStrings(uri: Uri, text: string): void {
+    const isMapTable = isMapStringTable(uri);
+
+    for (const [key, record] of parseStringTable(text)) {
+      const existing = this.strings.get(key);
+
+      if (!existing || (isMapStringTable(existing.uri) && !isMapTable)) {
+        this.strings.set(key, { ...record, uri });
+      }
+    }
+  }
+
   /** Records the definitions, macros and references of one file */
   private indexContent(
     uri: Uri,
@@ -384,7 +424,16 @@ export class SageIniIndex implements Disposable {
     content: Uint8Array,
     schema: SageIniSchema,
   ): void {
-    const lines = new TextDecoder('latin1').decode(content).split(/\r?\n/);
+    // The WHATWG `latin1` decoder is Windows-1252, which is what the text in
+    // the string tables means: 0x92 is an apostrophe there
+    const text = new TextDecoder('latin1').decode(content);
+
+    if (entryPath.toLowerCase().endsWith('.str')) {
+      this.indexStrings(uri, text);
+      return;
+    }
+
+    const lines = text.split(/\r?\n/);
     const parsed = parseSageIni(lines, schema, {
       isFragment: isFragmentPath(entryPath),
     });
