@@ -1,4 +1,4 @@
-import { ROOT_CONTEXT } from './sageIniSchema';
+import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './sageIniSchema';
 import type { SageIniSchema } from './sageIniSchema';
 import type { SageDocument, SageStatement, SageToken } from './sageIniParser';
 
@@ -61,7 +61,12 @@ export const resolveSageSymbol = (
 
   // A block at file scope declares a name; its keyword is the namespace, and
   // the position may be on either the keyword or the name itself
-  if (statement.block && statement.context === ROOT_CONTEXT) {
+  const isFileScope =
+    statement.context === ROOT_CONTEXT ||
+    (statement.context === FRAGMENT_CONTEXT &&
+      schema.isEngineBlock(statement.keyword.text));
+
+  if (statement.block && isFileScope) {
     const name = statement.values[0];
 
     if (!name) {

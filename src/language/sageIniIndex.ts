@@ -37,6 +37,9 @@ export interface SageDefinition {
   endLine: number;
   /** The block keyword that declared it, which is the namespace */
   keyword: string;
+  /** Columns of the name on its line, which a rename replaces */
+  start: number;
+  end: number;
   /** As written, so a completion offers the corpus's own casing */
   name: string;
 }
@@ -50,6 +53,9 @@ export interface SageMacro {
   name: string;
   /** The replacement text, which a hover shows */
   value: string;
+  /** Columns of the name on its line, which a rename replaces */
+  start: number;
+  end: number;
   uri: Uri;
   line: number;
 }
@@ -444,6 +450,8 @@ export class SageIniIndex implements Disposable {
         value: macro.value,
         uri,
         line: macro.line,
+        start: macro.start,
+        end: macro.end,
       });
     });
 
@@ -462,6 +470,8 @@ export class SageIniIndex implements Disposable {
           endLine: block.endLine,
           keyword: keyword.text,
           name: values[0].text,
+          start: values[0].start,
+          end: values[0].end,
         });
 
         return;

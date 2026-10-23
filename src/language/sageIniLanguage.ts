@@ -16,6 +16,7 @@ import { createSageIniHoverProvider } from './providers/sageIniHoverProvider';
 import { createSageIniDefinitionProvider } from './providers/sageIniDefinitionProvider';
 import { createSageIniReferenceProvider } from './providers/sageIniReferenceProvider';
 import { createSageIniCompletionProvider } from './providers/sageIniCompletionProvider';
+import { createSageIniRenameProvider } from './providers/sageIniRenameProvider';
 
 /**
  * Language support for the SAGE INI dialect the game's `.ini` and `.inc`
@@ -87,6 +88,10 @@ export const registerSageIniLanguage = (
     languages.registerCompletionItemProvider(
       selector,
       createSageIniCompletionProvider(documents, index),
+    ),
+    languages.registerRenameProvider(
+      selector,
+      createSageIniRenameProvider(documents, index),
     ),
   );
 };
