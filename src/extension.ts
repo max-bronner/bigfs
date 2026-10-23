@@ -10,6 +10,9 @@ import { registerClipboardCommands } from './commands/clipboardCommands';
 import { createToolRegistry } from './tools/toolRegistry';
 import { createFormatRegistry } from './formats/formatRegistry';
 import { registerSageIniLanguage } from './language/sageIniLanguage';
+import { PreviewEditorProvider } from './providers/previewEditorProvider';
+import { decodeDdsTool, decodeTgaTool } from './tools/textureTools';
+import { playableAudioTool } from './tools/audioTools';
 import { SCHEME } from './constants';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -34,12 +37,14 @@ export function activate(context: vscode.ExtensionContext) {
   // usable while it runs
   archiveModel.whenReady().finally(markScanned);
 
-  // Both registries are empty; registering a tool or a format is one line here
+  // Registering a tool or a format is one line here
   const tools = createToolRegistry();
   const formats = createFormatRegistry(archiveModel, tools);
 
-  tools.register();
+  tools.register(decodeTgaTool, decodeDdsTool, playableAudioTool);
   formats.register();
+
+  context.subscriptions.push(PreviewEditorProvider.register(tools));
 
   registerSageIniLanguage(context, archiveModel, log);
 
