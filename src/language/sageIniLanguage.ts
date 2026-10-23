@@ -6,6 +6,7 @@ import { SageIniDocuments } from './sageIniDocuments';
 import { SageIniIndex } from './sageIniIndex';
 import { watchSageIniDialect } from './sageIniDialect';
 import { watchSageIniDiagnostics } from './sageIniDiagnostics';
+import { registerSageIniValidation } from './sageIniValidation';
 import { createSageIniFoldingProvider } from './providers/sageIniFoldingProvider';
 import { createSageIniOutlineProvider } from './providers/sageIniOutlineProvider';
 import {
@@ -60,6 +61,7 @@ export const registerSageIniLanguage = (
     documents.onDidChangeSchema(() => index.reset()),
     watchSageIniDialect(),
     watchSageIniDiagnostics(documents),
+    ...registerSageIniValidation(documents, archiveModel),
     languages.registerFoldingRangeProvider(
       selector,
       createSageIniFoldingProvider(documents),
