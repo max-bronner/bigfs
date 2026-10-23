@@ -97,7 +97,12 @@ export interface SageDocument {
 const END_PATTERN = /^end$/i;
 const BEGIN_SCRIPT_PATTERN = /^\s*BeginScript\s*$/i;
 const END_SCRIPT_PATTERN = /^\s*EndScript\s*$/i;
-const TOKEN_PATTERN = /[^\s=]+/g;
+/**
+ * A quoted run read as one token, up to the closing quote or an `=`, as EA's
+ * own string reader does, or else a run of anything but whitespace and `=`.
+ * An unterminated quote runs to the end of the line.
+ */
+const TOKEN_PATTERN = /"([^"=]*)"?|[^\s="]+/g;
 const INCLUDE_PATTERN = /^\s*#include\s+"([^"]*)"/i;
 const MACRO_PATTERN = /^\s*#define\s+([A-Za-z_][A-Za-z0-9_]*)\s*(.*)$/i;
 
@@ -115,7 +120,10 @@ export const stripComment = (line: string): string => {
   return markers.length ? line.slice(0, Math.min(...markers)) : line;
 };
 
-/** Splits a comment-stripped line, treating `=` as whitespace like the engine does */
+/**
+ * Splits a comment-stripped line, treating `=` as whitespace like the engine
+ * does. A quoted value is one token, its text and columns without the quotes.
+ */
 export const tokenize = (content: string): SageToken[] => {
   const tokens: SageToken[] = [];
 
@@ -126,11 +134,11 @@ export const tokenize = (content: string): SageToken[] => {
     match;
     match = TOKEN_PATTERN.exec(content)
   ) {
-    tokens.push({
-      text: match[0],
-      start: match.index,
-      end: match.index + match[0].length,
-    });
+    const [whole, quoted] = match;
+    const text = quoted ?? whole;
+    const start = quoted === undefined ? match.index : match.index + 1;
+
+    tokens.push({ text, start, end: start + text.length });
   }
 
   return tokens;
@@ -166,6 +174,18 @@ const opensBlockByIndent = (lines: string[], index: number): boolean => {
 };
 
 /**
+ * Whether a line defines an emotion inline rather than naming one:
+ * `AddEmotion = OVERRIDE Name` opens a block closed by `End`, while a plain
+ * `AddEmotion = Name` is a field. The argument decides it, so no per-context
+ * table can.
+ */
+const opensInlineDefinition = (
+  keyword: SageToken,
+  values: readonly SageToken[],
+): boolean =>
+  keyword.text === 'AddEmotion' && values[0]?.text.toUpperCase() === 'OVERRIDE';
+
+/**
  * Parses a file into its block tree and its statements. `lines` is the
  * document split on newlines; every line number in the result indexes into it.
  */
@@ -183,8 +203,9 @@ export const parseSageIni = (
   let scriptStart = -1;
 
   lines.forEach((line, index) => {
+    // A comment may follow either marker, so both are matched without it
     if (scriptStart >= 0) {
-      if (END_SCRIPT_PATTERN.test(line)) {
+      if (END_SCRIPT_PATTERN.test(stripComment(line))) {
         scripts.push({ startLine: scriptStart, endLine: index });
         scriptStart = -1;
       }
@@ -192,7 +213,7 @@ export const parseSageIni = (
       return; // the region is Lua, not blocks
     }
 
-    if (BEGIN_SCRIPT_PATTERN.test(line)) {
+    if (BEGIN_SCRIPT_PATTERN.test(stripComment(line))) {
       scriptStart = index;
       return;
     }
@@ -252,9 +273,10 @@ export const parseSageIni = (
     }
 
     const context = open.length ? open[open.length - 1].context : ROOT_CONTEXT;
-    const kind =
-      schema.classify(context, keyword.text) ??
-      (opensBlockByIndent(lines, index) ? 'block' : 'field');
+    const kind = opensInlineDefinition(keyword, values)
+      ? 'block'
+      : (schema.classify(context, keyword.text) ??
+        (opensBlockByIndent(lines, index) ? 'block' : 'field'));
 
     const statement: SageStatement = {
       line: index,
