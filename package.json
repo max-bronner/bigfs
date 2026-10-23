@@ -288,6 +288,18 @@
         }
       }
     },
+    "customEditors": [
+      {
+        "viewType": "bigfs.preview",
+        "displayName": "bigFS Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.{tga,dds,wav,TGA,DDS,WAV}"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "languages": [
       {
         "id": "sage-ini",
