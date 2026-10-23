@@ -1,3 +1,5 @@
+import { isContainedPath } from '../common/paths';
+
 /**
  * The BIG archive binary format: a header, an index table listing every entry
  * with its data offset and size, and the entry data itself.
@@ -101,7 +103,8 @@ export const parseHeader = (buffer: Buffer) => {
 /**
  * Reads `entryCount` records from the table that follows the header, each a
  * big endian offset and size followed by a null terminated name. Throws when
- * the table ends before the count is met, rather than returning what it got.
+ * the table ends before the count is met, rather than returning what it got,
+ * and on a name that would escape the directory it is extracted to.
  */
 export const parseIndexTable = (
   table: Buffer,
@@ -131,11 +134,15 @@ export const parseIndexTable = (
       throw new Error(`Unterminated name in index table entry ${entryNumber}`);
     }
 
-    entries.push({
-      name: toTreeName(table.toString('utf-8', nameStart, nameEnd)),
-      offset,
-      size,
-    });
+    const name = toTreeName(table.toString('utf-8', nameStart, nameEnd));
+
+    if (!isContainedPath(name)) {
+      throw new Error(
+        `Unsafe name '${name}' in index table entry ${entryNumber}`,
+      );
+    }
+
+    entries.push({ name, offset, size });
 
     cursor = nameEnd + 1;
   }

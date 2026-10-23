@@ -170,4 +170,11 @@ suite('BIG format', () => {
 
     assert.throws(() => parseIndexTable(table, 1), /Unterminated name/);
   });
+
+  test('parseIndexTable refuses a name that escapes the archive', () => {
+    const record = Buffer.alloc(8);
+    const table = Buffer.concat([record, Buffer.from('..\\evil.bat\0', 'latin1')]);
+
+    assert.throws(() => parseIndexTable(table, 1), /Unsafe name/);
+  });
 });

@@ -1,7 +1,8 @@
-import * as assert from 'assert';
+﻿import * as assert from 'assert';
 import {
   getAvailableName,
   getParentPath,
+  isContainedPath,
   isPathBelow,
   movePath,
   splitPath,
@@ -70,5 +71,16 @@ suite('Path helpers', () => {
       getAvailableName(takenNames, 'FILE.INI'),
       'FILE copy.INI',
     );
+  });
+
+  test('isContainedPath refuses paths that escape the extraction target', () => {
+    assert.ok(isContainedPath('data/ini/object.ini'));
+    assert.ok(isContainedPath('art\\w3d\\unit.w3d'));
+    assert.ok(!isContainedPath('../outside.txt'));
+    assert.ok(!isContainedPath('data\\..\\..\\outside.txt'));
+    assert.ok(!isContainedPath('/etc/passwd'));
+    assert.ok(!isContainedPath('\\windows\\system.ini'));
+    assert.ok(!isContainedPath('C:\\windows\\system.ini'));
+    assert.ok(!isContainedPath(''));
   });
 });
