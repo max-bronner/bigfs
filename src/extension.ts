@@ -7,6 +7,7 @@ import { createNodeCommandRegister } from './commands/commandCenter';
 import { registerFileCommands } from './commands/fileCommands';
 import { registerExtractCommands } from './commands/extractCommands';
 import { registerClipboardCommands } from './commands/clipboardCommands';
+import { registerModCommands } from './commands/modCommands';
 import { createToolRegistry } from './tools/toolRegistry';
 import { createFormatRegistry } from './formats/formatRegistry';
 import { registerSageIniLanguage } from './language/sageIniLanguage';
@@ -80,6 +81,9 @@ export function activate(context: vscode.ExtensionContext) {
   registerFileCommands(registerNodeCommand, archiveModel);
   registerExtractCommands(registerNodeCommand, archiveModel);
   registerClipboardCommands(registerNodeCommand, archiveModel);
+  context.subscriptions.push(
+    ...registerModCommands(registerNodeCommand, archiveModel),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, async () => {
