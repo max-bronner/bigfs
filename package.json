@@ -113,6 +113,24 @@
       {
         "command": "bigfs.copyRelativePath",
         "title": "Copy Relative Path"
+      },
+      {
+        "command": "bigfs.overrideInFolder",
+        "title": "Override in Folder..."
+      },
+      {
+        "command": "bigfs.packFolder",
+        "title": "Pack into BIG Archive..."
+      },
+      {
+        "command": "bigfs.searchArchives",
+        "title": "Search in BIG Archives...",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.validateIni",
+        "title": "Validate INI Files",
+        "category": "BIG"
       }
     ],
     "menus": {
@@ -120,6 +138,16 @@
         {
           "command": "bigfs.refreshArchives",
           "group": "navigation",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.searchArchives",
+          "group": "1_search@1",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.validateIni",
+          "group": "1_search@2",
           "when": "view == bigArchiveExplorer"
         }
       ],
@@ -183,6 +211,11 @@
           "command": "bigfs.copyRelativePath",
           "group": "6_copypath@2",
           "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+        },
+        {
+          "command": "bigfs.overrideInFolder",
+          "group": "3_extract@2",
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
         }
       ],
       "commandPalette": [
@@ -237,6 +270,21 @@
         {
           "command": "bigfs.copyRelativePath",
           "when": "false"
+        },
+        {
+          "command": "bigfs.overrideInFolder",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.packFolder",
+          "when": "false"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "bigfs.packFolder",
+          "group": "7_modification@9",
+          "when": "explorerResourceIsFolder"
         }
       ]
     },
