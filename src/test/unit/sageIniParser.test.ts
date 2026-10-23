@@ -35,6 +35,15 @@ suite('SAGE INI lexing', () => {
     assert.strictEqual(stripComment('Model = GUArcher_SKN'), 'Model = GUArcher_SKN');
   });
 
+  test('tokenize reads a quoted value with spaces as one token', () => {
+    const [, value, next] = tokenize('Map = "AI BASE - MORDOR" Extra');
+
+    assert.deepStrictEqual(value, { text: 'AI BASE - MORDOR', start: 7, end: 23 });
+    assert.strictEqual(next.text, 'Extra');
+    // Unterminated, the quote runs to the end of the line
+    assert.strictEqual(tokenize('DisplayName = "OBJECT:Name')[1].text, 'OBJECT:Name');
+  });
+
   test('tokenize treats = as whitespace and keeps token columns', () => {
     assert.deepStrictEqual(
       tokenize('Behavior = LifetimeUpdate ModuleTag_01').map((t) => t.text),
@@ -167,6 +176,46 @@ suite('SAGE INI parsing', () => {
     // The End inside the script must not close the Object
     assert.strictEqual(blocks[0].endLine, 5);
     assert.strictEqual(blocks[0].children.length, 0);
+  });
+
+  test('a script marker followed by a comment still opens and closes it', () => {
+    const { blocks, scripts } = parseSageIni(
+      [
+        'Object A',
+        '    BeginScript ; set the state',
+        '        End',
+        '    EndScript // done',
+        'End',
+      ],
+      schema,
+    );
+
+    assert.deepStrictEqual(scripts, [{ startLine: 1, endLine: 3 }]);
+    assert.strictEqual(blocks[0].endLine, 4);
+  });
+
+  test('AddEmotion = OVERRIDE opens an inline block, a plain AddEmotion does not', () => {
+    const blocks = parse(
+      [
+        'EmotionNugget Fear',
+        '    AddEmotion = OVERRIDE Terror',
+        '        Duration = 1000',
+        '    End',
+        '    AddEmotion = Panic',
+        'End',
+        'EmotionNugget Calm',
+        'End',
+      ].join('\n'),
+    );
+
+    assert.deepStrictEqual(
+      blocks.map((block) => block.name),
+      ['Fear', 'Calm'],
+    );
+    assert.deepStrictEqual(
+      blocks[0].children.map((child) => [child.name, child.endLine]),
+      [['OVERRIDE Terror', 3]],
+    );
   });
 });
 
