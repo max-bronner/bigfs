@@ -86,7 +86,10 @@ suite('Archive entry reads', () => {
  */
 const buildShippedArchive = (files: [Buffer, string][]): Buffer => {
   const trailer = Buffer.from('L219\0\0\0\0', 'latin1');
-  const tableLength = files.reduce((total, [name]) => total + 9 + name.length, 0);
+  const tableLength = files.reduce(
+    (total, [name]) => total + 9 + name.length,
+    0,
+  );
   const dataOffset = 16 + tableLength + trailer.length;
   const records: Buffer[] = [];
   let offset = dataOffset;
@@ -171,6 +174,9 @@ suite('Archive rewrites', () => {
     archive.writeUInt32BE(1024, 16 + 4);
     await writeFile(archivePath, archive);
 
-    await assert.rejects(readArchiveIndexTable(archivePath), /past the archive end/);
+    await assert.rejects(
+      readArchiveIndexTable(archivePath),
+      /past the archive end/,
+    );
   });
 });

@@ -41,7 +41,10 @@ interface ExtractedFile {
  */
 const getExtractedName = (node: VirtualNode): string =>
   isArchiveRoot(node)
-    ? node.name.slice(0, node.name.length - path.posix.extname(node.name).length)
+    ? node.name.slice(
+        0,
+        node.name.length - path.posix.extname(node.name).length,
+      )
     : node.name;
 
 /** Gets the path an extracted file is written to, relative to the directory the user picked */

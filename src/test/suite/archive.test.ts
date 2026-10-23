@@ -678,10 +678,10 @@ suite('Extraction layout', () => {
 
     const extracted = getExtractedFiles([archive.root], targetDirectory);
 
-    assert.deepStrictEqual(
-      extracted.map((file) => file.name).sort(),
-      ['layout/data/one.txt', 'layout/top.txt'],
-    );
+    assert.deepStrictEqual(extracted.map((file) => file.name).sort(), [
+      'layout/data/one.txt',
+      'layout/top.txt',
+    ]);
   });
 
   test('extracts a folder under its own name', () => {

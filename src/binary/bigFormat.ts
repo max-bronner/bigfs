@@ -101,7 +101,9 @@ const getStoredName = (entry: BigFileEntry): string => {
   }
 
   if (/[^\u0000-\u00ff]/.test(entry.name)) {
-    throw new Error(`Entry name cannot be stored in a BIG archive: ${entry.name}`);
+    throw new Error(
+      `Entry name cannot be stored in a BIG archive: ${entry.name}`,
+    );
   }
 
   return entry.name.replace(/\//g, '\\');
