@@ -168,6 +168,14 @@ export class Archive {
   /** Keyed case insensitively; each entry keeps its stored name */
   private entries = new Map<string, BigFileEntry>();
 
+  /**
+   * Entries hidden by a later entry of the same name in another casing, keyed
+   * by the entry that hides them. Shipped archives contain such pairs and the
+   * engine reads the later one, so they are never shown, but they are written
+   * back until the visible entry is changed.
+   */
+  private shadowedEntries = new Map<BigFileEntry, BigFileEntry[]>();
+
   /** Set by the first read and kept, so later callers join that one */
   private loading?: Promise<void>;
   private loaded = false;
@@ -217,7 +225,7 @@ export class Archive {
 
       this.magic = magic;
       this.trailer = trailer;
-      this.entries = Archive.keyEntries(entries);
+      this.keyEntries(entries);
 
       syncFiles(
         this.root,
@@ -246,19 +254,27 @@ export class Archive {
   }
 
   /**
-   * Rekeys the entries a read returns by their lowercased name, since the
-   * index table stores the casing an entry was added with and matches without
-   * it
+   * Keys the entries a read returns by their lowercased name, since the index
+   * table stores the casing an entry was added with and matches without it.
+   * The last entry of a name wins, as in the engine, and hides the others.
    */
-  private static keyEntries(
-    entries: Map<string, BigFileEntry>,
-  ): Map<string, BigFileEntry> {
-    return new Map(
-      Array.from(entries.values(), (entry) => [
-        entry.name.toLowerCase(),
-        entry,
-      ]),
-    );
+  private keyEntries(entries: readonly BigFileEntry[]): void {
+    this.entries = new Map();
+    this.shadowedEntries = new Map();
+
+    for (const entry of entries) {
+      const key = entry.name.toLowerCase();
+      const hidden = this.entries.get(key);
+
+      if (hidden) {
+        const shadows = this.shadowedEntries.get(hidden) ?? [];
+
+        this.shadowedEntries.delete(hidden);
+        this.shadowedEntries.set(entry, [...shadows, hidden]);
+      }
+
+      this.entries.set(key, entry);
+    }
   }
 
   /** Runs a task once every earlier access to this archive has finished */
@@ -290,7 +306,7 @@ export class Archive {
 
       this.magic = magic;
       this.trailer = trailer;
-      this.entries = Archive.keyEntries(entries);
+      this.keyEntries(entries);
 
       syncFiles(
         this.root,
@@ -334,18 +350,37 @@ export class Archive {
       }
 
       if (writeNeeded) {
+        // A hidden entry goes once the entry hiding it was changed or removed
+        const shadowedEntries = new Map(
+          Array.from(this.shadowedEntries).filter(
+            ([visible]) => entries.get(visible.name.toLowerCase()) === visible,
+          ),
+        );
+
         const layout = await writeArchiveFile(
           this.archivePath,
           { magic: this.magic, trailer: this.trailer },
-          entries,
+          [...Array.from(shadowedEntries.values()).flat(), ...entries.values()],
         );
 
         // Fresh objects rather than edits: an entry handed out before the
         // write must keep describing the file it was read from
-        this.entries = new Map(
+        const written = new Map(
           layout.placedEntries.map(({ entry, offset, size }) => [
-            entry.name.toLowerCase(),
+            entry,
             { name: entry.name, storedName: entry.storedName, offset, size },
+          ]),
+        );
+        const writtenEntry = (entry: BigFileEntry): BigFileEntry =>
+          written.get(entry) ?? entry;
+
+        this.entries = new Map(
+          Array.from(entries, ([key, entry]) => [key, writtenEntry(entry)]),
+        );
+        this.shadowedEntries = new Map(
+          Array.from(shadowedEntries, ([visible, shadows]) => [
+            writtenEntry(visible),
+            shadows.map(writtenEntry),
           ]),
         );
 

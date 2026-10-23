@@ -27,13 +27,13 @@ export interface BigFileEntry {
 
 /**
  * Result of reading one archive's index table: the magic and trailer to write
- * back unchanged, and the entries keyed by entry path in the casing the archive
- * stored, which the model re-keys for case insensitive lookup.
+ * back unchanged, and every entry in stored order, duplicates included, which
+ * the model keys for case insensitive lookup.
  */
 export interface ParsedArchive {
   magic: string;
   trailer: Uint8Array;
-  entries: Map<string, BigFileEntry>;
+  entries: BigFileEntry[];
 }
 
 /** Where an entry lands in the archive being written, not where it sits now */
@@ -184,17 +184,19 @@ export const parseIndexTable = (
 };
 
 /**
- * Places every entry after the index table and its trailer in map order, each
+ * Places every entry after the index table and its trailer in the order given, each
  * start rounded up to a 4 byte boundary. `trailer` is the gap a read found
  * between the table and the data: eight bytes in every shipped BIG4 archive,
  * none in a BIGF one. A size comes from pending content where there is any,
  * so the layout describes the archive about to be written, not the one on disk.
  */
 export const computeArchiveLayout = (
-  entries: Map<string, BigFileEntry>,
+  entries: readonly BigFileEntry[] | ReadonlyMap<string, BigFileEntry>,
   trailer: Uint8Array = new Uint8Array(0),
 ): ArchiveLayout => {
-  const entriesArray = Array.from(entries.values());
+  const entriesArray = Array.isArray(entries)
+    ? entries
+    : Array.from(entries.values());
 
   const indexTableEndOffset = entriesArray.reduce(
     (total, entry) =>

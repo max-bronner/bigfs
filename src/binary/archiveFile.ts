@@ -71,7 +71,6 @@ export const readArchiveIndexTable = async (
       }
     }
 
-    const entries = new Map<string, BigFileEntry>();
     const indexTable = parseIndexTable(table, header.entryCount);
 
     indexTable.entries.forEach((entry) => {
@@ -81,14 +80,12 @@ export const readArchiveIndexTable = async (
             `${entry.offset + entry.size}, past the archive end at ${fileSize}`,
         );
       }
-
-      entries.set(entry.name, entry);
     });
 
     return {
       magic: header.magic,
       trailer: Uint8Array.from(table.subarray(indexTable.tableLength)),
-      entries,
+      entries: indexTable.entries,
     };
   } finally {
     await archiveFile.close();
@@ -210,7 +207,7 @@ const copyEntryData = async (
 export const writeArchiveFile = async (
   archivePath: string,
   { magic, trailer }: Pick<ParsedArchive, 'magic' | 'trailer'>,
-  entries: Map<string, BigFileEntry>,
+  entries: readonly BigFileEntry[] | ReadonlyMap<string, BigFileEntry>,
 ): Promise<ArchiveLayout> => {
   const layout = computeArchiveLayout(entries, trailer);
   const indexTable = serializeIndexTable(magic, layout);
