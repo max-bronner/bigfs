@@ -1,4 +1,8 @@
-import { ROOT_CONTEXT } from './sageIniSchema';
+import {
+  FRAGMENT_CONTEXT,
+  ROOT_CONTEXT,
+  UNCHECKED_CONTEXT,
+} from './sageIniSchema';
 import type { SageIniSchema } from './sageIniSchema';
 
 /**
@@ -7,14 +11,14 @@ import type { SageIniSchema } from './sageIniSchema';
  * semantic, hover and definition providers work off.
  *
  * Whether a line opens a block cannot be decided from its syntax, so the
- * schema decides and an indentation guess covers the keywords the corpus never
- * recorded. The two agree on more than 99% of the corpus, and the guess only
- * runs for a keyword the table does not hold.
+ * grammar decides, per context. A keyword the grammar does not hold is marked
+ * unknown, which the diagnostics report; only then does an indentation guess
+ * decide its nesting, so one wrong line does not misplace the rest.
  *
- * The parser is deliberately forgiving. `.inc` files are fragments meant to be
- * pasted inside a block, so they open with a nested keyword and carry
- * unbalanced `End` tokens; treating that as an error would report hundreds of
- * false problems on the first workspace anyone opens.
+ * The parser records problems and never stops on them. `.inc` files are
+ * fragments pasted inside a block of the file that includes them, so they are
+ * parsed with `isFragment`: any keyword of any context may open them, and the
+ * diagnostics leave their unbalanced `End` tokens alone.
  */
 
 /** A token and where it sits on its line, so a provider can build a range */
@@ -41,6 +45,8 @@ export interface SageBlock {
   startLine: number;
   /** Line of the closing `End`, or the last line when the block never closed */
   endLine: number;
+  /** Whether an `End` closed it, rather than the end of the file */
+  isClosed: boolean;
   children: SageBlock[];
 }
 
@@ -52,6 +58,12 @@ export interface SageStatement {
   /** The context the keyword was looked up in, which is its parent's */
   context: string;
   kind: 'block' | 'field';
+  /**
+   * Whether the grammar accepts the keyword in its context. When it does not,
+   * `kind` is only a guess from indentation, kept so one wrong line does not
+   * misplace every line after it.
+   */
+  isKnown: boolean;
   /** Set when the keyword opened a block */
   block?: SageBlock;
 }
@@ -87,8 +99,12 @@ export interface SageScript {
 
 /** What one file parsed to */
 export interface SageDocument {
+  /** The context the file's own top lines are read in: root, or a fragment's */
+  fileContext: string;
   blocks: SageBlock[];
   statements: SageStatement[];
+  /** Lines holding an `End` with no block open to close */
+  strayEnds: number[];
   includes: SageInclude[];
   macros: SageMacroDefinition[];
   scripts: SageScript[];
@@ -192,9 +208,12 @@ const opensInlineDefinition = (
 export const parseSageIni = (
   lines: string[],
   schema: SageIniSchema,
+  { isFragment = false }: { isFragment?: boolean } = {},
 ): SageDocument => {
+  const fileContext = isFragment ? FRAGMENT_CONTEXT : ROOT_CONTEXT;
   const blocks: SageBlock[] = [];
   const statements: SageStatement[] = [];
+  const strayEnds: number[] = [];
   const includes: SageInclude[] = [];
   const macros: SageMacroDefinition[] = [];
   const scripts: SageScript[] = [];
@@ -267,16 +286,29 @@ export const parseSageIni = (
 
       if (closing) {
         closing.endLine = index;
+        closing.isClosed = true;
+      } else {
+        strayEnds.push(index);
       }
 
-      return; // an unmatched End belongs to an .inc fragment, so it is ignored
+      return;
     }
 
-    const context = open.length ? open[open.length - 1].context : ROOT_CONTEXT;
-    const kind = opensInlineDefinition(keyword, values)
-      ? 'block'
-      : (schema.classify(context, keyword.text) ??
-        (opensBlockByIndent(lines, index) ? 'block' : 'field'));
+    const context = open.length ? open[open.length - 1].context : fileContext;
+    const resolution = opensInlineDefinition(keyword, values)
+      ? { kind: 'block' as const, childContext: UNCHECKED_CONTEXT }
+      : schema.resolve(
+          context,
+          keyword.text,
+          values.map((token) => token.text),
+        );
+    const isKnown = resolution !== undefined || !schema.isChecked(context);
+
+    // A keyword the grammar does not hold still has to be nested somehow;
+    // indentation is the best guess at whether the author meant a block
+    const kind =
+      resolution?.kind ??
+      (opensBlockByIndent(lines, index) ? 'block' : 'field');
 
     const statement: SageStatement = {
       line: index,
@@ -284,6 +316,7 @@ export const parseSageIni = (
       values,
       context,
       kind,
+      isKnown,
     };
 
     statements.push(statement);
@@ -292,8 +325,7 @@ export const parseSageIni = (
       return;
     }
 
-    const isSlot = schema.isModuleSlot(keyword.text);
-    const moduleType = isSlot ? values[0]?.text : undefined;
+    const moduleType = resolution?.moduleType;
 
     const block: SageBlock = {
       keyword: keyword.text,
@@ -301,10 +333,11 @@ export const parseSageIni = (
         ? values.map((token) => token.text).join(' ')
         : undefined,
       moduleType,
-      moduleTag: isSlot ? values[1]?.text : undefined,
-      context: schema.childContext(keyword.text, moduleType),
+      moduleTag: moduleType === undefined ? undefined : values[1]?.text,
+      context: resolution?.childContext ?? UNCHECKED_CONTEXT,
       startLine: index,
       endLine: index,
+      isClosed: false,
       children: [],
     };
 
@@ -332,7 +365,15 @@ export const parseSageIni = (
     scripts.push({ startLine: scriptStart, endLine: lastLine });
   }
 
-  return { blocks, statements, includes, macros, scripts };
+  return {
+    fileContext,
+    blocks,
+    statements,
+    strayEnds,
+    includes,
+    macros,
+    scripts,
+  };
 };
 
 /** Walks every block of a document, parents before children */
@@ -345,3 +386,10 @@ export const forEachBlock = (
     forEachBlock(block.children, visit);
   });
 };
+
+/**
+ * Whether an entry path names a fragment, pasted inside a block of the file
+ * that includes it, rather than a file the engine loads at file scope
+ */
+export const isFragmentPath = (entryPath: string): boolean =>
+  !entryPath.toLowerCase().endsWith('.ini');
