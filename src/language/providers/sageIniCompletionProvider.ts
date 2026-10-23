@@ -1,11 +1,6 @@
 import { CompletionItem, CompletionItemKind, Range } from 'vscode';
-import type {
-  CompletionItemProvider,
-  Position,
-  TextDocument,
-} from 'vscode';
+import type { CompletionItemProvider, Position, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
-import { ROOT_CONTEXT } from '../model/sageIniSchema';
 import type { SageIniSchema } from '../model/sageIniSchema';
 import { stripComment, tokenize } from '../model/sageIniParser';
 import type { SageBlock, SageDocument } from '../model/sageIniParser';
@@ -42,10 +37,10 @@ const wordRangeAt = (
  * context is taken from the nearest block that is still open above it.
  */
 const contextAt = (
-  { blocks }: SageDocument,
+  { blocks, fileContext }: SageDocument,
   line: number,
 ): { context: string; slot?: string } => {
-  let context = ROOT_CONTEXT;
+  let context = fileContext;
   let slot: string | undefined;
 
   const descend = (candidates: readonly SageBlock[]) => {
@@ -112,9 +107,11 @@ export const createSageIniCompletionProvider = (
       return keywords.map(({ name, kind }) =>
         toItem(
           name,
-          kind === 'block' ? CompletionItemKind.Class : CompletionItemKind.Property,
           kind === 'block'
-            ? `block in ${context}`
+            ? CompletionItemKind.Class
+            : CompletionItemKind.Property,
+          kind === 'block'
+            ? `block in ${schema.describeContext(context)}`
             : describeField(schema, name, context),
           range,
         ),
@@ -176,7 +173,7 @@ const describeField = (
   const engineField = schema.getEngineField(name);
 
   if (!engineField) {
-    return `field in ${context}`;
+    return `field in ${schema.describeContext(context)}`;
   }
 
   return engineField.used

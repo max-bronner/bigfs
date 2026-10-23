@@ -1,7 +1,12 @@
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { createSageIniSchema } from '../../language/model/sageIniSchema';
+import {
+  FRAGMENT_CONTEXT,
+  ROOT_CONTEXT,
+  UNCHECKED_CONTEXT,
+  createSageIniSchema,
+} from '../../language/model/sageIniSchema';
 import type { SageIniSchema } from '../../language/model/sageIniSchema';
 import {
   parseSageIni,
@@ -28,20 +33,33 @@ const parse = (source: string): SageBlock[] =>
 
 suite('SAGE INI lexing', () => {
   test('stripComment takes whichever marker opens first', () => {
-    assert.strictEqual(stripComment('Armor = PIERCE 25% //archer'), 'Armor = PIERCE 25% ');
+    assert.strictEqual(
+      stripComment('Armor = PIERCE 25% //archer'),
+      'Armor = PIERCE 25% ',
+    );
     assert.strictEqual(stripComment('SinkDistance = 9;'), 'SinkDistance = 9');
     // A ; comment whose content holds //, which is how the file banners read
     assert.strictEqual(stripComment('; FILE: GameData.ini ////'), '');
-    assert.strictEqual(stripComment('Model = GUArcher_SKN'), 'Model = GUArcher_SKN');
+    assert.strictEqual(
+      stripComment('Model = GUArcher_SKN'),
+      'Model = GUArcher_SKN',
+    );
   });
 
   test('tokenize reads a quoted value with spaces as one token', () => {
     const [, value, next] = tokenize('Map = "AI BASE - MORDOR" Extra');
 
-    assert.deepStrictEqual(value, { text: 'AI BASE - MORDOR', start: 7, end: 23 });
+    assert.deepStrictEqual(value, {
+      text: 'AI BASE - MORDOR',
+      start: 7,
+      end: 23,
+    });
     assert.strictEqual(next.text, 'Extra');
     // Unterminated, the quote runs to the end of the line
-    assert.strictEqual(tokenize('DisplayName = "OBJECT:Name')[1].text, 'OBJECT:Name');
+    assert.strictEqual(
+      tokenize('DisplayName = "OBJECT:Name')[1].text,
+      'OBJECT:Name',
+    );
   });
 
   test('tokenize treats = as whitespace and keeps token columns', () => {
@@ -63,32 +81,87 @@ suite('SAGE INI lexing', () => {
 });
 
 suite('SAGE INI schema', () => {
-  test('the same keyword classifies differently by context', () => {
-    assert.strictEqual(schema.classify('<root>', 'Armor'), 'block');
-    assert.strictEqual(schema.classify('Armor', 'Armor'), 'field');
-    assert.strictEqual(schema.classify('ArmorSet', 'Armor'), 'field');
-    assert.strictEqual(schema.classify('<root>', 'Weapon'), 'block');
-    assert.strictEqual(schema.classify('WeaponSet', 'Weapon'), 'field');
-  });
+  /** The context a keyword's block opens, which must exist */
+  const childOf = (context: string, keyword: string, values: string[] = []) => {
+    const resolution = schema.resolve(context, keyword, values);
 
-  test('a module context keys on the module type, not the slot', () => {
-    assert.ok(schema.isModuleSlot('Behavior'));
-    assert.ok(schema.isModuleSlot('draw'));
-    assert.ok(!schema.isModuleSlot('KindOf'));
+    assert.strictEqual(resolution?.kind, 'block', `${keyword} opens no block`);
+
+    return resolution.childContext!;
+  };
+
+  test('the same keyword resolves differently by context', () => {
+    const armor = childOf(ROOT_CONTEXT, 'Armor');
+    const object = childOf(ROOT_CONTEXT, 'Object');
+
+    assert.strictEqual(schema.resolve(armor, 'Armor', [])?.kind, 'field');
     assert.strictEqual(
-      schema.childContext('Behavior', 'SlowDeathBehavior'),
-      'Behavior:SlowDeathBehavior',
-    );
-    assert.strictEqual(
-      schema.classify('Behavior:SlowDeathBehavior', 'DestructionDelay'),
+      schema.resolve(childOf(object, 'ArmorSet'), 'Armor', [])?.kind,
       'field',
     );
-    // A keyword the module does not hold falls back to the slot
-    assert.strictEqual(schema.classify('Behavior:SlowDeathBehavior', 'nope'), undefined);
+    assert.strictEqual(schema.resolve(ROOT_CONTEXT, 'KindOf', []), undefined);
   });
 
-  test('an unknown keyword is reported as unknown, never as a field', () => {
-    assert.strictEqual(schema.classify('Object', 'NotAFieldEA_EverUsed'), undefined);
+  test('a module slot looks its lines up in the module its value names', () => {
+    const object = childOf(ROOT_CONTEXT, 'Object');
+    const resolution = schema.resolve(object, 'Behavior', [
+      'SlowDeathBehavior',
+      'ModuleTag_Death',
+    ]);
+
+    assert.ok(schema.isModuleSlot('Behavior'));
+    assert.ok(!schema.isModuleSlot('KindOf'));
+    assert.strictEqual(resolution?.moduleType, 'SlowDeathBehavior');
+    assert.strictEqual(
+      schema.resolve(resolution.childContext!, 'DestructionDelay', [])?.kind,
+      'field',
+    );
+    assert.strictEqual(
+      schema.resolve(resolution.childContext!, 'NotAFieldEA_EverUsed', []),
+      undefined,
+    );
+  });
+
+  test('a module the grammar does not know leaves its lines unchecked', () => {
+    const object = childOf(ROOT_CONTEXT, 'Object');
+    const context = childOf(object, 'Behavior', ['NotAModule', 'Tag']);
+
+    assert.strictEqual(context, UNCHECKED_CONTEXT);
+    assert.ok(!schema.isChecked(context));
+  });
+
+  test('an .inc fragment may open with a keyword of any context', () => {
+    assert.strictEqual(
+      schema.resolve(FRAGMENT_CONTEXT, 'Behavior', ['SlowDeathBehavior'])?.kind,
+      'block',
+    );
+    assert.strictEqual(
+      schema.resolve(FRAGMENT_CONTEXT, 'KindOf', [])?.kind,
+      'field',
+    );
+    assert.strictEqual(
+      schema.resolve(FRAGMENT_CONTEXT, 'NotAFieldEA_EverUsed', []),
+      undefined,
+    );
+  });
+
+  test('a name only one game reads is refused for the other', () => {
+    const data = JSON.parse(
+      readFileSync(
+        join(__dirname, '..', '..', '..', 'assets', 'sageIniSchema.json'),
+        'utf8',
+      ),
+    );
+    const bfme2 = createSageIniSchema(data, 'bfme2');
+    const id = data.contexts.findIndex((context: { f: [string, number][] }) =>
+      context.f.some(([, mask]) => mask === 2),
+    );
+    const [name] = data.contexts[id].f.find(
+      ([, mask]: [string, number]) => mask === 2,
+    );
+
+    assert.strictEqual(schema.resolve(String(id), name, [])?.kind, 'field');
+    assert.strictEqual(bfme2.resolve(String(id), name, []), undefined);
   });
 });
 
@@ -112,11 +185,16 @@ suite('SAGE INI parsing', () => {
     assert.strictEqual(object.children.length, 1);
     assert.strictEqual(object.children[0].moduleType, 'ActiveBody');
     assert.strictEqual(object.children[0].moduleTag, 'ModuleTag_02');
-    assert.strictEqual(object.children[0].context, 'Body:ActiveBody');
+    assert.strictEqual(
+      schema.describeContext(object.children[0].context),
+      'ActiveBody',
+    );
   });
 
   test('End closes a block in any casing', () => {
-    const [object] = parse(['Object A', '    Body = ActiveBody T', '    END', 'end'].join('\n'));
+    const [object] = parse(
+      ['Object A', '    Body = ActiveBody T', '    END', 'end'].join('\n'),
+    );
 
     assert.strictEqual(object.endLine, 3);
     assert.strictEqual(object.children[0].endLine, 2);
@@ -129,31 +207,47 @@ suite('SAGE INI parsing', () => {
   });
 
   test('an unknown keyword falls back to looking for its End', () => {
-    const [withEnd] = parse(['Object A', '    Wibble', '        Foo = 1', '    End', 'End'].join('\n'));
-    assert.strictEqual(withEnd.children.length, 1, 'a matching End opens a block');
+    const [withEnd] = parse(
+      ['Object A', '    Wibble', '        Foo = 1', '    End', 'End'].join(
+        '\n',
+      ),
+    );
+    assert.strictEqual(
+      withEnd.children.length,
+      1,
+      'a matching End opens a block',
+    );
 
-    const [withoutEnd] = parse(['Object A', '    Wibble = OCL_Rock', 'End'].join('\n'));
+    const [withoutEnd] = parse(
+      ['Object A', '    Wibble = OCL_Rock', 'End'].join('\n'),
+    );
     assert.strictEqual(withoutEnd.children.length, 0, 'no End keeps it a leaf');
   });
 
   test('an .inc fragment parses without inventing errors', () => {
     // Fragments open mid-block and carry an End that closes their includer
-    const blocks = parse(
+    const { blocks, strayEnds, statements } = parseSageIni(
       [
         '    Behavior = FXListDie ModuleTag_AnnounceWeLostTheRing',
         '        DeathFX = AnnounceFortressDeathLostRingFX',
         '    End',
         'End',
-      ].join('\n'),
+      ],
+      schema,
+      { isFragment: true },
     );
 
     assert.strictEqual(blocks.length, 1);
+    assert.deepStrictEqual(strayEnds, [3]);
+    assert.ok(statements.every((statement) => statement.isKnown));
     assert.strictEqual(blocks[0].moduleType, 'FXListDie');
     assert.strictEqual(blocks[0].endLine, 2);
   });
 
   test('an unclosed block ends with the file rather than being dropped', () => {
-    const [object] = parse('Object A\n    Body = ActiveBody T\n        MaxHealth = 1');
+    const [object] = parse(
+      'Object A\n    Body = ActiveBody T\n        MaxHealth = 1',
+    );
 
     assert.strictEqual(object.endLine, 2);
     assert.strictEqual(object.children[0].endLine, 2);
@@ -265,25 +359,25 @@ suite('SAGE INI slots that a grammar gets wrong', () => {
     assert.strictEqual(transition.name, 'MainMenuFade');
     assert.strictEqual(transition.moduleType, undefined);
 
-    // Transition is a slot, so its type decides the fields below it
+    // Transition's first value picks the table its lines are read against
     const [window] = transition.children;
     assert.strictEqual(window.keyword, 'Window');
-    assert.strictEqual(window.children[0].context, 'Transition:SOUNDFADE');
-    assert.strictEqual(
-      schema.classify('Transition:SOUNDFADE', 'StartFrame'),
-      'field',
+    assert.match(
+      schema.describeContext(window.children[0].context),
+      /Transition SOUNDFADE$/,
     );
   });
 
-  test('Color as a value is a field, while Color as a slot opens a block', () => {
-    // The same keyword, told apart only by where it sits
-    assert.strictEqual(schema.classify('DefaultColor', 'Color'), undefined);
-    assert.ok(schema.isModuleSlot('Color'));
+  test('Color opens a block inside a particle system and nowhere at file scope', () => {
+    assert.strictEqual(schema.resolve(ROOT_CONTEXT, 'Color', []), undefined);
 
     const [system] = parse(
-      ['FXParticleSystem P', '  Color = DefaultColor', '  End', 'End'].join('\n'),
+      ['FXParticleSystem P', '  Color = DefaultColor', '  End', 'End'].join(
+        '\n',
+      ),
     );
 
-    assert.strictEqual(system.children[0].moduleType, 'DefaultColor');
+    assert.strictEqual(system.children[0].keyword, 'Color');
+    assert.strictEqual(system.endLine, 3);
   });
 });

@@ -1,8 +1,8 @@
-import { Uri, workspace } from 'vscode';
+import { EventEmitter, Uri, workspace } from 'vscode';
 import type { Disposable, TextDocument } from 'vscode';
 import { createSageIniSchema } from './model/sageIniSchema';
-import type { SageIniSchema } from './model/sageIniSchema';
-import { parseSageIni } from './model/sageIniParser';
+import type { SageGame, SageIniSchema } from './model/sageIniSchema';
+import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import type { SageDocument } from './model/sageIniParser';
 
 /**
@@ -21,20 +21,38 @@ const SCHEMA_PATH = ['assets', 'sageIniSchema.json'];
 /** How many parses are kept, roughly one per document open at a time */
 const PARSE_CACHE_LIMIT = 8;
 
+/** Setting naming the game whose grammar applies */
+const GAME_SETTING = 'bigfs.ini.game';
+
 export class SageIniDocuments implements Disposable {
   private schema?: Promise<SageIniSchema>;
   private parses = new Map<string, { version: number; parsed: SageDocument }>();
-  private readonly subscription: Disposable;
+  private readonly subscriptions: Disposable[];
+
+  private readonly onDidChangeSchemaEmitter = new EventEmitter<void>();
+
+  /** Fires when another game is picked, after which every parse is stale */
+  public readonly onDidChangeSchema = this.onDidChangeSchemaEmitter.event;
 
   public constructor(private readonly extensionUri: Uri) {
-    // A closed document's parse is never asked for again
-    this.subscription = workspace.onDidCloseTextDocument((document) =>
-      this.parses.delete(document.uri.toString()),
-    );
+    this.subscriptions = [
+      // A closed document's parse is never asked for again
+      workspace.onDidCloseTextDocument((document) =>
+        this.parses.delete(document.uri.toString()),
+      ),
+      workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration(GAME_SETTING)) {
+          this.schema = undefined;
+          this.parses.clear();
+          this.onDidChangeSchemaEmitter.fire();
+        }
+      }),
+      this.onDidChangeSchemaEmitter,
+    ];
   }
 
   public dispose(): void {
-    this.subscription.dispose();
+    this.subscriptions.forEach((subscription) => subscription.dispose());
   }
 
   /** Reads the data file once, however many providers ask for it */
@@ -60,6 +78,7 @@ export class SageIniDocuments implements Disposable {
     const parsed = parseSageIni(
       document.getText().split(/\r?\n/),
       await this.getSchema(),
+      { isFragment: isFragmentPath(document.uri.path) },
     );
 
     if (this.parses.size >= PARSE_CACHE_LIMIT) {
@@ -75,6 +94,13 @@ export class SageIniDocuments implements Disposable {
     const uri = Uri.joinPath(this.extensionUri, ...SCHEMA_PATH);
     const content = await workspace.fs.readFile(uri);
 
-    return createSageIniSchema(JSON.parse(new TextDecoder().decode(content)));
+    const game = workspace
+      .getConfiguration()
+      .get<SageGame>(GAME_SETTING, 'rotwk');
+
+    return createSageIniSchema(
+      JSON.parse(new TextDecoder().decode(content)),
+      game,
+    );
   }
 }

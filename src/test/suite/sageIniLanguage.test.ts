@@ -99,6 +99,10 @@ suite('SAGE INI language', () => {
         { name: 'data\\ini\\weapon.ini', content: WEAPONS_INI },
         { name: 'data\\ini\\object.ini', content: OBJECT_INI },
         { name: 'data\\ini\\sub\\child.inc', content: CHILD_INC },
+        {
+          name: 'data\\lotr.str',
+          content: 'UPGRADE:FireArrows\r\n"Fire Arrows"\r\nEND\r\n',
+        },
       ]),
     );
 
@@ -530,4 +534,74 @@ suite('SAGE INI includes', () => {
     assert.strictEqual(links?.length ?? 0, 0);
   });
 });
+
+  test('hover on a string label shows the text the game displays', async () => {
+    const weaponDocument = await vscode.workspace.openTextDocument(
+      entryUri('data/ini/weapon.ini'),
+    );
+    const character = weaponDocument.lineAt(7).text.indexOf('FireArrows');
+
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider',
+      weaponDocument.uri,
+      new vscode.Position(7, character),
+    );
+    const text = hovers
+      .flatMap((hover) => hover.contents)
+      .map((content) => (typeof content === 'string' ? content : content.value))
+      .join('\n')
+      // Plain text in a hover has its spaces escaped for markdown
+      .replace(/&nbsp;/g, ' ');
+
+    assert.ok(text.includes('Fire Arrows'), `expected the game text, got ${text}`);
+  });
+
+  test('rename edits the declaration and every use, in every entry', async () => {
+    const weaponDocument = await vscode.workspace.openTextDocument(
+      entryUri('data/ini/weapon.ini'),
+    );
+    const character = weaponDocument.lineAt(2).text.indexOf('GondorBowWeapon');
+
+    const edit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
+      'vscode.executeDocumentRenameProvider',
+      weaponDocument.uri,
+      new vscode.Position(2, character + 2),
+      'GondorLongbow',
+    );
+    const edited = edit
+      .entries()
+      .map(([uri, edits]) => [uri.path.split('/').pop(), edits.length]);
+
+    assert.deepStrictEqual(
+      edited.sort(),
+      [
+        ['object.ini', 1],
+        ['weapon.ini', 1],
+      ],
+    );
+  });
+
+  test('a missing include is reported in the Problems panel', async () => {
+    const child = await vscode.workspace.openTextDocument(
+      entryUri('data/ini/sub/child.inc'),
+    );
+    const timeoutAt = Date.now() + 10_000;
+    let messages: string[] = [];
+
+    while (Date.now() < timeoutAt) {
+      messages = vscode.languages
+        .getDiagnostics(child.uri)
+        .map((diagnostic) => diagnostic.message);
+
+      if (messages.length) {
+        break;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    assert.deepStrictEqual(messages, [
+      'Included file not found: ..\\Missing.inc',
+    ]);
+  });
 });

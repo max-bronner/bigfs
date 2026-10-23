@@ -270,6 +270,24 @@
         "when": "focusedView == bigArchiveExplorer && bigfs.hasClipboard"
       }
     ],
+    "configuration": {
+      "title": "bigFS",
+      "properties": {
+        "bigfs.ini.game": {
+          "type": "string",
+          "enum": [
+            "rotwk",
+            "bfme2"
+          ],
+          "enumDescriptions": [
+            "The Rise of the Witch-king",
+            "The Battle for Middle-earth II"
+          ],
+          "default": "rotwk",
+          "description": "The game whose INI grammar checks, completion and hovers follow. The two differ in a few dozen field names."
+        }
+      }
+    },
     "languages": [
       {
         "id": "sage-ini",

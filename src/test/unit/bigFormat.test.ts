@@ -172,7 +172,10 @@ suite('BIG format', () => {
 
   test('parseIndexTable refuses a name that escapes the archive', () => {
     const record = Buffer.alloc(8);
-    const table = Buffer.concat([record, Buffer.from('..\\evil.bat\0', 'latin1')]);
+    const table = Buffer.concat([
+      record,
+      Buffer.from('..\\evil.bat\0', 'latin1'),
+    ]);
 
     assert.throws(() => parseIndexTable(table, 1), /Unsafe name/);
   });
@@ -183,9 +186,15 @@ suite('BIG format', () => {
     const layout = computeArchiveLayout(entries, trailer);
     const indexTable = serializeIndexTable('BIG4', layout);
 
-    assert.strictEqual(indexTable.readUInt32BE(12), layout.placedEntries[0].offset);
+    assert.strictEqual(
+      indexTable.readUInt32BE(12),
+      layout.placedEntries[0].offset,
+    );
     assert.deepStrictEqual(
-      indexTable.subarray(layout.indexTableEndOffset, layout.indexTableEndOffset + 8),
+      indexTable.subarray(
+        layout.indexTableEndOffset,
+        layout.indexTableEndOffset + 8,
+      ),
       trailer,
     );
   });

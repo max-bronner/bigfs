@@ -17,4 +17,11 @@ jobs:
       - run: npm ci
       # Type check, lint, unit tests, then the integration suite, which starts
       # VS Code and so needs a display
-      - run: xvfb-run -a npm test
+      - run: xvfb-run -a npm test 2>&1 | tee test.log; exit ${PIPESTATUS[0]}
+        shell: bash
+      # Failures as one annotation, readable from the checks API and the PR
+      - if: failure()
+        shell: bash
+        run: |
+          failures=$(grep -E -A14 '^\s+[0-9]+\) ' test.log | head -150 || tail -60 test.log)
+          echo "::error title=Test failures::${failures//$'\n'/%0A}"
