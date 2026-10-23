@@ -50,13 +50,10 @@ suite('BIG format', () => {
     assert.strictEqual(header.magic, 'BIGF');
     assert.strictEqual(header.entryCount, 3);
     assert.strictEqual(header.archiveSize, layout.totalSize);
-    assert.strictEqual(header.indexTableEndOffset, layout.indexTableEndOffset);
+    assert.strictEqual(header.dataOffset, layout.dataOffset);
 
-    const table = indexTable.subarray(
-      HEADER_LENGTH,
-      header.indexTableEndOffset,
-    );
-    const parsedEntries = parseIndexTable(table, header.entryCount);
+    const table = indexTable.subarray(HEADER_LENGTH, header.dataOffset);
+    const parsedEntries = parseIndexTable(table, header.entryCount).entries;
 
     assert.deepStrictEqual(
       parsedEntries.map((entry) => entry.name),
@@ -84,7 +81,7 @@ suite('BIG format', () => {
     );
   });
 
-  test('aligns data offsets to four bytes', () => {
+  test('aligns every data offset after the first to four bytes', () => {
     const entries = createEntries([
       { name: 'a.txt', content: 'abc' },
       { name: 'b.txt', content: 'defg1' },
@@ -93,7 +90,9 @@ suite('BIG format', () => {
 
     const { layout } = serializeArchive(entries);
 
-    for (const { offset } of layout.placedEntries) {
+    assert.strictEqual(layout.placedEntries[0].offset, layout.dataOffset);
+
+    for (const { offset } of layout.placedEntries.slice(1)) {
       assert.strictEqual(offset % 4, 0);
     }
   });
@@ -169,5 +168,46 @@ suite('BIG format', () => {
     );
 
     assert.throws(() => parseIndexTable(table, 1), /Unterminated name/);
+  });
+
+  test('parseIndexTable refuses a name that escapes the archive', () => {
+    const record = Buffer.alloc(8);
+    const table = Buffer.concat([record, Buffer.from('..\\evil.bat\0', 'latin1')]);
+
+    assert.throws(() => parseIndexTable(table, 1), /Unsafe name/);
+  });
+
+  test('records the first data offset at 0x0C and keeps the trailer', () => {
+    const entries = createEntries([{ name: 'data/a.ini', content: 'x' }]);
+    const trailer = Buffer.from('L219\0\0\0\0', 'latin1');
+    const layout = computeArchiveLayout(entries, trailer);
+    const indexTable = serializeIndexTable('BIG4', layout);
+
+    assert.strictEqual(indexTable.readUInt32BE(12), layout.placedEntries[0].offset);
+    assert.deepStrictEqual(
+      indexTable.subarray(layout.indexTableEndOffset, layout.indexTableEndOffset + 8),
+      trailer,
+    );
+  });
+
+  test('writes a parsed name back byte for byte', () => {
+    const stored = Buffer.from('Palantir_geometry/caf\xe9.ru', 'latin1');
+    const table = Buffer.concat([Buffer.alloc(8), stored, Buffer.from([0])]);
+    const [entry] = parseIndexTable(table, 1).entries;
+
+    assert.strictEqual(entry.name, 'Palantir_geometry/caf\u00e9.ru');
+
+    const indexTable = serializeIndexTable(
+      'BIGF',
+      computeArchiveLayout(new Map([[entry.name, entry]])),
+    );
+
+    assert.ok(indexTable.includes(stored));
+  });
+
+  test('refuses a new name Latin-1 cannot store', () => {
+    const entries = createEntries([{ name: 'data/\u4e2d.ini', content: 'x' }]);
+
+    assert.throws(() => computeArchiveLayout(entries), /cannot be stored/);
   });
 });

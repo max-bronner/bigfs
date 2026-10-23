@@ -1,7 +1,7 @@
 ﻿import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
-import { mkdir, rm, unlink, writeFile } from 'fs/promises';
+import { mkdir, readFile, rm, unlink, writeFile } from 'fs/promises';
 import {
   computeArchiveLayout,
   serializeIndexTable,
@@ -338,6 +338,35 @@ suite('BIG archive file system', () => {
     });
 
     assert.deepStrictEqual(await readNames(`/${ARCHIVE_NAME}`), ['Data']);
+  });
+
+  test('keeps a name stored in two casings through an unrelated save', async () => {
+    await writeArchiveToDisk([
+      { name: 'Art/Textures/Unit.tga', content: 'first' },
+      { name: 'art/textures/unit.tga', content: 'second' },
+      { name: 'readme.txt', content: 'Top level' },
+    ]);
+
+    // The later entry is the one the engine reads, so it is the one shown
+    await waitFor(async () => {
+      assert.strictEqual(
+        await readText(`/${ARCHIVE_NAME}/art/textures/unit.tga`),
+        'second',
+      );
+    });
+
+    await vscode.workspace.fs.writeFile(
+      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+      Buffer.from('changed', 'utf-8'),
+    );
+
+    const written = await readFile(archiveFsPath);
+
+    assert.strictEqual(written.readUInt32BE(8), 3);
+    assert.strictEqual(
+      await readText(`/${ARCHIVE_NAME}/art/textures/unit.tga`),
+      'second',
+    );
   });
 });
 

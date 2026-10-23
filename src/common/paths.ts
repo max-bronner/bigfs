@@ -17,6 +17,21 @@ export const splitPath = (nodePath: string): string[] =>
 export const isPathBelow = (nodePath: string, ancestorPath: string): boolean =>
   nodePath === ancestorPath || nodePath.startsWith(`${ancestorPath}/`);
 
+/**
+ * Whether an entry path stays inside the directory it is extracted to: no `..`
+ * segment, no leading separator and no drive prefix. No shipped archive breaks
+ * this, so an archive that does was crafted to write outside the target.
+ */
+export const isContainedPath = (entryPath: string): boolean => {
+  const segments = entryPath.split(/[\\/]/);
+
+  return (
+    segments[0] !== '' &&
+    !/^[a-z]:$/i.test(segments[0]) &&
+    !segments.includes('..')
+  );
+};
+
 /** Repoints a path from below one entry to below another */
 export const movePath = (
   nodePath: string,

@@ -9,7 +9,7 @@
 } from 'vscode';
 import type { CancellationToken, Progress } from 'vscode';
 import path from 'path';
-import { splitPath } from '../common/paths';
+import { isContainedPath, splitPath } from '../common/paths';
 import { resolveConflicts } from '../ui/dialogs';
 import {
   getFileNodes,
@@ -64,6 +64,14 @@ export const getExtractedFiles = (
   for (const node of nodes) {
     for (const fileNode of getFileNodes(node)) {
       const relativePath = getExtractedPath(node, fileNode);
+
+      // Checked again here, after the archive name is prefixed, because the
+      // target uri is built with `Uri.joinPath`, which resolves `..`
+      if (!isContainedPath(relativePath)) {
+        throw new Error(
+          `Refusing to extract outside the target: ${relativePath}`,
+        );
+      }
 
       extractedFiles.push({
         name: relativePath,

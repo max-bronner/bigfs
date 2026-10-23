@@ -10,7 +10,7 @@ import type { FileSystemWatcher, LogOutputChannel } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import { NotAnArchiveError } from '../binary/bigFormat';
 import type { BigFileEntry } from '../binary/bigFormat';
-import { isPathBelow } from '../common/paths';
+import { isContainedPath, isPathBelow } from '../common/paths';
 import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
 import {
@@ -509,10 +509,7 @@ export class ArchiveModel {
   public async getFileContent(
     node: VirtualNode,
   ): Promise<Uint8Array | undefined> {
-    const archive = node.archive;
-    const entry = this.getEntryForNode(node);
-
-    return archive && entry ? archive.readEntry(entry) : undefined;
+    return node.archive?.readEntry(node.entryPath);
   }
 
   /** From the index table, or from a write that has not been saved yet */
@@ -545,8 +542,15 @@ export class ArchiveModel {
     this.fireChanged(archive, 'changed');
   }
 
-  /** Rejects a path whose parents run through an existing file */
+  /**
+   * Rejects a path that would escape the archive when extracted, or whose
+   * parents run through an existing file
+   */
   private ensureWritablePath(archive: Archive, entryPath: string): void {
+    if (!isContainedPath(entryPath)) {
+      throw FileSystemError.NoPermissions(`Invalid entry path: ${entryPath}`);
+    }
+
     const blockingFile = findBlockingFile(archive.root, entryPath);
 
     if (blockingFile) {
@@ -714,8 +718,12 @@ export class ArchiveModel {
     }
   }
 
-  /** Rejects a move of a directory into itself, which would strand its files */
+  /** Rejects a move to a path that would escape the archive, or of a directory into itself */
   private ensureMovable(from: string, to: string): void {
+    if (!isContainedPath(to)) {
+      throw FileSystemError.NoPermissions(`Invalid entry path: ${to}`);
+    }
+
     const fromKey = from.toLowerCase();
     const toKey = to.toLowerCase();
 
