@@ -549,7 +549,9 @@ suite('SAGE INI includes', () => {
     const text = hovers
       .flatMap((hover) => hover.contents)
       .map((content) => (typeof content === 'string' ? content : content.value))
-      .join('\n');
+      .join('\n')
+      // Plain text in a hover has its spaces escaped for markdown
+      .replace(/&nbsp;/g, ' ');
 
     assert.ok(text.includes('Fire Arrows'), `expected the game text, got ${text}`);
   });
