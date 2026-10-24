@@ -40,6 +40,11 @@ your mod's archives.
   game's own text for string labels, go to definition, find references and
   rename across archives and loose mod folders, `#include` links and
   `#define` macros.
+- Quick fixes: add a missing `End`, remove a stray one, and correct a
+  misspelt keyword or name to the close ones the game knows.
+- **Format Document** re-indents from the block structure, touching only
+  whitespace; embedded scripts stay as written.
+- Hovering a `MappedImage` name shows the image, cut from its texture.
 
 **String tables**
 

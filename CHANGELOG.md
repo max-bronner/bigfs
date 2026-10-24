@@ -28,3 +28,4 @@
 - Compare a mod with the base game: added, changed and unchanged files with
   diffs.
 - Fixed: flaky extraction tests that read an archive a watcher had just reset.
+- INI quick fixes, a formatter, and MappedImage hovers that show the image.
