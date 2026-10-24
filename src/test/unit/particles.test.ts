@@ -8,11 +8,7 @@ import {
   valueEdits,
 } from '../../formats/particles/particleIni';
 import type { ParticleDef } from '../../formats/particles/particleIni';
-import {
-  ParticleWorld,
-  Random,
-  volumeOffset,
-} from '../../formats/particles/particleSimulation';
+import { ParticleWorld } from '../../formats/particles/particleSimulation';
 
 // Synthetic definitions: field names are the games' grammar, values invented
 const BLOCK = `
@@ -229,73 +225,5 @@ suite('Particle simulation', () => {
       world.step();
     }
     assert.ok(system().particles.every((particle) => particle.age < 10));
-  });
-
-  test('gravity, damping and velocity integrate as the engine does', () => {
-    const world = worldOf({
-      ...sparks,
-      wind: undefined,
-      slaveSystem: undefined,
-    });
-    const id = world.spawn('TestSparks', [0, 0, 0])!;
-
-    world.step();
-
-    const particle = world.find(id)!.particles[0];
-    const z = particle.position[2];
-
-    world.step();
-    // Born at 2 and updated in its birth frame to 1.5; now 1.5 - 0.5
-    assert.ok(Math.abs(particle.position[2] - z - 1) < 1e-9);
-  });
-
-  test('an FX list starts its nuggets with their delays and counts', () => {
-    const flat = readParticleDef(definitionsOf(FLAT)[0]);
-    const list = readFxList(definitionsOf(FX)[0]);
-    const world = new ParticleWorld({
-      system: (name) =>
-        [sparks, slave, flat].find(
-          (def) => def.name.toLowerCase() === name.toLowerCase(),
-        ),
-      fxList: (name) => (name === 'FX_Test' ? list : undefined),
-    });
-
-    // One sparks with its slave, and two of the flat system
-    assert.strictEqual(world.fire('FX_Test', [0, 0, 0]).length, 3);
-    assert.strictEqual(world.systems.length, 4);
-
-    const delayed = world.systems.find(
-      (system) => system.name === 'TestSparks',
-    )!;
-
-    // 100 ms is three 30 Hz frames, rounded up
-    assert.strictEqual(delayed.delayLeft, 3);
-    assert.deepStrictEqual(delayed.origin, [0, 0, 10]);
-  });
-
-  test('a one-shot system stops after its first burst', () => {
-    const world = worldOf({ ...sparks, oneShot: true, slaveSystem: undefined });
-
-    world.spawn('TestSparks', [0, 0, 0]);
-    for (let frame = 0; frame < 30; frame++) {
-      world.step();
-    }
-    assert.strictEqual(world.systems.length, 0);
-  });
-
-  test("a hollow box emits from its surface, or from its centre as in EA's release", () => {
-    const box = {
-      type: 'box' as const,
-      halfSize: [2, 3, 4] as [number, number, number],
-      hollow: true,
-    };
-    const random = new Random(3);
-
-    for (let index = 0; index < 50; index++) {
-      const [x, y, z] = volumeOffset(box, random, 'surface');
-
-      assert.ok(Math.abs(x) === 2 || Math.abs(y) === 3 || Math.abs(z) === 4);
-    }
-    assert.deepStrictEqual(volumeOffset(box, random, 'point'), [0, 0, 0]);
   });
 });

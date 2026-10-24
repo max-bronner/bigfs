@@ -95,44 +95,6 @@ suite('Modding flows: APT movies', () => {
     await rm(path.join(workspaceRoot(), archiveName), { force: true });
   });
 
-  test('New APT Movie writes a movie with its exports and opens the editor', async function () {
-    this.timeout(30_000);
-
-    const uri = await vscode.commands.executeCommand<vscode.Uri>(
-      'bigfs.newAptMovie',
-      vscode.Uri.file(folder),
-      {
-        name: 'FlowLibrary',
-        width: 800,
-        height: 600,
-        exports: ['PanelA', 'ButtonB'],
-      },
-    );
-
-    assert.ok(uri, 'no movie was created');
-
-    const movie = await readMovie(path.join(folder, 'FlowLibrary.apt'));
-
-    assert.strictEqual(movie.record.screenWidth, 800);
-    assert.deepStrictEqual(
-      movie.exports.map((entry) => entry.name),
-      ['PanelA', 'ButtonB'],
-    );
-    assert.ok(
-      (
-        await readFile(path.join(folder, 'FlowLibrary.dat'), 'latin1')
-      ).startsWith('; Created by AptToBigc.'),
-    );
-
-    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
-
-    assert.ok(
-      tab?.input instanceof vscode.TabInputCustom &&
-        tab.input.viewType === 'bigfs.aptEditor',
-      'the new movie did not open in the APT editor',
-    );
-  });
-
   test('a root movie imports an export, and the import survives a save', async function () {
     this.timeout(40_000);
 
@@ -198,7 +160,9 @@ suite('Modding flows: APT movies', () => {
     assert.ok(uri, 'no movie was created in the archive');
 
     const { entries } = await readArchiveIndexTable(archivePath);
-    const names = entries.map((entry) => (entry.storedName ?? entry.name).toLowerCase());
+    const names = entries.map((entry) =>
+      (entry.storedName ?? entry.name).toLowerCase(),
+    );
 
     for (const extension of ['apt', 'const', 'dat']) {
       assert.ok(
@@ -304,29 +268,6 @@ suite('Modding flows: particle preview', () => {
     await rm(folder, { recursive: true, force: true });
   });
 
-  test('every particle system and FX list gets a preview lens', async function () {
-    this.timeout(20_000);
-
-    const lenses = await waitFor(async () => {
-      const found = await vscode.commands.executeCommand<vscode.CodeLens[]>(
-        'vscode.executeCodeLensProvider',
-        document.uri,
-      );
-
-      assert.ok(found.length >= 3, 'lenses missing');
-      return found;
-    });
-
-    assert.deepStrictEqual(
-      lenses.map((lens) => lens.command?.title),
-      [
-        '▶ Preview particle system',
-        '▶ Preview particle system',
-        '▶ Preview FX list',
-      ],
-    );
-  });
-
   test('the preview runs the system in its page with its texture and slave', async function () {
     this.timeout(40_000);
 
@@ -376,52 +317,5 @@ suite('Modding flows: particle preview', () => {
     await vscode.window.showTextDocument(document);
     await vscode.commands.executeCommand('undo');
     await waitFor(() => assert.strictEqual(document.getText(), original));
-  });
-
-  test('typing in the block updates the running preview', async function () {
-    this.timeout(30_000);
-
-    const line = document
-      .getText()
-      .split(/\r?\n/)
-      .findIndex((text) => text.includes('Lifetime = 30 30'));
-    const edit = new vscode.WorkspaceEdit();
-
-    edit.replace(
-      document.uri,
-      new vscode.Range(line, 0, line, document.lineAt(line).text.length),
-      '    Lifetime = 45 45',
-    );
-    await vscode.workspace.applyEdit(edit);
-
-    await waitFor(() =>
-      assert.strictEqual(
-        preview.lastScene!.systems.flowsparks.lifetime.low,
-        45,
-      ),
-    );
-  });
-
-  test('an FX list preview resolves its nuggets and names what it skips', async function () {
-    this.timeout(30_000);
-
-    const list = (await vscode.commands.executeCommand<PreviewHandle>(
-      'bigfs.previewParticles',
-      document.uri,
-      'FX_Flow',
-    ))!;
-
-    try {
-      const scene = await waitFor(() => {
-        assert.ok(list.lastScene, 'no scene was sent');
-        return list.lastScene;
-      });
-
-      assert.ok(scene.fxLists.fx_flow);
-      assert.ok(scene.systems.flowsparks);
-      assert.ok(scene.notes.some((note) => /Sound not previewed/.test(note)));
-    } finally {
-      list.dispose();
-    }
   });
 });

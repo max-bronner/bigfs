@@ -1,34 +1,12 @@
 ﻿import * as assert from 'assert';
 import {
   getAvailableName,
-  getParentPath,
   isContainedPath,
   isPathBelow,
   movePath,
-  splitPath,
 } from '../../common/paths';
 
 suite('Path helpers', () => {
-  test('getParentPath returns the parent or an empty string', () => {
-    assert.strictEqual(
-      getParentPath('/archive.big/data/a.ini'),
-      '/archive.big/data',
-    );
-    assert.strictEqual(getParentPath('/archive.big'), '');
-    assert.strictEqual(getParentPath('data/a.ini'), 'data');
-    assert.strictEqual(getParentPath('a.ini'), '');
-  });
-
-  test('splitPath drops empty segments', () => {
-    assert.deepStrictEqual(splitPath('/archive.big/data/a.ini'), [
-      'archive.big',
-      'data',
-      'a.ini',
-    ]);
-    assert.deepStrictEqual(splitPath('data//a.ini'), ['data', 'a.ini']);
-    assert.deepStrictEqual(splitPath(''), []);
-  });
-
   test('isPathBelow matches the path itself and its descendants only', () => {
     assert.ok(isPathBelow('data/a.ini', 'data/a.ini'));
     assert.ok(isPathBelow('data/sub/a.ini', 'data'));

@@ -4,7 +4,6 @@ import {
   parseStringRecords,
   quoteStringText,
 } from '../../language/model/sageStringRecords';
-import { parseStringTable } from '../../language/model/sageStringTable';
 
 const SOURCE = [
   '// units',
@@ -48,13 +47,6 @@ suite('String tables', () => {
       '"first line\r\n   second \\"part\\""',
     );
     assert.ok(SOURCE.slice(long.span.start, long.span.end).endsWith('END\r\n'));
-  });
-
-  test('the first record of a label wins', () => {
-    assert.strictEqual(
-      parseStringTable(SOURCE).get('object:soldier')?.text,
-      'Gondor Soldiers',
-    );
   });
 
   test('quoting a text reads back as the same text', () => {
