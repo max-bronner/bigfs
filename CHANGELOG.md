@@ -25,3 +25,6 @@
 - MP3 and VP6 video previews.
 - Texture round trips: export TGA/DDS as PNG, replace a texture from a PNG,
   convert PNGs to TGA or DDS.
+- Compare a mod with the base game: added, changed and unchanged files with
+  diffs.
+- Fixed: flaky extraction tests that read an archive a watcher had just reset.

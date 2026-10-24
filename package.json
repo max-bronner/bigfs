@@ -173,6 +173,11 @@
         "command": "bigfs.convertPng",
         "title": "Convert to Game Texture…",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.compareWithBaseGame",
+        "title": "Compare with Base Game",
+        "category": "BIG"
       }
     ],
     "menus": {
@@ -487,6 +492,12 @@
           ],
           "default": "archives",
           "description": "What the BIG Archives view shows."
+        },
+        "bigfs.baseGameFolder": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Install folder of the unmodded game, which **BIG: Compare with Base Game** compares the workspace against. Asked for on first use."
         }
       }
     },

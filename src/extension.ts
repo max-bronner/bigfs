@@ -19,6 +19,7 @@ import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { registerSageStrLanguage } from './language/sageStrLanguage';
 import { registerSageWndLanguage } from './language/sageWndLanguage';
 import { registerTextureCommands } from './commands/textureCommands';
+import { registerModDiffCommands } from './commands/modDiffCommands';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { AptEditorProvider } from './providers/aptEditorProvider';
 import { MapEditorProvider } from './providers/mapEditorProvider';
@@ -105,6 +106,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   const fileSystemProvider = new BigFileSystemProvider(archiveModel);
   const gameView = new GameViewModel(archiveModel);
+
+  registerModDiffCommands(context, gameView);
   const treeDataProvider = new BigTreeDataProvider(archiveModel, gameView);
 
   // The context key picks which of the two view buttons the title bar shows
