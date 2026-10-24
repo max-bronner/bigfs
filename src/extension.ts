@@ -18,6 +18,7 @@ import { createFormatRegistry } from './formats/formatRegistry';
 import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { registerSageStrLanguage } from './language/sageStrLanguage';
 import { registerSageWndLanguage } from './language/sageWndLanguage';
+import { registerTextureCommands } from './commands/textureCommands';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { AptEditorProvider } from './providers/aptEditorProvider';
 import { MapEditorProvider } from './providers/mapEditorProvider';
@@ -74,6 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerSageIniLanguage(context, archiveModel, log);
   registerSageStrLanguage(context);
   registerSageWndLanguage(context);
+  registerTextureCommands(context);
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
