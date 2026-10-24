@@ -23,6 +23,9 @@ your mod's archives.
 - **Override in Folder** copies archive files into a mod folder at the same
   path.
 - **Search in BIG Archives** finds text inside every archive.
+- **Compare with Base Game** lists what the workspace adds and changes
+  against an untouched install (`bigfs.baseGameFolder`), each side after
+  the game's load order, with a diff for every changed text file.
 - **Game view** (`bigfs.explorer.view`): one merged tree of only the files the
   game loads, after its own priority rules, beside the default per-archive
   view.

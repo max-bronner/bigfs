@@ -691,10 +691,21 @@ suite('Extraction layout', () => {
     await unlink(strayFsPath).catch(() => undefined);
   });
 
-  test('extracts an archive without the extension in the folder name', () => {
+  /**
+   * The archive, read: a watcher event for the file written in setup can
+   * arrive late and drop what was read, which made these tests flaky
+   */
+  const loadedArchive = async () => {
     const archive = model.getArchiveByPath(archiveFsPath);
 
-    assert.ok(archive, 'the archive was not loaded');
+    assert.ok(archive, 'the archive was not listed');
+    await archive.ensureLoaded();
+
+    return archive;
+  };
+
+  test('extracts an archive without the extension in the folder name', async () => {
+    const archive = await loadedArchive();
 
     const extracted = getExtractedFiles([archive.root], targetDirectory);
 
@@ -704,9 +715,9 @@ suite('Extraction layout', () => {
     ]);
   });
 
-  test('extracts a folder under its own name', () => {
-    const archive = model.getArchiveByPath(archiveFsPath);
-    const folder = findChild(archive!.root, 'data');
+  test('extracts a folder under its own name', async () => {
+    const archive = await loadedArchive();
+    const folder = findChild(archive.root, 'data');
 
     assert.ok(folder, 'the folder is missing');
 
@@ -718,9 +729,9 @@ suite('Extraction layout', () => {
     );
   });
 
-  test('extracts a single file under its own name', () => {
-    const archive = model.getArchiveByPath(archiveFsPath);
-    const file = findChild(archive!.root, 'top.txt');
+  test('extracts a single file under its own name', async () => {
+    const archive = await loadedArchive();
+    const file = findChild(archive.root, 'top.txt');
 
     assert.ok(file, 'the file is missing');
 
