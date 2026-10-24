@@ -264,3 +264,102 @@ export const writeArchiveFile = async (
 
   return layout;
 };
+
+/**
+ * Archives at least this large take a changed entry in place when it fits,
+ * rather than being rewritten whole. Below it a full rewrite is quick, and
+ * it is the safer of the two: it goes through a temporary file, so a crash
+ * never leaves a half-written archive.
+ */
+export const IN_PLACE_THRESHOLD = 64 * 1024 * 1024;
+
+/**
+ * Writes new data for one entry over its old data, when it fits in the space
+ * the entry holds before the next entry's data starts, and updates its size
+ * in the index table. The last entry may grow, extending the file. Resolves
+ * to whether the entry was written; when it does not fit, nothing is.
+ *
+ * Every other byte stays where it is, so a save costs the entry's size, not
+ * the archive's: what makes editing one INI in a gigabyte archive instant.
+ * Unlike `writeArchiveFile` it is not atomic, which is why only large
+ * archives use it.
+ */
+export const writeEntryInPlace = async (
+  archivePath: string,
+  entry: BigFileEntry,
+  data: Uint8Array,
+): Promise<boolean> => {
+  const archiveFile = await open(archivePath, 'r+');
+
+  try {
+    const headerBuffer = Buffer.alloc(HEADER_LENGTH);
+
+    await archiveFile.read(headerBuffer, 0, HEADER_LENGTH, 0);
+
+    const header = parseHeader(headerBuffer);
+    const table = Buffer.alloc(header.dataOffset - HEADER_LENGTH);
+
+    await archiveFile.read(table, 0, table.length, HEADER_LENGTH);
+
+    const { entries } = parseIndexTable(table, header.entryCount);
+
+    // Records are found by walking the table again: the record of this entry
+    // is the one at its offset and size, under its stored name when it has one
+    let recordAt = HEADER_LENGTH;
+    let record: BigFileEntry | undefined;
+
+    for (const candidate of entries) {
+      const isEntry =
+        candidate.offset === entry.offset &&
+        candidate.size === entry.size &&
+        (entry.storedName === undefined ||
+          candidate.storedName === entry.storedName);
+
+      if (isEntry) {
+        record = candidate;
+        break;
+      }
+
+      recordAt += 9 + Buffer.byteLength(candidate.storedName ?? '', 'latin1');
+    }
+
+    if (!record) {
+      return false;
+    }
+
+    const nextOffset = Math.min(
+      ...entries
+        .filter((candidate) => candidate.offset > record.offset)
+        .map((candidate) => candidate.offset),
+    );
+    const isLast = !Number.isFinite(nextOffset);
+
+    if (!isLast && record.offset + data.length > nextOffset) {
+      return false;
+    }
+
+    await archiveFile.write(data, 0, data.length, record.offset);
+
+    const size = Buffer.alloc(4);
+
+    size.writeUInt32BE(data.length, 0);
+    await archiveFile.write(size, 0, 4, recordAt + 4);
+
+    // The last entry's end is the file's end, so the file and the header's
+    // size follow it; elsewhere the old bytes past the new end stay as a gap
+    if (isLast) {
+      const end = record.offset + data.length;
+      const total = Buffer.alloc(4);
+
+      await archiveFile.truncate(end);
+      total.writeUInt32LE(end, 0);
+      await archiveFile.write(total, 0, 4, 4);
+    }
+
+    await archiveFile.sync();
+
+    return true;
+  } finally {
+    await archiveFile.close();
+  }
+};

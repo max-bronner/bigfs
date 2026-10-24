@@ -88,13 +88,12 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
         ? this.archiveModel.getFileSize(node)
         : 0;
 
-    return {
-      type: node.type,
-      // The index table records no times, and the archive's own would be a lie
-      ctime: 0,
-      mtime: 0,
-      size,
-    };
+    // The index table records no times. An entry reports when this session
+    // wrote it, or when its archive was read, which is what tells an open
+    // editor that the archive changed under it
+    const mtime = node.archive?.getModifiedAt(node.entryPath) ?? 0;
+
+    return { type: node.type, ctime: mtime, mtime, size };
   }
 
   async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {

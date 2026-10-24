@@ -1,10 +1,12 @@
 ﻿import { Uri, workspace } from 'vscode';
 import path from 'path';
 import {
+  IN_PLACE_THRESHOLD,
   openArchiveReader,
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
+  writeEntryInPlace,
 } from '../binary/archiveFile';
 import type { BigFileEntry } from '../binary/bigFormat';
 import { movePath } from '../common/paths';
@@ -186,6 +188,16 @@ export class Archive {
   /** Mtime of this archive's own last write, zero until it has made one */
   private lastWrittenAt = 0;
 
+  /** Mtime of the archive file when its index table was last read */
+  private readAt = 0;
+
+  /**
+   * When each entry this session wrote was written, by lowercased path. An
+   * entry nobody wrote reports `readAt`, so saving one entry does not make
+   * every other open entry of the archive look changed on disk.
+   */
+  private entryWrittenAt = new Map<string, number>();
+
   /**
    * Builds the tree before anything is read, so the root the view holds on to
    * exists from the start. Reached through `create`.
@@ -226,6 +238,8 @@ export class Archive {
       this.magic = magic;
       this.trailer = trailer;
       this.keyEntries(entries);
+      this.readAt = await this.statMtime();
+      this.entryWrittenAt.clear();
 
       syncFiles(
         this.root,
@@ -307,6 +321,8 @@ export class Archive {
       this.magic = magic;
       this.trailer = trailer;
       this.keyEntries(entries);
+      this.readAt = await this.statMtime();
+      this.entryWrittenAt.clear();
 
       syncFiles(
         this.root,
@@ -315,6 +331,65 @@ export class Archive {
 
       return true;
     });
+  }
+
+  /** The archive file's mtime, or zero when it cannot be read */
+  private async statMtime(): Promise<number> {
+    try {
+      return (await workspace.fs.stat(Uri.file(this.archivePath))).mtime;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
+   * When an entry last changed, as its editor compares it: when this session
+   * wrote it, or otherwise when the archive was read
+   */
+  public getModifiedAt(entryPath: string): number {
+    return this.entryWrittenAt.get(entryPath.toLowerCase()) ?? this.readAt;
+  }
+
+  /**
+   * Writes the one changed entry over its old data when the archive is large
+   * and the data fits, which costs the entry's size instead of the archive's.
+   * Resolves to whether it did; when not, nothing was written.
+   */
+  private async tryWriteInPlace(
+    entries: Map<string, BigFileEntry>,
+    changes: readonly EntryChange[],
+  ): Promise<boolean> {
+    const [change] = changes;
+
+    if (
+      changes.length !== 1 ||
+      change.kind !== 'put' ||
+      change.source.kind !== 'data'
+    ) {
+      return false;
+    }
+
+    const key = change.path.toLowerCase();
+    const existing = this.entries.get(key);
+
+    if (!existing || this.shadowedEntries.has(existing)) {
+      return false;
+    }
+
+    const { size } = await workspace.fs.stat(Uri.file(this.archivePath));
+    const content = change.source.content;
+
+    if (
+      size < IN_PLACE_THRESHOLD ||
+      !(await writeEntryInPlace(this.archivePath, existing, content))
+    ) {
+      return false;
+    }
+
+    this.entries = new Map(entries);
+    this.entries.set(key, { ...existing, size: content.length });
+
+    return true;
   }
 
   /** Whether the file on disk is still the one this archive last wrote */
@@ -349,7 +424,9 @@ export class Archive {
         writeNeeded = changeEntries(entries, change) || writeNeeded;
       }
 
-      if (writeNeeded) {
+      if (writeNeeded && (await this.tryWriteInPlace(entries, changes))) {
+        this.lastWrittenAt = await this.statMtime();
+      } else if (writeNeeded) {
         // A hidden entry goes once the entry hiding it was changed or removed
         const shadowedEntries = new Map(
           Array.from(this.shadowedEntries).filter(
@@ -384,9 +461,28 @@ export class Archive {
           ]),
         );
 
-        const { mtime } = await workspace.fs.stat(Uri.file(this.archivePath));
+        this.lastWrittenAt = await this.statMtime();
+      }
 
-        this.lastWrittenAt = mtime;
+      if (writeNeeded) {
+        const now = Date.now();
+
+        for (const change of changes) {
+          const changedPath =
+            change.kind === 'move' || change.kind === 'copy'
+              ? change.to
+              : change.path;
+
+          // A move or copy carries every entry below a directory
+          for (const key of this.entries.keys()) {
+            if (
+              key === changedPath.toLowerCase() ||
+              key.startsWith(`${changedPath.toLowerCase()}/`)
+            ) {
+              this.entryWrittenAt.set(key, now);
+            }
+          }
+        }
       }
 
       for (const change of changes) {

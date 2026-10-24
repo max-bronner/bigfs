@@ -6,6 +6,7 @@ import {
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
+  writeEntryInPlace,
 } from '../../binary/archiveFile';
 
 /** A path with no file behind it, so a read that touches disk fails loudly */
@@ -178,5 +179,81 @@ suite('Archive rewrites', () => {
       readArchiveIndexTable(archivePath),
       /past the archive end/,
     );
+  });
+
+  test('writes an entry that fits over its old data, and leaves the rest', async () => {
+    const archivePath = path.join(directory, 'large.big');
+
+    await writeFile(
+      archivePath,
+      buildShippedArchive([
+        [Buffer.from('a.ini'), 'Object A\nEnd\n'],
+        [Buffer.from('b.ini'), 'Object B\nEnd\n'],
+      ]),
+    );
+
+    const before = await readArchiveIndexTable(archivePath);
+    const fits = await writeEntryInPlace(
+      archivePath,
+      before.entries[0],
+      Buffer.from('Object Z\nEnd'),
+    );
+    const after = await readArchiveIndexTable(archivePath);
+    const read = async (index: number) =>
+      Buffer.from(
+        await readEntryData(archivePath, after.entries[index]),
+      ).toString();
+
+    assert.ok(fits);
+    assert.strictEqual(await read(0), 'Object Z\nEnd');
+    assert.strictEqual(await read(1), 'Object B\nEnd\n');
+    assert.strictEqual(after.entries[1].offset, before.entries[1].offset);
+  });
+
+  test('refuses an entry that outgrows its slot, and changes nothing', async () => {
+    const archivePath = path.join(directory, 'large.big');
+    const original = buildShippedArchive([
+      [Buffer.from('a.ini'), 'short'],
+      [Buffer.from('b.ini'), 'next'],
+    ]);
+
+    await writeFile(archivePath, original);
+
+    const { entries } = await readArchiveIndexTable(archivePath);
+    const fits = await writeEntryInPlace(
+      archivePath,
+      entries[0],
+      Buffer.from('much longer than before'),
+    );
+
+    assert.strictEqual(fits, false);
+    assert.deepStrictEqual(await readFile(archivePath), original);
+  });
+
+  test('grows the last entry, and the header size with it', async () => {
+    const archivePath = path.join(directory, 'large.big');
+
+    await writeFile(
+      archivePath,
+      buildShippedArchive([
+        [Buffer.from('a.ini'), 'first'],
+        [Buffer.from('b.ini'), 'last'],
+      ]),
+    );
+
+    const { entries } = await readArchiveIndexTable(archivePath);
+
+    assert.ok(
+      await writeEntryInPlace(
+        archivePath,
+        entries[1],
+        Buffer.from('the last, longer'),
+      ),
+    );
+
+    const written = await readFile(archivePath);
+
+    assert.strictEqual(written.readUInt32LE(4), written.length);
+    assert.strictEqual(written.subarray(-16).toString(), 'the last, longer');
   });
 });
