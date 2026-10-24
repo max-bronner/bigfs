@@ -7,6 +7,7 @@ import { SageIniIndex } from './sageIniIndex';
 import { watchSageIniDialect } from './sageIniDialect';
 import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
+import { createCommandSetPreview } from './commandSetPreview';
 import { registerParticlePreview } from './particlePreview';
 import type { EntryLocator } from '../formats/entryLocator';
 import { createMappedImagePreview } from './mappedImagePreview';
@@ -54,6 +55,7 @@ export const registerSageIniLanguage = (
     log,
   );
   const selector = { language: SAGE_INI_LANGUAGE };
+  const mappedImagePreview = locator && createMappedImagePreview(locator);
 
   // Built up front rather than on the first navigation. Reading a full
   // install takes a few seconds, and a provider that slow is cancelled by the
@@ -90,7 +92,8 @@ export const registerSageIniLanguage = (
       createSageIniHoverProvider(
         documents,
         index,
-        locator && createMappedImagePreview(locator),
+        mappedImagePreview,
+        createCommandSetPreview(index, mappedImagePreview),
       ),
     ),
     languages.registerDefinitionProvider(

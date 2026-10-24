@@ -134,6 +134,7 @@ export const createSageIniHoverProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
   previewImage?: (definition: SageDefinition) => Promise<string | undefined>,
+  previewCommandSet?: (definition: SageDefinition) => Promise<string>,
 ): HoverProvider => ({
   async provideHover(document: TextDocument, position: Position) {
     const [parsed, schema] = await Promise.all([
@@ -247,6 +248,17 @@ export const createSageIniHoverProvider = (
       text.appendMarkdown(`\`${string.label}\` — game text\n\n`);
       text.appendText(string.text);
 
+      return new Hover(text, range);
+    }
+
+    const [commandSet] = previewCommandSet
+      ? index.findDefinitions('CommandSet', token.text)
+      : [];
+
+    if (commandSet && previewCommandSet) {
+      const text = new MarkdownString(await previewCommandSet(commandSet));
+
+      text.supportHtml = true;
       return new Hover(text, range);
     }
 
