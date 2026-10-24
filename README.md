@@ -140,6 +140,11 @@ your mod's archives.
 - Sounds: WAV, including IMA ADPCM, and MP3.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
   pause and seeking; alpha movies show over a checkerboard.
+- **Convert to VP6 Movie…** on a video, an image or a folder of numbered
+  PNG/TGA/DDS frames writes an EA VP6 movie the games play: size, frame rate
+  and quality are asked for, transparency is kept as an alpha stream, and the
+  result is decoded again before it is saved. Any video FFmpeg reads works
+  when FFmpeg is installed (`bigfs.ffmpegPath`); without it, WebM and Ogg.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
   Animations of the skeleton are listed and play on the model (dense,
   time-coded, adaptive-delta and motion channels); a skeleton or an
