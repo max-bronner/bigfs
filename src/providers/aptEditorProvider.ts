@@ -630,6 +630,19 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       edit,
     );
 
+    if (
+      edit.kind === 'addCharacter' &&
+      edit.type === 'shape' &&
+      result.character !== undefined
+    ) {
+      document.files.set(
+        `${document.name}_geometry/${result.character}.ru`,
+        new TextEncoder().encode(
+          'c\ns s:255:255:255:255\nt 0:0:100:0:0:100\nt 100:0:100:100:0:100\n',
+        ),
+      );
+    }
+
     if (source?.type === 'shape' && result.character !== undefined) {
       const geometry = await document.readBeside(
         `${document.name}_geometry/${source.geometry}.ru`,
