@@ -1,8 +1,12 @@
 import { Hover, MarkdownString, Range } from 'vscode';
-import type { HoverProvider, Position, TextDocument } from 'vscode';
+import type { HoverProvider, Position, TextDocument, Uri } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniSchema } from '../model/sageIniSchema';
-import type { SageDocument, SageStatement } from '../model/sageIniParser';
+import type {
+  SageDocument,
+  SageStatement,
+  SageToken,
+} from '../model/sageIniParser';
 import {
   evaluateCall,
   evaluateMacroBody,
@@ -135,6 +139,12 @@ export const createSageIniHoverProvider = (
   index: SageIniIndex,
   previewImage?: (definition: SageDefinition) => Promise<string | undefined>,
   previewCommandSet?: (definition: SageDefinition) => Promise<string>,
+  describeSound?: (
+    parsed: SageDocument,
+    line: number,
+    token: SageToken,
+    uri: Uri,
+  ) => Promise<MarkdownString | undefined>,
 ): HoverProvider => ({
   async provideHover(document: TextDocument, position: Position) {
     const [parsed, schema] = await Promise.all([
@@ -263,6 +273,16 @@ export const createSageIniHoverProvider = (
     }
 
     const contents = describeValue(statement, schema, token.text);
+    const sound = await describeSound?.(
+      parsed,
+      statement.line,
+      token,
+      document.uri,
+    );
+
+    if (sound) {
+      return new Hover(contents ? [contents, sound] : sound, range);
+    }
     const [image] = previewImage
       ? index.findDefinitions('MappedImage', token.text)
       : [];

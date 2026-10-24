@@ -52,6 +52,8 @@ your mod's archives.
 - Lua in `BeginScript` regions is checked for syntax errors.
 - Hovering a CommandSet name shows its buttons in slot order, each with its
   icon, its label in game text and its command; undefined buttons are marked.
+- Audio events get a **▶ Play** lens that plays one of their sounds, as the
+  game picks one; hovering a sound or an event name gives play links.
 - Models, animations, textures and sounds named in INI files are checked
   against every archive and folder; a missing one is reported with the
   nearest existing names as quick fixes, in the editor and in **Validate INI

@@ -40,3 +40,4 @@
   every value and Apply to INI.
 - Launch Game with Mod, with a Run mod status bar button.
 - CommandSet hover with the button icons, labels and commands.
+- Play audio events and sounds from INI files.
