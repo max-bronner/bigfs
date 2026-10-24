@@ -232,3 +232,62 @@ export class Vp6Movie {
     );
   }
 }
+
+/** A movie to write: its size, rate and coded frames */
+export interface Vp6Output {
+  width: number;
+  height: number;
+  rateNumerator: number;
+  rateDenominator: number;
+  frames: { colour: Uint8Array; isKey: boolean; alpha?: Uint8Array }[];
+}
+
+const latin1 = (text: string) =>
+  Uint8Array.from(text, (character) => character.charCodeAt(0));
+
+/** Writes EA's container around coded frames, as `parseVp6` reads it */
+export const writeVp6 = (movie: Vp6Output): Uint8Array => {
+  const hasAlpha = movie.frames.some((frame) => frame.alpha);
+  const chunk = (kind: string, payload: Uint8Array) => {
+    const out = new Uint8Array(8 + payload.length);
+
+    out.set(latin1(kind), 0);
+    new DataView(out.buffer).setUint32(4, out.length, true);
+    out.set(payload, 8);
+    return out;
+  };
+  const body = movie.frames.flatMap((frame) => [
+    ...(frame.alpha ? [chunk(frame.isKey ? 'AV0K' : 'AV0F', frame.alpha)] : []),
+    chunk(frame.isKey ? 'MV0K' : 'MV0F', frame.colour),
+  ]);
+  const largest = Math.max(0, ...body.map((part) => part.length));
+  const header = (kind: string) => {
+    const out = new Uint8Array(32);
+    const view = new DataView(out.buffer);
+
+    out.set(latin1(kind), 0);
+    view.setUint32(4, 32, true);
+    out.set(latin1('vp60'), 8);
+    view.setUint16(12, movie.width, true);
+    view.setUint16(14, movie.height, true);
+    view.setUint32(16, movie.frames.length, true);
+    view.setUint32(20, largest, true);
+    view.setUint32(24, movie.rateNumerator, true);
+    view.setUint32(28, movie.rateDenominator, true);
+    return out;
+  };
+  const parts = [
+    ...(hasAlpha ? [chunk('AVP6', new Uint8Array(0))] : []),
+    header('MVhd'),
+    ...(hasAlpha ? [header('AVhd')] : []),
+    ...body,
+  ];
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let at = 0;
+
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+};

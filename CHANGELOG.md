@@ -39,6 +39,7 @@
 - Particle preview for particle systems and FX lists, with a slider for
   every value and Apply to INI.
 - Launch Game with Mod, with a Run mod status bar button.
+- Convert videos and image frames to VP6 movies.
 - Find Unused Definitions.
 - Hotkey clashes inside CommandSets reported.
 - Call and type hierarchy for INI definitions.

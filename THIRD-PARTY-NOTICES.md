@@ -2,7 +2,7 @@
 
 ## NihAV VP6 decoder
 
-`src/formats/vp6/` is a TypeScript port of mint's `crates/core/vp6`, which ports NihAV's VP6 decoder as relicensed under the MIT licence for Ruffle. That licence:
+`src/formats/vp6/` is a TypeScript port of mint's `crates/core/vp6`, which ports NihAV's VP6 decoder as relicensed under the MIT licence for Ruffle. The encoder (`encoder.ts`, `encodeMovie.ts`) is bigFS's own, written as the inverse of that decoder and using its tables; its arithmetic coder follows the structure of libvpx's VP8 boolean encoder (BSD-3-Clause, Copyright (c) 2010 The WebM project authors). That licence:
 
 ```
 Copyright (c) 2021 Kostya Shishkov

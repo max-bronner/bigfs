@@ -219,6 +219,11 @@
         "command": "bigfs.clearUnusedDefinitions",
         "title": "Clear Unused Definitions",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.convertToVp6",
+        "title": "Convert to VP6 Movie…",
+        "category": "BIG"
       }
     ],
     "menus": {
@@ -339,6 +344,11 @@
           "command": "bigfs.newAptMovie",
           "group": "7_modification@14",
           "when": "view == bigArchiveExplorer && viewItem =~ /^big(Folder|Archive)$/"
+        },
+        {
+          "command": "bigfs.convertToVp6",
+          "group": "7_modification@15",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif)$/i"
         }
       ],
       "commandPalette": [
@@ -458,6 +468,11 @@
           "command": "bigfs.launchGame",
           "group": "7_modification@20",
           "when": "explorerResourceIsFolder"
+        },
+        {
+          "command": "bigfs.convertToVp6",
+          "group": "7_modification@15",
+          "when": "resourceExtname =~ /^\\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif|bik|png|tga|dds)$/i || explorerResourceIsFolder"
         }
       ],
       "editor/title": [
@@ -610,6 +625,12 @@
           ],
           "default": "auto",
           "description": "Whether a game-text label such as OBJECT:Name that no string table defines is reported."
+        },
+        "bigfs.ffmpegPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "FFmpeg program **Convert to VP6 Movie** reads videos with. Empty: `ffmpeg` on the PATH; without one, only WebM and Ogg videos (and image frames) can be read."
         }
       }
     },
