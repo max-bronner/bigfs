@@ -458,6 +458,29 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "bigfs.mapEditor",
+        "displayName": "bigFS Map",
+        "selector": [
+          {
+            "filenamePattern": "**/{maps,Maps,MAPS}/**/*.{map,MAP}"
+          },
+          {
+            "filenamePattern": "*.{bse,BSE}"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "bigfs.mapEditorAny",
+        "displayName": "bigFS Map",
+        "selector": [
+          {
+            "filenamePattern": "*.{map,MAP}"
+          }
+        ],
+        "priority": "option"
       }
     ],
     "languages": [

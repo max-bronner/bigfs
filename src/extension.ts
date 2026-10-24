@@ -19,6 +19,7 @@ import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { registerSageStrLanguage } from './language/sageStrLanguage';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { AptEditorProvider } from './providers/aptEditorProvider';
+import { MapEditorProvider } from './providers/mapEditorProvider';
 import {
   CSF_VIEW_TYPE,
   CsfEditorProvider,
@@ -66,6 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
     locator,
     PreviewEditorProvider.register(tools, locator),
     AptEditorProvider.register(tools, locator),
+    MapEditorProvider.register(),
   );
 
   registerSageIniLanguage(context, archiveModel, log);
