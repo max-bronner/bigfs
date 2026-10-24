@@ -194,6 +194,11 @@
         "title": "Launch Game with Mod",
         "category": "BIG",
         "icon": "$(play)"
+      },
+      {
+        "command": "bigfs.playAudioEvent",
+        "title": "Play Audio Event",
+        "category": "BIG"
       }
     ],
     "menus": {
