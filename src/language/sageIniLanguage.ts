@@ -10,6 +10,7 @@ import { registerSageIniValidation } from './sageIniValidation';
 import { createCommandSetPreview } from './commandSetPreview';
 import { registerParticlePreview } from './particlePreview';
 import { registerUnusedDefinitions } from './unusedDefinitions';
+import { watchHotkeyClashes } from './hotkeyDiagnostics';
 import { registerDuplicateDefinition } from './duplicateDefinition';
 import { describeSound, registerSoundPlayer } from './soundPlayer';
 import { registerBalanceSheet } from './balanceSheet';
@@ -76,6 +77,7 @@ export const registerSageIniLanguage = (
     documents.onDidChangeSchema(() => index.reset()),
     ...registerParticlePreview(context, selector, index, locator),
     ...registerUnusedDefinitions(index),
+    watchHotkeyClashes(documents, index),
     ...registerDuplicateDefinition(selector, documents, index),
     ...registerSoundPlayer(selector, index, locator),
     registerBalanceSheet(documents, index),

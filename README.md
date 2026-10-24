@@ -54,7 +54,8 @@ your mod's archives.
   definition at the cursor under a new name, renaming the game-text labels
   that carry the old name and copying their text into the string table.
 - Hovering a CommandSet name shows its buttons in slot order, each with its
-  icon, its label in game text and its command; undefined buttons are marked.
+  icon, its label in game text, its hotkey and its command; undefined buttons
+  are marked. Slots whose buttons share a hotkey are reported as problems.
 - Audio events get a **▶ Play** lens that plays one of their sounds, as the
   game picks one; hovering a sound or an event name gives play links.
 - Game-text labels such as `OBJECT:Name` that no string table defines are

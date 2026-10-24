@@ -40,6 +40,7 @@
   every value and Apply to INI.
 - Launch Game with Mod, with a Run mod status bar button.
 - Find Unused Definitions.
+- Hotkey clashes inside CommandSets reported.
 - Balance sheet of every unit's numbers, editable in place.
 - Duplicate Definition, with its game text copied.
 - Missing game-text labels reported, with a fix that adds them.

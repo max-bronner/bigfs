@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { decodeWindows1252 } from '../common/windows1252';
 import type { SageDefinition, SageIniIndex } from './sageIniIndex';
+import { hotkeyClashes, hotkeyOf } from './model/hotkeys';
 
 /**
  * A CommandSet as the player sees it: its numbered slots in order, each
@@ -37,6 +38,68 @@ export const commandSetSlots = (lines: string[]): CommandSetSlot[] =>
     }))
     .sort((a, b) => a.slot - b.slot);
 
+/** A slot's button as the game shows it */
+export interface ResolvedSlot extends CommandSetSlot {
+  defined: boolean;
+  text?: string;
+  hotkey?: string;
+  command?: string;
+  imageName?: string;
+}
+
+/** Reads the lines of definitions, each file once per call */
+export const createLineReader = () => {
+  const texts = new Map<string, Promise<string[]>>();
+
+  return (place: SageDefinition): Promise<string[]> => {
+    const key = place.uri.toString();
+    let text = texts.get(key);
+
+    if (!text) {
+      text = Promise.resolve(
+        vscode.workspace.textDocuments
+          .find((document) => document.uri.toString() === key)
+          ?.getText() ??
+          vscode.workspace.fs.readFile(place.uri).then(decodeWindows1252),
+      )
+        .then((content) => content.split(/\r?\n/))
+        // A file deleted since it was indexed reads as empty
+        .catch(() => []);
+      texts.set(key, text);
+    }
+    return text.then((lines) => lines.slice(place.line + 1, place.endLine));
+  };
+};
+
+/** Each slot's button: its game text, hotkey, command and icon name */
+export const resolveSlots = async (
+  index: SageIniIndex,
+  slots: CommandSetSlot[],
+  linesOf: (place: SageDefinition) => Promise<string[]>,
+): Promise<ResolvedSlot[]> =>
+  Promise.all(
+    slots.map(async (slot) => {
+      const [place] = index.findDefinitions('CommandButton', slot.button);
+
+      if (!place) {
+        return { ...slot, defined: false };
+      }
+
+      const fields = fieldsOf(await linesOf(place));
+      const label = fields.get('textlabel');
+      const text = label ? index.findString(label)?.text : undefined;
+
+      return {
+        ...slot,
+        defined: true,
+        text,
+        hotkey: text ? hotkeyOf(text) : undefined,
+        command: fields.get('command'),
+        imageName: fields.get('buttonimage'),
+      };
+    }),
+  );
+
 const escape = (text: string) => text.replace(/[|<>*_`[\]\\]/g, '\\$&');
 
 export const createCommandSetPreview = (
@@ -44,47 +107,36 @@ export const createCommandSetPreview = (
   previewImage?: (definition: SageDefinition) => Promise<string | undefined>,
 ) => {
   return async (definition: SageDefinition): Promise<string> => {
-    const texts = new Map<string, Promise<string[]>>();
-    const linesOf = (place: SageDefinition) => {
-      const key = place.uri.toString();
-      let text = texts.get(key);
-
-      if (!text) {
-        text = Promise.resolve(
-          vscode.workspace.textDocuments
-            .find((document) => document.uri.toString() === key)
-            ?.getText() ??
-            vscode.workspace.fs.readFile(place.uri).then(decodeWindows1252),
-        ).then((content) => content.split(/\r?\n/));
-        texts.set(key, text);
-      }
-      return text.then((lines) => lines.slice(place.line + 1, place.endLine));
-    };
-
-    const slots = commandSetSlots(await linesOf(definition));
+    const linesOf = createLineReader();
+    const slots = await resolveSlots(
+      index,
+      commandSetSlots(await linesOf(definition)),
+      linesOf,
+    );
+    const clashes = hotkeyClashes(slots);
     const cells = await Promise.all(
-      slots.map(async ({ slot, button }) => {
-        const [place] = index.findDefinitions('CommandButton', button);
-
-        if (!place) {
-          return `**${slot}**<br>${escape(button)}<br>*not defined*`;
+      slots.map(async (slot) => {
+        if (!slot.defined) {
+          return `**${slot.slot}**<br>${escape(slot.button)}<br>*not defined*`;
         }
 
-        const fields = fieldsOf(await linesOf(place));
-        const label = fields.get('textlabel');
-        const text = label ? index.findString(label)?.text : undefined;
-        const imageName = fields.get('buttonimage');
-        const [image] = imageName
-          ? index.findDefinitions('MappedImage', imageName)
+        const [image] = slot.imageName
+          ? index.findDefinitions('MappedImage', slot.imageName)
           : [];
         const picture = image && previewImage && (await previewImage(image));
         const uri =
           picture && /\((data:image\/png;base64,[^)]+)\)/.exec(picture)?.[1];
         const icon = uri
-          ? `![${escape(imageName!)}](${uri}|width=${ICON_SIZE},height=${ICON_SIZE})`
+          ? `![${escape(slot.imageName!)}](${uri}|width=${ICON_SIZE},height=${ICON_SIZE})`
           : '▫';
+        const text = escape((slot.text ?? slot.button).replace(/&(?!&)/, ''));
+        const key = slot.hotkey
+          ? clashes.has(slot.slot)
+            ? ` ⚠ **${slot.hotkey}**, as slot ${clashes.get(slot.slot)!.join(', ')}`
+            : ` [${slot.hotkey}]`
+          : '';
 
-        return `${icon}<br>**${slot}** ${escape(text ?? button)}<br><sub>${escape(fields.get('command') ?? '')}</sub>`;
+        return `${icon}<br>**${slot.slot}** ${text}${key}<br><sub>${escape(slot.command ?? '')}</sub>`;
       }),
     );
 
