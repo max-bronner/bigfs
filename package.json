@@ -396,6 +396,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "bigfs.aptEditor",
+        "displayName": "bigFS APT Movie",
+        "selector": [
+          {
+            "filenamePattern": "*.{apt,APT}"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "languages": [

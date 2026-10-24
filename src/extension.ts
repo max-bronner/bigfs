@@ -17,6 +17,7 @@ import { createToolRegistry } from './tools/toolRegistry';
 import { createFormatRegistry } from './formats/formatRegistry';
 import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
+import { AptEditorProvider } from './providers/aptEditorProvider';
 import { decodeDdsTool, decodeTgaTool } from './tools/textureTools';
 import { playableAudioTool } from './tools/audioTools';
 import { parseW3dTool } from './tools/w3dTools';
@@ -57,6 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     locator,
     PreviewEditorProvider.register(tools, locator),
+    AptEditorProvider.register(tools, locator),
   );
 
   registerSageIniLanguage(context, archiveModel, log);
