@@ -175,6 +175,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.previewParticles",
+        "title": "Preview Particle System",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.newAptMovie",
         "title": "New APT Movie…",
         "category": "BIG"
@@ -429,6 +434,13 @@
           "command": "bigfs.showWndPreview",
           "group": "navigation",
           "when": "editorLangId == sage-wnd"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "bigfs.previewParticles",
+          "group": "navigation@20",
+          "when": "editorLangId == sage-ini"
         }
       ]
     },

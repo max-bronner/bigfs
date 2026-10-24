@@ -47,6 +47,22 @@ your mod's archives.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
 - Lua in `BeginScript` regions is checked for syntax errors.
 
+**Particle preview**
+
+- A **Preview** lens on every `FXParticleSystem`, `ParticleSystem` and
+  `FXList` block opens a live 3D preview with the system's textures: orbit,
+  pan and zoom, play, pause, step, restart, speed from 0.1× to 4×, a moving
+  emitter, the emission volume drawn as a wireframe.
+- Every number in the block gets a slider. Sliders change the preview only;
+  **Apply to INI** writes them back as one undoable edit, **Reset** drops
+  them. Typing in the block updates the preview as well.
+- Slave systems, per-particle attached systems, terrain-collision events and
+  an FX list's `ParticleSystem` nuggets (offset, count, delay) play along.
+- The simulation follows the Generals engine's rules as BFME keeps them, at
+  30 frames a second; where the game's rule is not settled (wind strength,
+  hollow boxes) the reading is a switch, with `W` and `H` as hotkeys.
+  Model (`DRAWABLE`) particles are drawn as markers and streaks as sprites.
+
 **String tables**
 
 - `.str` files get their own language: highlighting, an outline of labels,
