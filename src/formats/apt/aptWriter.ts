@@ -66,6 +66,7 @@ export type AptEdit =
   | { kind: 'import'; index: number; movie?: string; name?: string }
   | { kind: 'screen'; width: number; height: number }
   | { kind: 'duplicateCharacter'; id: number }
+  | { kind: 'addCharacter'; type: 'editText' | 'sprite' | 'shape' | 'image' }
   | {
       kind: 'placeObject';
       timeline: number;
@@ -589,6 +590,54 @@ export const applyAptEdit = (
       if (source.type === 'button') {
         image.growArray(copy + 48, source.records.length * 17, 0);
       }
+
+      return { character: id };
+    }
+    case 'addCharacter': {
+      const id = record.characterCount;
+      const f32 = (value: number) =>
+        new Uint32Array(new Float32Array([value]).buffer)[0];
+      const signature = 0x09876543;
+      let words: number[];
+
+      switch (edit.type) {
+        case 'editText':
+          // Bounds 0,0-200,24, font 0, left aligned, white, 16 px, read-only
+          words = [
+            2,
+            signature,
+            f32(0),
+            f32(0),
+            f32(200),
+            f32(24),
+            0,
+            0,
+            0xffffffff,
+            f32(16),
+            1,
+            0,
+            0,
+            image.appendString('Text'),
+            0,
+          ];
+          break;
+        case 'sprite':
+          words = [5, signature, 1, image.appendWords([0, 0]), 0];
+          break;
+        case 'shape':
+          // Its geometry is the .ru the editor writes under the new id
+          words = [1, signature, f32(0), f32(0), f32(100), f32(100), id];
+          break;
+        case 'image':
+          words = [7, signature, id];
+          break;
+      }
+
+      const at = image.appendWords(words);
+      const array = image.growArray(record.offset + 24, id, 1);
+
+      image.setU32(array + id * 4, at);
+      image.setU32(record.offset + 20, id + 1);
 
       return { character: id };
     }

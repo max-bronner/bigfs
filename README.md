@@ -96,7 +96,8 @@ your mod's archives.
 - Every character drawn with its shapes, textures and text; sprites play
   frame by frame.
 - Edit text fields, colours, bounds, exports, imports, placements, frame
-  labels and frames, add frames and duplicate characters, with undo.
+  labels and frames, add frames, duplicate characters and create new text,
+  sprite, shape and image characters, with undo.
 - ActionScript as a small JavaScript-like language, editable and compiled
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,

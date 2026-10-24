@@ -184,3 +184,32 @@ suite('APT editing', () => {
     );
   });
 });
+
+suite('APT new characters', () => {
+  test('each kind is appended to the character table and reads back', () => {
+    const { apt, constFile } = buildMovie();
+    const movieOffset = parseConst(constFile).movieOffset;
+    const image = new AptImage(apt);
+    const ids = (['editText', 'sprite', 'shape', 'image'] as const).map(
+      (type) =>
+        applyAptEdit(image, movieOffset, { kind: 'addCharacter', type })
+          .character,
+    );
+    const movie = parseAptMovie(image.bytes, movieOffset);
+
+    assert.deepStrictEqual(ids, [5, 6, 7, 8]);
+    assert.deepStrictEqual(
+      ids.map((id) => movie.characters[id as number].type),
+      ['editText', 'sprite', 'shape', 'image'],
+    );
+
+    const text = movie.characters[5];
+
+    assert.ok(text.type === 'editText' && text.text === 'Text');
+
+    const sprite = movie.characters[6];
+
+    assert.ok(sprite.type === 'sprite');
+    assert.strictEqual(parseSpriteFrames(image.bytes, sprite).length, 1);
+  });
+});

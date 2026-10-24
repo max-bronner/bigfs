@@ -326,6 +326,8 @@ const characterFields = (character) => {
       fields.push(heading('Imports'));
       state.movie.imports.forEach((entry, index) => fields.push(row('#' + entry.character, input(entry.movie, (movie) => send({ kind: 'import', index, movie }), 'line'), input(entry.name, (name) => send({ kind: 'import', index, name }), 'line'))));
     }
+    fields.push(heading('New character'));
+    fields.push(row('', ...['editText', 'sprite', 'shape', 'image'].map((type) => button(type === 'editText' ? 'Text' : type[0].toUpperCase() + type.slice(1), () => send({ kind: 'addCharacter', type })))));
   }
   if (!['movie', 'placeholder', 'unknown'].includes(character.type)) {
     fields.push(row('', button('Duplicate', () => send({ kind: 'duplicateCharacter', id: character.id }))));
