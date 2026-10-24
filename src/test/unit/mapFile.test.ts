@@ -20,6 +20,18 @@ const buildMap = () => {
     'objectName',
     'playerName',
     'isHuman',
+    'Teams',
+    'teamName',
+    'TriggerAreas',
+    'PlayerScriptsList',
+    'ScriptList',
+    'ScriptGroup',
+    'Script',
+    'OrCondition',
+    'Condition',
+    'ScriptAction',
+    'CONDITION_TRUE',
+    'DEBUG_STRING',
   ];
   const out: number[] = [];
   const u8 = (...values: number[]) => out.push(...values);
@@ -124,6 +136,52 @@ const buildMap = () => {
     u8(1);
     u32(0);
   });
+  chunk('Teams', 1, () => {
+    u32(1);
+    u16(1);
+    key('teamName', 3);
+    str('teamGondor');
+  });
+  chunk('TriggerAreas', 1, () => {
+    u32(1);
+    str('Ford');
+    str('');
+    u32(7);
+    u32(3);
+    [0, 0, 100, 0, 50, 80].forEach(f32);
+    u32(0);
+  });
+  const call = (type: string, name: string, text: string) =>
+    chunk(type, 1, () => {
+      u32(0);
+      key(name, 3);
+      u32(1);
+      u32(0);
+      u32(0);
+      f32(0);
+      str(text);
+    });
+
+  chunk('PlayerScriptsList', 1, () => {
+    chunk('ScriptList', 1, () => {
+      chunk('ScriptGroup', 2, () => {
+        str('Intro');
+        u8(1, 0);
+        chunk('Script', 2, () => {
+          str('SayHello');
+          str('greets');
+          str('');
+          str('');
+          u8(1, 1, 1, 1, 0, 0);
+          u32(0);
+          chunk('OrCondition', 1, () =>
+            call('Condition', 'CONDITION_TRUE', ''),
+          );
+          call('ScriptAction', 'DEBUG_STRING', 'hello');
+        });
+      });
+    });
+  });
 
   return Uint8Array.from(out);
 };
@@ -225,6 +283,84 @@ suite('Maps', () => {
         }),
       /holds a int/,
     );
+  });
+});
+
+suite('Map scripts, teams and areas', () => {
+  test('are read with their names, flags and calls', () => {
+    const map = parseMap(buildMap());
+
+    assert.deepStrictEqual(map.problems, []);
+    assert.strictEqual(map.teams[0].entries[0].value.value, 'teamGondor');
+    assert.deepStrictEqual(map.triggerAreas, [
+      {
+        name: 'Ford',
+        id: 7,
+        points: [
+          [0, 0],
+          [100, 0],
+          [50, 80],
+        ],
+      },
+    ]);
+
+    const [group] = map.scripts[0];
+
+    assert.ok(group.kind === 'group' && group.active);
+
+    const [script] = group.children;
+
+    assert.ok(script.kind === 'script');
+    assert.deepStrictEqual(
+      [
+        script.name,
+        script.oneShot,
+        script.difficulties,
+        script.conditions,
+        script.actions,
+      ],
+      [
+        'SayHello',
+        true,
+        ['easy', 'normal'],
+        [[{ name: 'CONDITION_TRUE', parameters: ['0'] }]],
+        [{ name: 'DEBUG_STRING', parameters: ['hello'] }],
+      ],
+    );
+  });
+
+  test('a script switches off and a light changes in place', () => {
+    let map = parseMap(buildMap());
+    const script = (map.scripts[0][0] as { children: { activeAt: number }[] })
+      .children[0];
+    const length = map.body.length;
+
+    map = applyMapEdit(map, {
+      kind: 'scriptActive',
+      at: script.activeAt,
+      active: false,
+    });
+    map = applyMapEdit(map, {
+      kind: 'light',
+      config: 1,
+      field: 'color',
+      value: [1, 0.5, 0.25],
+    });
+    map = applyMapEdit(map, {
+      kind: 'dict',
+      owner: { team: 0 },
+      key: 'teamName',
+      value: { type: 'string', value: 'teamRohan' },
+    });
+
+    assert.strictEqual(map.body.length, length - 1);
+    assert.strictEqual(
+      (map.scripts[0][0] as { children: { active: boolean }[] }).children[0]
+        .active,
+      false,
+    );
+    assert.deepStrictEqual(map.lighting?.terrainSuns[1].color, [1, 0.5, 0.25]);
+    assert.strictEqual(map.teams[0].entries[0].value.value, 'teamRohan');
   });
 });
 

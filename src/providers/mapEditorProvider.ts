@@ -61,6 +61,9 @@ export const renderHtml = (): string => {
   #object { border-top: 1px solid var(--vscode-panel-border); max-height: 50%; overflow: auto; }
   .muted { opacity: 0.65; }
   .problems { color: var(--vscode-editorWarning-foreground); }
+  .script { margin-left: 12px; } .script .calls { margin: 0 0 4px 22px; opacity: 0.8; font-family: var(--vscode-editor-font-family, monospace); font-size: 0.9em; }
+  .script label { display: flex; gap: 4px; align-items: center; }
+  .light { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 3px; align-items: center; }
   #notice { position: fixed; bottom: 8px; left: 310px; right: 310px; padding: 6px 10px; background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
 </style></head>
 <body>
@@ -71,6 +74,7 @@ export const renderHtml = (): string => {
     <label><input type="checkbox" id="layer-waypoints"> Waypoints</label>
     <label><input type="checkbox" id="layer-starts"> Start positions</label>
     <label><input type="checkbox" id="layer-boundary"> Playable area</label>
+    <label><input type="checkbox" id="layer-areas"> Trigger areas</label>
   </div>
   <div id="stage"><canvas id="terrain" width="10" height="10"></canvas></div>
 </main>
@@ -94,6 +98,10 @@ const toMessage = (map: MapFile, withHeights: boolean) => ({
     compression: map.compression,
     worldInfo: entriesOf(map.worldInfo),
     timeOfDay: map.lighting?.timeOfDay,
+    lights: map.lighting?.terrainSuns,
+    teams: map.teams.map(entriesOf),
+    scripts: map.scripts,
+    triggerAreas: map.triggerAreas,
     sides: map.sides.map(entriesOf),
     objects: map.objects.map((object) => ({
       index: object.index,
