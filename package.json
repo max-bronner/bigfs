@@ -507,6 +507,21 @@
           "default": "auto",
           "description": "Whether a value naming a Weapon, Upgrade, FXList or other definition that nothing in the workspace defines is reported."
         },
+        "bigfs.ini.checkAssets": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Check once the archives and folders hold the base game's models, so a missing name is a mistake",
+            "Always check, even with only a mod's own files open",
+            "Never check"
+          ],
+          "default": "auto",
+          "description": "Whether a model, animation, texture or sound an INI file names, which no archive or folder holds, is reported."
+        },
         "bigfs.explorer.view": {
           "type": "string",
           "enum": [
