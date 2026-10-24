@@ -10,6 +10,7 @@ import { registerSageIniValidation } from './sageIniValidation';
 import { createCommandSetPreview } from './commandSetPreview';
 import { registerParticlePreview } from './particlePreview';
 import { describeSound, registerSoundPlayer } from './soundPlayer';
+import { registerBalanceSheet } from './balanceSheet';
 import type { EntryLocator } from '../formats/entryLocator';
 import { createMappedImagePreview } from './mappedImagePreview';
 import {
@@ -73,6 +74,7 @@ export const registerSageIniLanguage = (
     documents.onDidChangeSchema(() => index.reset()),
     ...registerParticlePreview(context, selector, index, locator),
     ...registerSoundPlayer(selector, index, locator),
+    registerBalanceSheet(documents, index),
     watchSageIniDialect(),
     watchSageIniDiagnostics(documents, index, locator),
     ...registerSageIniValidation(documents, archiveModel, locator),

@@ -75,6 +75,16 @@ your mod's archives.
   hollow boxes) the reading is a switch, with `W` and `H` as hotkeys.
   Model (`DRAWABLE`) particles are drawn as markers and streaks as sprites.
 
+**Balance sheet**
+
+- **BIG: Open Balance Sheet** lists every unit and building with its side,
+  cost, build time, command points, health, vision, speed, armor and
+  primary weapon's damage, range and delay, read across all INI files.
+- Sort by any column, filter by name, weapon, armor or side.
+- Double-click a value to change it where it is written; a child's
+  inherited value is shown in italics and edited at its parent, and a
+  weapon value notes how many templates share it.
+
 **String tables**
 
 - `.str` files get their own language: highlighting, an outline of labels,
