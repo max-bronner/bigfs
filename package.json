@@ -131,6 +131,16 @@
         "command": "bigfs.validateIni",
         "title": "Validate INI Files",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.showGameView",
+        "title": "Show What the Game Loads",
+        "icon": "$(layers)"
+      },
+      {
+        "command": "bigfs.showArchiveView",
+        "title": "Show Every Archive",
+        "icon": "$(archive)"
       }
     ],
     "menus": {
@@ -149,73 +159,83 @@
           "command": "bigfs.validateIni",
           "group": "1_search@2",
           "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.showGameView",
+          "group": "navigation@0",
+          "when": "view == bigArchiveExplorer && !bigfs.gameView"
+        },
+        {
+          "command": "bigfs.showArchiveView",
+          "group": "navigation@0",
+          "when": "view == bigArchiveExplorer && bigfs.gameView"
         }
       ],
       "view/item/context": [
         {
           "command": "bigfs.newFile",
           "group": "navigation@1",
-          "when": "view == bigArchiveExplorer"
+          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.newFolder",
           "group": "navigation@2",
-          "when": "view == bigArchiveExplorer"
+          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.addFiles",
           "group": "navigation@3",
-          "when": "view == bigArchiveExplorer"
+          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.extract",
           "group": "3_extract@1",
-          "when": "view == bigArchiveExplorer"
+          "when": "view == bigArchiveExplorer && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.rename",
           "group": "7_modification@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.delete",
           "group": "7_modification@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.cut",
           "group": "5_cutcopypaste@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.copy",
           "group": "5_cutcopypaste@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.paste",
           "group": "5_cutcopypaste@3",
-          "when": "view == bigArchiveExplorer && bigfs.hasClipboard"
+          "when": "view == bigArchiveExplorer && bigfs.hasClipboard && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.duplicate",
           "group": "5_cutcopypaste@4",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.copyPath",
           "group": "6_copypath@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.copyRelativePath",
           "group": "6_copypath@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
         },
         {
           "command": "bigfs.overrideInFolder",
           "group": "3_extract@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigLooseFile"
         }
       ],
       "commandPalette": [
@@ -350,6 +370,19 @@
           ],
           "default": "auto",
           "description": "Whether a value naming a Weapon, Upgrade, FXList or other definition that nothing in the workspace defines is reported."
+        },
+        "bigfs.explorer.view": {
+          "type": "string",
+          "enum": [
+            "archives",
+            "game"
+          ],
+          "enumDescriptions": [
+            "Every archive with all of its files",
+            "Only the file the game loads at each path, layered by the engine's archive order: loose files before archives, archives sorted by path with the first winning, workspace folders in order with the first winning"
+          ],
+          "default": "archives",
+          "description": "What the BIG Archives view shows."
         }
       }
     },
