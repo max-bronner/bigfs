@@ -3,6 +3,8 @@ import { decodeDdsTool, decodeTgaTool } from '../tools/textureTools';
 import type { RgbaImage } from '../tools/textureTools';
 import { parseW3dTool } from '../tools/w3dTools';
 import type { W3dFile, W3dHierarchy, W3dMesh } from '../tools/w3dTools';
+import { parseW3dAnimations } from './w3dAnimation';
+import type { W3dAnimation } from './w3dAnimation';
 
 /**
  * Builds what a model preview draws from a W3D file: every mesh in model
@@ -24,6 +26,27 @@ export interface SceneMesh {
   indices: Uint32Array;
   /** Index into `ModelScene.textures`, when the texture was found */
   texture?: number;
+  /**
+   * The mesh as stored, in the space of the bones its vertices follow, so a
+   * player can pose it: absent when no vertex follows a bone
+   */
+  local?: {
+    positions: Float32Array;
+    normals?: Float32Array;
+    /** Bone of each vertex */
+    bones: Uint16Array;
+  };
+}
+
+/** A skeleton in its bind pose, for posing a model */
+export interface SceneSkeleton {
+  name: string;
+  names: string[];
+  parents: number[];
+  /** Three a bone */
+  translations: number[];
+  /** Four a bone, as x, y, z, w */
+  rotations: number[];
 }
 
 /** A model ready to draw */
@@ -34,6 +57,9 @@ export interface ModelScene {
   missing: string[];
   /** Name of the skeleton, when the model has one */
   hierarchy?: string;
+  skeleton?: SceneSkeleton;
+  /** An animation the file itself holds, which plays at once */
+  animation?: W3dAnimation;
   bounds: { min: [number, number, number]; max: [number, number, number] };
 }
 
@@ -183,23 +209,24 @@ export const buildW3dScene = async (
 ): Promise<ModelScene> => {
   const parse = tools.use(parseW3dTool);
   const file = await parse(bytes);
+  const [animation] = parseW3dAnimations(bytes);
 
-  if (!file.meshes.length) {
-    throw new Error(
-      file.hierarchy
-        ? `This is the skeleton ${file.hierarchy.name}; it has no meshes to draw`
-        : 'This W3D file has no meshes',
-    );
-  }
-
-  // A skeleton is usually its own file, named by the HLOD
+  // A skeleton is usually its own file, named by the HLOD or the animation
   let hierarchy = file.hierarchy;
-  const hierarchyName = file.hlod?.hierarchyName;
+  const hierarchyName = file.hlod?.hierarchyName ?? animation?.hierarchyName;
 
   if (!hierarchy && hierarchyName) {
     const skeleton = await loadFile(`${hierarchyName}.w3d`);
 
     hierarchy = skeleton ? (await parse(skeleton)).hierarchy : undefined;
+  }
+
+  if (!file.meshes.length && !hierarchy) {
+    throw new Error(
+      animation
+        ? `This is the animation ${animation.name}; its skeleton ${animation.hierarchyName} was not found`
+        : 'This W3D file has no meshes',
+    );
   }
 
   const matrices = boneMatrices(hierarchy);
@@ -242,6 +269,19 @@ export const buildW3dScene = async (
       }
     }
 
+    const vertexCount = mesh.positions.length / 3;
+    const bones = new Uint16Array(vertexCount);
+    let isBound = false;
+
+    for (let vertex = 0; vertex < vertexCount; vertex++) {
+      const bone = boneOf(vertex);
+
+      if (bone !== undefined && bone < matrices.length) {
+        bones[vertex] = bone;
+        isBound = true;
+      }
+    }
+
     return {
       name: mesh.name,
       positions,
@@ -249,14 +289,35 @@ export const buildW3dScene = async (
       uvs: mesh.uvs,
       indices: mesh.indices,
       texture: mesh.texture ? textureIndex.get(mesh.texture) : undefined,
+      local: isBound
+        ? { positions: mesh.positions, normals: mesh.normals, bones }
+        : undefined,
     };
   });
+
+  // A skeleton alone is framed by its bones
+  if (!meshes.length) {
+    for (const matrix of matrices) {
+      for (let axis = 0; axis < 3; axis++) {
+        min[axis] = Math.min(min[axis], matrix[12 + axis]);
+        max[axis] = Math.max(max[axis], matrix[12 + axis]);
+      }
+    }
+  }
 
   return {
     meshes,
     textures,
     missing: textureNames.filter((name) => !textureIndex.has(name)),
     hierarchy: hierarchy?.name,
+    skeleton: hierarchy && {
+      name: hierarchy.name,
+      names: hierarchy.pivots.map((pivot) => pivot.name),
+      parents: hierarchy.pivots.map((pivot) => pivot.parent),
+      translations: hierarchy.pivots.flatMap((pivot) => pivot.translation),
+      rotations: hierarchy.pivots.flatMap((pivot) => pivot.rotation),
+    },
+    animation,
     bounds: { min, max },
   };
 };

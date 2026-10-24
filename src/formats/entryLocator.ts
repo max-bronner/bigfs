@@ -53,6 +53,33 @@ export class EntryLocator implements Disposable {
     return loose ? workspace.fs.readFile(loose) : undefined;
   }
 
+  /**
+   * Names of every file in the archives and loose in the workspace whose
+   * lowercased name passes `matches`, lowercased, without repeats
+   */
+  public async findNames(
+    matches: (lowerName: string) => boolean,
+    loosePattern: string,
+  ): Promise<string[]> {
+    const names = new Set(
+      [...(await this.getNames()).keys()].filter((name) => matches(name)),
+    );
+
+    for (const uri of await workspace.findFiles(
+      loosePattern,
+      undefined,
+      5000,
+    )) {
+      const name = uri.path.slice(uri.path.lastIndexOf('/') + 1).toLowerCase();
+
+      if (matches(name)) {
+        names.add(name);
+      }
+    }
+
+    return [...names].sort();
+  }
+
   /** Reads a file of this name in the same directory, whatever its casing */
   private async readBeside(
     fileName: string,

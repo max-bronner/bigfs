@@ -4,7 +4,11 @@ import { buildW3dScene } from '../../formats/w3dScene';
 import { createToolRegistry } from '../../tools/toolRegistry';
 
 /** A chunk: type, size with the container bit when it holds chunks, payload */
-const chunk = (type: number, payload: Uint8Array, holdsChunks = false) => {
+export const chunk = (
+  type: number,
+  payload: Uint8Array,
+  holdsChunks = false,
+) => {
   const header = new Uint8Array(8);
   const view = new DataView(header.buffer);
 
@@ -14,7 +18,7 @@ const chunk = (type: number, payload: Uint8Array, holdsChunks = false) => {
   return concat(header, payload);
 };
 
-const concat = (...parts: Uint8Array[]): Uint8Array => {
+export const concat = (...parts: Uint8Array[]): Uint8Array => {
   const out = new Uint8Array(
     parts.reduce((total, part) => total + part.length, 0),
   );
@@ -28,13 +32,13 @@ const concat = (...parts: Uint8Array[]): Uint8Array => {
   return out;
 };
 
-const floats = (...values: number[]) =>
+export const floats = (...values: number[]) =>
   new Uint8Array(Float32Array.from(values).buffer);
-const uints = (...values: number[]) =>
+export const uints = (...values: number[]) =>
   new Uint8Array(Uint32Array.from(values).buffer);
 
 /** A fixed-length, NUL-padded name */
-const name = (text: string, length: number) => {
+export const name = (text: string, length: number) => {
   const bytes = new Uint8Array(length);
 
   bytes.set(Array.from(text, (c) => c.charCodeAt(0)));
@@ -87,7 +91,7 @@ const pivot = (pivotName: string, parent: number, translation: number[]) =>
     floats(...translation, 0, 0, 0, 0, 0, 0, 1),
   );
 
-const hierarchy = chunk(
+export const hierarchy = chunk(
   0x100,
   concat(
     chunk(
@@ -167,10 +171,32 @@ suite('W3D models', () => {
     assert.deepStrictEqual(scene.bounds, { min: [0, 0, 10], max: [1, 1, 10] });
   });
 
-  test('a skeleton on its own says it has no meshes to draw', async () => {
-    await assert.rejects(
-      buildW3dScene(hierarchy, async () => undefined, createToolRegistry()),
-      /skeleton UNIT_SKL/,
+  test('a skeleton on its own is shown as its bones', async () => {
+    const scene = await buildW3dScene(
+      hierarchy,
+      async () => undefined,
+      createToolRegistry(),
+    );
+
+    assert.strictEqual(scene.meshes.length, 0);
+    assert.deepStrictEqual(scene.skeleton?.parents, [-1, 0]);
+    assert.deepStrictEqual(scene.bounds, { min: [0, 0, 0], max: [0, 0, 10] });
+  });
+
+  test('a mesh on a bone carries its own vertices and bone for posing', async () => {
+    const scene = await buildW3dScene(
+      concat(mesh('BODY'), hlod),
+      async (fileName) => (fileName === 'UNIT_SKL.w3d' ? hierarchy : undefined),
+      createToolRegistry(),
+    );
+
+    assert.deepStrictEqual(
+      Array.from(scene.meshes[0].local?.bones ?? []),
+      [1, 1, 1],
+    );
+    assert.deepStrictEqual(
+      Array.from(scene.meshes[0].local?.positions ?? []),
+      [0, 0, 0, 1, 0, 0, 0, 1, 0],
     );
   });
 });

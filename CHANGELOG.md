@@ -20,3 +20,4 @@
 - Map editor for `.map` and `.bse`: terrain relief with objects and start
   positions, world info, time of day, players and object properties, with
   RefPack compression both ways.
+- W3D animation playback on models and skeletons.
