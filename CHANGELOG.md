@@ -12,3 +12,6 @@
 - APT movie editing: text fields, colours, bounds, exports and imports,
   placements, frame labels, frames and duplicated characters, with undo;
   untouched bytes are kept as shipped.
+- APT ActionScript as an editable JavaScript-like language, checked to
+  compile back to the same code before it is shown; hot-exit backups keep
+  movie edits.

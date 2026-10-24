@@ -23,6 +23,9 @@ your mod's archives.
 - **Override in Folder** copies archive files into a mod folder at the same
   path.
 - **Search in BIG Archives** finds text inside every archive.
+- **Game view** (`bigfs.explorer.view`): one merged tree of only the files the
+  game loads, after its own priority rules, beside the default per-archive
+  view.
 
 **INI language support** for `.ini`, `.inc` and `.bhav`
 
@@ -41,6 +44,17 @@ your mod's archives.
   levels.
 - Sounds: WAV, including IMA ADPCM.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
+
+**Interface movies (APT)**
+
+- Every character drawn with its shapes, textures and text; sprites play
+  frame by frame.
+- Edit text fields, colours, bounds, exports, imports, placements, frame
+  labels and frames, add frames and duplicate characters, with undo.
+- ActionScript as a small JavaScript-like language, editable and compiled
+  back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
+  is only offered once compiling it is checked to give back the same code,
+  and blocks you do not change keep their bytes as shipped.
 
 ## Development
 

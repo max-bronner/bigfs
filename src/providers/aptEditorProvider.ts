@@ -10,7 +10,11 @@ import {
 import type { AptMovie, ConstFile, Frame } from '../formats/apt/aptMovie';
 import { AptImage, applyAptEdit } from '../formats/apt/aptWriter';
 import type { AptEdit, EditResult } from '../formats/apt/aptWriter';
-import { decodeBlock, printListing } from '../formats/apt/aptBytecode';
+import {
+  appendConstItems,
+  decompileBlock,
+  replaceBlock,
+} from '../formats/apt/aptScript';
 import { getTexturePath, parseDat, parseRu } from '../formats/apt/aptGeometry';
 import type { RuRun } from '../formats/apt/aptGeometry';
 import { APT_VIEW_SCRIPT } from './aptViewScript';
@@ -57,11 +61,73 @@ const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
 
 const latin1 = (bytes: Uint8Array) => new TextDecoder('latin1').decode(bytes);
 
-/** A movie's state an undo restores: its image and the files it adds */
+/** A movie's state an undo restores: its image, `.const` and added files */
 interface Snapshot {
   apt: Uint8Array;
+  constBytes: Uint8Array;
   files: Map<string, Uint8Array>;
 }
+
+/** Packs a snapshot into one file for a hot-exit backup, and back */
+const packSnapshot = (snapshot: Snapshot): Uint8Array => {
+  const parts: Uint8Array[] = [];
+  const word = (value: number) =>
+    parts.push(new Uint8Array(new Uint32Array([value]).buffer));
+  const blob = (bytes: Uint8Array) => {
+    word(bytes.length);
+    parts.push(bytes);
+  };
+
+  blob(snapshot.apt);
+  blob(snapshot.constBytes);
+  word(snapshot.files.size);
+  for (const [name, bytes] of snapshot.files) {
+    blob(new TextEncoder().encode(name));
+    blob(bytes);
+  }
+
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let at = 0;
+
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+
+  return out;
+};
+
+const unpackSnapshot = (bytes: Uint8Array): Snapshot => {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let at = 0;
+  const word = () => {
+    const value = view.getUint32(at, true);
+
+    at += 4;
+
+    return value;
+  };
+  const blob = () => {
+    const length = word();
+
+    if (at + length > bytes.length) {
+      throw new Error('The backup is cut short');
+    }
+
+    at += length;
+
+    return bytes.slice(at - length, at);
+  };
+  const apt = blob();
+  const constBytes = blob();
+  const files = new Map<string, Uint8Array>();
+
+  for (let count = word(); count > 0; count--) {
+    files.set(new TextDecoder().decode(blob()), blob());
+  }
+
+  return { apt, constBytes, files };
+};
 
 /**
  * One open movie: the `.apt` image being edited, the files beside it, and
@@ -75,6 +141,11 @@ export class AptDocument implements vscode.CustomDocument {
   /** Files an edit adds beside the movie, by path relative to its folder */
   public files = new Map<string, Uint8Array>();
 
+  /** The `.const` as edited; a script edit can add items to it */
+  private constBytes: Uint8Array;
+  private readonly savedConst: Uint8Array;
+  private parsedConst: ConstFile;
+
   private readonly read: (relative: string) => Promise<Uint8Array | undefined>;
   private readonly cache = new Map<string, Promise<Uint8Array | undefined>>();
   private readonly textures = new Map<
@@ -85,7 +156,7 @@ export class AptDocument implements vscode.CustomDocument {
   private constructor(
     public readonly uri: vscode.Uri,
     apt: Uint8Array,
-    public readonly constFile: ConstFile,
+    constBytes: Uint8Array,
     public readonly name: string,
     locator: EntryLocator,
     private readonly tools: ToolBox,
@@ -93,6 +164,9 @@ export class AptDocument implements vscode.CustomDocument {
     const folder = vscode.Uri.joinPath(uri, '..');
 
     this.image = new AptImage(apt);
+    this.constBytes = constBytes;
+    this.savedConst = constBytes;
+    this.parsedConst = parseConst(constBytes);
     this.read = (relative) =>
       this.files.has(relative)
         ? Promise.resolve(this.files.get(relative))
@@ -125,14 +199,28 @@ export class AptDocument implements vscode.CustomDocument {
       throw new Error(`${name}.const is not beside the movie`);
     }
 
-    return new AptDocument(
-      uri,
-      apt,
-      parseConst(constBytes),
-      name,
-      locator,
-      tools,
-    );
+    return new AptDocument(uri, apt, constBytes, name, locator, tools);
+  }
+
+  /** The `.const` as it now stands */
+  public get constFile(): ConstFile {
+    return this.parsedConst;
+  }
+
+  /** Adds `.const` items a compiled script needs */
+  public addConstItems(items: ConstFile['items']): void {
+    if (items.length) {
+      this.constBytes = appendConstItems(this.constBytes, items);
+      this.parsedConst = parseConst(this.constBytes);
+    }
+  }
+
+  public backup(): Uint8Array {
+    return packSnapshot(this.snapshot());
+  }
+
+  public restoreBackup(bytes: Uint8Array): void {
+    this.restore(unpackSnapshot(bytes));
   }
 
   public dispose(): void {
@@ -159,11 +247,17 @@ export class AptDocument implements vscode.CustomDocument {
   }
 
   public snapshot(): Snapshot {
-    return { apt: this.image.bytes, files: new Map(this.files) };
+    return {
+      apt: this.image.bytes,
+      constBytes: this.constBytes,
+      files: new Map(this.files),
+    };
   }
 
   public restore(snapshot: Snapshot): void {
     this.image = new AptImage(snapshot.apt);
+    this.constBytes = snapshot.constBytes;
+    this.parsedConst = parseConst(snapshot.constBytes);
     this.files = new Map(snapshot.files);
   }
 
@@ -285,6 +379,21 @@ export class AptDocument implements vscode.CustomDocument {
 
     await vscode.workspace.fs.writeFile(target, this.image.bytes);
 
+    // A movie saved elsewhere takes its .const along; in place, only a changed one is written
+    if (
+      target.toString() !== this.uri.toString() ||
+      this.constBytes !== this.savedConst
+    ) {
+      const stem = target.path
+        .slice(target.path.lastIndexOf('/') + 1)
+        .replace(/\.apt$/i, '');
+
+      await vscode.workspace.fs.writeFile(
+        vscode.Uri.joinPath(folder, `${stem}.const`),
+        this.constBytes,
+      );
+    }
+
     for (const [relative, bytes] of this.files) {
       await vscode.workspace.fs.writeFile(
         vscode.Uri.joinPath(folder, relative),
@@ -310,7 +419,7 @@ export const renderHtml = (webview: vscode.Webview): string => {
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src blob: data:;">
 <style>
-  body { margin: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); display: grid; grid-template-columns: 260px 1fr 340px; height: 100vh; }
+  body { margin: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); display: grid; grid-template-columns: 240px 1fr minmax(360px, 42%); height: 100vh; }
   aside, section { overflow: auto; }
   aside { border-right: 1px solid var(--vscode-panel-border); display: flex; flex-direction: column; }
   #filter { margin: 6px; padding: 3px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
@@ -325,13 +434,14 @@ export const renderHtml = (webview: vscode.Webview): string => {
   pre { white-space: pre-wrap; word-break: break-all; font-family: var(--vscode-editor-font-family); font-size: 12px; }
   .muted, #summary { opacity: 0.75; }
   .error { color: var(--vscode-errorForeground); padding: 12px; }
-  #notice { position: fixed; bottom: 8px; left: 270px; right: 350px; padding: 6px 10px; color: var(--vscode-inputValidation-errorForeground, inherit); background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
+  #notice { position: fixed; bottom: 8px; left: 250px; right: 12px; z-index: 2; padding: 6px 10px; color: var(--vscode-inputValidation-errorForeground, inherit); background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
   .field { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 3px 0; }
   .field label { min-width: 84px; opacity: 0.8; }
   .field input, .field textarea { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 2px 4px; width: 90px; font: inherit; }
   .field textarea { width: 100%; min-height: 3em; }
   .field input.short { width: 52px; }
   .field input.line { width: 160px; }
+  textarea.code { width: 100%; box-sizing: border-box; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 12px); color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); white-space: pre; tab-size: 2; }
   .field input.invalid { border-color: var(--vscode-inputValidation-errorBorder); }
   .field button, button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: none; padding: 2px 8px; border-radius: 2px; cursor: pointer; }
   select, input[type=range] { color: var(--vscode-dropdown-foreground); background: var(--vscode-dropdown-background); }
@@ -386,8 +496,19 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     );
   }
 
-  public openCustomDocument(uri: vscode.Uri): Promise<AptDocument> {
-    return AptDocument.open(uri, this.locator, this.tools);
+  public async openCustomDocument(
+    uri: vscode.Uri,
+    context: vscode.CustomDocumentOpenContext,
+  ): Promise<AptDocument> {
+    const document = await AptDocument.open(uri, this.locator, this.tools);
+
+    if (context.backupId) {
+      document.restoreBackup(
+        await vscode.workspace.fs.readFile(vscode.Uri.parse(context.backupId)),
+      );
+    }
+
+    return document;
   }
 
   public async saveCustomDocument(document: AptDocument): Promise<void> {
@@ -416,10 +537,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     document: AptDocument,
     context: vscode.CustomDocumentBackupContext,
   ): Promise<vscode.CustomDocumentBackup> {
-    await vscode.workspace.fs.writeFile(
-      context.destination,
-      document.image.bytes,
-    );
+    await vscode.workspace.fs.writeFile(context.destination, document.backup());
 
     return {
       id: context.destination.toString(),
@@ -432,6 +550,74 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
    * Duplicating a shape also copies its geometry file under the new id.
    */
   private async edit(
+    document: AptDocument,
+    edit: AptEdit,
+  ): Promise<EditResult> {
+    return this.record(document, edit.kind, () => this.apply(document, edit));
+  }
+
+  /**
+   * Compiles a script over the block at `block`. The old code stays where it
+   * is, unreferenced; an undo points back at it.
+   */
+  private editScript(
+    document: AptDocument,
+    block: number,
+    text: string,
+  ): Promise<number> {
+    return this.record(document, 'script', async () => {
+      const { start, added } = replaceBlock(
+        document.image,
+        document.constFile.movieOffset,
+        block,
+        text,
+        document.constFile.items,
+      );
+
+      document.addConstItems(added);
+
+      return start;
+    });
+  }
+
+  /** Runs a change, records how to undo it, and redraws */
+  private async record<T>(
+    document: AptDocument,
+    label: string,
+    change: () => Promise<T>,
+  ): Promise<T> {
+    const before = document.snapshot();
+    let result: T;
+
+    try {
+      result = await change();
+    } catch (error) {
+      document.restore(before);
+      throw error;
+    }
+
+    const after = document.snapshot();
+    const redraw = () => this.redraws.get(document)?.() ?? Promise.resolve();
+
+    this.onDidChangeEmitter.fire({
+      document,
+      label,
+      undo: async () => {
+        document.restore(before);
+        await redraw();
+      },
+      redo: async () => {
+        document.restore(after);
+        await redraw();
+      },
+    });
+    await redraw();
+
+    return result;
+  }
+
+  /** Applies an edit; duplicating a shape also copies its geometry file */
+  private async apply(
     document: AptDocument,
     edit: AptEdit,
   ): Promise<EditResult> {
@@ -461,23 +647,6 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       }
     }
 
-    const after = document.snapshot();
-    const redraw = () => this.redraws.get(document)?.() ?? Promise.resolve();
-
-    this.onDidChangeEmitter.fire({
-      document,
-      label: edit.kind,
-      undo: async () => {
-        document.restore(before);
-        await redraw();
-      },
-      redo: async () => {
-        document.restore(after);
-        await redraw();
-      },
-    });
-    await redraw();
-
     return result;
   }
 
@@ -504,26 +673,42 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       try {
         if (message?.kind === 'ready') {
           await this.redraws.get(document)?.();
-        } else if (message?.kind === 'listing') {
+        } else if (message?.kind === 'script') {
           const block = Number(message.block);
-          let text: string;
+          let script;
 
           try {
-            text = printListing(
-              decodeBlock(document.image.bytes, block),
+            script = decompileBlock(
+              document.image.bytes,
+              block,
               document.constFile.items,
             );
           } catch (error) {
-            text = `Cannot decode: ${error instanceof Error ? error.message : error}`;
+            script = {
+              text: `Cannot decode: ${error instanceof Error ? error.message : error}`,
+              mode: 'listing',
+            };
           }
 
-          await post({ kind: 'listing', block, text });
+          await post({ kind: 'script', block, ...script });
         } else if (message?.kind === 'edit') {
           const result = await this.edit(document, message.edit as AptEdit);
 
           if (result.character !== undefined) {
             await post({ kind: 'select', character: result.character });
           }
+        } else if (message?.kind === 'scriptEdit') {
+          const block = await this.editScript(
+            document,
+            Number(message.block),
+            String(message.text),
+          );
+
+          await post({
+            kind: 'scriptSaved',
+            block,
+            previous: Number(message.block),
+          });
         } else if (message?.kind === 'openGeometry') {
           const relative = `${document.name}_geometry/${Number(message.geometry)}.ru`;
 

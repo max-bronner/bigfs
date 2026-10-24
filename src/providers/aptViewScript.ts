@@ -5,7 +5,7 @@
  *
  * Kept apart from the provider because it is page code: it reaches the
  * extension only through `vscode.postMessage`, to ask for an action block's
- * listing or, in the editor, to send an edit.
+ * script or, in the editor, to send an edit.
  */
 export const APT_VIEW_SCRIPT = /* js */ `
 const vscode = acquireVsCodeApi();
@@ -16,7 +16,7 @@ const details = document.getElementById('details');
 const frameInput = document.getElementById('frame');
 const frameLabel = document.getElementById('frame-label');
 const zoomSelect = document.getElementById('zoom');
-const state = { movie: undefined, selected: 0, frame: 0, textures: new Map() };
+const state = { movie: undefined, selected: 0, frame: 0, textures: new Map(), openBlocks: new Set(), drafts: new Map() };
 
 const TYPE_NAMES = {
   movie: 'Movie', shape: 'Shape', editText: 'EditText', font: 'Font', button: 'Button',
@@ -387,12 +387,20 @@ const showDetails = () => {
       element.dataset.block = String(b.block);
       const summary = document.createElement('summary');
       summary.textContent = b.label + ' · 0x' + b.block.toString(16);
-      const code = document.createElement('pre');
-      code.className = 'code';
-      code.textContent = '…';
-      element.append(summary, code);
-      element.addEventListener('toggle', () => element.open && vscode.postMessage({ kind: 'listing', block: b.block }), { once: true });
+      const body = document.createElement('div');
+      body.className = 'script';
+      body.textContent = '…';
+      element.append(summary, body);
+      element.addEventListener('toggle', () => {
+        if (element.open) {
+          state.openBlocks.add(b.block);
+          vscode.postMessage({ kind: 'script', block: b.block });
+        } else {
+          state.openBlocks.delete(b.block);
+        }
+      });
       details.append(element);
+      if (state.openBlocks.has(b.block)) element.open = true;
     }
   }
 };
@@ -422,6 +430,41 @@ zoomSelect.onchange = render;
 frameInput.oninput = () => { state.frame = Number(frameInput.value); showDetails(); render(); };
 window.addEventListener('resize', render);
 
+/** Fills a script panel: editable text, or a read-only listing */
+const showScript = (data) => {
+  const body = details.querySelector('details[data-block="' + data.block + '"] .script');
+  if (!body) return;
+  const editable = data.mode !== 'listing';
+  const text = document.createElement('textarea');
+  text.className = 'code';
+  text.spellcheck = false;
+  text.readOnly = !editable;
+  text.value = state.drafts.get(data.block) ?? data.text;
+  text.rows = Math.min(30, Math.max(4, text.value.split('\\n').length + 1));
+  text.addEventListener('input', () => state.drafts.set(data.block, text.value));
+  text.addEventListener('keydown', (event) => {
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      text.setRangeText('  ', text.selectionStart, text.selectionEnd, 'end');
+      state.drafts.set(data.block, text.value);
+    }
+  });
+  const bar = document.createElement('div');
+  bar.className = 'field';
+  const mode = document.createElement('span');
+  mode.className = 'muted';
+  mode.textContent = data.mode === 'script' ? 'script' : data.mode === 'assembly' ? 'assembly (one instruction a line)' : 'listing, read-only';
+  if (data.note) mode.title = data.note;
+  bar.append(mode);
+  if (editable) {
+    bar.append(
+      button('Apply', () => vscode.postMessage({ kind: 'scriptEdit', block: data.block, text: text.value })),
+      button('Reset', () => { state.drafts.delete(data.block); text.value = data.text; }),
+    );
+  }
+  body.replaceChildren(text, bar);
+};
+
 window.addEventListener('message', async ({ data }) => {
   if (data.kind === 'movie') {
     const isFirst = !state.movie;
@@ -441,9 +484,14 @@ window.addEventListener('message', async ({ data }) => {
   } else if (data.kind === 'select') {
     showList();
     select(data.character);
-  } else if (data.kind === 'listing') {
-    const element = details.querySelector('details[data-block="' + data.block + '"] pre');
-    if (element) element.textContent = data.text;
+  } else if (data.kind === 'script') {
+    showScript(data);
+  } else if (data.kind === 'scriptSaved') {
+    state.drafts.delete(data.previous);
+    state.openBlocks.delete(data.previous);
+    state.openBlocks.add(data.block);
+    const element = details.querySelector('details[data-block="' + data.block + '"]');
+    if (element && !element.open) element.open = true;
   } else if (data.kind === 'notice') {
     const notice = document.getElementById('notice');
     notice.textContent = data.message;
