@@ -43,11 +43,27 @@ async function main() {
     plugins: [esbuildProblemMatcherPlugin],
   });
 
-  if (watch) {
-    await context.watch();
-  } else {
-    await context.rebuild();
-    await context.dispose();
+  // The particle simulation runs inside the preview webview
+  const webview = await esbuild.context({
+    entryPoints: ['src/formats/particles/particleSimulation.ts'],
+    bundle: true,
+    format: 'iife',
+    globalName: 'BigfsParticles',
+    minify: production,
+    sourcemap: false,
+    platform: 'browser',
+    outfile: 'dist/webview/particles.js',
+    logLevel: 'silent',
+    plugins: [esbuildProblemMatcherPlugin],
+  });
+
+  for (const each of [context, webview]) {
+    if (watch) {
+      await each.watch();
+    } else {
+      await each.rebuild();
+      await each.dispose();
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import { SageIniIndex } from './sageIniIndex';
 import { watchSageIniDialect } from './sageIniDialect';
 import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
+import { registerParticlePreview } from './particlePreview';
 import type { EntryLocator } from '../formats/entryLocator';
 import { createMappedImagePreview } from './mappedImagePreview';
 import {
@@ -67,6 +68,7 @@ export const registerSageIniLanguage = (
     index,
     // Another game reads some lines differently, so every file is read again
     documents.onDidChangeSchema(() => index.reset()),
+    ...registerParticlePreview(context, selector, index, locator),
     watchSageIniDialect(),
     watchSageIniDiagnostics(documents, index),
     ...registerSageIniValidation(documents, archiveModel),

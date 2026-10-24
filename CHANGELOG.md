@@ -34,3 +34,5 @@
 - APT: create new movies with exported sprites, and add or remove imports so
   root movies can use them.
 - Lua syntax checking inside INI script regions.
+- Particle preview for particle systems and FX lists, with a slider for
+  every value and Apply to INI.
