@@ -1,5 +1,4 @@
 import { stripComment, tokenize } from './sageIniParser';
-import { quoteStringText } from './sageStringRecords';
 
 /**
  * A copy of a definition under a new name: the header renamed, and every
@@ -64,6 +63,4 @@ export const duplicateDefinition = (
   };
 };
 
-/** A string table record, as `.str` files write one */
-export const strRecord = (label: string, text: string, eol: string): string =>
-  `${label}${eol}${quoteStringText(text)}${eol}END${eol}`;
+export { strRecord } from './sageStringRecords';
