@@ -227,7 +227,15 @@ class BalanceSheet {
     uri: vscode.Uri,
     line: number,
   ): Promise<{ parsed: SageDocument; block: SageBlock } | undefined> {
-    const parsed = await this.parse(uri);
+    let parsed: SageDocument;
+
+    // The index can still list a file deleted a moment ago
+    try {
+      parsed = await this.parse(uri);
+    } catch {
+      this.parses.delete(uri.toString());
+      return undefined;
+    }
     let found: SageBlock | undefined;
 
     forEachBlock(parsed.blocks, (block) => {
