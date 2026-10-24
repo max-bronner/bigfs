@@ -31,91 +31,107 @@ const world = new ParticleWorld({
 }, 7);
 
 // ---- WebGL -------------------------------------------------------------
-const compile = (vertex, fragment) => {
-  const program = gl.createProgram();
-  for (const [type, source] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]]) {
-    const shader = gl.createShader(type);
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
-    gl.attachShader(program, shader);
-  }
-  gl.linkProgram(program);
-  return program;
-};
-
-const spriteProgram = compile([
-  'attribute vec3 aPos; attribute vec2 aCorner; attribute float aSize; attribute float aAngle; attribute vec4 aColor; attribute vec4 aUv;',
-  'uniform mat4 uViewProj; uniform vec3 uRight; uniform vec3 uUp;',
-  'varying vec4 vColor; varying vec2 vUv;',
-  'void main() {',
-  '  float c = cos(aAngle); float s = sin(aAngle);',
-  '  vec2 r = vec2(aCorner.x * c - aCorner.y * s, aCorner.x * s + aCorner.y * c);',
-  '  vec3 world = aPos + (uRight * r.x + uUp * r.y) * aSize;',
-  '  gl_Position = uViewProj * vec4(world, 1.0);',
-  '  vColor = aColor;',
-  '  vUv = aUv.xy + vec2(aCorner.x + 0.5, 0.5 - aCorner.y) * aUv.zw;',
-  '}'].join(' '), [
-  'precision mediump float;',
-  'uniform sampler2D uTexture; uniform float uAlphaTest;',
-  'varying vec4 vColor; varying vec2 vUv;',
-  'void main() {',
-  '  vec4 color = texture2D(uTexture, vUv) * vColor;',
-  '  if (uAlphaTest > 0.5 && color.a < 0.5) discard;',
-  '  gl_FragColor = color;',
-  '}'].join(' '));
-
-const lineProgram = compile([
-  'attribute vec3 aPos; attribute vec4 aColor; uniform mat4 uViewProj; varying vec4 vColor;',
-  'void main() { gl_Position = uViewProj * vec4(aPos, 1.0); vColor = aColor; }'].join(' '),
-  'precision mediump float; varying vec4 vColor; void main() { gl_FragColor = vColor; }');
-
+// Without WebGL the simulation still runs and reports; only drawing stops
 const FLOATS = 15;
 const CHUNK = 16000;
-const spriteBuffer = gl.createBuffer();
-const spriteData = new Float32Array(CHUNK * 4 * FLOATS);
-const indexBuffer = gl.createBuffer();
-{
-  const indices = new Uint16Array(CHUNK * 6);
-  for (let i = 0; i < CHUNK; i++) indices.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-}
-gl.bindBuffer(gl.ARRAY_BUFFER, spriteBuffer);
-gl.bufferData(gl.ARRAY_BUFFER, spriteData.byteLength, gl.DYNAMIC_DRAW);
-const lineBuffer = gl.createBuffer();
-
 const textures = new Map();
-const makeTexture = (source) => {
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
-  return texture;
-};
-/** The stand-in for a texture no archive supplies: a soft white dot */
-const fallbackTexture = (() => {
-  const size = 64;
-  const pixels = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const d = Math.hypot(x - size / 2 + 0.5, y - size / 2 + 0.5) / (size / 2);
-    const a = Math.max(0, 1 - d);
-    const v = Math.round(a * a * 255);
-    // White scaled by its own alpha, so additive draws a dot too
-    pixels.set([v, v, v, v], (y * size + x) * 4);
+const graphics = (() => {
+  if (!gl) return undefined;
+  try {
+    const compile = (vertex, fragment) => {
+      const program = gl.createProgram();
+      for (const [type, source] of [[gl.VERTEX_SHADER, vertex], [gl.FRAGMENT_SHADER, fragment]]) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader));
+        gl.attachShader(program, shader);
+      }
+      gl.linkProgram(program);
+      return program;
+    };
+
+    const spriteProgram = compile([
+      'attribute vec3 aPos; attribute vec2 aCorner; attribute float aSize; attribute float aAngle; attribute vec4 aColor; attribute vec4 aUv;',
+      'uniform mat4 uViewProj; uniform vec3 uRight; uniform vec3 uUp;',
+      'varying vec4 vColor; varying vec2 vUv;',
+      'void main() {',
+      '  float c = cos(aAngle); float s = sin(aAngle);',
+      '  vec2 r = vec2(aCorner.x * c - aCorner.y * s, aCorner.x * s + aCorner.y * c);',
+      '  vec3 world = aPos + (uRight * r.x + uUp * r.y) * aSize;',
+      '  gl_Position = uViewProj * vec4(world, 1.0);',
+      '  vColor = aColor;',
+      '  vUv = aUv.xy + vec2(aCorner.x + 0.5, 0.5 - aCorner.y) * aUv.zw;',
+      '}'].join(' '), [
+      'precision mediump float;',
+      'uniform sampler2D uTexture; uniform float uAlphaTest;',
+      'varying vec4 vColor; varying vec2 vUv;',
+      'void main() {',
+      '  vec4 color = texture2D(uTexture, vUv) * vColor;',
+      '  if (uAlphaTest > 0.5 && color.a < 0.5) discard;',
+      '  gl_FragColor = color;',
+      '}'].join(' '));
+
+    const lineProgram = compile([
+      'attribute vec3 aPos; attribute vec4 aColor; uniform mat4 uViewProj; varying vec4 vColor;',
+      'void main() { gl_Position = uViewProj * vec4(aPos, 1.0); vColor = aColor; }'].join(' '),
+      'precision mediump float; varying vec4 vColor; void main() { gl_FragColor = vColor; }');
+
+    const spriteBuffer = gl.createBuffer();
+    const spriteData = new Float32Array(CHUNK * 4 * FLOATS);
+    const indexBuffer = gl.createBuffer();
+    {
+      const indices = new Uint16Array(CHUNK * 6);
+      for (let i = 0; i < CHUNK; i++) indices.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, spriteBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, spriteData.byteLength, gl.DYNAMIC_DRAW);
+    const lineBuffer = gl.createBuffer();
+
+    const makeTexture = (source) => {
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      return texture;
+    };
+    /** The stand-in for a texture no archive supplies: a soft white dot */
+    const fallbackTexture = (() => {
+      const size = 64;
+      const pixels = new Uint8Array(size * size * 4);
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+        const d = Math.hypot(x - size / 2 + 0.5, y - size / 2 + 0.5) / (size / 2);
+        const a = Math.max(0, 1 - d);
+        const v = Math.round(a * a * 255);
+        // White scaled by its own alpha, so additive draws a dot too
+        pixels.set([v, v, v, v], (y * size + x) * 4);
+      }
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      return texture;
+    })();
+    return { spriteProgram, lineProgram, spriteBuffer, spriteData, indexBuffer, lineBuffer, makeTexture, fallbackTexture };
+  } catch (error) {
+    console.error(error);
+    return undefined;
   }
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-  return texture;
 })();
+const { spriteProgram, lineProgram, spriteBuffer, spriteData, indexBuffer, lineBuffer, makeTexture, fallbackTexture } = graphics || {};
+if (!graphics) {
+  document.getElementById('hud').textContent = 'WebGL is not available here, so nothing is drawn; the simulation still runs.';
+}
+
 const loadTextures = (sources) => {
+  if (!graphics) return;
   for (const [name, uri] of Object.entries(sources)) {
     if (textures.has(name) || !uri) continue;
     textures.set(name, fallbackTexture);
@@ -365,22 +381,7 @@ const stepOnce = () => {
   world.step();
   state.time += 1 / STEP_HZ;
 };
-let last = performance.now();
-const frame = (now) => {
-  const seconds = Math.min(0.25, (now - last) / 1000);
-  last = now;
-  if (state.playing && state.scene) {
-    state.accumulator += seconds * state.speed;
-    let steps = 0;
-    while (state.accumulator >= 1 / STEP_HZ && steps++ < 8) {
-      state.accumulator -= 1 / STEP_HZ;
-      stepOnce();
-    }
-    if (!world.systems.length) {
-      state.idle += seconds;
-      if ($('loop').checked && state.idle > 0.6) start();
-    }
-  }
+const draw = () => {
   resize();
   gl.viewport(0, 0, canvas.width, canvas.height);
   const sky = $('sky').value;
@@ -399,8 +400,26 @@ const frame = (now) => {
     }
     drawLines(lines, matrix, false);
   }
+};
+let last = performance.now();
+const frame = (now) => {
+  const seconds = Math.min(0.25, (now - last) / 1000);
+  last = now;
+  if (state.playing && state.scene) {
+    state.accumulator += seconds * state.speed;
+    let steps = 0;
+    while (state.accumulator >= 1 / STEP_HZ && steps++ < 8) {
+      state.accumulator -= 1 / STEP_HZ;
+      stepOnce();
+    }
+    if (!world.systems.length) {
+      state.idle += seconds;
+      if ($('loop').checked && state.idle > 0.6) start();
+    }
+  }
+  if (graphics) draw();
   const dropped = world.dropped ? '  dropped ' + world.dropped : '';
-  hud.textContent = 'frame ' + world.frame + '  ' + (world.frame / STEP_HZ).toFixed(1) + ' s' + '\\u000a' +
+  hud.textContent = (graphics ? '' : 'WebGL is not available; nothing is drawn.' + '\\u000a') + 'frame ' + world.frame + '  ' + (world.frame / STEP_HZ).toFixed(1) + ' s' + '\\u000a' +
     world.systems.length + ' systems  ' + world.liveParticles + ' particles' + dropped + '\\u000a' +
     'wind ' + world.options.wind + '  hollow box ' + world.options.hollowBox;
   if (now - lastStatus > 1000) {
