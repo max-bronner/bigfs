@@ -48,6 +48,13 @@ your mod's archives.
 - `.csf` files open as the same table and save back byte for byte.
 - **Convert String Table** turns a `.str` into a `.csf` and back.
 
+**Window layouts** (`.wnd`)
+
+- Highlighting, outline of windows, folding, completion of keys, window
+  types and status and style flags, and every structural problem at once.
+- **Show Layout Preview** draws the windows at their creation resolution
+  beside the text, live; click a window to jump to it.
+
 **Maps** (`.map`, `.bse`)
 
 - The terrain as a shaded relief with objects, waypoints, start positions
