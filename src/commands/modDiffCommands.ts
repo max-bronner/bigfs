@@ -9,6 +9,8 @@ import {
   indexBaseGame,
   readBaseEntry,
 } from '../model/modDiff';
+import { createNonce } from '../providers/webviewNonce';
+import { decodeWindows1252 } from '../common/windows1252';
 
 /**
  * **Compare with Base Game**: what the workspace's mod adds and changes
@@ -21,11 +23,6 @@ const BASE_SCHEME = 'bigfs-base';
 
 /** File types a text diff makes sense for */
 const TEXT_FILES = /\.(ini|inc|bhav|str|wnd|txt|lua|xml|cfg|scb|csv)$/i;
-
-const createNonce = () =>
-  Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 36).toString(36),
-  ).join('');
 
 const escape = (text: string) =>
   text.replace(/[&<>"]/g, (char) => `&#${char.charCodeAt(0)};`);
@@ -129,9 +126,7 @@ export const registerModDiffCommands = (
           uri.path.replace(/^\//, '').toLowerCase(),
         );
 
-        return entry
-          ? new TextDecoder('latin1').decode(await readBaseEntry(entry))
-          : '';
+        return entry ? decodeWindows1252(await readBaseEntry(entry)) : '';
       },
     }),
     vscode.commands.registerCommand('bigfs.compareWithBaseGame', async () => {

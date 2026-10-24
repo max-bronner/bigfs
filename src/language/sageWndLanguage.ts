@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { parseWnd, toBoxes } from './model/wndLayout';
 import type { WndWindow } from './model/wndLayout';
 import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
+import { createNonce } from '../providers/webviewNonce';
 
 /**
  * Language support for `.wnd` window layouts: problems, an outline of the
@@ -209,11 +210,6 @@ class WndPreview {
     });
   }
 }
-
-const createNonce = (): string =>
-  Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 36).toString(36),
-  ).join('');
 
 /** The preview page: the windows drawn at their creation resolution */
 export const renderPreviewHtml = (): string => {

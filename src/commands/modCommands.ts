@@ -18,6 +18,7 @@ import { getNodeUri } from '../model/nodeAddress';
 import { formatCount } from '../common/messages';
 import { SCHEME } from '../constants';
 import type { RegisterNodeCommand } from './commandCenter';
+import { decodeWindows1252 } from '../common/windows1252';
 
 /**
  * The commands a mod is made with: pack a folder into a `.big`, copy files
@@ -239,7 +240,7 @@ export const findInArchives = async (
     await archiveModel.readFiles(
       nodes.map((node) => ({ node })),
       async ({ node }, content) => {
-        const text = new TextDecoder('latin1').decode(content);
+        const text = decodeWindows1252(content);
 
         if (!text.toLowerCase().includes(needle)) {
           return;

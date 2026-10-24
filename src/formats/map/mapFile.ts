@@ -1,4 +1,5 @@
 import { compressEar, decompressEar, isEarWrapped } from '../refpack';
+import { decodeWindows1252 } from '../../common/windows1252';
 
 /**
  * SAGE `.map` and `.bse` files, ported from mint's `crates/sage/map` and
@@ -106,7 +107,7 @@ export interface MapFile {
 /** Chunks whose payload is a list of child chunks */
 const CONTAINERS = new Set(['ObjectsList']);
 
-const latin1 = new TextDecoder('latin1');
+const latin1 = { decode: decodeWindows1252 };
 
 class MapReader {
   public readonly view: DataView;

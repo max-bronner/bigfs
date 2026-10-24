@@ -20,7 +20,6 @@ export interface CoeffModel {
   acValProbs: number[][][];
 }
 
-
 const newCoeffModel = (): CoeffModel => ({
   dcTokenProbs: [
     new Array(5).fill(0),

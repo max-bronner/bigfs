@@ -17,6 +17,7 @@ import { SCHEME } from '../constants';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { findSageIniProblems } from './model/sageIniProblems';
 import type { SageIniDocuments } from './sageIniDocuments';
+import { decodeWindows1252 } from '../common/windows1252';
 
 /**
  * Checks every INI file of the workspace at once, in archives and loose, and
@@ -101,7 +102,7 @@ export const registerSageIniValidation = (
               results.push([
                 getNodeUri(node),
                 diagnoseText(
-                  new TextDecoder('latin1').decode(content),
+                  decodeWindows1252(content),
                   node.entryPath,
                   schema,
                 ),
@@ -124,9 +125,7 @@ export const registerSageIniValidation = (
           results.push([
             uri,
             diagnoseText(
-              new TextDecoder('latin1').decode(
-                await workspace.fs.readFile(uri),
-              ),
+              decodeWindows1252(await workspace.fs.readFile(uri)),
               uri.path,
               schema,
             ),

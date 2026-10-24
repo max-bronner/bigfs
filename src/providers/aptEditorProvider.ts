@@ -18,6 +18,8 @@ import {
 import { getTexturePath, parseDat, parseRu } from '../formats/apt/aptGeometry';
 import type { RuRun } from '../formats/apt/aptGeometry';
 import { APT_VIEW_SCRIPT } from './aptViewScript';
+import { createNonce } from './webviewNonce';
+import { decodeWindows1252 } from '../common/windows1252';
 
 /**
  * Custom editor for `.apt` movies: a list of every character, a stage that
@@ -59,7 +61,7 @@ const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
   }
 };
 
-const latin1 = (bytes: Uint8Array) => new TextDecoder('latin1').decode(bytes);
+const latin1 = decodeWindows1252;
 
 /** A movie's state an undo restores: its image, `.const` and added files */
 interface Snapshot {
@@ -402,12 +404,6 @@ export class AptDocument implements vscode.CustomDocument {
     }
   }
 }
-
-/** A random token the page's one script carries */
-const createNonce = (): string =>
-  Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 36).toString(36),
-  ).join('');
 
 /** The page: character list, stage and details, around the page script */
 export const renderHtml = (webview: vscode.Webview): string => {

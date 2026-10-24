@@ -8,6 +8,7 @@ import { Vp6Movie } from '../formats/vp6/container';
 import type { ModelScene } from '../formats/w3dScene';
 import type { EntryLocator } from '../formats/entryLocator';
 import { MODEL_SCRIPT } from './previewModelScript';
+import { createNonce } from './webviewNonce';
 
 /**
  * Read-only editor that previews the binary entries a text editor cannot
@@ -113,12 +114,6 @@ const buildMessage = async (
     };
   }
 };
-
-/** A random token the page's one script carries, so no other script runs */
-const createNonce = (): string =>
-  Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 36).toString(36),
-  ).join('');
 
 /** The page: a toolbar, a canvas or an audio element, and a status line */
 export const renderHtml = (webview: vscode.Webview): string => {

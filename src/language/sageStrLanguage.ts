@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { parseCsf, writeCsf } from '../formats/csf';
 import { parseStringRecords, quoteStringText } from './model/sageStringRecords';
+import { decodeWindows1252, encodeWindows1252 } from '../common/windows1252';
 
 /**
  * Language support for `.str` string tables: problems, an outline of labels,
@@ -113,26 +114,6 @@ export const strToCsf = (source: string): Uint8Array =>
     })),
   });
 
-const latin = new TextDecoder('windows-1252');
-
-/** Encodes text as Windows-1252, which the game reads `.str` files as */
-const encodeCp1252 = (text: string): Uint8Array => {
-  const upper = new Map(
-    Array.from({ length: 128 }, (_, index) => [
-      latin.decode(Uint8Array.of(index + 128)),
-      index + 128,
-    ]),
-  );
-
-  return Uint8Array.from(
-    Array.from(text, (char) => {
-      const code = char.charCodeAt(0);
-
-      return code < 128 ? code : (upper.get(char) ?? 0x3f);
-    }),
-  );
-};
-
 export const registerSageStrLanguage = (
   context: vscode.ExtensionContext,
 ): void => {
@@ -202,7 +183,10 @@ export const registerSageStrLanguage = (
     if (isCsf) {
       const { text, dropped } = csfToStr(bytes);
 
-      await vscode.workspace.fs.writeFile(output, encodeCp1252(text));
+      await vscode.workspace.fs.writeFile(
+        output,
+        encodeWindows1252(text, 0x3f),
+      );
 
       if (dropped) {
         void vscode.window.showInformationMessage(
@@ -212,7 +196,7 @@ export const registerSageStrLanguage = (
     } else {
       await vscode.workspace.fs.writeFile(
         output,
-        strToCsf(latin.decode(bytes)),
+        strToCsf(decodeWindows1252(bytes)),
       );
     }
 

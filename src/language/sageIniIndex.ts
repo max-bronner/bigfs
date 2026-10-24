@@ -9,6 +9,7 @@ import type { SageIniSchema } from './model/sageIniSchema';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { findString, parseStringTable } from './model/sageStringTable';
 import type { SageString } from './model/sageStringTable';
+import { decodeWindows1252 } from '../common/windows1252';
 
 /**
  * Where every definition, reference and macro in every open archive lives, so
@@ -437,7 +438,7 @@ export class SageIniIndex implements Disposable {
   ): void {
     // The WHATWG `latin1` decoder is Windows-1252, which is what the text in
     // the string tables means: 0x92 is an apostrophe there
-    const text = new TextDecoder('latin1').decode(content);
+    const text = decodeWindows1252(content);
 
     if (entryPath.toLowerCase().endsWith('.str')) {
       this.indexStrings(uri, text);
