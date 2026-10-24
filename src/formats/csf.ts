@@ -1,3 +1,4 @@
+import { decodeWindows1252, encodeWindows1252 } from '../common/windows1252';
 /**
  * The `.csf` compiled string table, ported from mint's
  * `crates/sage/str/src/csf.rs` (layout from `GameText.cpp`'s `parseCSF`):
@@ -37,28 +38,8 @@ const HEADER_LENGTH = 24;
 const tag = (bytes: Uint8Array, at: number) =>
   String.fromCharCode(...bytes.subarray(at, at + 4));
 
-/** Windows-1252 bytes, which label and speech names are written in */
-const decoder = new TextDecoder('windows-1252');
-
-/** Windows-1252's upper half, for encoding */
-const CP1252_UPPER = new Map(
-  Array.from({ length: 128 }, (_, index) => [
-    decoder.decode(Uint8Array.of(index + 128)),
-    index + 128,
-  ]),
-);
-
 const encodeCp1252 = (text: string): number[] =>
-  Array.from(text, (char) => {
-    const code = char.charCodeAt(0);
-    const byte = code < 128 ? code : CP1252_UPPER.get(char);
-
-    if (byte === undefined) {
-      throw new Error(`${JSON.stringify(char)} cannot be written in a label`);
-    }
-
-    return byte;
-  });
+  Array.from(encodeWindows1252(text));
 
 /** Parses a `.csf`; every length is checked against the bytes present */
 export const parseCsf = (bytes: Uint8Array): CsfFile => {
@@ -97,7 +78,7 @@ export const parseCsf = (bytes: Uint8Array): CsfFile => {
 
     need(nameLength, 'label');
 
-    const name = decoder.decode(bytes.subarray(at, at + nameLength));
+    const name = decodeWindows1252(bytes.subarray(at, at + nameLength));
     const strings: CsfString[] = [];
 
     at += nameLength;
@@ -133,7 +114,9 @@ export const parseCsf = (bytes: Uint8Array): CsfFile => {
         const speechLength = u32('speech length');
 
         need(speechLength, 'speech name');
-        string.speech = decoder.decode(bytes.subarray(at, at + speechLength));
+        string.speech = decodeWindows1252(
+          bytes.subarray(at, at + speechLength),
+        );
         at += speechLength;
       }
 

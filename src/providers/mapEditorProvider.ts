@@ -8,6 +8,7 @@ import {
   writeMap,
 } from '../formats/map/mapFile';
 import { MAP_VIEW_SCRIPT } from './mapViewScript';
+import { createNonce } from './webviewNonce';
 
 /**
  * Editor for `.map` and `.bse` files: terrain relief with objects and start
@@ -27,11 +28,6 @@ class MapDocument implements vscode.CustomDocument {
 
   public dispose(): void {}
 }
-
-const createNonce = (): string =>
-  Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 36).toString(36),
-  ).join('');
 
 export const renderHtml = (): string => {
   const nonce = createNonce();

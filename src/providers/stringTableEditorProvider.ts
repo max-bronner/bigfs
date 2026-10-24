@@ -5,6 +5,7 @@ import {
   quoteStringText,
 } from '../language/model/sageStringRecords';
 import { STRING_TABLE_SCRIPT } from './stringTableViewScript';
+import { createNonce } from './webviewNonce';
 
 /**
  * Table editors for string tables: `.str` as an alternative view of the text
@@ -42,11 +43,6 @@ interface PageMessage {
   label?: string;
   value?: string;
 }
-
-const createNonce = (): string =>
-  Array.from({ length: 32 }, () =>
-    Math.floor(Math.random() * 36).toString(36),
-  ).join('');
 
 export const renderHtml = (): string => {
   const nonce = createNonce();
