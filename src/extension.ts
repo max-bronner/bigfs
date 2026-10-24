@@ -16,8 +16,15 @@ import { registerModCommands } from './commands/modCommands';
 import { createToolRegistry } from './tools/toolRegistry';
 import { createFormatRegistry } from './formats/formatRegistry';
 import { registerSageIniLanguage } from './language/sageIniLanguage';
+import { registerSageStrLanguage } from './language/sageStrLanguage';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { AptEditorProvider } from './providers/aptEditorProvider';
+import {
+  CSF_VIEW_TYPE,
+  CsfEditorProvider,
+  STR_TABLE_VIEW_TYPE,
+  StrTableEditorProvider,
+} from './providers/stringTableEditorProvider';
 import { decodeDdsTool, decodeTgaTool } from './tools/textureTools';
 import { playableAudioTool } from './tools/audioTools';
 import { parseW3dTool } from './tools/w3dTools';
@@ -62,6 +69,33 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   registerSageIniLanguage(context, archiveModel, log);
+  registerSageStrLanguage(context);
+
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      STR_TABLE_VIEW_TYPE,
+      new StrTableEditorProvider(),
+    ),
+    vscode.window.registerCustomEditorProvider(
+      CSF_VIEW_TYPE,
+      new CsfEditorProvider(),
+      { supportsMultipleEditorsPerDocument: true },
+    ),
+    vscode.commands.registerCommand(
+      'bigfs.openStringTable',
+      (uri?: vscode.Uri) => {
+        const target = uri ?? vscode.window.activeTextEditor?.document.uri;
+
+        return target
+          ? vscode.commands.executeCommand(
+              'vscode.openWith',
+              target,
+              STR_TABLE_VIEW_TYPE,
+            )
+          : undefined;
+      },
+    ),
+  );
 
   const fileSystemProvider = new BigFileSystemProvider(archiveModel);
   const gameView = new GameViewModel(archiveModel);

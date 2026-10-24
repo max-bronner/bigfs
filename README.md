@@ -38,6 +38,16 @@ your mod's archives.
   rename across archives and loose mod folders, `#include` links and
   `#define` macros.
 
+**String tables**
+
+- `.str` files get their own language: highlighting, an outline of labels,
+  folding, and problems for duplicate labels, missing `END` and unclosed
+  quotes. They are read as Windows-1252, as the game reads them.
+- **Open as Table** edits a `.str` as a filterable table; only the records
+  you change are rewritten.
+- `.csf` files open as the same table and save back byte for byte.
+- **Convert String Table** turns a `.str` into a `.csf` and back.
+
 **Previews**
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip

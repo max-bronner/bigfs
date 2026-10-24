@@ -21,6 +21,8 @@
  * only `.str` is read.
  */
 
+import { parseStringRecords } from './sageStringRecords';
+
 /** One record of a string table */
 export interface SageString {
   /** As written, which hovers show */
@@ -31,20 +33,6 @@ export interface SageString {
   line: number;
 }
 
-/** Characters `translateCopy` turns an escape into; any other escaped character stands for itself */
-const ESCAPES: Record<string, string> = { n: '\n', t: '\t' };
-
-/**
- * Applies the engine's escapes and `stripSpaces`: runs of spaces become one,
- * a space before a newline or tab and the leading and trailing ones go
- */
-const finishText = (raw: string): string =>
-  raw
-    .replace(/\\(.)/g, (_, escaped: string) => ESCAPES[escaped] ?? escaped)
-    .replace(/ {2,}/g, ' ')
-    .replace(/ +(?=[\n\t])/g, '')
-    .trim();
-
 /**
  * Parses a `.str` file into its records, keyed by lowercased label because
  * the engine looks labels up without casing. The first record of a label
@@ -52,53 +40,16 @@ const finishText = (raw: string): string =>
  */
 export const parseStringTable = (source: string): Map<string, SageString> => {
   const strings = new Map<string, SageString>();
-  const lines = source.split(/\r?\n/);
-  let index = 0;
 
-  while (index < lines.length) {
-    const label = lines[index].trim();
-    const labelLine = index;
+  for (const record of parseStringRecords(source)) {
+    const key = record.label.toLowerCase();
 
-    index += 1;
-
-    if (!label || label.startsWith('//')) {
-      continue;
-    }
-
-    let text: string | undefined;
-
-    while (index < lines.length) {
-      const line = lines[index].trim();
-
-      if (line.toUpperCase() === 'END') {
-        index += 1;
-        break;
-      }
-
-      if (text === undefined && line.startsWith('"')) {
-        // The string runs to the first unescaped quote, across lines if it
-        // has to, and the rest of the closing line is discarded
-        let raw = line.slice(1);
-        let close = raw.search(/(?<!\\)"/);
-
-        while (close < 0 && index + 1 < lines.length) {
-          index += 1;
-          raw += ` ${lines[index].trim()}`;
-          close = raw.search(/(?<!\\)"/);
-        }
-
-        text = finishText(
-          (close < 0 ? raw : raw.slice(0, close)).replace(/\s+/g, ' '),
-        );
-      }
-
-      index += 1;
-    }
-
-    const key = label.toLowerCase();
-
-    if (text !== undefined && !strings.has(key)) {
-      strings.set(key, { label, text, line: labelLine });
+    if (record.text !== undefined && !strings.has(key)) {
+      strings.set(key, {
+        label: record.label,
+        text: record.text,
+        line: record.line,
+      });
     }
   }
 
