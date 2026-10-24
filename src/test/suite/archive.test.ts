@@ -368,6 +368,26 @@ suite('BIG archive file system', () => {
       'second',
     );
   });
+
+  test('a save changes the mtime of the entry written and of no other', async () => {
+    const stat = (nodePath: string) =>
+      vscode.workspace.fs.stat(nodeUri(`/${ARCHIVE_NAME}/${nodePath}`));
+    const otherBefore = await stat('art/textures/unit.tga');
+    const writtenBefore = await stat('readme.txt');
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await vscode.workspace.fs.writeFile(
+      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+      Buffer.from('saved again', 'utf-8'),
+    );
+
+    assert.ok(writtenBefore.mtime > 0);
+    assert.ok((await stat('readme.txt')).mtime > writtenBefore.mtime);
+    assert.strictEqual(
+      (await stat('art/textures/unit.tga')).mtime,
+      otherBefore.mtime,
+    );
+  });
 });
 
 suite('Tree refresh', () => {
