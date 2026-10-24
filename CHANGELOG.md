@@ -9,3 +9,6 @@
   whole-workspace validation, game text on hover and rename.
 - Previews for TGA, DDS, WAV and W3D files.
 - Mod workflow: pack a folder, override archive files, search archives.
+- APT movie editing: text fields, colours, bounds, exports and imports,
+  placements, frame labels, frames and duplicated characters, with undo;
+  untouched bytes are kept as shipped.
