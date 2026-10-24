@@ -1,7 +1,12 @@
 ﻿import * as vscode from 'vscode';
 import { ArchiveModel } from './model/archiveModel';
 import { BigFileSystemProvider } from './providers/fileSystemProvider';
-import { BigTreeDataProvider } from './providers/treeDataProvider';
+import {
+  BigTreeDataProvider,
+  VIEW_SETTING,
+  isGameViewShown,
+} from './providers/treeDataProvider';
+import { GameViewModel } from './model/gameViewModel';
 import { BigDragAndDropController } from './providers/dragAndDropController';
 import { createNodeCommandRegister } from './commands/commandCenter';
 import { registerFileCommands } from './commands/fileCommands';
@@ -57,7 +62,35 @@ export function activate(context: vscode.ExtensionContext) {
   registerSageIniLanguage(context, archiveModel, log);
 
   const fileSystemProvider = new BigFileSystemProvider(archiveModel);
-  const treeDataProvider = new BigTreeDataProvider(archiveModel);
+  const gameView = new GameViewModel(archiveModel);
+  const treeDataProvider = new BigTreeDataProvider(archiveModel, gameView);
+
+  // The context key picks which of the two view buttons the title bar shows
+  const showView = (isGame: boolean) =>
+    vscode.workspace
+      .getConfiguration()
+      .update(
+        VIEW_SETTING,
+        isGame ? 'game' : 'archives',
+        vscode.ConfigurationTarget.Workspace,
+      );
+
+  void setContextKey('gameView', isGameViewShown());
+  context.subscriptions.push(
+    gameView,
+    vscode.commands.registerCommand(`${SCHEME}.showGameView`, () =>
+      showView(true),
+    ),
+    vscode.commands.registerCommand(`${SCHEME}.showArchiveView`, () =>
+      showView(false),
+    ),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration(VIEW_SETTING)) {
+        void setContextKey('gameView', isGameViewShown());
+        treeDataProvider.refresh();
+      }
+    }),
+  );
   const dragAndDropController = new BigDragAndDropController(archiveModel);
 
   context.subscriptions.push(
@@ -91,6 +124,8 @@ export function activate(context: vscode.ExtensionContext) {
 
       try {
         await archiveModel.scanWorkspace();
+        // Loose files are only found when the game view is built
+        gameView.invalidate();
       } finally {
         treeDataProvider.refresh();
         await markScanned();

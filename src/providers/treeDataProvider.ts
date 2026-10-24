@@ -1,4 +1,5 @@
 ﻿import type { Event } from 'vscode';
+import { workspace } from 'vscode';
 import {
   TreeItem,
   TreeDataProvider,
@@ -12,8 +13,15 @@ import { countFileNodes, isArchiveRoot } from '../model/virtualNode';
 import { getNodePath, getNodeUri } from '../model/nodeAddress';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
-import { isFolderNode, isSourceNode, isVirtualNode } from './explorerNode';
-import type { ExplorerNode, FolderNode } from './explorerNode';
+import {
+  isFolderNode,
+  isGameRow,
+  isSourceNode,
+  isVirtualNode,
+} from './explorerNode';
+import type { ExplorerNode, FolderNode, GameRow } from './explorerNode';
+import { GameViewModel } from '../model/gameViewModel';
+import { getGameFiles } from '../model/gameView';
 
 /** Compares names as an explorer does: `a2` before `a10`, casing ignored */
 const nameCollator = new Intl.Collator(undefined, {
@@ -23,8 +31,8 @@ const nameCollator = new Intl.Collator(undefined, {
 
 /** Orders a row the way the explorer does: directories first, then by name */
 const compareRows = (a: ExplorerNode, b: ExplorerNode): number => {
-  const aIsBranch = !isVirtualNode(a) || a.type === FileType.Directory;
-  const bIsBranch = !isVirtualNode(b) || b.type === FileType.Directory;
+  const aIsBranch = isBranch(a);
+  const bIsBranch = isBranch(b);
 
   if (aIsBranch !== bIsBranch) {
     return aIsBranch ? -1 : 1;
@@ -33,9 +41,64 @@ const compareRows = (a: ExplorerNode, b: ExplorerNode): number => {
   return nameCollator.compare(rowName(a), rowName(b));
 };
 
+/** Whether a row holds rows below it */
+const isBranch = (element: ExplorerNode): boolean =>
+  isGameRow(element)
+    ? Boolean(element.node.children)
+    : !isVirtualNode(element) || element.type === FileType.Directory;
+
 /** The text a row is ordered by: a source's label, everything else's name */
 const rowName = (element: ExplorerNode): string =>
-  isSourceNode(element) ? element.source.label : element.name;
+  isSourceNode(element)
+    ? element.source.label
+    : isGameRow(element)
+      ? element.node.name
+      : element.name;
+
+/** Setting choosing between the per archive view and the game view */
+export const VIEW_SETTING = 'bigfs.explorer.view';
+
+/** Whether the explorer shows the game view rather than every archive */
+export const isGameViewShown = (): boolean =>
+  workspace.getConfiguration().get<string>(VIEW_SETTING) === 'game';
+
+/**
+ * Tree row of the game view. A file opens the copy the game loads; its
+ * description names where that copy comes from, and the tooltip lists the
+ * copies it overrides
+ */
+const createGameItem = ({ node }: GameRow): TreeItem => {
+  if (node.children) {
+    const item = new TreeItem(node.name, TreeItemCollapsibleState.Collapsed);
+
+    item.id = `game:/${node.path}`;
+    item.iconPath = ThemeIcon.Folder;
+    item.contextValue = 'bigGameFolder';
+    item.description = `(${formatCount(getGameFiles(node).length, 'file')})`;
+
+    return item;
+  }
+
+  const winner = node.winner!;
+  const uri =
+    winner.ref.kind === 'entry' ? getNodeUri(winner.ref.node) : winner.ref.uri;
+  const item = new TreeItem(node.name, TreeItemCollapsibleState.None);
+
+  item.id = `game:/${node.path}`;
+  item.resourceUri = uri;
+  item.description = node.shadowed?.length
+    ? `${winner.origin} · overrides ${node.shadowed.length}`
+    : winner.origin;
+  item.tooltip = [
+    `${node.path}`,
+    `Loaded from ${winner.origin}`,
+    ...(node.shadowed ?? []).map((copy) => `Ignored in ${copy.origin}`),
+  ].join('\n');
+  item.contextValue = winner.ref.kind === 'entry' ? 'bigFile' : 'bigLooseFile';
+  item.command = { command: 'vscode.open', title: 'Open', arguments: [uri] };
+
+  return item;
+};
 
 const sortRows = (rows: ExplorerNode[]): ExplorerNode[] =>
   rows.sort(compareRows);
@@ -96,7 +159,16 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
   readonly onDidChangeTreeData: Event<ExplorerNode | undefined | void> =
     this._onDidChangeTreeData.event;
 
-  constructor(private archiveModel: ArchiveModel) {
+  constructor(
+    private archiveModel: ArchiveModel,
+    private gameView: GameViewModel = new GameViewModel(archiveModel),
+  ) {
+    gameView.onDidChange(() => {
+      if (isGameViewShown()) {
+        this.refresh();
+      }
+    });
+
     this.archiveModel.onDidChangeArchive((change) => {
       const archive =
         change.type === 'changed' &&
@@ -148,6 +220,10 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
       return item;
     }
 
+    if (isGameRow(element)) {
+      return createGameItem(element);
+    }
+
     return new BigTreeItem(
       element,
       element.type === FileType.Directory
@@ -158,6 +234,10 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
   }
 
   async getChildren(element?: ExplorerNode): Promise<ExplorerNode[]> {
+    if (!element && isGameViewShown()) {
+      return this.listGameRows(await this.gameView.getRoot());
+    }
+
     if (!element) {
       await this.archiveModel.whenReady();
 
@@ -167,6 +247,10 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
       return sources.length === 1
         ? this.listIn(sources[0].id, '')
         : sortRows(sources.map((source) => ({ kind: 'source', source })));
+    }
+
+    if (isGameRow(element)) {
+      return this.listGameRows(element.node);
     }
 
     if (isSourceNode(element)) {
@@ -187,6 +271,16 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
     }
 
     return sortRows(Array.from(element.children?.values() ?? []));
+  }
+
+  /** Lists the rows below a game view directory */
+  private listGameRows(node: GameRow['node']): ExplorerNode[] {
+    return sortRows(
+      Array.from(node.children?.values() ?? [], (child) => ({
+        kind: 'game' as const,
+        node: child,
+      })),
+    );
   }
 
   /**
