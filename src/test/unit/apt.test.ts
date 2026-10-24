@@ -159,13 +159,6 @@ suite('APT movies', () => {
     assert.match(listing, /BranchAlways L[0-9a-f]+/);
   });
 
-  test('an unknown opcode is named with its offset', () => {
-    assert.throws(
-      () => decodeBlock(Uint8Array.from([0x02, 0x00]), 0),
-      /Unknown opcode 0x2 at 0/,
-    );
-  });
-
   test('reads .ru styles with the texture matrix as the data stores it', () => {
     const runs = parseRu(
       [

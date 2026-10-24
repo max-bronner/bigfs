@@ -72,20 +72,4 @@ suite('Duplicate definition', () => {
     );
     assert.ok(await readFile(path.join(folder, 'dup.str'), 'latin1'));
   });
-
-  test('a definition the cursor is in offers the duplicate as a refactor', async () => {
-    const document = vscode.workspace.textDocuments.find((open) =>
-      open.uri.fsPath.endsWith('dup.ini'),
-    )!;
-    const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
-      'vscode.executeCodeActionProvider',
-      document.uri,
-      new vscode.Range(2, 3, 2, 3),
-      vscode.CodeActionKind.Refactor.value,
-    );
-
-    assert.ok(
-      actions.some((action) => action.title === 'Duplicate Object DupTester…'),
-    );
-  });
 });

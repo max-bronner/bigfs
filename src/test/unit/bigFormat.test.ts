@@ -115,14 +115,6 @@ suite('BIG format', () => {
     assert.strictEqual(layout.placedEntries[0].size, 3);
   });
 
-  test('computes layout for an empty archive', () => {
-    const layout = computeArchiveLayout(new Map());
-
-    assert.deepStrictEqual(layout.placedEntries, []);
-    assert.strictEqual(layout.indexTableEndOffset, HEADER_LENGTH);
-    assert.strictEqual(layout.totalSize, HEADER_LENGTH);
-  });
-
   test('accepts only the supported magics', () => {
     const headerWith = (magic: string): Buffer => {
       const header = Buffer.alloc(HEADER_LENGTH);

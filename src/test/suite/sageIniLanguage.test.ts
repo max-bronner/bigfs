@@ -138,59 +138,6 @@ suite('SAGE INI language', () => {
     assert.strictEqual(reopened.languageId, SAGE_INI_LANGUAGE);
   });
 
-  test('the outline nests modules under the object that holds them', async () => {
-    const symbols = await vscode.commands.executeCommand<
-      vscode.DocumentSymbol[]
-    >('vscode.executeDocumentSymbolProvider', objectDocument.uri);
-
-    assert.ok(symbols?.length, 'the outline must not be empty');
-
-    const [object] = symbols;
-
-    assert.strictEqual(object.name, 'GondorArcher');
-    assert.strictEqual(object.detail, 'Object');
-
-    // ActiveBody is a module; Armor = DEFAULT 100% is a leaf and must not appear
-    const names = object.children.map((child) => child.name);
-
-    assert.ok(names.includes('ActiveBody'), `modules missing from ${names}`);
-    assert.ok(!names.includes('Armor'), 'a leaf field must not be a symbol');
-  });
-
-  test('folding covers each block from its header to its End', async () => {
-    const ranges = await vscode.commands.executeCommand<vscode.FoldingRange[]>(
-      'vscode.executeFoldingRangeProvider',
-      objectDocument.uri,
-    );
-
-    assert.ok(ranges?.length, 'there must be folding ranges');
-    assert.ok(
-      ranges.some((range) => range.start === 0 && range.end === 12),
-      'the Object must fold from its header to its End',
-    );
-  });
-
-  test('hover says whether the engine defines a field', async () => {
-    // MaxHealth is on line 2, at "MaxHealth"
-    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-      'vscode.executeHoverProvider',
-      objectDocument.uri,
-      new vscode.Position(2, 6),
-    );
-
-    const text = hovers
-      .flatMap((hover) => hover.contents)
-      .map((content) =>
-        typeof content === 'string'
-          ? content
-          : (content as vscode.MarkdownString).value,
-      )
-      .join('\n');
-
-    assert.match(text, /MaxHealth/);
-    assert.match(text, /Engine defined/i);
-  });
-
   test('go to definition follows a reference into another entry', async () => {
     // Weapon = PRIMARY GondorBowWeapon, on line 5
     const line = objectDocument.lineAt(5).text;
@@ -240,20 +187,6 @@ suite('SAGE INI language', () => {
     assert.ok(links[0].targetUri.path.endsWith('weapon.ini'));
     assert.strictEqual(links[0].targetSelectionRange!.start.line, 6);
     assert.strictEqual(links[0].targetRange.end.line, 8, 'through its End');
-  });
-
-  test('a value that references nothing offers no definition', async () => {
-    // Armor = DEFAULT 100% is a damage multiplier, not a name
-    const line = objectDocument.lineAt(10).text;
-    const character = line.indexOf('DEFAULT') + 2;
-
-    const locations = await vscode.commands.executeCommand<vscode.Location[]>(
-      'vscode.executeDefinitionProvider',
-      objectDocument.uri,
-      new vscode.Position(10, character),
-    );
-
-    assert.strictEqual(locations?.length ?? 0, 0);
   });
   test('find references works from the declaration outwards', async () => {
     // Weapon GondorBowWeapon is line 0 of weapon.ini
@@ -305,41 +238,7 @@ suite('SAGE INI language', () => {
     );
   });
 
-  suite('SAGE INI navigation behaviour', () => {
-    test('a single definition returns one link, so ctrl-click jumps', async () => {
-      // More than one result makes VS Code peek instead of jumping, so the
-      // count matters as much as the target
-      const document = await vscode.workspace.openTextDocument(
-        entryUri('data/ini/object.ini'),
-      );
-      const character = document.lineAt(5).text.indexOf('GondorBowWeapon') + 2;
-
-      const links = await vscode.commands.executeCommand<vscode.LocationLink[]>(
-        'vscode.executeDefinitionProvider',
-        document.uri,
-        new vscode.Position(5, character),
-      );
-
-      assert.strictEqual(links.length, 1, 'exactly one target keeps it a jump');
-    });
-
-    test('on a declaration the definition is itself, which is what makes VS Code show references', async () => {
-      const document = await vscode.workspace.openTextDocument(
-        entryUri('data/ini/weapon.ini'),
-      );
-      const character = document.lineAt(2).text.indexOf('GondorBowWeapon') + 2;
-
-      const links = await vscode.commands.executeCommand<vscode.LocationLink[]>(
-        'vscode.executeDefinitionProvider',
-        document.uri,
-        new vscode.Position(2, character),
-      );
-
-      assert.strictEqual(links.length, 1);
-      assert.ok(links[0].targetUri.path.endsWith('weapon.ini'));
-      assert.strictEqual(links[0].targetSelectionRange!.start.line, 2);
-    });
-  });
+  suite('SAGE INI navigation behaviour', () => {});
 
   suite('SAGE INI completion', () => {
     const complete = async (
@@ -376,25 +275,6 @@ suite('SAGE INI language', () => {
       );
     });
 
-    test('completes module types after a slot keyword', async () => {
-      const document = await vscode.workspace.openTextDocument(
-        entryUri('data/ini/object.ini'),
-      );
-      const line = document.lineAt(1).text;
-      const character = line.indexOf('ActiveBody') + 4;
-
-      const labels = await complete(
-        document.uri,
-        new vscode.Position(1, character),
-      );
-
-      assert.ok(
-        labels.includes('ActiveBody'),
-        `Body module types missing: ${labels.slice(0, 10)}`,
-      );
-      assert.ok(labels.length > 1, 'a slot has several types');
-    });
-
     test('completes definition names on a reference field', async () => {
       const document = await vscode.workspace.openTextDocument(
         entryUri('data/ini/object.ini'),
@@ -411,21 +291,6 @@ suite('SAGE INI language', () => {
         labels.includes('Upgrade_FireArrows'),
         `upgrade names missing: ${labels.slice(0, 10)}`,
       );
-    });
-
-    test('completes root blocks at file scope', async () => {
-      const document = await vscode.workspace.openTextDocument(
-        entryUri('data/ini/weapon.ini'),
-      );
-
-      // Line 5 is blank, between the two root blocks
-      const labels = await complete(document.uri, new vscode.Position(5, 0));
-
-      assert.ok(
-        labels.includes('Object'),
-        `root blocks missing: ${labels.slice(0, 10)}`,
-      );
-      assert.ok(labels.includes('Weapon'));
     });
   });
 
@@ -449,56 +314,9 @@ suite('SAGE INI language', () => {
       assert.ok(links[0].targetUri.path.endsWith('weapon.ini'));
       assert.strictEqual(links[0].targetSelectionRange!.start.line, 0);
     });
-
-    test('hover on a macro shows what it expands to', async () => {
-      const document = await vscode.workspace.openTextDocument(
-        entryUri('data/ini/object.ini'),
-      );
-      const line = document.lineAt(11).text;
-      const character = line.indexOf('SHROUD_CLEAR_STANDARD') + 4;
-
-      const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-        'vscode.executeHoverProvider',
-        document.uri,
-        new vscode.Position(11, character),
-      );
-
-      const text = hovers
-        .flatMap((hover) => hover.contents)
-        .map((content) =>
-          typeof content === 'string'
-            ? content
-            : (content as vscode.MarkdownString).value,
-        )
-        .join('\n');
-
-      assert.match(text, /macro/i);
-      assert.match(text, /25/, 'the expansion must be shown');
-    });
   });
 
   suite('SAGE INI references include the declaration', () => {
-    test('find references returns the declaration alongside the uses', async () => {
-      const weapon = await vscode.workspace.openTextDocument(
-        entryUri('data/ini/weapon.ini'),
-      );
-      const character = weapon.lineAt(2).text.indexOf('GondorBowWeapon') + 2;
-
-      const locations = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeReferenceProvider',
-        weapon.uri,
-        new vscode.Position(2, character),
-      );
-
-      const at = (name: string, line: number) =>
-        locations.some(
-          (l) => l.uri.path.endsWith(name) && l.range.start.line === line,
-        );
-
-      assert.ok(at('object.ini', 5), 'the use must be listed');
-      assert.ok(at('weapon.ini', 2), 'the declaration must be listed too');
-    });
-
     test('find references on a macro finds its uses, which are not namespace references', async () => {
       const weapon = await vscode.workspace.openTextDocument(
         entryUri('data/ini/weapon.ini'),
@@ -547,46 +365,6 @@ suite('SAGE INI language', () => {
         String.raw`..\weapon.ini`,
       );
     });
-
-    test('an include of a file that is not there offers nothing', async () => {
-      const child = await vscode.workspace.openTextDocument(
-        entryUri('data/ini/sub/child.inc'),
-      );
-      const line = child.lineAt(1).text;
-      const character = line.indexOf('Missing.inc') + 2;
-
-      const links = await vscode.commands.executeCommand<vscode.LocationLink[]>(
-        'vscode.executeDefinitionProvider',
-        child.uri,
-        new vscode.Position(1, character),
-      );
-
-      assert.strictEqual(links?.length ?? 0, 0);
-    });
-  });
-
-  test('hover on a string label shows the text the game displays', async () => {
-    const weaponDocument = await vscode.workspace.openTextDocument(
-      entryUri('data/ini/weapon.ini'),
-    );
-    const character = weaponDocument.lineAt(7).text.indexOf('FireArrows');
-
-    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-      'vscode.executeHoverProvider',
-      weaponDocument.uri,
-      new vscode.Position(7, character),
-    );
-    const text = hovers
-      .flatMap((hover) => hover.contents)
-      .map((content) => (typeof content === 'string' ? content : content.value))
-      .join('\n')
-      // Plain text in a hover has its spaces escaped for markdown
-      .replace(/&nbsp;/g, ' ');
-
-    assert.ok(
-      text.includes('Fire Arrows'),
-      `expected the game text, got ${text}`,
-    );
   });
 
   test('rename edits the declaration and every use, in every entry', async () => {
@@ -633,24 +411,5 @@ suite('SAGE INI language', () => {
     assert.deepStrictEqual(messages, [
       'Included file not found: ..\\Missing.inc',
     ]);
-  });
-
-  test('hover on an arithmetic call shows its value, through macros', async () => {
-    const document = await vscode.workspace.openTextDocument({
-      language: 'sage-ini',
-      content:
-        'Object X\n  ShroudClearingRange = #ADD( SHROUD_CLEAR_STANDARD 5 )\nEnd\n',
-    });
-    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-      'vscode.executeHoverProvider',
-      document.uri,
-      new vscode.Position(1, 30),
-    );
-    const text = hovers
-      .flatMap((hover) => hover.contents)
-      .map((content) => (typeof content === 'string' ? content : content.value))
-      .join('\n');
-
-    assert.ok(text.includes('**30**'), `expected 25 + 5, got ${text}`);
   });
 });

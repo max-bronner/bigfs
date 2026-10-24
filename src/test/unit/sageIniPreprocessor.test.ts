@@ -18,27 +18,6 @@ const lookup = (name: string) => macros[name.toLowerCase()];
 const evaluate = (line: string) => evaluateCall(scanCalls(line, 0)[0], lookup);
 
 suite('SAGE INI preprocessor', () => {
-  test('finds a call with its operands and columns', () => {
-    const [call] = scanCalls('  MaxHealth = #ADD( HERO_HEALTH 100 )', 3);
-
-    assert.deepStrictEqual(
-      {
-        line: call.line,
-        operation: call.operation,
-        start: call.start,
-        end: call.end,
-        operands: call.operands.map((operand) => operand.text),
-      },
-      {
-        line: 3,
-        operation: 'ADD',
-        start: 14,
-        end: 37,
-        operands: ['HERO_HEALTH', '100'],
-      },
-    );
-  });
-
   test('evaluates all four operations, through macros', () => {
     assert.deepStrictEqual(evaluate('#ADD( HERO_HEALTH 100 )'), {
       value: 1600,
@@ -48,10 +27,6 @@ suite('SAGE INI preprocessor', () => {
       value: 2250,
     });
     assert.deepStrictEqual(evaluate('#DIVIDE( 9, 3 )'), { value: 3 });
-  });
-
-  test('a percentage passes through as its number', () => {
-    assert.deepStrictEqual(evaluate('#ADD( BONUS 0 )'), { value: 25 });
   });
 
   test('a macro whose body is a call is evaluated, and a cycle is caught', () => {

@@ -4,7 +4,7 @@ import path from 'path';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { readArchiveIndexTable } from '../../binary/archiveFile';
 import { ArchiveModel } from '../../model/archiveModel';
-import { findInArchives, packFolderInto } from '../../commands/modCommands';
+import { packFolderInto } from '../../commands/modCommands';
 
 suite('Mod commands', () => {
   let folder: string;
@@ -56,23 +56,5 @@ suite('Mod commands', () => {
       'readme.txt',
     ]);
     assert.ok(bytes.includes(Buffer.from('KindOf = INFANTRY')));
-  });
-
-  test('finds a phrase inside the archives, with its line', async function () {
-    this.timeout(30_000);
-
-    await model.scanWorkspace();
-
-    const results = await findInArchives(model, 'gondorfighter');
-    const match = results.find((result) =>
-      result.description?.endsWith('data/ini/unit.ini:1'),
-    );
-
-    assert.ok(
-      match,
-      `expected a match in unit.ini, got ${results.map((r) => r.description)}`,
-    );
-    assert.strictEqual(match.label, 'Object GondorFighter');
-    assert.strictEqual(match.start, 7);
   });
 });

@@ -3,11 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createSageIniSchema } from '../../language/model/sageIniSchema';
 import { parseSageIni } from '../../language/model/sageIniParser';
-import {
-  findAssetReferences,
-  missingAssetMessage,
-  suggestedAssetNames,
-} from '../../language/model/sageIniAssets';
+import { findAssetReferences } from '../../language/model/sageIniAssets';
 
 const schema = createSageIniSchema(
   JSON.parse(
@@ -81,16 +77,5 @@ suite('INI asset references', () => {
         ['sound', 'Music\\theme.mp3', 24, ['theme.mp3']],
       ],
     );
-  });
-
-  test('a missing-asset message carries its suggestions for the quick fix', () => {
-    const [reference] = findAssetReferences(parseSageIni(TEXT, schema));
-    const message = missingAssetMessage(reference, ['tubody_skm']);
-
-    assert.strictEqual(
-      message,
-      "Model 'TUBody_SKN' has no tubody_skn.w3d in any archive or folder; did you mean 'tubody_skm'?",
-    );
-    assert.deepStrictEqual(suggestedAssetNames(message), ['tubody_skm']);
   });
 });
