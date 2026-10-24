@@ -143,7 +143,9 @@ your mod's archives.
 - **Convert to VP6 Movie…** on a video, an image or a folder of numbered
   PNG/TGA/DDS frames writes an EA VP6 movie the games play: size, frame rate
   and quality are asked for, transparency is kept as an alpha stream, and the
-  result is decoded again before it is saved. Any video FFmpeg reads works
+  result is decoded again before it is saved. Frames between key frames
+  (`bigfs.vp6.keyFrameSeconds`) are coded as changes from the one before,
+  with motion search, and each frame sends the probabilities it needs. Any video FFmpeg reads works
   when FFmpeg is installed (`bigfs.ffmpegPath`); without it, WebM and Ogg.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
   Animations of the skeleton are listed and play on the model (dense,

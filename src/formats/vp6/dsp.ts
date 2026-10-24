@@ -234,6 +234,9 @@ export interface Filter {
 const TMP_STRIDE = 16;
 const TMP_LEN = TMP_STRIDE * 12;
 const ORIGIN = 2 * TMP_STRIDE + 2;
+/** Scratch for one block at a time; motion compensation is not re-entered */
+const TMP = new Uint8Array(TMP_LEN);
+const HORIZONTAL = new Uint16Array(9 * 8);
 
 /** Copies the 12×12 source area around a block, clamping at the edges */
 const getBlock = (tmp: Uint8Array, src: Plane, x: number, y: number) => {
@@ -311,9 +314,6 @@ const variance = (buf: Uint8Array, off: number) => {
   return Math.min(0xffff, ((squares * 16 - sum * sum) >>> 0) >>> 8);
 };
 
-const bilinear = (a: number, b: number, fraction: number) =>
-  ((a * (8 - fraction) + b * fraction + 4) >> 3) & 0xffff;
-
 const bicubic = (
   src: Uint8Array,
   off: number,
@@ -360,7 +360,7 @@ export const mcBlock = (
         Math.trunc(mv.x / 8),
         Math.trunc(mv.y / 8),
       ];
-  const tmp = new Uint8Array(TMP_LEN);
+  const tmp = TMP;
 
   getBlock(tmp, src, x + sx - 2, y + sy - 2);
 
@@ -452,40 +452,59 @@ export const mcBlock = (
       }
     }
   } else {
-    const horizontal = (row: number) =>
-      Array.from({ length: 8 }, (_, column) =>
-        bilinear(tmp[at(row, column)], tmp[at(row, column) + 1], mx),
-      );
+    // Bilinear, as the reference computes it, without per-pixel allocation
+    const left = 8 - mx;
+    const top = 8 - my;
 
     if (my === 0) {
       for (let row = 0; row < rows; row++) {
-        horizontal(row).forEach((value, column) => write(row, column, value));
+        const base = ORIGIN + row * TMP_STRIDE;
+
+        for (let column = 0; column < 8; column++) {
+          write(
+            row,
+            column,
+            (tmp[base + column] * left + tmp[base + column + 1] * mx + 4) >> 3,
+          );
+        }
       }
     } else if (mx === 0) {
+      for (let row = 0; row < rows; row++) {
+        const base = ORIGIN + row * TMP_STRIDE;
+
+        for (let column = 0; column < 8; column++) {
+          write(
+            row,
+            column,
+            (tmp[base + column] * top +
+              tmp[base + column + TMP_STRIDE] * my +
+              4) >>
+              3,
+          );
+        }
+      }
+    } else {
+      const across = HORIZONTAL;
+
+      for (let row = 0; row <= rows; row++) {
+        const base = ORIGIN + row * TMP_STRIDE;
+
+        for (let column = 0; column < 8; column++) {
+          across[row * 8 + column] =
+            (tmp[base + column] * left + tmp[base + column + 1] * mx + 4) >> 3;
+        }
+      }
       for (let row = 0; row < rows; row++) {
         for (let column = 0; column < 8; column++) {
           write(
             row,
             column,
-            bilinear(
-              tmp[at(row, column)],
-              tmp[at(row, column) + TMP_STRIDE],
-              my,
-            ),
+            (across[row * 8 + column] * top +
+              across[(row + 1) * 8 + column] * my +
+              4) >>
+              3,
           );
         }
-      }
-    } else {
-      let previous = horizontal(0);
-
-      for (let row = 0; row < rows; row++) {
-        const current = horizontal(row + 1);
-
-        for (let column = 0; column < 8; column++) {
-          write(row, column, bilinear(previous[column], current[column], my));
-        }
-
-        previous = current;
       }
     }
   }

@@ -631,6 +631,12 @@
           "default": "",
           "scope": "machine",
           "markdownDescription": "FFmpeg program **Convert to VP6 Movie** reads videos with. Empty: `ffmpeg` on the PATH; without one, only WebM and Ogg videos (and image frames) can be read."
+        },
+        "bigfs.vp6.keyFrameSeconds": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "markdownDescription": "Seconds between forced key frames when **Convert to VP6 Movie** encodes; scene changes add their own. 0 makes every frame a key frame, which seeks fastest and is largest."
         }
       }
     },

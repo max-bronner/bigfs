@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { Vp6Movie } from '../../formats/vp6/container';
+import { Vp6Movie, parseVp6 } from '../../formats/vp6/container';
 import { encodeMovie } from '../../formats/vp6/encodeMovie';
 
 /** A picture with edges, gradients and transparency, odd-sized */
@@ -37,7 +37,7 @@ const psnr = (
 };
 
 suite('VP6 encoder', () => {
-  test('a movie it writes reads back with its frames, rate and alpha, close to the source', async () => {
+  test('a movie it writes, key and inter frames, reads back close to the source with its rate and alpha', async () => {
     const [width, height] = [70, 38];
     let next = 0;
     const bytes = await encodeMovie(
@@ -53,6 +53,12 @@ suite('VP6 encoder', () => {
       { quality: 54 },
     );
     const movie = new Vp6Movie(bytes!);
+
+    // After the first, frames predict from the one before
+    assert.deepStrictEqual(
+      parseVp6(bytes!).frames.map((each) => each.isKey),
+      [true, false, false, false],
+    );
 
     assert.strictEqual(movie.frameCount, 4);
     assert.strictEqual(movie.hasAlpha, true);

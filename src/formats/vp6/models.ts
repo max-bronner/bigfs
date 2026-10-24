@@ -182,6 +182,11 @@ export class Models {
       }
     }
 
+    this.computeModeProbs();
+  }
+
+  /** The macroblock type probabilities, from the transmitted pairs */
+  public computeModeProbs(): void {
     this.probXmitted.forEach((px, ctx) => {
       this.mbtype[ctx].forEach((probs, mode) => {
         const p = (index: number) => px[index] ?? 0;
