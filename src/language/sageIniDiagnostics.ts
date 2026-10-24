@@ -1,3 +1,4 @@
+import { findScriptProblems } from './model/sageIniScripts';
 import {
   Diagnostic,
   DiagnosticSeverity,
@@ -178,6 +179,30 @@ export const watchSageIniDiagnostics = (
       ),
       ...(await getIncludeDiagnostics(document, parsed)),
       ...(await getReferenceDiagnostics(parsed, schema, index)),
+      ...findScriptProblems(
+        Array.from(
+          { length: document.lineCount },
+          (_, line) => document.lineAt(line).text,
+        ),
+        parsed.scripts.filter((script) => script.endLine > script.startLine),
+      ).map((problem) => {
+        const diagnostic = new Diagnostic(
+          new Range(
+            problem.line,
+            problem.column,
+            problem.line,
+            document.lineAt(Math.min(problem.line, document.lineCount - 1)).text
+              .length,
+          ),
+          problem.message,
+          // A warning: the games' Lua is 5.0, which luaparse reads as 5.1
+          DiagnosticSeverity.Warning,
+        );
+
+        diagnostic.source = SOURCE;
+
+        return diagnostic;
+      }),
     ];
 
     // An edit that landed while the includes were checked has its own run

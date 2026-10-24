@@ -1,0 +1,44 @@
+import { parse } from 'luaparse';
+
+/**
+ * Syntax errors in the Lua a `BeginScript` ... `EndScript` region embeds,
+ * read with luaparse as Lua 5.1 (the games' scripts use nothing newer).
+ * Only syntax is checked: what a script calls is the game's to resolve.
+ */
+export interface ScriptProblem {
+  line: number;
+  column: number;
+  message: string;
+}
+
+export const findScriptProblems = (
+  lines: string[],
+  regions: { startLine: number; endLine: number }[],
+): ScriptProblem[] =>
+  regions.flatMap(({ startLine, endLine }) => {
+    const body = lines.slice(startLine + 1, endLine).join('\n');
+
+    try {
+      parse(body, { luaVersion: '5.1', comments: false, locations: false });
+
+      return [];
+    } catch (error) {
+      const failure = error as {
+        line?: number;
+        column?: number;
+        message?: string;
+      };
+
+      if (typeof failure.line !== 'number') {
+        return [];
+      }
+
+      return [
+        {
+          line: startLine + failure.line,
+          column: failure.column ?? 0,
+          message: `Lua: ${(failure.message ?? 'syntax error').replace(/^\[\d+:\d+\]\s*/, '')}`,
+        },
+      ];
+    }
+  });
