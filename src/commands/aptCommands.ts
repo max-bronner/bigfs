@@ -35,24 +35,28 @@ const exists = async (uri: vscode.Uri) =>
     () => false,
   );
 
-const newMovie = async (target: Target): Promise<void> => {
-  const folder = await folderOf(target);
+/** What a new movie is, when a caller supplies it instead of the prompts */
+export interface NewMovieOptions {
+  name: string;
+  width?: number;
+  height?: number;
+  exports?: string[];
+}
 
-  if (!folder) {
-    return;
-  }
+const NAME_PATTERN = /^[A-Za-z0-9_]+$/;
 
+const askOptions = async (): Promise<NewMovieOptions | undefined> => {
   const name = await vscode.window.showInputBox({
     prompt: 'Movie name; root movies import its exports by this name',
     placeHolder: 'MyExports',
     validateInput: (value) =>
-      /^[A-Za-z0-9_]+$/.test(value)
+      NAME_PATTERN.test(value)
         ? undefined
         : 'Letters, digits and underscores only',
   });
 
   if (!name) {
-    return;
+    return undefined;
   }
 
   const size = await vscode.window.showInputBox({
@@ -63,7 +67,7 @@ const newMovie = async (target: Target): Promise<void> => {
   });
 
   if (!size) {
-    return;
+    return undefined;
   }
 
   const exportList = await vscode.window.showInputBox({
@@ -74,31 +78,60 @@ const newMovie = async (target: Target): Promise<void> => {
   });
 
   if (exportList === undefined) {
-    return;
+    return undefined;
   }
 
   const [width, height] = size.split('x').map(Number);
-  const files = createAptMovie({
+
+  return {
+    name,
     width,
     height,
     exports: exportList
       .split(',')
       .map((entry) => entry.trim())
       .filter(Boolean),
+  };
+};
+
+/** Writes the movie's three files and opens it; returns the `.apt` */
+const newMovie = async (
+  target: Target,
+  given?: NewMovieOptions,
+): Promise<vscode.Uri | undefined> => {
+  const folder = await folderOf(target);
+
+  if (!folder) {
+    return undefined;
+  }
+
+  const options = given ?? (await askOptions());
+
+  if (!options) {
+    return undefined;
+  }
+  if (!NAME_PATTERN.test(options.name)) {
+    throw new Error(`"${options.name}" is not a usable movie name`);
+  }
+
+  const files = createAptMovie({
+    width: options.width ?? 1024,
+    height: options.height ?? 768,
+    exports: options.exports ?? [],
   });
-  const aptUri = vscode.Uri.joinPath(folder, `${name}.apt`);
+  const aptUri = vscode.Uri.joinPath(folder, `${options.name}.apt`);
 
   if (await exists(aptUri)) {
-    throw new Error(`${name}.apt already exists there`);
+    throw new Error(`${options.name}.apt already exists there`);
   }
 
   await vscode.workspace.fs.writeFile(aptUri, files.apt);
   await vscode.workspace.fs.writeFile(
-    vscode.Uri.joinPath(folder, `${name}.const`),
+    vscode.Uri.joinPath(folder, `${options.name}.const`),
     files.constFile,
   );
   await vscode.workspace.fs.writeFile(
-    vscode.Uri.joinPath(folder, `${name}.dat`),
+    vscode.Uri.joinPath(folder, `${options.name}.dat`),
     files.dat,
   );
   await vscode.commands.executeCommand(
@@ -106,19 +139,21 @@ const newMovie = async (target: Target): Promise<void> => {
     aptUri,
     APT_VIEW_TYPE,
   );
+  return aptUri;
 };
 
 export const registerAptCommands = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'bigfs.newAptMovie',
-      async (target: Target) => {
+      async (target: Target, options?: NewMovieOptions) => {
         try {
-          await newMovie(target);
+          return await newMovie(target, options);
         } catch (error) {
           void vscode.window.showErrorMessage(
             error instanceof Error ? error.message : String(error),
           );
+          return undefined;
         }
       },
     ),
