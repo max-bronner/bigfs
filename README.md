@@ -57,6 +57,9 @@ your mod's archives.
   icon, its label in game text and its command; undefined buttons are marked.
 - Audio events get a **▶ Play** lens that plays one of their sounds, as the
   game picks one; hovering a sound or an event name gives play links.
+- Game-text labels such as `OBJECT:Name` that no string table defines are
+  reported, with a quick fix that adds the record to the table the file
+  already uses (`bigfs.ini.checkStrings`).
 - Models, animations, textures and sounds named in INI files are checked
   against every archive and folder; a missing one is reported with the
   nearest existing names as quick fixes, in the editor and in **Validate INI
