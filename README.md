@@ -50,6 +50,8 @@ your mod's archives.
   whitespace; embedded scripts stay as written.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
 - Lua in `BeginScript` regions is checked for syntax errors.
+- Hovering a CommandSet name shows its buttons in slot order, each with its
+  icon, its label in game text and its command; undefined buttons are marked.
 - Models, animations, textures and sounds named in INI files are checked
   against every archive and folder; a missing one is reported with the
   nearest existing names as quick fixes, in the editor and in **Validate INI

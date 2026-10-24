@@ -39,3 +39,4 @@
 - Particle preview for particle systems and FX lists, with a slider for
   every value and Apply to INI.
 - Launch Game with Mod, with a Run mod status bar button.
+- CommandSet hover with the button icons, labels and commands.
