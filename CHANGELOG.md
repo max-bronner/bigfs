@@ -17,3 +17,6 @@
   movie edits.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
+- Map editor for `.map` and `.bse`: terrain relief with objects and start
+  positions, world info, time of day, players and object properties, with
+  RefPack compression both ways.

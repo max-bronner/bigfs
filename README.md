@@ -48,6 +48,17 @@ your mod's archives.
 - `.csf` files open as the same table and save back byte for byte.
 - **Convert String Table** turns a `.str` into a `.csf` and back.
 
+**Maps** (`.map`, `.bse`)
+
+- The terrain as a shaded relief with objects, waypoints, start positions
+  and the playable area; click an object to select it.
+- Size, border, playable area, height range, players and every chunk at a
+  glance.
+- Edit the world info (name, description, weather...), the time of day,
+  each player's settings, and every object's template, position, angle and
+  properties. Compressed maps are saved compressed again; nothing an edit
+  does not touch changes.
+
 **Previews**
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip
