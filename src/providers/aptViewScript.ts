@@ -322,10 +322,10 @@ const characterFields = (character) => {
     state.movie.exports.forEach((entry, index) => fields.push(row('', input(entry.name, (name) => send({ kind: 'export', index, name }), 'line'), input(entry.character, (value) => send({ kind: 'export', index, character: value })), button('Remove', () => send({ kind: 'removeExport', index })))));
     const added = { name: '', character: 1 };
     fields.push(row('New', input('', (name) => { added.name = name; }, 'line'), input(1, (value) => { added.character = value; }), button('Add export', () => added.name && send({ kind: 'addExport', ...added }))));
-    if (state.movie.imports.length) {
-      fields.push(heading('Imports'));
-      state.movie.imports.forEach((entry, index) => fields.push(row('#' + entry.character, input(entry.movie, (movie) => send({ kind: 'import', index, movie }), 'line'), input(entry.name, (name) => send({ kind: 'import', index, name }), 'line'))));
-    }
+    fields.push(heading('Imports'));
+    state.movie.imports.forEach((entry, index) => fields.push(row('#' + entry.character, input(entry.movie, (movie) => send({ kind: 'import', index, movie }), 'line'), input(entry.name, (name) => send({ kind: 'import', index, name }), 'line'), button('Remove', () => send({ kind: 'removeImport', index })))));
+    const imported = { movie: '', name: '' };
+    fields.push(row('New', input('', (movie) => { imported.movie = movie; }, 'line'), input('', (name) => { imported.name = name; }, 'line'), button('Add import', () => imported.movie && imported.name && send({ kind: 'addImport', ...imported }))));
     fields.push(heading('New character'));
     fields.push(row('', ...['editText', 'sprite', 'shape', 'image'].map((type) => button(type === 'editText' ? 'Text' : type[0].toUpperCase() + type.slice(1), () => send({ kind: 'addCharacter', type })))));
   }

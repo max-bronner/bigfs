@@ -64,6 +64,8 @@ export type AptEdit =
   | { kind: 'addExport'; name: string; character: number }
   | { kind: 'removeExport'; index: number }
   | { kind: 'import'; index: number; movie?: string; name?: string }
+  | { kind: 'addImport'; movie: string; name: string }
+  | { kind: 'removeImport'; index: number }
   | { kind: 'screen'; width: number; height: number }
   | { kind: 'duplicateCharacter'; id: number }
   | { kind: 'addCharacter'; type: 'editText' | 'sprite' | 'shape' | 'image' }
@@ -552,6 +554,42 @@ export const applyAptEdit = (
       if (edit.name !== undefined) {
         image.setU32(at + 4, image.appendString(edit.name));
       }
+      return {};
+    }
+    case 'addImport': {
+      // The import takes a new character id, whose slot names no record
+      const id = record.characterCount;
+      const characters = image.growArray(record.offset + 24, id, 1);
+      const imports = image.growArray(
+        record.offset + 44,
+        record.importCount * 4,
+        4,
+      );
+      const at = imports + record.importCount * 16;
+
+      image.setU32(characters + id * 4, 0);
+      image.setU32(record.offset + 20, id + 1);
+      image.setU32(at, image.appendString(edit.movie));
+      image.setU32(at + 4, image.appendString(edit.name));
+      image.setU32(at + 8, id);
+      image.setU32(record.offset + 40, record.importCount + 1);
+      return { character: id };
+    }
+    case 'removeImport': {
+      if (edit.index < 0 || edit.index >= record.importCount) {
+        throw new Error(`No import ${edit.index}`);
+      }
+
+      // Shifted down in place; the character slot stays, naming nothing
+      for (let index = edit.index; index < record.importCount - 1; index++) {
+        const at = record.importsOffset + index * 16;
+
+        for (let word = 0; word < 16; word += 4) {
+          image.setU32(at + word, image.u32(at + 16 + word));
+        }
+      }
+
+      image.setU32(record.offset + 40, record.importCount - 1);
       return {};
     }
     case 'screen':
