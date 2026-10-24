@@ -70,8 +70,8 @@ export const registerSageIniLanguage = (
     documents.onDidChangeSchema(() => index.reset()),
     ...registerParticlePreview(context, selector, index, locator),
     watchSageIniDialect(),
-    watchSageIniDiagnostics(documents, index),
-    ...registerSageIniValidation(documents, archiveModel),
+    watchSageIniDiagnostics(documents, index, locator),
+    ...registerSageIniValidation(documents, archiveModel, locator),
     languages.registerFoldingRangeProvider(
       selector,
       createSageIniFoldingProvider(documents),

@@ -14,18 +14,59 @@ import type { VirtualNode } from '../model/virtualNode';
  * dropped when an archive changes, so a lookup after the first costs a map
  * read.
  */
+/** Loose files that can satisfy an asset reference */
+const LOOSE_ASSETS =
+  '**/*.{w3d,W3D,dds,DDS,tga,TGA,jpg,JPG,png,PNG,wav,WAV,mp3,MP3}';
+
 export class EntryLocator implements Disposable {
   private names?: Promise<Map<string, VirtualNode>>;
-  private readonly subscription: Disposable;
+  /** Archive and loose asset names together, until either changes */
+  private allNames?: Promise<Set<string>>;
+  private readonly subscriptions: Disposable[];
 
   public constructor(private readonly archiveModel: ArchiveModel) {
-    this.subscription = archiveModel.onDidChangeArchive(() => {
-      this.names = undefined;
-    });
+    const watcher = workspace.createFileSystemWatcher(LOOSE_ASSETS);
+    const forgetLoose = () => {
+      this.allNames = undefined;
+    };
+
+    this.subscriptions = [
+      archiveModel.onDidChangeArchive(() => {
+        this.names = undefined;
+        this.allNames = undefined;
+      }),
+      watcher,
+      watcher.onDidCreate(forgetLoose),
+      watcher.onDidDelete(forgetLoose),
+    ];
   }
 
   public dispose(): void {
-    this.subscription.dispose();
+    this.subscriptions.forEach((subscription) => subscription.dispose());
+  }
+
+  /**
+   * Lowercased names of every asset file the archives and the workspace
+   * folders hold, for checking references without reading anything
+   */
+  public fileNames(): Promise<Set<string>> {
+    this.allNames ??= (async () => {
+      const uris = await workspace.findFiles(
+        LOOSE_ASSETS,
+        '**/node_modules/**',
+        200_000,
+      );
+      const archived = await this.getNames();
+
+      return new Set([
+        ...archived.keys(),
+        ...uris.map((uri) =>
+          uri.path.slice(uri.path.lastIndexOf('/') + 1).toLowerCase(),
+        ),
+      ]);
+    })();
+
+    return this.allNames;
   }
 
   /**

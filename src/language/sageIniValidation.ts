@@ -18,6 +18,8 @@ import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { findSageIniProblems } from './model/sageIniProblems';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { decodeWindows1252 } from '../common/windows1252';
+import type { EntryLocator } from '../formats/entryLocator';
+import { assetNamesToCheck, getAssetDiagnostics } from './sageIniAssetCheck';
 
 /**
  * Checks every INI file of the workspace at once, in archives and loose, and
@@ -34,14 +36,19 @@ const diagnoseText = (
   text: string,
   path: string,
   schema: Awaited<ReturnType<SageIniDocuments['getSchema']>>,
+  assetNames?: Set<string>,
 ): Diagnostic[] => {
   const lines = text.split(/\r?\n/);
   const parsed = parseSageIni(lines, schema, {
     isFragment: isFragmentPath(path),
   });
 
-  return findSageIniProblems(parsed, schema).map(
-    ({ line, start, end, message, severity }) => {
+  const assets = assetNames
+    ? getAssetDiagnostics(parsed, assetNames, 'bigFS validation')
+    : [];
+
+  return findSageIniProblems(parsed, schema)
+    .map(({ line, start, end, message, severity }) => {
       const diagnostic = new Diagnostic(
         new Range(line, start, line, end ?? lines[line]?.length ?? start),
         message,
@@ -53,14 +60,15 @@ const diagnoseText = (
       diagnostic.source = 'bigFS validation';
 
       return diagnostic;
-    },
-  );
+    })
+    .concat(assets);
 };
 
 /** Registers `bigfs.validateIni`, which fills its own diagnostic collection */
 export const registerSageIniValidation = (
   documents: SageIniDocuments,
   archiveModel: ArchiveModel,
+  locator?: EntryLocator,
 ): Disposable[] => {
   const collection = languages.createDiagnosticCollection(
     'sage-ini-validation',
@@ -68,6 +76,7 @@ export const registerSageIniValidation = (
 
   const validate = async (): Promise<void> => {
     const schema = await documents.getSchema();
+    const assetNames = await assetNamesToCheck(locator);
     const results: [Uri, Diagnostic[]][] = [];
     let fileCount = 0;
 
@@ -105,6 +114,7 @@ export const registerSageIniValidation = (
                   decodeWindows1252(content),
                   node.entryPath,
                   schema,
+                  assetNames,
                 ),
               ]);
             },
@@ -128,6 +138,7 @@ export const registerSageIniValidation = (
               decodeWindows1252(await workspace.fs.readFile(uri)),
               uri.path,
               schema,
+              assetNames,
             ),
           ]);
         }

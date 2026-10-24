@@ -15,6 +15,12 @@ import type { SageIniSchema } from './model/sageIniSchema';
 import type { SageIniIndex } from './sageIniIndex';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { includeExists, resolveIncludeUri } from './sageIniInclude';
+import type { EntryLocator } from '../formats/entryLocator';
+import {
+  CHECK_ASSETS_SETTING,
+  assetNamesToCheck,
+  getAssetDiagnostics,
+} from './sageIniAssetCheck';
 
 /**
  * Keeps the Problems panel current for every open SAGE INI document: what
@@ -158,6 +164,7 @@ const getIncludeDiagnostics = async (
 export const watchSageIniDiagnostics = (
   documents: SageIniDocuments,
   index: SageIniIndex,
+  locator?: EntryLocator,
 ): Disposable => {
   const collection = languages.createDiagnosticCollection(SAGE_INI_LANGUAGE);
   const pending = new Map<string, NodeJS.Timeout>();
@@ -169,9 +176,10 @@ export const watchSageIniDiagnostics = (
     }
 
     const version = document.version;
-    const [parsed, schema] = await Promise.all([
+    const [parsed, schema, assetNames] = await Promise.all([
       documents.parse(document),
       documents.getSchema(),
+      assetNamesToCheck(locator).catch(() => undefined),
     ]);
     const diagnostics = [
       ...findSageIniProblems(parsed, schema).map((problem) =>
@@ -179,6 +187,7 @@ export const watchSageIniDiagnostics = (
       ),
       ...(await getIncludeDiagnostics(document, parsed)),
       ...(await getReferenceDiagnostics(parsed, schema, index)),
+      ...(assetNames ? getAssetDiagnostics(parsed, assetNames, SOURCE) : []),
       ...findScriptProblems(
         Array.from(
           { length: document.lineCount },
@@ -237,7 +246,10 @@ export const watchSageIniDiagnostics = (
     ),
     documents.onDidChangeSchema(checkAll),
     workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(CHECK_REFERENCES_SETTING)) {
+      if (
+        event.affectsConfiguration(CHECK_REFERENCES_SETTING) ||
+        event.affectsConfiguration(CHECK_ASSETS_SETTING)
+      ) {
         checkAll();
       }
     }),

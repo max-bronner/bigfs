@@ -3,6 +3,10 @@ import type { CodeActionProvider, Diagnostic, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniIndex } from '../sageIniIndex';
 import { closestNames, missingEndLine } from '../model/sageIniFormat';
+import {
+  isMissingAssetMessage,
+  suggestedAssetNames,
+} from '../model/sageIniAssets';
 
 /**
  * Quick fixes for the problems the diagnostics report: add a missing `End`,
@@ -15,7 +19,10 @@ export const createSageIniCodeActionProvider = (
 ): CodeActionProvider => ({
   async provideCodeActions(document: TextDocument, _range: Range, context) {
     const ours = context.diagnostics.filter(
-      (diagnostic) => diagnostic.source === 'bigFS',
+      (diagnostic) =>
+        diagnostic.source === 'bigFS' ||
+        (diagnostic.source === 'bigFS validation' &&
+          isMissingAssetMessage(diagnostic.message)),
     );
 
     if (!ours.length) {
@@ -103,6 +110,15 @@ export const createSageIniCodeActionProvider = (
             );
           }
         }
+      } else if (isMissingAssetMessage(message)) {
+        suggestedAssetNames(message).forEach((name, place) =>
+          fix(
+            `Change to '${name}'`,
+            diagnostic,
+            (edit) => edit.replace(document.uri, diagnostic.range, name),
+            place === 0,
+          ),
+        );
       } else {
         const unresolved = /^No (.+) named '(.+)' is defined/.exec(message);
 
