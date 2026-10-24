@@ -65,6 +65,10 @@ your mod's archives.
   upgrade, FX list, command button and other definition in the workspace that
   no INI file references (objects and images, which maps and UI name, are
   left out).
+- **Show Call Hierarchy** (Shift+Alt+H) on a definition shows what it uses,
+  down through weapons, FX lists and particle systems, and what uses it.
+  **Show Type Hierarchy** follows ChildObject and ObjectReskin parents and
+  children.
 - Models, animations, textures and sounds named in INI files are checked
   against every archive and folder; a missing one is reported with the
   nearest existing names as quick fixes, in the editor and in **Validate INI

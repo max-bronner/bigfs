@@ -11,6 +11,10 @@ import { createCommandSetPreview } from './commandSetPreview';
 import { registerParticlePreview } from './particlePreview';
 import { registerUnusedDefinitions } from './unusedDefinitions';
 import { watchHotkeyClashes } from './hotkeyDiagnostics';
+import {
+  createCallHierarchyProvider,
+  createTypeHierarchyProvider,
+} from './sageIniHierarchy';
 import { registerDuplicateDefinition } from './duplicateDefinition';
 import { describeSound, registerSoundPlayer } from './soundPlayer';
 import { registerBalanceSheet } from './balanceSheet';
@@ -78,6 +82,14 @@ export const registerSageIniLanguage = (
     ...registerParticlePreview(context, selector, index, locator),
     ...registerUnusedDefinitions(index),
     watchHotkeyClashes(documents, index),
+    languages.registerCallHierarchyProvider(
+      selector,
+      createCallHierarchyProvider(documents, index),
+    ),
+    languages.registerTypeHierarchyProvider(
+      selector,
+      createTypeHierarchyProvider(documents, index),
+    ),
     ...registerDuplicateDefinition(selector, documents, index),
     ...registerSoundPlayer(selector, index, locator),
     registerBalanceSheet(documents, index),
