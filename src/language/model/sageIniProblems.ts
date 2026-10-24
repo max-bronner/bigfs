@@ -33,7 +33,11 @@ export interface SageProblem {
 }
 
 /** Display names of the games, as a message names them */
-const GAME_NAMES = { rotwk: 'Rise of the Witch-king', bfme2: 'BFME II' };
+const GAME_NAMES = {
+  rotwk: 'Rise of the Witch-king',
+  bfme2: 'BFME II',
+  bfme1: 'BFME',
+};
 
 /** Lists every problem a parse alone can tell, without touching the disk */
 export const findSageIniProblems = (
@@ -51,6 +55,11 @@ export const findSageIniProblems = (
     line,
     block,
   } of parsed.statements) {
+    // Without the game's own grammar a name it lacks proves nothing
+    if (!schema.isStrict) {
+      break;
+    }
+
     // A module slot naming a module the engine does not register
     if (
       block?.moduleType !== undefined &&
@@ -81,6 +90,18 @@ export const findSageIniProblems = (
       message: `'${keyword.text}' is not a block or field ${game} reads ${where}`,
       severity: 'warning',
     });
+  }
+
+  for (const call of parsed.calls) {
+    if (call.error) {
+      problems.push({
+        line: call.line,
+        start: call.start,
+        end: call.end,
+        message: call.error,
+        severity: 'error',
+      });
+    }
   }
 
   if (parsed.fileContext === FRAGMENT_CONTEXT) {

@@ -3,6 +3,8 @@ import {
   ROOT_CONTEXT,
   UNCHECKED_CONTEXT,
 } from './sageIniSchema';
+import { scanCalls } from './sageIniPreprocessor';
+import type { SageCall } from './sageIniPreprocessor';
 import type { SageIniSchema } from './sageIniSchema';
 
 /**
@@ -105,6 +107,8 @@ export interface SageDocument {
   statements: SageStatement[];
   /** Lines holding an `End` with no block open to close */
   strayEnds: number[];
+  /** Every arithmetic call written in a value, `#ADD( a b )` and its kin */
+  calls: SageCall[];
   includes: SageInclude[];
   macros: SageMacroDefinition[];
   scripts: SageScript[];
@@ -214,6 +218,7 @@ export const parseSageIni = (
   const blocks: SageBlock[] = [];
   const statements: SageStatement[] = [];
   const strayEnds: number[] = [];
+  const calls: SageCall[] = [];
   const includes: SageInclude[] = [];
   const macros: SageMacroDefinition[] = [];
   const scripts: SageScript[] = [];
@@ -279,6 +284,10 @@ export const parseSageIni = (
 
     if (!keyword) {
       return;
+    }
+
+    if (content.includes('#')) {
+      calls.push(...scanCalls(content, index));
     }
 
     if (END_PATTERN.test(keyword.text) && !values.length) {
@@ -370,6 +379,7 @@ export const parseSageIni = (
     blocks,
     statements,
     strayEnds,
+    calls,
     includes,
     macros,
     scripts,
