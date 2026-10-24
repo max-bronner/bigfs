@@ -4,6 +4,7 @@ import { decodeDdsTool, decodeTgaTool } from '../tools/textureTools';
 import { playableAudioTool } from '../tools/audioTools';
 import { buildW3dScene } from '../formats/w3dScene';
 import { parseW3dAnimations } from '../formats/w3dAnimation';
+import { Vp6Movie } from '../formats/vp6/container';
 import type { ModelScene } from '../formats/w3dScene';
 import type { EntryLocator } from '../formats/entryLocator';
 import { MODEL_SCRIPT } from './previewModelScript';
@@ -39,6 +40,15 @@ type PreviewMessage =
         durationSeconds: number;
       };
     }
+  | { kind: 'compressedAudio'; bytes: Uint8Array; mime: string; format: string }
+  | {
+      kind: 'video';
+      width: number;
+      height: number;
+      frameCount: number;
+      framesPerSecond: number;
+      hasAlpha: boolean;
+    }
   | ({ kind: 'model' } & ModelScene)
   | { kind: 'error'; message: string };
 
@@ -47,6 +57,7 @@ const buildMessage = async (
   uri: vscode.Uri,
   tools: ToolBox,
   locator: EntryLocator,
+  openMovie: (movie: Vp6Movie) => void,
 ): Promise<PreviewMessage> => {
   const bytes = await vscode.workspace.fs.readFile(uri);
   const extension = uri.path.slice(uri.path.lastIndexOf('.')).toLowerCase();
@@ -62,6 +73,27 @@ const buildMessage = async (
           kind: 'audio',
           ...(await tools.use(playableAudioTool)(bytes)),
         };
+      case '.mp3':
+        return {
+          kind: 'compressedAudio',
+          bytes,
+          mime: 'audio/mpeg',
+          format: 'MP3',
+        };
+      case '.vp6': {
+        const movie = new Vp6Movie(bytes);
+
+        openMovie(movie);
+
+        return {
+          kind: 'video',
+          width: movie.header.width,
+          height: movie.header.height,
+          frameCount: movie.frameCount,
+          framesPerSecond: movie.framesPerSecond,
+          hasAlpha: movie.hasAlpha,
+        };
+      }
       case '.w3d':
         return {
           kind: 'model',
@@ -113,6 +145,8 @@ export const renderHtml = (webview: vscode.Webview): string => {
   .error { color: var(--vscode-errorForeground); }
   audio { width: min(600px, 100%); margin-top: 12px; }
   canvas.model { display: block; cursor: grab; touch-action: none; }
+  canvas.video { display: block; max-width: 100%; image-rendering: auto; }
+  canvas.video.checker { background: repeating-conic-gradient(#808080 0 25%, #c0c0c0 0 50%) 0 0 / 16px 16px; }
   .controls { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
   .controls input[type=range] { flex: 1; min-width: 120px; }
   dl { display: grid; grid-template-columns: max-content auto; gap: 4px 16px; margin: 0; }
@@ -253,11 +287,96 @@ export const renderHtml = (webview: vscode.Webview): string => {
 
   ${MODEL_SCRIPT}
 
+  const showCompressedAudio = ({ bytes, mime, format }) => {
+    const list = document.createElement('dl');
+    const audio = document.createElement('audio');
+    const add = (term, value) => {
+      const dt = document.createElement('dt');
+      const dd = document.createElement('dd');
+      dt.textContent = term;
+      dd.textContent = value;
+      list.append(dt, dd);
+    };
+    add('Codec', format);
+    audio.controls = true;
+    audio.src = URL.createObjectURL(new Blob([bytes], { type: mime }));
+    audio.addEventListener('loadedmetadata', () => add('Duration', audio.duration.toFixed(2) + ' s'));
+    main.replaceChildren(list, audio);
+  };
+
+  /** Plays a VP6 movie: the extension decodes, the page asks frame by frame */
+  let video;
+  const showVideo = (info) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = info.width;
+    canvas.height = info.height;
+    canvas.className = 'video' + (info.hasAlpha ? ' checker' : '');
+    const bar = document.createElement('div');
+    bar.className = 'controls';
+    const play = document.createElement('button');
+    const slider = document.createElement('input');
+    const label = document.createElement('span');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = String(Math.max(0, info.frameCount - 1));
+    label.className = 'status';
+    bar.append(play, slider, label);
+    const facts = document.createElement('p');
+    facts.textContent = info.width + ' × ' + info.height + ' · ' + info.frameCount + ' frames · ' + info.framesPerSecond.toFixed(2) + ' fps' + (info.hasAlpha ? ' · with alpha' : '') + ' · no sound: EA movies keep it in a separate file';
+    main.replaceChildren(bar, canvas, facts);
+    const context = canvas.getContext('2d');
+    video = { info, frame: 0, playing: true, pending: false, last: 0 };
+    const request = (index) => {
+      if (video.pending) return;
+      video.pending = true;
+      vscode.postMessage({ kind: 'videoFrame', index });
+    };
+    const update = () => {
+      play.textContent = video.playing ? 'Pause' : 'Play';
+      slider.value = String(video.frame);
+      label.textContent = 'frame ' + (video.frame + 1) + ' / ' + info.frameCount;
+    };
+    play.onclick = () => {
+      video.playing = !video.playing;
+      if (video.playing && video.frame >= info.frameCount - 1) video.frame = -1;
+      update();
+      if (video.playing) request(video.frame + 1);
+    };
+    slider.oninput = () => { video.playing = false; update(); request(Number(slider.value)); };
+    video.show = (index, pixels) => {
+      video.pending = false;
+      video.frame = index;
+      context.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer, pixels.byteOffset, pixels.byteLength), info.width, info.height), 0, 0);
+      update();
+      if (video.playing && index < info.frameCount - 1) {
+        const wait = Math.max(0, 1000 / info.framesPerSecond - (performance.now() - video.last));
+        setTimeout(() => { video.last = performance.now(); request(index + 1); }, wait);
+      } else if (index >= info.frameCount - 1) {
+        video.playing = false;
+        update();
+      }
+    };
+    update();
+    request(0);
+  };
+
   let modelControl;
 
   window.addEventListener('message', ({ data }) => {
     if (data.kind === 'model') {
       modelControl = showModel(data);
+    } else if (data.kind === 'compressedAudio') {
+      showCompressedAudio(data);
+    } else if (data.kind === 'video') {
+      showVideo(data);
+    } else if (data.kind === 'videoFrame') {
+      video?.show(data.index, data.pixels);
+    } else if (data.kind === 'videoError') {
+      if (video) video.pending = false;
+      const error = document.createElement('p');
+      error.className = 'error';
+      error.textContent = 'Cannot decode this frame: ' + data.message;
+      main.append(error);
     } else if (data.kind === 'animations') {
       modelControl?.setAnimations(data.names);
     } else if (data.kind === 'animation') {
@@ -331,7 +450,15 @@ export class PreviewEditorProvider
 
     // Decoding starts at once; the page asks for the result when its script
     // has loaded, so the message cannot arrive before anything listens
-    const message = buildMessage(document.uri, this.tools, this.locator);
+    let movie: Vp6Movie | undefined;
+    const message = buildMessage(
+      document.uri,
+      this.tools,
+      this.locator,
+      (opened) => {
+        movie = opened;
+      },
+    );
     const subscription = panel.webview.onDidReceiveMessage(async (received) => {
       if (received?.kind === 'ready') {
         const built = await message;
@@ -342,6 +469,23 @@ export class PreviewEditorProvider
           await panel.webview.postMessage({
             kind: 'animations',
             names: await this.findAnimations(built.skeleton.name),
+          });
+        }
+      } else if (received?.kind === 'videoFrame' && movie) {
+        const index = Number(received.index);
+
+        try {
+          const pixels = movie.frame(index);
+
+          await panel.webview.postMessage({
+            kind: 'videoFrame',
+            index,
+            pixels: new Uint8Array(pixels.buffer),
+          });
+        } catch (error) {
+          await panel.webview.postMessage({
+            kind: 'videoError',
+            message: error instanceof Error ? error.message : String(error),
           });
         }
       } else if (received?.kind === 'animation') {

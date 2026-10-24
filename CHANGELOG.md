@@ -22,3 +22,4 @@
   RefPack compression both ways.
 - W3D animation playback on models and skeletons.
 - `.wnd` window layouts: language support and a live layout preview.
+- MP3 and VP6 video previews.

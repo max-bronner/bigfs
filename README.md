@@ -70,7 +70,9 @@ your mod's archives.
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip
   levels.
-- Sounds: WAV, including IMA ADPCM.
+- Sounds: WAV, including IMA ADPCM, and MP3.
+- Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
+  pause and seeking; alpha movies show over a checkerboard.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
   Animations of the skeleton are listed and play on the model (dense,
   time-coded, adaptive-delta and motion channels); a skeleton or an
