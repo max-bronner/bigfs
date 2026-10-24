@@ -31,4 +31,6 @@
 - INI quick fixes, a formatter, and MappedImage hovers that show the image.
 - Maps: teams, scripts (switch on/off), trigger areas and lighting edits.
 - APT: create new text, sprite, shape and image characters.
+- APT: create new movies with exported sprites, and add or remove imports so
+  root movies can use them.
 - Lua syntax checking inside INI script regions.

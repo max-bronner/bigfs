@@ -175,6 +175,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.newAptMovie",
+        "title": "New APT Movie…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.compareWithBaseGame",
         "title": "Compare with Base Game",
         "category": "BIG"
@@ -293,6 +298,11 @@
           "command": "bigfs.convertPng",
           "group": "7_modification@13",
           "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i"
+        },
+        {
+          "command": "bigfs.newAptMovie",
+          "group": "7_modification@14",
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Folder|Archive)$/"
         }
       ],
       "commandPalette": [
@@ -402,6 +412,11 @@
           "command": "bigfs.convertPng",
           "group": "7_modification@13",
           "when": "resourceExtname =~ /^\\.png$/i"
+        },
+        {
+          "command": "bigfs.newAptMovie",
+          "group": "7_modification@14",
+          "when": "explorerResourceIsFolder"
         }
       ],
       "editor/title": [

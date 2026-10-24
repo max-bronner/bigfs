@@ -99,6 +99,9 @@ your mod's archives.
 - Edit text fields, colours, bounds, exports, imports, placements, frame
   labels and frames, add frames, duplicate characters and create new text,
   sprite, shape and image characters, with undo.
+- Create whole new movies (**New APT Movie…** on a folder): an `.apt`,
+  `.const` and `.dat` with exported empty sprites, ready for a root movie to
+  import with **Add import** in its movie panel.
 - ActionScript as a small JavaScript-like language, editable and compiled
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,
