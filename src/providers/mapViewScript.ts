@@ -7,7 +7,7 @@
 export const MAP_VIEW_SCRIPT = /* js */ `
 const vscode = acquireVsCodeApi();
 const TIMES = ['', 'Morning', 'Afternoon', 'Evening', 'Night'];
-const state = { map: undefined, heights: undefined, selected: undefined, filter: '', layers: { objects: true, waypoints: true, starts: true, boundary: true }, relief: undefined };
+const state = { map: undefined, heights: undefined, selected: undefined, filter: '', layers: { objects: true, waypoints: true, starts: true, boundary: true, areas: true }, relief: undefined };
 const canvas = document.getElementById('terrain');
 const context = canvas.getContext('2d');
 const info = document.getElementById('info');
@@ -136,6 +136,25 @@ const draw = () => {
     }
     context.setLineDash([]);
   }
+  if (state.layers.areas) {
+    context.font = '11px sans-serif';
+    for (const area of state.map.triggerAreas || []) {
+      if (!area.points.length) continue;
+      context.beginPath();
+      area.points.forEach(([x, y], index) => {
+        const [px, py] = project(x, y);
+        if (index) context.lineTo(px, py); else context.moveTo(px, py);
+      });
+      context.closePath();
+      context.fillStyle = 'rgba(180, 90, 255, 0.18)';
+      context.strokeStyle = 'rgba(200, 130, 255, 0.9)';
+      context.fill();
+      context.stroke();
+      const [cx, cy] = project(area.points.reduce((sum, p) => sum + p[0], 0) / area.points.length, area.points.reduce((sum, p) => sum + p[1], 0) / area.points.length);
+      context.fillStyle = '#e8d4ff';
+      context.fillText(area.name, cx - context.measureText(area.name).width / 2, cy);
+    }
+  }
   for (const object of state.map.objects) {
     const waypoint = isWaypoint(object);
     const start = waypoint && isStart(object);
@@ -162,7 +181,16 @@ const draw = () => {
 
 const showInfo = () => {
   const map = state.map;
+  // Sections stay open across a redraw, which follows every edit
+  const open = new Set(Array.from(info.querySelectorAll('details[open] > summary'), (summary) => summary.textContent));
+  const scroll = info.scrollTop;
   info.replaceChildren();
+  queueMicrotask(() => {
+    info.querySelectorAll('details > summary').forEach((summary) => {
+      if (open.has(summary.textContent)) summary.parentElement.open = true;
+    });
+    info.scrollTop = scroll;
+  });
   const world = map.worldInfo || [];
   const title = world.find((entry) => entry.key === 'mapName');
   info.append(element('h2', title ? String(title.value.value) : 'Map'));
@@ -203,6 +231,93 @@ const showInfo = () => {
     details.append(element('summary', 'Player ' + (index + 1) + (nameEntry && nameEntry.value.value ? ' · ' + nameEntry.value.value : ' · neutral')), dictTable(side, { side: index }));
     info.append(details);
   });
+  if (map.lights) {
+    const lights = element('details');
+    lights.append(element('summary', 'Lighting (terrain sun)'));
+    map.lights.forEach((light, config) => {
+      lights.append(element('h3', TIMES[config + 1]));
+      for (const field of ['ambient', 'color', 'direction']) {
+        const row = element('div', undefined, 'light');
+        row.append(element('label', field));
+        const values = light[field].slice();
+        values.forEach((value, index) => {
+          const input = element('input');
+          input.value = String(Math.round(value * 1000) / 1000);
+          input.onchange = () => {
+            const number = Number(input.value);
+            if (!Number.isFinite(number)) { input.classList.add('invalid'); return; }
+            values[index] = number;
+            send({ kind: 'light', config, field, value: values });
+          };
+          row.append(input);
+        });
+        lights.append(row);
+      }
+    });
+    info.append(lights);
+  }
+  if (map.teams && map.teams.length) {
+    const teams = element('details');
+    teams.append(element('summary', 'Teams (' + map.teams.length + ')'));
+    map.teams.forEach((team, index) => {
+      const name = team.find((entry) => entry.key === 'teamName');
+      const one = element('details');
+      one.append(element('summary', name ? String(name.value.value) : 'Team ' + (index + 1)), dictTable(team, { team: index }));
+      teams.append(one);
+    });
+    info.append(teams);
+  }
+  if (map.scripts && map.scripts.some((list) => list.length)) {
+    const scripts = element('details');
+    const count = (nodes) => nodes.reduce((sum, node) => sum + (node.kind === 'group' ? count(node.children) : 1), 0);
+    scripts.append(element('summary', 'Scripts (' + map.scripts.reduce((sum, list) => sum + count(list), 0) + ')'));
+    const calls = (title, list) => list.length ? title + ' ' + list.map((call) => call.name + (call.parameters.length ? '(' + call.parameters.join(', ') + ')' : '')).join('; ') : '';
+    const render = (nodes, parent) => {
+      for (const node of nodes) {
+        const box = element('input');
+        box.type = 'checkbox';
+        box.checked = node.active;
+        box.title = 'Active';
+        box.onchange = () => send({ kind: 'scriptActive', at: node.activeAt, active: box.checked });
+        if (node.kind === 'group') {
+          const group = element('details', undefined, 'script');
+          const summary = element('summary');
+          summary.append(box, document.createTextNode(' ' + node.name + (node.subroutine ? ' (subroutine)' : '')));
+          group.append(summary);
+          render(node.children, group);
+          parent.append(group);
+        } else {
+          const item = element('div', undefined, 'script');
+          const label = element('label');
+          label.append(box, document.createTextNode(node.name + (node.oneShot ? ' · once' : '') + (node.subroutine ? ' · subroutine' : '') + (node.difficulties.length < 3 ? ' · ' + node.difficulties.join('/') : '')));
+          if (node.comment) label.title = node.comment;
+          const detail = element('div', [
+            node.conditions.length ? 'IF ' + node.conditions.map((and) => and.map((call) => call.name + (call.parameters.length ? '(' + call.parameters.join(', ') + ')' : '')).join(' AND ')).join(' OR ') : '',
+            calls('THEN', node.actions),
+            calls('ELSE', node.actionsFalse),
+          ].filter(Boolean).join(' · '), 'calls');
+          item.append(label, detail);
+          parent.append(item);
+        }
+      }
+    };
+    map.scripts.forEach((list, slot) => {
+      if (!list.length) return;
+      const side = map.sides[slot];
+      const owner = side && side.find((entry) => entry.key === 'playerName');
+      const player = element('details');
+      player.append(element('summary', (owner && owner.value.value ? owner.value.value : 'Player ' + (slot + 1)) + ' (' + count(list) + ')'));
+      render(list, player);
+      scripts.append(player);
+    });
+    info.append(scripts);
+  }
+  if (map.triggerAreas && map.triggerAreas.length) {
+    const areas = element('details');
+    areas.append(element('summary', 'Trigger areas (' + map.triggerAreas.length + ')'));
+    map.triggerAreas.forEach((area) => areas.append(element('div', area.name + ' · ' + area.points.length + ' points', 'muted')));
+    info.append(areas);
+  }
   const chunks = element('details');
   chunks.append(element('summary', 'Chunks (' + map.chunks.length + ')'));
   const table = element('table', undefined, 'dict');

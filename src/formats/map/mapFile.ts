@@ -101,11 +101,61 @@ export interface MapFile {
   lighting?: MapLighting;
   objects: MapObject[];
   sides: Dict[];
+  teams: Dict[];
+  /** One list per player slot */
+  scripts: MapScriptNode[][];
+  triggerAreas: MapTriggerArea[];
   problems: string[];
 }
 
+/** A named polygon scripts refer to, in world units */
+export interface MapTriggerArea {
+  name: string;
+  id: number;
+  points: [number, number][];
+}
+
+/** A script call: a condition or an action, by its name and parameters */
+export interface MapScriptCall {
+  name: string;
+  parameters: string[];
+}
+
+export type MapScriptNode =
+  | {
+      kind: 'group';
+      name: string;
+      active: boolean;
+      /** Where the active flag byte is */
+      activeAt: number;
+      subroutine: boolean;
+      children: MapScriptNode[];
+    }
+  | {
+      kind: 'script';
+      name: string;
+      comment: string;
+      active: boolean;
+      activeAt: number;
+      oneShot: boolean;
+      difficulties: string[];
+      subroutine: boolean;
+      /** OR of AND groups */
+      conditions: MapScriptCall[][];
+      actions: MapScriptCall[];
+      actionsFalse: MapScriptCall[];
+    };
+
 /** Chunks whose payload is a list of child chunks */
-const CONTAINERS = new Set(['ObjectsList']);
+const CONTAINERS = new Set([
+  'ObjectsList',
+  'PlayerScriptsList',
+  'ScriptList',
+  'OrCondition',
+]);
+
+/** Script chunks: fields first, then child chunks */
+const PREFIXED = new Set(['ScriptGroup', 'Script']);
 
 const latin1 = { decode: decodeWindows1252 };
 
@@ -185,6 +235,34 @@ class MapReader {
   }
 }
 
+/** Skips a script or group's own fields, leaving the reader at its children */
+const skipScriptFields = (reader: MapReader, name: string, version: number) => {
+  reader.string();
+
+  if (name === 'ScriptGroup') {
+    reader.u8();
+    reader.u8();
+
+    return;
+  }
+
+  reader.string();
+  reader.string();
+  reader.string();
+  reader.need(6 + 4);
+  reader.at += 6 + 4;
+
+  if (version >= 3) {
+    reader.need(2 + 4 + 1);
+    reader.at += 2 + 4 + 1;
+    reader.string();
+
+    if (version >= 4) {
+      reader.string();
+    }
+  }
+};
+
 const readChunks = (
   reader: MapReader,
   names: Map<number, string>,
@@ -215,13 +293,23 @@ const readChunks = (
       end: start + length,
     };
 
-    if (CONTAINERS.has(name) && depth < 4) {
-      chunk.children = readChunks(
-        new MapReader(reader.bytes, start, start + length),
-        names,
-        start + length,
-        depth + 1,
-      );
+    // A child walk that fails leaves the chunk a leaf; the rest still reads
+    try {
+      if (CONTAINERS.has(name) && depth < 64) {
+        chunk.children = readChunks(
+          new MapReader(reader.bytes, start, start + length),
+          names,
+          start + length,
+          depth + 1,
+        );
+      } else if (PREFIXED.has(name) && depth < 64) {
+        const fields = new MapReader(reader.bytes, start, start + length);
+
+        skipScriptFields(fields, name, version);
+        chunk.children = readChunks(fields, names, start + length, depth + 1);
+      }
+    } catch {
+      chunk.children = undefined;
     }
 
     reader.at = start + length;
@@ -354,6 +442,9 @@ export const parseMapBody = (
     chunks,
     objects: [],
     sides: [],
+    teams: [],
+    scripts: [],
+    triggerAreas: [],
     problems: [],
   };
   const attempt = (what: string, read: () => void) => {
@@ -500,8 +591,160 @@ export const parseMapBody = (
     });
   }
 
+  const teams = find(chunks, 'Teams');
+
+  if (teams) {
+    attempt('Teams', () => {
+      const data = payload(teams);
+
+      for (let count = data.u32(); count > 0; count--) {
+        map.teams.push(readDict(data, names));
+      }
+    });
+  }
+
+  const areas = find(chunks, 'TriggerAreas');
+
+  if (areas) {
+    attempt('TriggerAreas', () => {
+      const data = payload(areas);
+
+      for (let count = data.u32(); count > 0; count--) {
+        const name = data.string();
+
+        data.string();
+
+        const id = data.u32();
+        const points: [number, number][] = [];
+
+        for (let point = data.u32(); point > 0; point--) {
+          points.push([data.f32(), data.f32()]);
+        }
+
+        data.u32();
+        map.triggerAreas.push({ name, id, points });
+      }
+    });
+  }
+
+  const scripts = find(chunks, 'PlayerScriptsList');
+
+  if (scripts) {
+    attempt('PlayerScriptsList', () => {
+      map.scripts = (scripts.children ?? []).map((list) =>
+        readScriptNodes(list.children ?? [], body, names),
+      );
+    });
+  }
+
   return map;
 };
+
+const readCall = (
+  chunk: MapChunk,
+  body: Uint8Array,
+  names: Map<number, string>,
+): MapScriptCall => {
+  const data = new MapReader(body, chunk.start, chunk.end);
+
+  data.u32();
+
+  const key = data.u32();
+  const parameters: string[] = [];
+
+  for (let count = data.u32() | 0; count > 0; count--) {
+    const type = data.u32() | 0;
+
+    if (type === 16) {
+      parameters.push(
+        `(${[data.f32(), data.f32(), data.f32()].map((value) => Math.round(value * 10) / 10).join(', ')})`,
+      );
+    } else {
+      const int = data.i32();
+      const real = data.f32();
+      const text = data.string();
+
+      parameters.push(
+        text || (real ? String(Math.round(real * 1000) / 1000) : String(int)),
+      );
+    }
+  }
+
+  return { name: names.get(key >>> 8) ?? `#${key >>> 8}`, parameters };
+};
+
+const readScriptNodes = (
+  chunks: MapChunk[],
+  body: Uint8Array,
+  names: Map<number, string>,
+): MapScriptNode[] =>
+  chunks.flatMap((chunk): MapScriptNode[] => {
+    const data = new MapReader(body, chunk.start, chunk.end);
+
+    if (chunk.name === 'ScriptGroup') {
+      const name = data.string();
+      const activeAt = data.at;
+      const active = data.u8() !== 0;
+      const subroutine = data.u8() !== 0;
+
+      return [
+        {
+          kind: 'group',
+          name,
+          active,
+          activeAt,
+          subroutine,
+          children: readScriptNodes(chunk.children ?? [], body, names),
+        },
+      ];
+    }
+
+    if (chunk.name !== 'Script') {
+      return [];
+    }
+
+    const name = data.string();
+    const comment = data.string();
+
+    data.string();
+    data.string();
+
+    const activeAt = data.at;
+    const [active, oneShot, easy, normal, hard, subroutine] = [
+      0, 1, 2, 3, 4, 5,
+    ].map(() => data.u8() !== 0);
+    const children = chunk.children ?? [];
+
+    return [
+      {
+        kind: 'script',
+        name,
+        comment,
+        active,
+        activeAt,
+        oneShot,
+        difficulties: [
+          easy && 'easy',
+          normal && 'normal',
+          hard && 'hard',
+        ].filter((value): value is string => Boolean(value)),
+        subroutine,
+        conditions: children
+          .filter((child) => child.name === 'OrCondition')
+          .map((or) =>
+            (or.children ?? [])
+              .filter((child) => child.name === 'Condition')
+              .map((child) => readCall(child, body, names)),
+          ),
+        actions: children
+          .filter((child) => child.name === 'ScriptAction')
+          .map((child) => readCall(child, body, names)),
+        actionsFalse: children
+          .filter((child) => child.name === 'ScriptActionFalse')
+          .map((child) => readCall(child, body, names)),
+      },
+    ];
+  });
 
 /** Reads a `.map` or `.bse` file, compressed or not */
 export const parseMap = (bytes: Uint8Array): MapFile =>
@@ -552,7 +795,7 @@ export type MapEdit =
   | { kind: 'timeOfDay'; value: number }
   | {
       kind: 'dict';
-      owner: 'world' | { side: number } | { object: number };
+      owner: 'world' | { side: number } | { object: number } | { team: number };
       key: string;
       value: DictValue;
     }
@@ -564,6 +807,14 @@ export type MapEdit =
       z?: number;
       angle?: number;
       template?: string;
+    }
+  | { kind: 'scriptActive'; at: number; active: boolean }
+  | {
+      kind: 'light';
+      /** 0 morning to 3 night */
+      config: number;
+      field: 'ambient' | 'color' | 'direction';
+      value: [number, number, number];
     };
 
 const ownerDict = (
@@ -574,7 +825,9 @@ const ownerDict = (
     ? map.worldInfo
     : 'side' in owner
       ? map.sides[owner.side]
-      : map.objects[owner.object]?.properties;
+      : 'team' in owner
+        ? map.teams[owner.team]
+        : map.objects[owner.object]?.properties;
 
 /** Applies an edit and returns the map read again */
 export const applyMapEdit = (map: MapFile, edit: MapEdit): MapFile => {
@@ -597,6 +850,53 @@ export const applyMapEdit = (map: MapFile, edit: MapEdit): MapFile => {
         map.lighting.timeOfDayAt,
         map.lighting.timeOfDayAt + 4,
         word,
+      );
+    }
+    case 'scriptActive': {
+      const nodes = (list: MapScriptNode[]): MapScriptNode[] =>
+        list.flatMap((node) => [
+          node,
+          ...(node.kind === 'group' ? nodes(node.children) : []),
+        ]);
+
+      if (
+        !map.scripts
+          .flat()
+          .some((node) =>
+            nodes([node]).some((candidate) => candidate.activeAt === edit.at),
+          )
+      ) {
+        throw new Error('There is no script there');
+      }
+
+      return spliceMap(
+        map,
+        edit.at,
+        edit.at + 1,
+        Uint8Array.of(edit.active ? 1 : 0),
+      );
+    }
+    case 'light': {
+      if (!map.lighting || edit.config < 0 || edit.config > 3) {
+        throw new Error('There is no such lighting');
+      }
+
+      if (!edit.value.every(Number.isFinite)) {
+        throw new Error('A light holds three numbers');
+      }
+
+      // Each time of day is nine lights of nine floats; the terrain sun is the first
+      const at =
+        map.lighting.timeOfDayAt +
+        4 +
+        edit.config * 9 * 9 * 4 +
+        { ambient: 0, color: 12, direction: 24 }[edit.field];
+
+      return spliceMap(
+        map,
+        at,
+        at + 12,
+        new Uint8Array(new Float32Array(edit.value).buffer),
       );
     }
     case 'dict': {

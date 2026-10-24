@@ -69,9 +69,12 @@ your mod's archives.
   and the playable area; click an object to select it.
 - Size, border, playable area, height range, players and every chunk at a
   glance.
-- Edit the world info (name, description, weather...), the time of day,
-  each player's settings, and every object's template, position, angle and
-  properties. Compressed maps are saved compressed again; nothing an edit
+- Edit the world info (name, description, weather...), the time of day and
+  each time of day's sun (ambient, colour, direction), each player's and
+  team's settings, and every object's template, position, angle and
+  properties.
+- The map's scripts per player, with their conditions and actions, each
+  switchable on or off; trigger areas drawn on the terrain. Compressed maps are saved compressed again; nothing an edit
   does not touch changes.
 
 **Previews**
