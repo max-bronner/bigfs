@@ -136,6 +136,11 @@ export class AptImage {
     this.view = new DataView(this.data.buffer);
   }
 
+  /** The length of the image as it stands */
+  public get length(): number {
+    return this.size;
+  }
+
   /** The image as it stands */
   public get bytes(): Uint8Array {
     return this.data.slice(0, this.size);
