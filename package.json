@@ -390,7 +390,8 @@
     "pretest": "npm run compile && npm run lint",
     "test": "npm run test:unit && vscode-test",
     "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\"",
-    "build:schema": "node scripts/buildSageSchema.mjs"
+    "build:schema": "node scripts/buildSageSchema.mjs",
+    "vsix": "vsce package --out bigfs.vsix"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -400,6 +401,7 @@
     "@typescript-eslint/parser": "^8.67.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.2",
     "eslint": "^10.8.1",
     "mocha": "^11.8.0",

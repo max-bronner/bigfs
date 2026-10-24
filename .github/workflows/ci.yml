@@ -25,3 +25,9 @@ jobs:
         run: |
           failures=$(grep -E -A14 '^\s+[0-9]+\) ' test.log | head -150 || tail -60 test.log)
           echo "::error title=Test failures::${failures//$'\n'/%0A}"
+      - run: npm run vsix
+      # The installable build of this commit, under the run's artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bigfs-vsix
+          path: bigfs.vsix
