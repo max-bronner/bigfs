@@ -65,6 +65,9 @@ your mod's archives.
   levels.
 - Sounds: WAV, including IMA ADPCM.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
+  Animations of the skeleton are listed and play on the model (dense,
+  time-coded, adaptive-delta and motion channels); a skeleton or an
+  animation file on its own shows its bones.
 
 **Interface movies (APT)**
 

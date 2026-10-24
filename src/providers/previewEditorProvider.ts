@@ -3,6 +3,7 @@ import type { ToolBox } from '../tools/toolRegistry';
 import { decodeDdsTool, decodeTgaTool } from '../tools/textureTools';
 import { playableAudioTool } from '../tools/audioTools';
 import { buildW3dScene } from '../formats/w3dScene';
+import { parseW3dAnimations } from '../formats/w3dAnimation';
 import type { ModelScene } from '../formats/w3dScene';
 import type { EntryLocator } from '../formats/entryLocator';
 import { MODEL_SCRIPT } from './previewModelScript';
@@ -88,7 +89,7 @@ const createNonce = (): string =>
   ).join('');
 
 /** The page: a toolbar, a canvas or an audio element, and a status line */
-const renderHtml = (webview: vscode.Webview): string => {
+export const renderHtml = (webview: vscode.Webview): string => {
   const nonce = createNonce();
 
   return /* html */ `<!doctype html>
@@ -112,6 +113,8 @@ const renderHtml = (webview: vscode.Webview): string => {
   .error { color: var(--vscode-errorForeground); }
   audio { width: min(600px, 100%); margin-top: 12px; }
   canvas.model { display: block; cursor: grab; touch-action: none; }
+  .controls { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .controls input[type=range] { flex: 1; min-width: 120px; }
   dl { display: grid; grid-template-columns: max-content auto; gap: 4px 16px; margin: 0; }
   dt { opacity: 0.8; }
 </style>
@@ -250,9 +253,17 @@ const renderHtml = (webview: vscode.Webview): string => {
 
   ${MODEL_SCRIPT}
 
+  let modelControl;
+
   window.addEventListener('message', ({ data }) => {
     if (data.kind === 'model') {
-      showModel(data);
+      modelControl = showModel(data);
+    } else if (data.kind === 'animations') {
+      modelControl?.setAnimations(data.names);
+    } else if (data.kind === 'animation') {
+      modelControl?.play(data);
+    } else if (data.kind === 'animationError') {
+      modelControl?.notice(data.message);
     } else if (data.kind === 'texture') {
       showTexture(data);
     } else if (data.kind === 'audio') {
@@ -292,6 +303,21 @@ export class PreviewEditorProvider
     );
   }
 
+  /**
+   * Files that look like animations of a skeleton: for `GUArcher_SKL`, every
+   * `guarcher_*.w3d` but the skeleton itself
+   */
+  private findAnimations(skeleton: string): Promise<string[]> {
+    const prefix = `${skeleton.toLowerCase().replace(/_skl$/, '')}_`;
+    const own = `${skeleton.toLowerCase()}.w3d`;
+
+    return this.locator.findNames(
+      (name) =>
+        name.startsWith(prefix) && name.endsWith('.w3d') && name !== own,
+      '**/*.{w3d,W3D}',
+    );
+  }
+
   public openCustomDocument(uri: vscode.Uri): vscode.CustomDocument {
     return { uri, dispose: () => undefined };
   }
@@ -308,7 +334,35 @@ export class PreviewEditorProvider
     const message = buildMessage(document.uri, this.tools, this.locator);
     const subscription = panel.webview.onDidReceiveMessage(async (received) => {
       if (received?.kind === 'ready') {
-        await panel.webview.postMessage(await message);
+        const built = await message;
+
+        await panel.webview.postMessage(built);
+
+        if (built.kind === 'model' && built.skeleton) {
+          await panel.webview.postMessage({
+            kind: 'animations',
+            names: await this.findAnimations(built.skeleton.name),
+          });
+        }
+      } else if (received?.kind === 'animation') {
+        const name = String(received.file);
+        let reply: unknown;
+
+        try {
+          const bytes = await this.locator.read(name, document.uri);
+          const [animation] = bytes ? parseW3dAnimations(bytes) : [];
+
+          reply = animation
+            ? { kind: 'animation', file: name, animation }
+            : { kind: 'animationError', message: `${name} holds no animation` };
+        } catch (error) {
+          reply = {
+            kind: 'animationError',
+            message: error instanceof Error ? error.message : String(error),
+          };
+        }
+
+        await panel.webview.postMessage(reply);
       }
     });
 
