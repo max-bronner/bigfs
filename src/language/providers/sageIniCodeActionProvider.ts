@@ -1,8 +1,22 @@
-import { CodeAction, CodeActionKind, Range, WorkspaceEdit } from 'vscode';
+import {
+  CodeAction,
+  CodeActionKind,
+  Range,
+  WorkspaceEdit,
+  workspace,
+} from 'vscode';
+import type { Uri } from 'vscode';
 import type { CodeActionProvider, Diagnostic, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniIndex } from '../sageIniIndex';
 import { closestNames, missingEndLine } from '../model/sageIniFormat';
+import {
+  findGameTextLabels,
+  labelOfMissingText,
+  placeholderText,
+} from '../model/gameTextLabels';
+import { strRecord } from '../model/sageStringRecords';
+import type { SageDocument } from '../model/sageIniParser';
 import {
   isMissingAssetMessage,
   suggestedAssetNames,
@@ -13,6 +27,27 @@ import {
  * remove a stray one, and replace an unknown keyword or an unresolved name
  * with the close ones the game does know.
  */
+/**
+ * The string table a new label belongs in: the one holding the labels this
+ * file already uses, else the first one in the workspace folders
+ */
+const stringTableFor = async (
+  parsed: SageDocument,
+  index: SageIniIndex,
+): Promise<Uri | undefined> => {
+  for (const label of findGameTextLabels(parsed)) {
+    const place = index.findString(label.text);
+
+    if (place && /\.str$/i.test(place.uri.path)) {
+      return place.uri;
+    }
+  }
+
+  const [loose] = await workspace.findFiles('**/*.{str,STR}', undefined, 1);
+
+  return loose;
+};
+
 export const createSageIniCodeActionProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -119,6 +154,29 @@ export const createSageIniCodeActionProvider = (
             place === 0,
           ),
         );
+      } else if (labelOfMissingText(message)) {
+        const label = labelOfMissingText(message)!;
+        const table = await stringTableFor(parsed, index);
+
+        if (table) {
+          const target = await workspace.openTextDocument(table);
+          const eol = target.eol === 2 ? '\r\n' : '\n';
+          const last = target.lineAt(target.lineCount - 1);
+          const name = table.path.slice(table.path.lastIndexOf('/') + 1);
+
+          fix(
+            `Add '${label}' to ${name}`,
+            diagnostic,
+            (edit) =>
+              edit.insert(
+                table,
+                last.range.end,
+                (last.text ? eol : '') +
+                  strRecord(label, placeholderText(label), eol),
+              ),
+            true,
+          );
+        }
       } else {
         const unresolved = /^No (.+) named '(.+)' is defined/.exec(message);
 

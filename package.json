@@ -585,6 +585,21 @@
           },
           "default": [],
           "markdownDescription": "Extra arguments passed before `-mod`, such as `-win` or `-noshellmap`."
+        },
+        "bigfs.ini.checkStrings": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Check once the string tables hold at least 1000 records, so the base game's are there",
+            "Always check, even with only a mod's own files open",
+            "Never check"
+          ],
+          "default": "auto",
+          "description": "Whether a game-text label such as OBJECT:Name that no string table defines is reported."
         }
       }
     },

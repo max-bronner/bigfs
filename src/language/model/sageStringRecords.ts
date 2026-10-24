@@ -49,6 +49,10 @@ export const quoteStringText = (text: string): string =>
     .replace(/\r?\n/g, '\\n')
     .replace(/\t/g, '\\t')}"`;
 
+/** One `.str` record, as the string reader reads it back */
+export const strRecord = (label: string, text: string, eol: string): string =>
+  `${label}${eol}${quoteStringText(text)}${eol}END${eol}`;
+
 /** Splits the source into lines with their start offsets */
 const splitLines = (source: string) => {
   const lines: { text: string; start: number; end: number; next: number }[] =

@@ -244,6 +244,11 @@ export class SageIniIndex implements Disposable {
     return findString(this.strings, value) as SageStringPlace | undefined;
   }
 
+  /** How many string table records are indexed */
+  public get stringCount(): number {
+    return this.strings.size;
+  }
+
   /** Every place a macro is used, which is what find references answers with */
   public findMacroUses(name: string): readonly SageReference[] {
     return this.constantUses.get(name.toLowerCase()) ?? [];

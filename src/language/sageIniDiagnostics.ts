@@ -9,6 +9,7 @@ import {
 import type { Disposable, TextDocument } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../constants';
 import { findSageIniProblems } from './model/sageIniProblems';
+import { findGameTextLabels, missingTextMessage } from './model/gameTextLabels';
 import type { SageProblem } from './model/sageIniProblems';
 import type { SageDocument } from './model/sageIniParser';
 import type { SageIniSchema } from './model/sageIniSchema';
@@ -130,6 +131,47 @@ const getReferenceDiagnostics = async (
   return diagnostics;
 };
 
+/** Setting choosing whether game-text labels nothing defines are reported */
+export const CHECK_STRINGS_SETTING = 'bigfs.ini.checkStrings';
+
+/** Records the base game's tables alone hold many more of */
+const AUTO_MINIMUM_STRINGS = 1000;
+
+/**
+ * Builds a warning for every game-text label (`OBJECT:Name`) no string
+ * table defines: the game shows such a label as its raw name or a
+ * "MISSING" marker
+ */
+const getStringDiagnostics = async (
+  parsed: SageDocument,
+  index: SageIniIndex,
+): Promise<Diagnostic[]> => {
+  const mode = workspace
+    .getConfiguration()
+    .get<'auto' | 'on' | 'off'>(CHECK_STRINGS_SETTING, 'auto');
+
+  if (mode === 'off') {
+    return [];
+  }
+  await index.whenReady();
+  if (mode === 'auto' && index.stringCount < AUTO_MINIMUM_STRINGS) {
+    return [];
+  }
+
+  return findGameTextLabels(parsed)
+    .filter((label) => !index.findString(label.text))
+    .map((label) => {
+      const diagnostic = new Diagnostic(
+        new Range(label.line, label.start, label.line, label.end),
+        missingTextMessage(label.text),
+        DiagnosticSeverity.Warning,
+      );
+
+      diagnostic.source = SOURCE;
+      return diagnostic;
+    });
+};
+
 /** Builds a diagnostic for every `#include` whose file does not exist */
 const getIncludeDiagnostics = async (
   document: TextDocument,
@@ -187,6 +229,7 @@ export const watchSageIniDiagnostics = (
       ),
       ...(await getIncludeDiagnostics(document, parsed)),
       ...(await getReferenceDiagnostics(parsed, schema, index)),
+      ...(await getStringDiagnostics(parsed, index)),
       ...(assetNames ? getAssetDiagnostics(parsed, assetNames, SOURCE) : []),
       ...findScriptProblems(
         Array.from(
@@ -248,6 +291,7 @@ export const watchSageIniDiagnostics = (
     workspace.onDidChangeConfiguration((event) => {
       if (
         event.affectsConfiguration(CHECK_REFERENCES_SETTING) ||
+        event.affectsConfiguration(CHECK_STRINGS_SETTING) ||
         event.affectsConfiguration(CHECK_ASSETS_SETTING)
       ) {
         checkAll();
