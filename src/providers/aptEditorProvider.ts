@@ -472,6 +472,12 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
   /** Redraws of each open document's page */
   private readonly redraws = new Map<AptDocument, () => Promise<void>>();
 
+  /** Open documents by uri, for edits that do not come from the page */
+  private readonly open = new Map<string, AptDocument>();
+
+  /** Whether each open document's page has loaded and asked for its data */
+  private readonly pagesReady = new Set<AptDocument>();
+
   public constructor(
     private readonly tools: ToolBox,
     private readonly locator: EntryLocator,
@@ -482,13 +488,36 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     tools: ToolBox,
     locator: EntryLocator,
   ): vscode.Disposable {
-    return vscode.window.registerCustomEditorProvider(
-      APT_VIEW_TYPE,
-      new AptEditorProvider(tools, locator),
-      {
+    const provider = new AptEditorProvider(tools, locator);
+
+    return vscode.Disposable.from(
+      vscode.window.registerCustomEditorProvider(APT_VIEW_TYPE, provider, {
         webviewOptions: { retainContextWhenHidden: true },
         supportsMultipleEditorsPerDocument: false,
-      },
+      }),
+      // The same edit path the page uses, for automation and tests
+      vscode.commands.registerCommand(
+        'bigfs.aptApplyEdit',
+        async (uri: vscode.Uri, edit?: AptEdit) => {
+          const document = provider.open.get(uri.toString());
+
+          if (!document) {
+            throw new Error(`${uri.toString()} is not open in the APT editor`);
+          }
+
+          if (!edit) {
+            return { pageReady: provider.pagesReady.has(document) };
+          }
+
+          const result = await provider.edit(document, edit);
+
+          await provider.redraws.get(document)?.();
+          return {
+            ...result,
+            pageReady: provider.pagesReady.has(document),
+          };
+        },
+      ),
     );
   }
 
@@ -677,10 +706,12 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     this.redraws.set(document, async () => {
       await post(await document.buildMessage(sentTextures));
     });
+    this.open.set(document.uri.toString(), document);
 
     const subscription = panel.webview.onDidReceiveMessage(async (message) => {
       try {
         if (message?.kind === 'ready') {
+          this.pagesReady.add(document);
           await this.redraws.get(document)?.();
         } else if (message?.kind === 'script') {
           const block = Number(message.block);
@@ -741,6 +772,8 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     panel.onDidDispose(() => {
       subscription.dispose();
       this.redraws.delete(document);
+      this.open.delete(document.uri.toString());
+      this.pagesReady.delete(document);
     });
   }
 }

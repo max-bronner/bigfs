@@ -61,6 +61,10 @@ class ParticlePreview {
   private updating: Promise<void> = Promise.resolve();
   /** Whether an update is waiting; slider drags coalesce into it */
   private queued = false;
+  /** The last scene sent to the page */
+  public lastScene?: Record<string, unknown>;
+  /** What the page last said it is running */
+  public lastStatus?: { frame: number; systems: number; particles: number };
 
   public static show(
     context: vscode.ExtensionContext,
@@ -68,19 +72,36 @@ class ParticlePreview {
     locator: EntryLocator | undefined,
     uri: vscode.Uri,
     name: string,
-  ): void {
+  ): ParticlePreview {
     const key = `${uri.toString()}#${name.toLowerCase()}`;
     const existing = ParticlePreview.panels.get(key);
 
     if (existing) {
       existing.panel.reveal(undefined, true);
       existing.restart();
-      return;
+      return existing;
     }
-    ParticlePreview.panels.set(
+
+    const preview = new ParticlePreview(
+      context,
+      index,
+      locator,
+      uri,
+      name,
       key,
-      new ParticlePreview(context, index, locator, uri, name, key),
     );
+
+    ParticlePreview.panels.set(key, preview);
+    return preview;
+  }
+
+  /** Resolves once every update asked for so far has been sent */
+  public settled(): Promise<void> {
+    return this.updating;
+  }
+
+  public dispose(): void {
+    this.panel.dispose();
   }
 
   private constructor(
@@ -133,13 +154,24 @@ class ParticlePreview {
     this.update();
   }
 
-  private async receive(message: {
+  /** Handles a message from the page; public so automation can act as it */
+  public async receive(message: {
     kind?: string;
     id?: string;
     value?: number;
     line?: number;
+    frame?: number;
+    systems?: number;
+    particles?: number;
   }): Promise<void> {
     switch (message?.kind) {
+      case 'status':
+        this.lastStatus = {
+          frame: Number(message.frame),
+          systems: Number(message.systems),
+          particles: Number(message.particles),
+        };
+        break;
       case 'ready':
         this.restart();
         break;
@@ -386,7 +418,7 @@ class ParticlePreview {
       }
     }
 
-    await this.panel.webview.postMessage({
+    this.lastScene = {
       kind: 'scene',
       restart: this.restartNext,
       root: {
@@ -400,7 +432,8 @@ class ParticlePreview {
       notes: [...notes],
       fields: numericFields(root.definition),
       values: Object.fromEntries(this.values),
-    });
+    };
+    await this.panel.webview.postMessage(this.lastScene);
     this.restartNext = false;
   }
 
@@ -530,7 +563,7 @@ export const registerParticlePreview = (
         uri = editor.document.uri;
         name = found.name;
       }
-      ParticlePreview.show(context, index, locator, uri, name);
+      return ParticlePreview.show(context, index, locator, uri, name);
     },
   ),
 ];

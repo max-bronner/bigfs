@@ -403,8 +403,13 @@ const frame = (now) => {
   hud.textContent = 'frame ' + world.frame + '  ' + (world.frame / STEP_HZ).toFixed(1) + ' s' + '\\u000a' +
     world.systems.length + ' systems  ' + world.liveParticles + ' particles' + dropped + '\\u000a' +
     'wind ' + world.options.wind + '  hollow box ' + world.options.hollowBox;
+  if (now - lastStatus > 1000) {
+    lastStatus = now;
+    vscode.postMessage({ kind: 'status', frame: world.frame, systems: world.systems.length, particles: world.liveParticles });
+  }
   requestAnimationFrame(frame);
 };
+let lastStatus = 0;
 
 // ---- Controls ----------------------------------------------------------
 const setPlaying = (playing) => { state.playing = playing; $('play').textContent = playing ? 'Pause' : 'Play'; };
