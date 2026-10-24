@@ -88,4 +88,29 @@ suite('SAGE INI problems', () => {
       ],
     );
   });
+
+  test('a malformed arithmetic call is an error', () => {
+    assert.deepStrictEqual(
+      problemsOf(['Object A', '  CommandPoints = #ADD( 5 )', 'End']),
+      ['1: #ADD takes two operands, not 1'],
+    );
+  });
+
+  test('in BFME mode unknown names pass, while structure is still checked', () => {
+    const bfme1 = createSageIniSchema(
+      JSON.parse(
+        readFileSync(
+          join(__dirname, '..', '..', '..', 'assets', 'sageIniSchema.json'),
+          'utf8',
+        ),
+      ),
+      'bfme1',
+    );
+    const problems = findSageIniProblems(
+      parseSageIni(['Object A', '  OnlyInBfme = 1', 'End', 'End'], bfme1),
+      bfme1,
+    ).map(({ line, message }) => `${line}: ${message}`);
+
+    assert.deepStrictEqual(problems, ['3: End with no block open to close']);
+  });
 });

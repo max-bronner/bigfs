@@ -266,6 +266,11 @@ export class SageIniIndex implements Disposable {
     );
   }
 
+  /** How many distinct names a namespace declares across everything indexed */
+  public countDefinitions(namespace: string): number {
+    return this.definitions.get(namespace.toLowerCase())?.size ?? 0;
+  }
+
   /**
    * Every name declared in a namespace, in the casing it was declared with.
    * This is what completion offers on a reference field's value.

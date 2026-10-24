@@ -10,6 +10,8 @@ import { SAGE_INI_LANGUAGE } from '../constants';
 import { findSageIniProblems } from './model/sageIniProblems';
 import type { SageProblem } from './model/sageIniProblems';
 import type { SageDocument } from './model/sageIniParser';
+import type { SageIniSchema } from './model/sageIniSchema';
+import type { SageIniIndex } from './sageIniIndex';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { includeExists, resolveIncludeUri } from './sageIniInclude';
 
@@ -41,6 +43,84 @@ const toDiagnostic = (
   diagnostic.source = SOURCE;
 
   return diagnostic;
+};
+
+/**
+ * How many definitions a namespace must hold before `auto` checks references
+ * into it: enough that the base game's files are indexed, so a name missing
+ * from it is a mistake rather than a file the workspace does not hold
+ */
+const AUTO_CHECK_MINIMUM = 50;
+
+/** Setting choosing whether references to unknown names are reported */
+const CHECK_REFERENCES_SETTING = 'bigfs.ini.checkReferences';
+
+/**
+ * Values that are never a definition's name: numbers and percentages,
+ * SCREAMING_SNAKE words (enum values and macros), string labels with a
+ * colon, and the `NONE` many fields accept
+ */
+const NOT_A_NAME =
+  /^(?:[+-]?[\d.]+%?|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*|[^:]+:.*|none)$/i;
+
+/**
+ * Builds a diagnostic for every value of a reference field that names
+ * nothing in any namespace the field can point into
+ */
+const getReferenceDiagnostics = async (
+  parsed: SageDocument,
+  schema: SageIniSchema,
+  index: SageIniIndex,
+): Promise<Diagnostic[]> => {
+  const mode = workspace
+    .getConfiguration()
+    .get<'auto' | 'on' | 'off'>(CHECK_REFERENCES_SETTING, 'auto');
+
+  if (mode === 'off') {
+    return [];
+  }
+
+  await index.whenReady();
+
+  const diagnostics: Diagnostic[] = [];
+
+  for (const { block, keyword, values, line } of parsed.statements) {
+    const namespaces = block
+      ? []
+      : schema
+          .getReferenceNamespaces(keyword.text)
+          .filter(
+            (namespace) =>
+              mode === 'on' ||
+              index.countDefinitions(namespace) >= AUTO_CHECK_MINIMUM,
+          );
+
+    if (!namespaces.length) {
+      continue;
+    }
+
+    for (const value of values) {
+      const isUnknown =
+        !NOT_A_NAME.test(value.text) &&
+        !index.findMacro(value.text) &&
+        namespaces.every(
+          (namespace) => !index.findDefinitions(namespace, value.text).length,
+        );
+
+      if (isUnknown) {
+        const diagnostic = new Diagnostic(
+          new Range(line, value.start, line, value.end),
+          `No ${namespaces.join(' or ')} named '${value.text}' is defined in the workspace`,
+          DiagnosticSeverity.Warning,
+        );
+
+        diagnostic.source = SOURCE;
+        diagnostics.push(diagnostic);
+      }
+    }
+  }
+
+  return diagnostics;
 };
 
 /** Builds a diagnostic for every `#include` whose file does not exist */
@@ -76,6 +156,7 @@ const getIncludeDiagnostics = async (
  */
 export const watchSageIniDiagnostics = (
   documents: SageIniDocuments,
+  index: SageIniIndex,
 ): Disposable => {
   const collection = languages.createDiagnosticCollection(SAGE_INI_LANGUAGE);
   const pending = new Map<string, NodeJS.Timeout>();
@@ -96,6 +177,7 @@ export const watchSageIniDiagnostics = (
         toDiagnostic(document, problem),
       ),
       ...(await getIncludeDiagnostics(document, parsed)),
+      ...(await getReferenceDiagnostics(parsed, schema, index)),
     ];
 
     // An edit that landed while the includes were checked has its own run
@@ -129,6 +211,11 @@ export const watchSageIniDiagnostics = (
       collection.delete(document.uri),
     ),
     documents.onDidChangeSchema(checkAll),
+    workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration(CHECK_REFERENCES_SETTING)) {
+        checkAll();
+      }
+    }),
   ];
 
   return {

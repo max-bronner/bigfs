@@ -60,7 +60,7 @@ export const registerSageIniLanguage = (
     // Another game reads some lines differently, so every file is read again
     documents.onDidChangeSchema(() => index.reset()),
     watchSageIniDialect(),
-    watchSageIniDiagnostics(documents),
+    watchSageIniDiagnostics(documents, index),
     ...registerSageIniValidation(documents, archiveModel),
     languages.registerFoldingRangeProvider(
       selector,

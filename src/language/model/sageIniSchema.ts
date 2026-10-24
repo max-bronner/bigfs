@@ -35,11 +35,16 @@ export const FRAGMENT_CONTEXT = '<fragment>';
  */
 export const UNCHECKED_CONTEXT = '<unchecked>';
 
-/** The game whose grammar applies, which differs in a few dozen names */
-export type SageGame = 'bfme2' | 'rotwk';
+/**
+ * The game whose grammar applies. BFME II and Rise of the Witch-king differ
+ * in a few dozen names; BFME has no extracted grammar of its own, so it is
+ * read with every name either later game accepts, and unknown names are not
+ * reported.
+ */
+export type SageGame = 'bfme1' | 'bfme2' | 'rotwk';
 
-/** Bit each game sets in a title mask */
-const GAME_MASKS: Record<SageGame, number> = { bfme2: 1, rotwk: 2 };
+/** The title mask each game reads names under */
+const GAME_MASKS: Record<SageGame, number> = { bfme1: 3, bfme2: 1, rotwk: 2 };
 
 /** What the engine dump records about a field name */
 export interface EngineField {
@@ -93,6 +98,13 @@ interface SchemaFile {
  */
 export interface SageIniSchema {
   readonly game: SageGame;
+
+  /**
+   * Whether the grammar is the game's own, so a name it does not hold is a
+   * mistake worth reporting. False for BFME, read with the later games'
+   * grammar.
+   */
+  readonly isStrict: boolean;
 
   /**
    * Resolves a keyword in its context, or nothing when the keyword does not
@@ -280,6 +292,7 @@ export const createSageIniSchema = (
 
   return {
     game,
+    isStrict: game !== 'bfme1',
     resolve,
     isChecked: (context) =>
       context === ROOT_CONTEXT ||

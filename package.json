@@ -325,14 +325,31 @@
           "type": "string",
           "enum": [
             "rotwk",
-            "bfme2"
+            "bfme2",
+            "bfme1"
           ],
           "enumDescriptions": [
             "The Rise of the Witch-king",
-            "The Battle for Middle-earth II"
+            "The Battle for Middle-earth II",
+            "The Battle for Middle-earth: structure only, since no grammar of its own is available; field names are not checked"
           ],
           "default": "rotwk",
           "description": "The game whose INI grammar checks, completion and hovers follow. The two differ in a few dozen field names."
+        },
+        "bigfs.ini.checkReferences": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Check references into a kind of definition once the workspace holds at least 50 of them, so the base game's files are there",
+            "Always check references, even with only a mod's own files open",
+            "Never check references"
+          ],
+          "default": "auto",
+          "description": "Whether a value naming a Weapon, Upgrade, FXList or other definition that nothing in the workspace defines is reported."
         }
       }
     },

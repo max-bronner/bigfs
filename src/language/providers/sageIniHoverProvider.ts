@@ -3,6 +3,11 @@ import type { HoverProvider, Position, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniSchema } from '../model/sageIniSchema';
 import type { SageDocument, SageStatement } from '../model/sageIniParser';
+import {
+  evaluateCall,
+  evaluateMacroBody,
+  formatValue,
+} from '../model/sageIniPreprocessor';
 import type { SageIniIndex } from '../sageIniIndex';
 
 /**
@@ -134,6 +139,43 @@ export const createSageIniHoverProvider = (
       documents.parse(document),
       documents.getSchema(),
     ]);
+    const lookupMacro = (name: string) => index.findMacro(name)?.value;
+
+    // An arithmetic call answers as a whole, wherever in it the cursor is
+    const call = parsed.calls.find(
+      ({ line, start, end }) =>
+        line === position.line &&
+        position.character >= start &&
+        position.character <= end,
+    );
+
+    if (call) {
+      await index.whenReady();
+
+      const result = evaluateCall(call, lookupMacro);
+      const operands = call.operands
+        .map((operand) => {
+          const body = lookupMacro(operand.text);
+
+          return body === undefined
+            ? ''
+            : `\n- \`${operand.text}\` = \`${body}\``;
+        })
+        .join('');
+      const text = new MarkdownString();
+
+      text.appendMarkdown(
+        'value' in result
+          ? `\`#${call.operation}\` = **${formatValue(result.value)}**${operands}`
+          : `\`#${call.operation}\` cannot be evaluated: ${result.error}`,
+      );
+
+      return new Hover(
+        text,
+        new Range(call.line, call.start, call.line, call.end),
+      );
+    }
+
     const statement = statementAt(parsed, position);
 
     if (!statement) {
@@ -157,6 +199,21 @@ export const createSageIniHoverProvider = (
       return new Hover(describeKeyword(statement, schema), range);
     }
 
+    // `#(NAME)` splices a macro into the middle of a token
+    if (token.text.includes('#(')) {
+      await index.whenReady();
+
+      const expanded = token.text.replace(
+        /#\(([^)]*)\)/g,
+        (whole, name: string) => lookupMacro(name)?.trim() ?? whole,
+      );
+      const text = new MarkdownString();
+
+      text.appendMarkdown(`\`${token.text}\` expands to \`${expanded}\``);
+
+      return new Hover(text, range);
+    }
+
     // A macro stands in for the value before anything else reads it, so it
     // answers first and shows what the value actually becomes
     const macro = index.findMacro(token.text);
@@ -166,6 +223,16 @@ export const createSageIniHoverProvider = (
 
       text.appendMarkdown(`\`${macro.name}\` — macro`);
       text.appendCodeblock(`#define ${macro.name} ${macro.value}`, 'sage-ini');
+
+      const evaluated = evaluateMacroBody(macro.value, lookupMacro);
+
+      if (evaluated) {
+        text.appendMarkdown(
+          'value' in evaluated
+            ? `= **${formatValue(evaluated.value)}**`
+            : `Cannot be evaluated: ${evaluated.error}`,
+        );
+      }
 
       return new Hover(text, range);
     }
