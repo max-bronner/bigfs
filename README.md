@@ -50,6 +50,9 @@ your mod's archives.
   whitespace; embedded scripts stay as written.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
 - Lua in `BeginScript` regions is checked for syntax errors.
+- **Duplicate Definition…** (refactor menu, editor context menu) copies the
+  definition at the cursor under a new name, renaming the game-text labels
+  that carry the old name and copying their text into the string table.
 - Hovering a CommandSet name shows its buttons in slot order, each with its
   icon, its label in game text and its command; undefined buttons are marked.
 - Audio events get a **▶ Play** lens that plays one of their sounds, as the

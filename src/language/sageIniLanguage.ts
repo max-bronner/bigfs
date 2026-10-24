@@ -9,6 +9,7 @@ import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
 import { createCommandSetPreview } from './commandSetPreview';
 import { registerParticlePreview } from './particlePreview';
+import { registerDuplicateDefinition } from './duplicateDefinition';
 import { describeSound, registerSoundPlayer } from './soundPlayer';
 import { registerBalanceSheet } from './balanceSheet';
 import type { EntryLocator } from '../formats/entryLocator';
@@ -73,6 +74,7 @@ export const registerSageIniLanguage = (
     // Another game reads some lines differently, so every file is read again
     documents.onDidChangeSchema(() => index.reset()),
     ...registerParticlePreview(context, selector, index, locator),
+    ...registerDuplicateDefinition(selector, documents, index),
     ...registerSoundPlayer(selector, index, locator),
     registerBalanceSheet(documents, index),
     watchSageIniDialect(),
