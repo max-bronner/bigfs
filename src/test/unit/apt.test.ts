@@ -14,7 +14,7 @@ const SIGNATURE = 0x09876543;
  * A movie with a shape, an image, a sprite placing the shape, an edit text
  * and a button; one frame placing the sprite, labelled, with an action.
  */
-const buildMovie = () => {
+export const buildMovie = () => {
   const apt = new Image();
 
   apt.u8(...Array.from('Apt Data:7\x1a\0', (c) => c.charCodeAt(0)));

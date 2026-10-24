@@ -225,21 +225,176 @@ const blocksOf = (character) => {
   return blocks;
 };
 
+/** Sends an edit; the extension applies it and sends the movie back */
+const send = (edit) => vscode.postMessage({ kind: 'edit', edit });
+
+/** An input that commits on change: a number, a text, or a hex word */
+const input = (value, onCommit, kind = 'number') => {
+  const element = document.createElement(kind === 'text' ? 'textarea' : 'input');
+  if (kind !== 'line') element.type = 'text';
+  element.value = value === undefined ? '' : kind === 'hex' ? '0x' + (value >>> 0).toString(16).padStart(8, '0') : String(value);
+  element.className = kind;
+  element.onchange = () => {
+    const raw = element.value.trim();
+    const parsed = kind === 'text' || kind === 'line' ? element.value : kind === 'hex' ? parseInt(raw, 16) >>> 0 : Number(raw);
+    if ((kind === 'number' || kind === 'hex') && !Number.isFinite(parsed)) { element.classList.add('invalid'); return; }
+    onCommit(parsed);
+  };
+  return element;
+};
+
+/** A labelled row of inputs */
+const row = (label, ...controls) => {
+  const element = document.createElement('div');
+  element.className = 'field';
+  const name = document.createElement('label');
+  name.textContent = label;
+  element.append(name, ...controls);
+  return element;
+};
+
+const button = (label, onClick) => {
+  const element = document.createElement('button');
+  element.textContent = label;
+  element.onclick = onClick;
+  return element;
+};
+
+const heading = (text) => {
+  const element = document.createElement('h3');
+  element.textContent = text;
+  return element;
+};
+
+/** Inputs for a 2x2 matrix and a translation, raw so a skew survives */
+const matrixInputs = (matrix, translate, onCommit) => {
+  const values = [...(matrix || [1, 0, 0, 1]), ...(translate || [0, 0])];
+  return ['a', 'b', 'c', 'd', 'x', 'y'].map((name, index) => {
+    const element = input(values[index], (value) => {
+      values[index] = value;
+      onCommit(values.slice(0, 4), values.slice(4));
+    });
+    element.title = name;
+    element.classList.add('short');
+    return element;
+  });
+};
+
+/** The fields of the selected character that can be edited, by type */
+const characterFields = (character) => {
+  const fields = [];
+  const change = (field) => (value) => send({ kind: 'character', id: character.id, change: { field, value } });
+  if (character.bounds && character.type !== 'line') {
+    const bounds = [...character.bounds];
+    fields.push(row('Bounds', ...bounds.map((value, index) => {
+      const element = input(value, (next) => { bounds[index] = next; send({ kind: 'character', id: character.id, change: { field: 'bounds', value: bounds } }); });
+      element.classList.add('short');
+      return element;
+    })));
+  }
+  if (character.type === 'editText') {
+    fields.push(row('Text', input(character.text ?? '', (value) => change('line')(value === '' ? undefined : value), 'line')));
+    fields.push(row('Variable', input(character.variable ?? '', (value) => change('variable')(value.trim() === '' ? undefined : value.trim()), 'line')));
+    fields.push(row('Colour ARGB', input(character.color, change('color'), 'hex')));
+    fields.push(row('Font height', input(character.fontHeight, change('fontHeight'))));
+    fields.push(row('Font #', input(character.font, change('font'))));
+    fields.push(row('Alignment', input(character.alignment, change('alignment'))));
+    for (const flag of ['readonly', 'multiline', 'wordwrap']) {
+      fields.push(row(flag, input(character[flag], change(flag))));
+    }
+  }
+  if (character.type === 'font') fields.push(row('Font name', input(character.name ?? '', (value) => change('fontName')(value || undefined), 'line')));
+  if (character.type === 'image') fields.push(row('Texture id', input(character.texture, change('texture'))));
+  if (character.type === 'shape') {
+    fields.push(row('Geometry', input(character.geometry, change('geometry')), button('Open .ru', () => vscode.postMessage({ kind: 'openGeometry', geometry: character.geometry }))));
+  }
+  if (character.type === 'button') {
+    character.records.forEach((record, index) => {
+      const flags = input(record.flags, (value) => send({ kind: 'buttonRecord', offset: record.offset, flags: value }));
+      flags.title = 'bit 0 up, 1 over, 2 down, 3 hit test';
+      fields.push(row('Record ' + index, flags, input(record.character, (value) => send({ kind: 'buttonRecord', offset: record.offset, character: value })), ...matrixInputs(record.matrix, record.translate, (matrix, translate) => send({ kind: 'buttonRecord', offset: record.offset, matrix, translate }))));
+    });
+  }
+  if (character.type === 'movie') {
+    const size = [character.record.screenWidth, character.record.screenHeight];
+    fields.push(row('Screen', ...size.map((value, index) => input(value, (next) => { size[index] = next; send({ kind: 'screen', width: size[0], height: size[1] }); }))));
+    fields.push(heading('Exports'));
+    state.movie.exports.forEach((entry, index) => fields.push(row('', input(entry.name, (name) => send({ kind: 'export', index, name }), 'line'), input(entry.character, (value) => send({ kind: 'export', index, character: value })), button('Remove', () => send({ kind: 'removeExport', index })))));
+    const added = { name: '', character: 1 };
+    fields.push(row('New', input('', (name) => { added.name = name; }, 'line'), input(1, (value) => { added.character = value; }), button('Add export', () => added.name && send({ kind: 'addExport', ...added }))));
+    if (state.movie.imports.length) {
+      fields.push(heading('Imports'));
+      state.movie.imports.forEach((entry, index) => fields.push(row('#' + entry.character, input(entry.movie, (movie) => send({ kind: 'import', index, movie }), 'line'), input(entry.name, (name) => send({ kind: 'import', index, name }), 'line'))));
+    }
+  }
+  if (!['movie', 'placeholder', 'unknown'].includes(character.type)) {
+    fields.push(row('', button('Duplicate', () => send({ kind: 'duplicateCharacter', id: character.id }))));
+  }
+  return fields;
+};
+
+/** The items of the shown frame of a timeline, each editable, and ways to add more */
+const frameFields = (character) => {
+  const frames = framesOf(character);
+  const fields = [heading('Frame ' + state.frame)];
+  const frame = frames[state.frame];
+  const timeline = character.id;
+  for (const item of frame ? frame.items : []) {
+    const remove = button('×', () => send({ kind: 'removeItem', timeline, frame: state.frame, offset: item.offset }));
+    remove.title = 'Remove this item from the frame';
+    if (item.type === 'placeObject') {
+      const placement = (change) => send({ kind: 'placement', offset: item.offset, change });
+      const alpha = input(item.colorTransform === undefined ? 255 : item.colorTransform >>> 24, (value) => placement({ colorTransform: (((item.colorTransform ?? 0xffffffff) & 0xffffff) | (Math.max(0, Math.min(255, value)) << 24)) >>> 0 }));
+      alpha.title = 'alpha 0-255';
+      alpha.classList.add('short');
+      fields.push(row('Place @' + item.depth, input(item.character ?? '', (value) => placement({ character: value })), ...matrixInputs(item.matrix, item.translate, (matrix, translate) => placement({ matrix, translate })), alpha, input(item.name ?? '', (name) => placement({ name }), 'line'), remove));
+    } else if (item.type === 'frameLabel') {
+      fields.push(row('Label', input(item.label, (label) => send({ kind: 'frameLabel', offset: item.offset, label }), 'line'), remove));
+    } else if (item.type === 'removeObject') {
+      fields.push(row('Remove @' + item.depth, remove));
+    } else {
+      fields.push(row(item.type, remove));
+    }
+  }
+  const place = { character: 1, depth: 1 };
+  fields.push(row('Place', input(1, (value) => { place.character = value; }), input(1, (value) => { place.depth = value; }), button('Add', () => send({ kind: 'placeObject', timeline, frame: state.frame, ...place }))));
+  let label = '';
+  fields.push(row('Label', input('', (value) => { label = value; }, 'line'), button('Add', () => label && send({ kind: 'addFrameLabel', timeline, frame: state.frame, label }))));
+  fields.push(row('', button('Add frame', () => send({ kind: 'addFrame', timeline }))));
+  return fields;
+};
+
 const showDetails = () => {
   const character = state.movie.characters[state.selected];
   const frames = framesOf(character);
   frameInput.max = String(Math.max(0, frames.length - 1));
   frameInput.disabled = frames.length < 2;
-  frameInput.value = String(Math.min(state.frame, Math.max(0, frames.length - 1)));
+  state.frame = Math.min(state.frame, Math.max(0, frames.length - 1));
+  frameInput.value = String(state.frame);
   const labels = frames.flatMap((frame, index) => frame.items.filter((i) => i.type === 'frameLabel').map((i) => index + ':' + i.label));
   frameLabel.textContent = frames.length ? 'frame ' + state.frame + ' of ' + frames.length + (labels.length ? ' · labels ' + labels.join(', ') : '') : '';
-  const { offset, ...fields } = character;
   const blocks = blocksOf(character);
-  details.innerHTML = '<h3>' + escapeHtml(describe(character)) + '</h3><p class="muted">record at 0x' + offset.toString(16) + '</p><pre>' + escapeHtml(JSON.stringify(fields, (key, value) => (key === 'records' || key === 'glyphs') && Array.isArray(value) && value.length > 8 ? '[' + value.length + ' entries]' : value, 2)) + '</pre>' +
-    (blocks.length ? '<h3>Scripts</h3>' + blocks.map((b, i) => '<details data-block="' + b.block + '"><summary>' + escapeHtml(b.label) + ' · 0x' + b.block.toString(16) + '</summary><pre class="code">…</pre></details>').join('') : '');
-  details.querySelectorAll('details[data-block]').forEach((element) => element.addEventListener('toggle', () => {
-    if (element.open) vscode.postMessage({ kind: 'listing', block: Number(element.dataset.block) });
-  }, { once: true }));
+  details.replaceChildren(heading(describe(character)));
+  const offset = document.createElement('p');
+  offset.className = 'muted';
+  offset.textContent = 'record at 0x' + character.offset.toString(16);
+  details.append(offset, ...characterFields(character));
+  if (character.type === 'sprite' || character.type === 'movie') details.append(...frameFields(character));
+  if (blocks.length) {
+    details.append(heading('Scripts'));
+    for (const b of blocks) {
+      const element = document.createElement('details');
+      element.dataset.block = String(b.block);
+      const summary = document.createElement('summary');
+      summary.textContent = b.label + ' · 0x' + b.block.toString(16);
+      const code = document.createElement('pre');
+      code.className = 'code';
+      code.textContent = '…';
+      element.append(summary, code);
+      element.addEventListener('toggle', () => element.open && vscode.postMessage({ kind: 'listing', block: b.block }), { once: true });
+      details.append(element);
+    }
+  }
 };
 
 const select = (id) => {
@@ -269,6 +424,7 @@ window.addEventListener('resize', render);
 
 window.addEventListener('message', async ({ data }) => {
   if (data.kind === 'movie') {
+    const isFirst = !state.movie;
     state.movie = data.movie;
     for (const [path, texture] of Object.entries(data.textures)) {
       const canvas = document.createElement('canvas');
@@ -278,11 +434,21 @@ window.addEventListener('message', async ({ data }) => {
       state.textures.set(path, canvas);
     }
     document.getElementById('summary').textContent = data.summary;
+    if (isFirst || !state.movie.characters[state.selected]) state.selected = 0;
     showList();
-    select(0);
+    showDetails();
+    render();
+  } else if (data.kind === 'select') {
+    showList();
+    select(data.character);
   } else if (data.kind === 'listing') {
     const element = details.querySelector('details[data-block="' + data.block + '"] pre');
     if (element) element.textContent = data.text;
+  } else if (data.kind === 'notice') {
+    const notice = document.getElementById('notice');
+    notice.textContent = data.message;
+    notice.hidden = false;
+    setTimeout(() => { notice.hidden = true; }, 6000);
   } else if (data.kind === 'error') {
     document.body.innerHTML = '<p class="error">Cannot open this movie: ' + escapeHtml(data.message) + '</p>';
   }
