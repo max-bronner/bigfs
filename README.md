@@ -20,6 +20,10 @@ your mod's archives.
   game shipped them.
 - **Extract** files, folders or whole archives, and **add** files from disk.
 - **Pack into BIG Archive** on any folder in the Explorer.
+- **Launch Game with Mod** starts the game with `-mod "<folder>"` on a folder
+  or the workspace, saving open files first; a **Run mod** button sits in
+  the status bar once the game is set (`bigfs.game.executable`, extra
+  arguments in `bigfs.game.arguments`).
 - **Override in Folder** copies archive files into a mod folder at the same
   path.
 - **Search in BIG Archives** finds text inside every archive.

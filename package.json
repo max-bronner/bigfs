@@ -188,6 +188,12 @@
         "command": "bigfs.compareWithBaseGame",
         "title": "Compare with Base Game",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.launchGame",
+        "title": "Launch Game with Mod",
+        "category": "BIG",
+        "icon": "$(play)"
       }
     ],
     "menus": {
@@ -422,6 +428,11 @@
           "command": "bigfs.newAptMovie",
           "group": "7_modification@14",
           "when": "explorerResourceIsFolder"
+        },
+        {
+          "command": "bigfs.launchGame",
+          "group": "7_modification@20",
+          "when": "explorerResourceIsFolder"
         }
       ],
       "editor/title": [
@@ -540,6 +551,20 @@
           "default": "",
           "scope": "machine",
           "markdownDescription": "Install folder of the unmodded game, which **BIG: Compare with Base Game** compares the workspace against. Asked for on first use."
+        },
+        "bigfs.game.executable": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The game program **BIG: Launch Game with Mod** starts, such as `lotrbfme2ep1.exe` for The Rise of the Witch-king or `lotrbfme2.exe` for BFME II. Asked for on first use."
+        },
+        "bigfs.game.arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Extra arguments passed before `-mod`, such as `-win` or `-noshellmap`."
         }
       }
     },

@@ -20,6 +20,7 @@ import { registerSageStrLanguage } from './language/sageStrLanguage';
 import { registerSageWndLanguage } from './language/sageWndLanguage';
 import { registerTextureCommands } from './commands/textureCommands';
 import { registerAptCommands } from './commands/aptCommands';
+import { registerLaunchCommands } from './commands/launchCommands';
 import { registerModDiffCommands } from './commands/modDiffCommands';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { AptEditorProvider } from './providers/aptEditorProvider';
@@ -79,6 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerSageWndLanguage(context);
   registerTextureCommands(context);
   registerAptCommands(context);
+  registerLaunchCommands(context);
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
