@@ -199,6 +199,11 @@
         "command": "bigfs.playAudioEvent",
         "title": "Play Audio Event",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.openBalanceSheet",
+        "title": "Open Balance Sheet",
+        "category": "BIG"
       }
     ],
     "menus": {
