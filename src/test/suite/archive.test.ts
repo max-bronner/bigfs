@@ -291,7 +291,10 @@ suite('BIG archive file system', () => {
     );
   });
 
-  test('keeps archives that share a name apart', async () => {
+  test('keeps archives that share a name apart', async function () {
+    // Waits on the file watcher, which is slower than mocha's default
+    this.timeout(20_000);
+
     const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
     const nestedDirectory = path.join(workspaceFolder, 'mods');
     const nestedPath = path.join(nestedDirectory, ARCHIVE_NAME);
@@ -325,7 +328,10 @@ suite('BIG archive file system', () => {
     }
   });
 
-  test('picks up an archive rewritten outside the editor', async () => {
+  test('picks up an archive rewritten outside the editor', async function () {
+    // Waits on the file watcher, which is slower than mocha's default
+    this.timeout(20_000);
+
     await writeArchiveToDisk([
       { name: 'Data/external.txt', content: 'FromDisk' },
     ]);
@@ -340,7 +346,10 @@ suite('BIG archive file system', () => {
     assert.deepStrictEqual(await readNames(`/${ARCHIVE_NAME}`), ['Data']);
   });
 
-  test('keeps a name stored in two casings through an unrelated save', async () => {
+  test('keeps a name stored in two casings through an unrelated save', async function () {
+    // Waits on the file watcher, which is slower than mocha's default
+    this.timeout(20_000);
+
     await writeArchiveToDisk([
       { name: 'Art/Textures/Unit.tga', content: 'first' },
       { name: 'art/textures/unit.tga', content: 'second' },
@@ -743,7 +752,10 @@ suite('Extraction layout', () => {
     );
   });
 
-  test('drops a file that carries the extension but is not an archive', async () => {
+  test('drops a file that carries the extension but is not an archive', async function () {
+    // Waits on the file watcher, which is slower than mocha's default
+    this.timeout(20_000);
+
     // Listed from its name, then dropped once reading it says otherwise
     await waitFor(() => {
       assert.strictEqual(model.getArchiveByPath(strayFsPath), undefined);
@@ -1043,7 +1055,10 @@ suite('Archive sources', () => {
     assert.strictEqual(archive.rootPath, `/${source}/${SOURCE_ARCHIVE}`);
   });
 
-  test('does not resolve a path that leaves out its source', async () => {
+  test('does not resolve a path that leaves out its source', async function () {
+    // Waits on the file watcher, which is slower than mocha's default
+    this.timeout(20_000);
+
     // A path with no source, which two archives of the same name could both claim
     const withoutSource = vscode.Uri.from({
       scheme: 'bigfs',
