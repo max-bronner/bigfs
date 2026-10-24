@@ -45,6 +45,7 @@ your mod's archives.
 - **Format Document** re-indents from the block structure, touching only
   whitespace; embedded scripts stay as written.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
+- Lua in `BeginScript` regions is checked for syntax errors.
 
 **String tables**
 

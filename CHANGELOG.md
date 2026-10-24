@@ -31,3 +31,4 @@
 - INI quick fixes, a formatter, and MappedImage hovers that show the image.
 - Maps: teams, scripts (switch on/off), trigger areas and lighting edits.
 - APT: create new text, sprite, shape and image characters.
+- Lua syntax checking inside INI script regions.

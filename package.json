@@ -650,6 +650,7 @@
     "vsix": "vsce package --out bigfs.vsix"
   },
   "devDependencies": {
+    "@types/luaparse": "^0.2.13",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.0",
     "@types/vscode": "^1.125.0",
@@ -662,5 +663,8 @@
     "eslint": "^10.8.1",
     "mocha": "^11.8.0",
     "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "luaparse": "^0.3.1"
   }
 }
