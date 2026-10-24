@@ -7,6 +7,13 @@ import { SageIniIndex } from './sageIniIndex';
 import { watchSageIniDialect } from './sageIniDialect';
 import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
+import type { EntryLocator } from '../formats/entryLocator';
+import { createMappedImagePreview } from './mappedImagePreview';
+import {
+  SAGE_INI_CODE_ACTION_KINDS,
+  createSageIniCodeActionProvider,
+} from './providers/sageIniCodeActionProvider';
+import { createSageIniFormattingProvider } from './providers/sageIniFormattingProvider';
 import { createSageIniFoldingProvider } from './providers/sageIniFoldingProvider';
 import { createSageIniOutlineProvider } from './providers/sageIniOutlineProvider';
 import {
@@ -37,6 +44,7 @@ export const registerSageIniLanguage = (
   context: ExtensionContext,
   archiveModel: ArchiveModel,
   log: LogOutputChannel,
+  locator?: EntryLocator,
 ): void => {
   const documents = new SageIniDocuments(context.extensionUri);
   const index = new SageIniIndex(
@@ -77,7 +85,11 @@ export const registerSageIniLanguage = (
     ),
     languages.registerHoverProvider(
       selector,
-      createSageIniHoverProvider(documents, index),
+      createSageIniHoverProvider(
+        documents,
+        index,
+        locator && createMappedImagePreview(locator),
+      ),
     ),
     languages.registerDefinitionProvider(
       selector,
@@ -90,6 +102,15 @@ export const registerSageIniLanguage = (
     languages.registerCompletionItemProvider(
       selector,
       createSageIniCompletionProvider(documents, index),
+    ),
+    languages.registerCodeActionsProvider(
+      selector,
+      createSageIniCodeActionProvider(documents, index),
+      { providedCodeActionKinds: SAGE_INI_CODE_ACTION_KINDS },
+    ),
+    languages.registerDocumentFormattingEditProvider(
+      selector,
+      createSageIniFormattingProvider(documents),
     ),
     languages.registerRenameProvider(
       selector,

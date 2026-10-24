@@ -8,7 +8,7 @@ import {
   evaluateMacroBody,
   formatValue,
 } from '../model/sageIniPreprocessor';
-import type { SageIniIndex } from '../sageIniIndex';
+import type { SageDefinition, SageIniIndex } from '../sageIniIndex';
 
 /**
  * Explains what is under the cursor: whether the engine defines it, what type
@@ -133,6 +133,7 @@ const describeValue = (
 export const createSageIniHoverProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
+  previewImage?: (definition: SageDefinition) => Promise<string | undefined>,
 ): HoverProvider => ({
   async provideHover(document: TextDocument, position: Position) {
     const [parsed, schema] = await Promise.all([
@@ -250,6 +251,20 @@ export const createSageIniHoverProvider = (
     }
 
     const contents = describeValue(statement, schema, token.text);
+    const [image] = previewImage
+      ? index.findDefinitions('MappedImage', token.text)
+      : [];
+    const picture =
+      image && previewImage ? await previewImage(image) : undefined;
+
+    if (picture) {
+      const text =
+        contents ?? new MarkdownString(`\`${token.text}\` — MappedImage`);
+
+      text.appendMarkdown(`\n\n${picture}`);
+
+      return new Hover(text, range);
+    }
 
     return contents ? new Hover(contents, range) : undefined;
   },
