@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import { APT_VIEW_SCRIPT } from '../../providers/aptViewScript';
 import { MAP_VIEW_SCRIPT } from '../../providers/mapViewScript';
 import { MODEL_SCRIPT } from '../../providers/previewModelScript';
+import { WND_PREVIEW_SCRIPT } from '../../language/wndPreviewScript';
 import { STRING_TABLE_SCRIPT } from '../../providers/stringTableViewScript';
 
 suite('Page scripts', () => {
@@ -12,6 +13,7 @@ suite('Page scripts', () => {
       MAP_VIEW_SCRIPT,
       MODEL_SCRIPT,
       STRING_TABLE_SCRIPT,
+      WND_PREVIEW_SCRIPT,
     ]) {
       assert.doesNotThrow(() => new Function(script));
     }

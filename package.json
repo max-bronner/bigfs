@@ -152,6 +152,12 @@
         "title": "Open as Table",
         "category": "BIG",
         "icon": "$(table)"
+      },
+      {
+        "command": "bigfs.showWndPreview",
+        "title": "Show Layout Preview",
+        "category": "BIG",
+        "icon": "$(open-preview)"
       }
     ],
     "menus": {
@@ -318,6 +324,10 @@
         {
           "command": "bigfs.openStringTable",
           "when": "editorLangId == sage-str"
+        },
+        {
+          "command": "bigfs.showWndPreview",
+          "when": "editorLangId == sage-wnd"
         }
       ],
       "explorer/context": [
@@ -337,6 +347,11 @@
           "command": "bigfs.openStringTable",
           "group": "navigation",
           "when": "editorLangId == sage-str"
+        },
+        {
+          "command": "bigfs.showWndPreview",
+          "group": "navigation",
+          "when": "editorLangId == sage-wnd"
         }
       ]
     },
@@ -506,6 +521,17 @@
           ".str"
         ],
         "configuration": "./str-language-configuration.json"
+      },
+      {
+        "id": "sage-wnd",
+        "aliases": [
+          "SAGE Window Layout",
+          "WND"
+        ],
+        "extensions": [
+          ".wnd"
+        ],
+        "configuration": "./wnd-language-configuration.json"
       }
     ],
     "grammars": [
@@ -521,6 +547,11 @@
         "language": "sage-str",
         "scopeName": "source.sage-str",
         "path": "./syntaxes/sageStr.tmLanguage.json"
+      },
+      {
+        "language": "sage-wnd",
+        "scopeName": "source.sage-wnd",
+        "path": "./syntaxes/sageWnd.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
@@ -529,6 +560,9 @@
       },
       "[sage-str]": {
         "files.encoding": "windows1252"
+      },
+      "[sage-wnd]": {
+        "files.encoding": "iso88591"
       }
     }
   },

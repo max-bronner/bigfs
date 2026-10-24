@@ -1,0 +1,11 @@
+{
+  "comments": {},
+  "brackets": [],
+  "autoClosingPairs": [{ "open": "\"", "close": "\"" }],
+  "surroundingPairs": [["\"", "\""]],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(WINDOW|CHILD|STARTLAYOUTBLOCK)\\s*$",
+    "decreaseIndentPattern": "^\\s*(END|ENDALLCHILDREN|ENDLAYOUTBLOCK)\\s*$"
+  },
+  "wordPattern": "[A-Za-z_][A-Za-z0-9_]*"
+}

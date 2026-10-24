@@ -21,3 +21,4 @@
   positions, world info, time of day, players and object properties, with
   RefPack compression both ways.
 - W3D animation playback on models and skeletons.
+- `.wnd` window layouts: language support and a live layout preview.
