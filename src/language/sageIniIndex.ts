@@ -297,6 +297,32 @@ export class SageIniIndex implements Disposable {
     return [...names].sort();
   }
 
+  /**
+   * Every definition no reference field anywhere names, in the namespaces
+   * some reference field can name at all; `include` picks which places count
+   */
+  public findUnreferenced(
+    include: (definition: SageDefinition) => boolean,
+    skip: ReadonlySet<string>,
+  ): SageDefinition[] {
+    const unused: SageDefinition[] = [];
+
+    for (const [namespace, byName] of this.definitions) {
+      if (skip.has(namespace) || !this.references.has(namespace)) {
+        continue;
+      }
+
+      const named = this.references.get(namespace)!;
+
+      for (const [name, definitions] of byName) {
+        if (!named.get(name)?.length) {
+          unused.push(...definitions.filter(include));
+        }
+      }
+    }
+    return unused;
+  }
+
   /** Every place a name is used as a reference value */
   public findReferences(
     namespace: string,

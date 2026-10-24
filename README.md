@@ -60,6 +60,10 @@ your mod's archives.
 - Game-text labels such as `OBJECT:Name` that no string table defines are
   reported, with a quick fix that adds the record to the table the file
   already uses (`bigfs.ini.checkStrings`).
+- **Find Unused Definitions** lists, in the Problems panel, every weapon,
+  upgrade, FX list, command button and other definition in the workspace that
+  no INI file references (objects and images, which maps and UI name, are
+  left out).
 - Models, animations, textures and sounds named in INI files are checked
   against every archive and folder; a missing one is reported with the
   nearest existing names as quick fixes, in the editor and in **Validate INI

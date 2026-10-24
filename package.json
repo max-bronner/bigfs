@@ -209,6 +209,16 @@
         "command": "bigfs.duplicateDefinition",
         "title": "Duplicate Definition…",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.findUnusedDefinitions",
+        "title": "Find Unused Definitions",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.clearUnusedDefinitions",
+        "title": "Clear Unused Definitions",
+        "category": "BIG"
       }
     ],
     "menus": {
