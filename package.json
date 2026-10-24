@@ -141,6 +141,17 @@
         "command": "bigfs.showArchiveView",
         "title": "Show Every Archive",
         "icon": "$(archive)"
+      },
+      {
+        "command": "bigfs.convertStringTable",
+        "title": "Convert String Table (.str ⇄ .csf)",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.openStringTable",
+        "title": "Open as Table",
+        "category": "BIG",
+        "icon": "$(table)"
       }
     ],
     "menus": {
@@ -236,6 +247,11 @@
           "command": "bigfs.overrideInFolder",
           "group": "3_extract@2",
           "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigLooseFile"
+        },
+        {
+          "command": "bigfs.convertStringTable",
+          "group": "7_modification@10",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(str|csf)$/i"
         }
       ],
       "commandPalette": [
@@ -298,6 +314,10 @@
         {
           "command": "bigfs.packFolder",
           "when": "false"
+        },
+        {
+          "command": "bigfs.openStringTable",
+          "when": "editorLangId == sage-str"
         }
       ],
       "explorer/context": [
@@ -305,6 +325,18 @@
           "command": "bigfs.packFolder",
           "group": "7_modification@9",
           "when": "explorerResourceIsFolder"
+        },
+        {
+          "command": "bigfs.convertStringTable",
+          "group": "7_modification@10",
+          "when": "resourceExtname =~ /^\\.(str|csf)$/i"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "bigfs.openStringTable",
+          "group": "navigation",
+          "when": "editorLangId == sage-str"
         }
       ]
     },
@@ -406,6 +438,26 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "bigfs.strTable",
+        "displayName": "bigFS String Table",
+        "selector": [
+          {
+            "filenamePattern": "*.{str,STR}"
+          }
+        ],
+        "priority": "option"
+      },
+      {
+        "viewType": "bigfs.csfEditor",
+        "displayName": "bigFS CSF String Table",
+        "selector": [
+          {
+            "filenamePattern": "*.{csf,CSF}"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "languages": [
@@ -420,6 +472,17 @@
           ".bhav"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "sage-str",
+        "aliases": [
+          "SAGE String Table",
+          "BFME STR"
+        ],
+        "extensions": [
+          ".str"
+        ],
+        "configuration": "./str-language-configuration.json"
       }
     ],
     "grammars": [
@@ -430,11 +493,19 @@
         "embeddedLanguages": {
           "meta.embedded.block.lua": "lua"
         }
+      },
+      {
+        "language": "sage-str",
+        "scopeName": "source.sage-str",
+        "path": "./syntaxes/sageStr.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
       "[sage-ini]": {
         "files.encoding": "iso88591"
+      },
+      "[sage-str]": {
+        "files.encoding": "windows1252"
       }
     }
   },

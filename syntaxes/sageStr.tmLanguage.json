@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SAGE String Table",
+  "scopeName": "source.sage-str",
+  "patterns": [
+    { "name": "comment.line.double-slash.sage-str", "match": "^\\s*//.*$" },
+    { "name": "keyword.control.end.sage-str", "match": "(?i)^\\s*END\\s*$" },
+    {
+      "name": "string.quoted.double.sage-str",
+      "begin": "\"",
+      "end": "(?<!\\\\)\"",
+      "patterns": [{ "name": "constant.character.escape.sage-str", "match": "\\\\." }]
+    },
+    {
+      "match": "^\\s*([^\\s:\"]+)(:)([^\\s\"]*)\\s*$",
+      "captures": {
+        "1": { "name": "entity.name.namespace.sage-str" },
+        "2": { "name": "punctuation.separator.sage-str" },
+        "3": { "name": "entity.name.tag.sage-str" }
+      }
+    },
+    { "name": "entity.name.tag.sage-str", "match": "^\\s*[^\\s\"]+\\s*$" }
+  ]
+}

@@ -15,3 +15,5 @@
 - APT ActionScript as an editable JavaScript-like language, checked to
   compile back to the same code before it is shown; hot-exit backups keep
   movie edits.
+- String tables: `.str` language support and table editor, `.csf` editor,
+  and conversion between the two.
