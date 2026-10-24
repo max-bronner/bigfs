@@ -158,6 +158,21 @@
         "title": "Show Layout Preview",
         "category": "BIG",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "bigfs.exportPng",
+        "title": "Export as PNG",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.importImage",
+        "title": "Replace with PNG…",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.convertPng",
+        "title": "Convert to Game Texture…",
+        "category": "BIG"
       }
     ],
     "menus": {
@@ -258,6 +273,21 @@
           "command": "bigfs.convertStringTable",
           "group": "7_modification@10",
           "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(str|csf)$/i"
+        },
+        {
+          "command": "bigfs.exportPng",
+          "group": "7_modification@11",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(tga|dds)$/i"
+        },
+        {
+          "command": "bigfs.importImage",
+          "group": "7_modification@12",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(tga|dds)$/i"
+        },
+        {
+          "command": "bigfs.convertPng",
+          "group": "7_modification@13",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i"
         }
       ],
       "commandPalette": [
@@ -328,6 +358,18 @@
         {
           "command": "bigfs.showWndPreview",
           "when": "editorLangId == sage-wnd"
+        },
+        {
+          "command": "bigfs.exportPng",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.importImage",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.convertPng",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -340,6 +382,21 @@
           "command": "bigfs.convertStringTable",
           "group": "7_modification@10",
           "when": "resourceExtname =~ /^\\.(str|csf)$/i"
+        },
+        {
+          "command": "bigfs.exportPng",
+          "group": "7_modification@11",
+          "when": "resourceExtname =~ /^\\.(tga|dds)$/i"
+        },
+        {
+          "command": "bigfs.importImage",
+          "group": "7_modification@12",
+          "when": "resourceExtname =~ /^\\.(tga|dds)$/i"
+        },
+        {
+          "command": "bigfs.convertPng",
+          "group": "7_modification@13",
+          "when": "resourceExtname =~ /^\\.png$/i"
         }
       ],
       "editor/title": [

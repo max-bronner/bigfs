@@ -23,3 +23,5 @@
 - W3D animation playback on models and skeletons.
 - `.wnd` window layouts: language support and a live layout preview.
 - MP3 and VP6 video previews.
+- Texture round trips: export TGA/DDS as PNG, replace a texture from a PNG,
+  convert PNGs to TGA or DDS.

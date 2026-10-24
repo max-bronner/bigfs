@@ -69,7 +69,9 @@ your mod's archives.
 **Previews**
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip
-  levels.
+  levels. **Export as PNG**, **Replace with PNG…** (written back in the
+  texture's own format, mipmaps included) and **Convert to Game Texture…**
+  for PNGs (TGA 24/32-bit, DDS DXT1/3/5 or uncompressed).
 - Sounds: WAV, including IMA ADPCM, and MP3.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
   pause and seeking; alpha movies show over a checkerboard.
