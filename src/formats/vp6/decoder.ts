@@ -19,13 +19,13 @@ const TOKEN_EOB = 42;
 const PROFILE_SIMPLE = 0;
 const PROFILE_ADVANCED = 3;
 
-const enum Ref {
+export const enum Ref {
   Intra = 0,
   Previous = 1,
   Golden = 2,
 }
 
-const enum MbType {
+export const enum MbType {
   Intra,
   InterNoMv,
   InterMv,
@@ -38,14 +38,14 @@ const enum MbType {
   GoldenNear,
 }
 
-const referenceOf = (type: MbType): Ref =>
+export const referenceOf = (type: MbType): Ref =>
   type === MbType.Intra
     ? Ref.Intra
     : type <= MbType.InterFourMv
       ? Ref.Previous
       : Ref.Golden;
 
-const MODEL_INDEX: Record<MbType, number> = {
+export const MODEL_INDEX: Record<MbType, number> = {
   [MbType.InterNoMv]: 0,
   [MbType.Intra]: 1,
   [MbType.InterMv]: 2,
@@ -793,7 +793,7 @@ export class Vp6Decoder {
   }
 }
 
-const predictMb = (
+export const predictMb = (
   frame: Picture,
   src: Picture,
   mbX: number,

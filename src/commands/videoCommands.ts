@@ -243,6 +243,15 @@ const rateOf = (fps: number): [number, number] => {
     : [Math.round(fps * 1000), 1000];
 };
 
+/** Frames between forced key frames, from the setting */
+const keyInterval = (fps: number): number => {
+  const seconds = vscode.workspace
+    .getConfiguration()
+    .get<number>('bigfs.vp6.keyFrameSeconds', 2);
+
+  return seconds > 0 ? Math.max(1, Math.round(seconds * fps)) : 1;
+};
+
 const convert = async (target: Target): Promise<vscode.Uri | undefined> => {
   let input = target instanceof vscode.Uri ? target : target?.resourceUri;
 
@@ -448,6 +457,7 @@ const convert = async (target: Target): Promise<vscode.Uri | undefined> => {
           },
           {
             quality: quality.q,
+            keyInterval: keyInterval(rate),
             cancelled: () => token.isCancellationRequested,
             progress: (frames) =>
               progress.report({

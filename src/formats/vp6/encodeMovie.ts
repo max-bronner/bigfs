@@ -21,6 +21,8 @@ export interface FrameSource {
 
 export interface MovieOptions {
   quality: number;
+  /** Frames between forced key frames; scene changes add their own */
+  keyInterval?: number;
   /** Called after each frame with the number done */
   progress?: (frames: number) => void;
   /** Checked between frames; true stops the encode */
@@ -42,6 +44,13 @@ export const encodeMovie = async (
 
   const colour = new Vp6Encoder({ quality: options.quality });
   const alpha = new Vp6Encoder({ quality: options.quality });
+  const keyInterval = Math.max(
+    1,
+    Math.round(
+      options.keyInterval ??
+        (2 * source.rateNumerator) / Math.max(1, source.rateDenominator),
+    ),
+  );
   const frames: { colour: Uint8Array; isKey: boolean; alpha?: Uint8Array }[] =
     [];
 
@@ -58,11 +67,16 @@ export const encodeMovie = async (
     if (rgba.length < width * height * 4) {
       throw new Error(`Frame ${frames.length + 1} is smaller than the movie`);
     }
+    const forceKey = frames.length % keyInterval === 0;
+    const coded = colour.encode(pictureFromRgba(rgba, width, height), forceKey);
+
+    // Seeking restarts both streams at a colour key frame, so alpha keys there too
     frames.push({
-      colour: colour.encodeKey(pictureFromRgba(rgba, width, height)),
-      isKey: true,
+      colour: coded.data,
+      isKey: coded.isKey,
       alpha: source.alpha
-        ? alpha.encodeKey(pictureFromRgba(rgba, width, height, true))
+        ? alpha.encode(pictureFromRgba(rgba, width, height, true), coded.isKey)
+            .data
         : undefined,
     });
     options.progress?.(frames.length);

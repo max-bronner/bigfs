@@ -40,6 +40,8 @@
   every value and Apply to INI.
 - Launch Game with Mod, with a Run mod status bar button.
 - Convert videos and image frames to VP6 movies.
+- VP6 conversion codes inter frames with motion search and tuned
+  probabilities, about 3 times smaller.
 - Find Unused Definitions.
 - Hotkey clashes inside CommandSets reported.
 - Call and type hierarchy for INI definitions.
