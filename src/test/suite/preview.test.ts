@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import path from 'path';
 import { rm, writeFile } from 'fs/promises';
 import { PREVIEW_VIEW_TYPE } from '../../providers/previewEditorProvider';
+import { APT_VIEW_TYPE } from '../../providers/aptEditorProvider';
 
 suite('Previews', () => {
   let texturePath: string;
@@ -61,6 +62,26 @@ suite('Previews', () => {
       assert.strictEqual(input.viewType, PREVIEW_VIEW_TYPE);
     } finally {
       await rm(modelPath, { force: true });
+    }
+  });
+
+  test('an APT movie opens in the movie inspector', async () => {
+    const moviePath = path.join(path.dirname(texturePath), 'preview.apt');
+
+    await writeFile(moviePath, new Uint8Array(16));
+
+    try {
+      await vscode.commands.executeCommand(
+        'vscode.open',
+        vscode.Uri.file(moviePath),
+      );
+
+      const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+
+      assert.ok(input instanceof vscode.TabInputCustom);
+      assert.strictEqual(input.viewType, APT_VIEW_TYPE);
+    } finally {
+      await rm(moviePath, { force: true });
     }
   });
 });
