@@ -318,4 +318,49 @@ suite('Modding flows: particle preview', () => {
     await vscode.commands.executeCommand('undo');
     await waitFor(() => assert.strictEqual(document.getText(), original));
   });
+
+  test('a new key rewrites the keys with the values pending, in one edit', async function () {
+    this.timeout(30_000);
+
+    const original = document.getText();
+    const size = preview.lastScene!.fields.find(
+      (field) => field.keyword === 'Size' && field.part === 'min',
+    )!;
+
+    await preview.receive({ kind: 'set', id: size.id, value: 4 });
+    await preview.receive({
+      kind: 'keys',
+      keyKind: 'Alpha',
+      keys: [
+        { min: 1, max: 1, frame: 0 },
+        { min: 0, max: 0, frame: 30 },
+      ],
+    });
+    await waitFor(() =>
+      assert.match(
+        document.getText(),
+        /Size = 4 5\r?\n[\s\S]*Alpha1 = 1\.00 1\.00 0\r?\n {4}Alpha2 = 0\.00 0\.00 30\r?\n {2}End/,
+      ),
+    );
+
+    await vscode.window.showTextDocument(document);
+    await vscode.commands.executeCommand('undo');
+    await waitFor(() => assert.strictEqual(document.getText(), original));
+  });
+
+  test('a template is inserted after the definition the cursor is in', async function () {
+    this.timeout(30_000);
+
+    const editor = await vscode.window.showTextDocument(document);
+
+    editor.selection = new vscode.Selection(2, 0, 2, 0);
+    await vscode.commands.executeCommand('bigfs.newParticleSystem', 'Sparks');
+    await waitFor(() =>
+      assert.match(
+        document.getText(),
+        /\nEnd\r?\n\r?\nFXParticleSystem FX_Sparks\r?\n {2}System\r?\n/,
+      ),
+    );
+    await vscode.commands.executeCommand('undo');
+  });
 });

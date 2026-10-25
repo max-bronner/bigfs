@@ -186,6 +186,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.newParticleSystem",
+        "title": "New Particle System from Template…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.newAptMovie",
         "title": "New APT Movie…",
         "category": "BIG"
@@ -384,6 +389,10 @@
       ],
       "commandPalette": [
         {
+          "command": "bigfs.newParticleSystem",
+          "when": "editorLangId == sage-ini"
+        },
+        {
           "command": "bigfs.refreshArchives",
           "title": "BIG: Refresh Archives"
         },
@@ -532,6 +541,11 @@
         {
           "command": "bigfs.previewParticles",
           "group": "navigation@20",
+          "when": "editorLangId == sage-ini"
+        },
+        {
+          "command": "bigfs.newParticleSystem",
+          "group": "1_modification@5",
           "when": "editorLangId == sage-ini"
         },
         {
