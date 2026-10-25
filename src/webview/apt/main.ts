@@ -64,6 +64,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       const isFirst = !state.movie;
 
       state.movie = data.movie;
+      for (const [key, imported] of Object.entries(data.library)) {
+        state.library.set(key, imported);
+      }
       for (const [path, texture] of Object.entries(data.textures)) {
         const canvas = document.createElement('canvas');
 

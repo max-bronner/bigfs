@@ -9,6 +9,10 @@ import type { AptEdit } from '../../formats/apt/aptWriter';
 
 /** A movie as the page draws it: parsed, with its geometry and texture names */
 export type PageMovie = AptMovie & {
+  /** The movie's name, as imports name it */
+  name: string;
+  /** Where it was loaded from, for a movie another one imports */
+  origin?: string;
   spriteFrames: Record<number, Frame[]>;
   shapes: Record<number, RuRun[]>;
   /** Image character id to the texture path its pixels are in */
@@ -28,6 +32,15 @@ export type ToPage =
       movie: PageMovie;
       /** Textures not sent before; the page keeps every one it was sent */
       textures: Record<string, TexturePixels>;
+      /**
+       * Movies the shown one imports from, directly or through another, by
+       * lowercased name; only those that changed since they were last sent
+       */
+      library: Record<string, PageMovie>;
+      /** Imports no movie could fill, as `movie:name` */
+      unresolved: string[];
+      /** Where each movie reached through imports was loaded from */
+      origins: Record<string, string>;
     }
   | { kind: 'select'; character: number }
   | {
@@ -46,4 +59,5 @@ export type FromPage =
   | { kind: 'script'; block: number }
   | { kind: 'edit'; edit: AptEdit }
   | { kind: 'scriptEdit'; block: number; text: string }
-  | { kind: 'openGeometry'; geometry: number };
+  | { kind: 'openGeometry'; geometry: number }
+  | { kind: 'openMovie'; name: string };

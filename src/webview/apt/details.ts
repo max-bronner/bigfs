@@ -3,6 +3,7 @@ import type { AptEdit } from '../../formats/apt/aptWriter';
 import { button, byId, heading, input, row } from './dom';
 import type { FromPage, ToPage } from './protocol';
 import { movie, state } from './state';
+import { movieNamed, resolve } from './resolve';
 import { framesOf } from './timeline';
 
 declare const acquireVsCodeApi: () => { postMessage(message: FromPage): void };
@@ -39,7 +40,10 @@ export const describe = (character: Character): string => {
   const extra = exported.length
     ? exported.join(', ')
     : imported
-      ? imported.movie + ':' + imported.name
+      ? imported.movie +
+        ':' +
+        imported.name +
+        (resolve(source, character.id) ? '' : ' (unresolved)')
       : character.type === 'editText'
         ? (character.variable ?? character.text ?? '')
         : '';
@@ -316,6 +320,9 @@ const characterFields = (character: Character): HTMLElement[] => {
       ),
     );
   }
+  if (character.type === 'placeholder') {
+    fields.push(...importFields(character));
+  }
   if (!['movie', 'placeholder', 'unknown'].includes(character.type)) {
     fields.push(
       row(
@@ -327,6 +334,57 @@ const characterFields = (character: Character): HTMLElement[] => {
     );
   }
   return fields;
+};
+
+/** Where an import comes from, and what it resolves to there */
+const importFields = (character: Character): HTMLElement[] => {
+  const entry = movie().imports.find((each) => each.character === character.id);
+
+  if (!entry) {
+    return [row('Import', text('no import fills this slot'))];
+  }
+
+  const target = movieNamed(entry.movie);
+  const resolved = resolve(movie(), character.id);
+  const exported = target?.exports.find(
+    (each) => each.name.toLowerCase() === entry.name.toLowerCase(),
+  );
+
+  return [
+    row(
+      'From',
+      text(
+        target
+          ? `${target.name}${target.origin ? ' · ' + target.origin : ''}`
+          : `${entry.movie}: no install holds this movie`,
+      ),
+      ...(target
+        ? [
+            button('Open', () =>
+              vscode.postMessage({ kind: 'openMovie', name: entry.movie }),
+            ),
+          ]
+        : []),
+    ),
+    row(
+      'Export',
+      text(
+        resolved
+          ? `${entry.name} → #${exported!.character} ${TYPE_NAMES[resolved.character.type]}` +
+              (resolved.movie !== target ? ` in ${resolved.movie.name}` : '')
+          : target && !exported
+            ? `${entry.name}: ${target.name} exports no such name`
+            : entry.name,
+      ),
+    ),
+  ];
+};
+
+const text = (value: string): HTMLSpanElement => {
+  const element = document.createElement('span');
+
+  element.textContent = value;
+  return element;
 };
 
 /** The items of the shown frame of a timeline, each editable, and ways to add more */
@@ -428,7 +486,9 @@ const frameFields = (character: Character): HTMLElement[] => {
 /** Fills the details panel and the frame slider for the selected character */
 export const showDetails = (): void => {
   const character = movie().characters[state.selected];
-  const frames = framesOf(movie(), character);
+  // An import plays the timeline of what it imports
+  const shown = resolve(movie(), state.selected);
+  const frames = shown ? framesOf(shown.movie, shown.character) : [];
   const labels = frames.flatMap((frame, index) =>
     frame.items.flatMap((item) =>
       item.type === 'frameLabel' ? [index + ':' + item.label] : [],
