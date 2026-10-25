@@ -3,15 +3,22 @@ import esbuild from 'esbuild';
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 
+// Builds running across both bundles; the watch task waits for zero
+let running = 0;
+
 /**
- * Reports build results in the shape the watch task's problem matcher expects
+ * Reports build results in the shape the watch task's problem matcher
+ * expects. "Finished" is printed only when every bundle is done, or the
+ * launch would start before the extension bundle is written.
  * @type {import('esbuild').Plugin}
  */
 const esbuildProblemMatcherPlugin = {
   name: 'esbuild-problem-matcher',
   setup(build) {
     build.onStart(() => {
-      console.log('[watch] build started');
+      if (running++ === 0) {
+        console.log('[watch] build started');
+      }
     });
     build.onEnd((result) => {
       result.errors.forEach(({ text, location }) => {
@@ -23,7 +30,9 @@ const esbuildProblemMatcherPlugin = {
           );
         }
       });
-      console.log('[watch] build finished');
+      if (--running === 0) {
+        console.log('[watch] build finished');
+      }
     });
   },
 };
