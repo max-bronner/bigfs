@@ -16,10 +16,17 @@ import {
   decompileBlock,
   replaceBlock,
 } from '../formats/apt/aptScript';
-import { getTexturePath, parseDat, parseRu } from '../formats/apt/aptGeometry';
+import {
+  checkRuns,
+  fitRunTo,
+  getTexturePath,
+  parseDat,
+  parseRu,
+} from '../formats/apt/aptGeometry';
+import { addTexture, setShapeGeometry } from '../formats/apt/aptAssets';
+import type { DatLocation, RuRun } from '../formats/apt/aptGeometry';
 import { behaviourOf } from '../formats/apt/aptBehaviour';
 import type { Behaviour } from '../formats/apt/aptBehaviour';
-import type { RuRun } from '../formats/apt/aptGeometry';
 import type { PageMovie, ToPage } from '../webview/apt/protocol';
 import { AptLibrary, movieKey } from './aptLibrary';
 import type { MovieLocation } from './aptLibrary';
@@ -336,6 +343,7 @@ export class AptDocument implements vscode.CustomDocument {
 
     const shapes: Record<number, RuRun[]> = {};
     const imageTextures: Record<number, string> = {};
+    const imageLocations: Record<number, DatLocation> = {};
     const problems: string[] = [];
 
     await Promise.all(
@@ -357,6 +365,7 @@ export class AptDocument implements vscode.CustomDocument {
             const location = dat.get(character.texture);
 
             if (location) {
+              imageLocations[character.id] = location;
               imageTextures[character.id] = getTexturePath(
                 this.name,
                 character.texture,
@@ -413,6 +422,7 @@ export class AptDocument implements vscode.CustomDocument {
         behaviours: this.behaviours(movie, spriteFrames),
         shapes,
         imageTextures,
+        imageLocations,
       },
       textures,
     };
@@ -437,6 +447,38 @@ export class AptDocument implements vscode.CustomDocument {
       }
     }
     return behaviours;
+  }
+
+  /** Replaces a shape's geometry file, and its bounds with the box the geometry covers */
+  public setGeometry(shape: number, runs: RuRun[]): void {
+    for (const [path, bytes] of setShapeGeometry(
+      this.image,
+      this.constFile.movieOffset,
+      this.name,
+      shape,
+      runs,
+    )) {
+      this.files.set(path, bytes);
+    }
+  }
+
+  /** Adds an image as a new texture of the movie; returns its Image character id */
+  public async addTexture(
+    width: number,
+    height: number,
+    pixels: Uint8Array,
+  ): Promise<number> {
+    const dat = await this.read(`${this.name}.dat`);
+    const { id, files } = addTexture(
+      this.image,
+      this.constFile.movieOffset,
+      this.name,
+      dat ? latin1(dat) : '',
+      { width, height, pixels },
+    );
+
+    files.forEach((bytes, path) => this.files.set(path, bytes));
+    return id;
   }
 
   /** Writes the movie, and the files edits added, to `target`'s folder */
@@ -495,6 +537,8 @@ export const renderHtml = (
   #stage { background: repeating-conic-gradient(#808080 0 25%, #a0a0a0 0 50%) 0 0 / 16px 16px; }
   #side { border-left: 1px solid var(--vscode-panel-border); padding: 0 10px; }
   #inspector:not(:empty) { border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 6px; }
+  #atlas:not(:empty) { border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 6px; }
+  canvas.atlas { display: block; max-width: 100%; background: repeating-conic-gradient(#808080 0 25%, #a0a0a0 0 50%) 0 0 / 12px 12px; }
   #log { font-family: var(--vscode-editor-font-family); font-size: 12px; opacity: 0.8; }
   button.chosen { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
   pre { white-space: pre-wrap; word-break: break-all; font-family: var(--vscode-editor-font-family); font-size: 12px; }
@@ -530,13 +574,14 @@ export const renderHtml = (
     <label title="B"><input type="checkbox" id="show-boxes" checked> Boxes</label>
     <label title="S: run what frame scripts do to timelines (stop, play, goto) in nested timelines"><input type="checkbox" id="scripts" checked> Scripts</label>
     <label title="I: run everything as the game does and let the pointer drive buttons"><input type="checkbox" id="interact"> Interact</label>
+    <label title="W: draw the triangles of what is picked; a shape's vertices can then be dragged"><input type="checkbox" id="wireframe"> Wireframe</label>
     <span id="mode" class="muted"></span>
   </div>
   <canvas id="stage"></canvas>
   <p id="summary"></p>
   <div id="log"></div>
 </main>
-<section id="side"><div id="inspector"></div><div id="details"></div></section>
+<section id="side"><div id="inspector"></div><div id="atlas"></div><div id="details"></div></section>
 <div id="notice" hidden></div>
 <script nonce="${nonce}" src="${script}"></script>
 </body>
@@ -1022,6 +1067,40 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             kind: 'scriptSaved',
             block,
             previous: Number(message.block),
+          });
+        } else if (message?.kind === 'geometry') {
+          if (!checkRuns(message.runs)) {
+            throw new Error('The geometry is not well formed');
+          }
+          await this.record(document, 'geometry', async () =>
+            document.setGeometry(Number(message.shape), message.runs),
+          );
+        } else if (message?.kind === 'importTexture') {
+          const pixels = new Uint8Array(message.pixels);
+
+          await this.record(document, 'import texture', async () => {
+            const image = await document.addTexture(
+              Number(message.width),
+              Number(message.height),
+              pixels,
+            );
+
+            // Laid over the shape's run it was chosen for, in the same step
+            if (message.assign && checkRuns(message.assign.runs)) {
+              const runs: RuRun[] = message.assign.runs;
+              const run = runs[Number(message.assign.run)];
+
+              if (run && run.style.kind !== 'line') {
+                runs[Number(message.assign.run)] = fitRunTo(run, image, [
+                  0,
+                  0,
+                  Number(message.width),
+                  Number(message.height),
+                ]);
+              }
+              document.setGeometry(Number(message.assign.shape), runs);
+            }
+            return image;
           });
         } else if (message?.kind === 'openMovie') {
           const location = await this.library.locate(String(message.name));

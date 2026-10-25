@@ -19,7 +19,7 @@ import {
   play,
   render,
   sceneLeaves,
-  setTool,
+  addTool,
   stageExtent,
   view,
 } from './stage';
@@ -87,6 +87,11 @@ export const absoluteOf = (instance: Instance): Affine => {
  * movie being edited, placed by a record there. One drawn from an imported
  * movie is edited in that movie.
  */
+/** Whether the box and handles show: a shape's vertices take over in wireframe */
+const handlesShown = (instance: Instance | undefined): instance is Instance =>
+  editable(instance) &&
+  !(view.wireframe && instance.character?.type === 'shape');
+
 export const editable = (
   instance: Instance | undefined,
 ): instance is Instance =>
@@ -160,7 +165,7 @@ const near = (a: [number, number], b: [number, number]) =>
 /** The mode a press at a point starts on the inspected instance, if any */
 const modeAt = (point: [number, number]): Mode | undefined => {
   const instance = inspected();
-  const box = instance && editable(instance) ? ownBox(instance) : undefined;
+  const box = instance && handlesShown(instance) ? ownBox(instance) : undefined;
 
   if (!instance || !box) {
     return undefined;
@@ -379,7 +384,7 @@ const box = (
   ctx.stroke();
 };
 
-setTool({
+addTool({
   down(point, event) {
     const mode = modeAt(point);
     const instance = inspected();
@@ -418,7 +423,7 @@ setTool({
   },
   draw(ctx, pixel) {
     const instance = inspected();
-    const own = editable(instance) ? ownBox(instance) : undefined;
+    const own = handlesShown(instance) ? ownBox(instance) : undefined;
 
     if (!instance || !own) {
       return;
