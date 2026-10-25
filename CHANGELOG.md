@@ -15,6 +15,9 @@
 - APT ActionScript as an editable JavaScript-like language, checked to
   compile back to the same code before it is shown; hot-exit backups keep
   movie edits.
+- APT timeline panel: tweens with easings, per-property formulas, fading,
+  removing and showing for a range, and inserting, deleting, duplicating,
+  reversing and retiming frames; onion skin.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start

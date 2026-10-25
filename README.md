@@ -166,6 +166,13 @@ your mod's archives.
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,
   and blocks you do not change keep their bytes as shipped.
+- A timeline panel under the stage: depths by frames, with labels and
+  scripts marked. Select a range of frames, at one depth or all, and set it
+  once instead of frame by frame: a tween to an end pose with an easing, a
+  formula per property (`x0 + 120*t`, `y0 - 40*sin(t*pi)`), fade out,
+  remove or show, and insert, delete, duplicate, reverse or retime frames.
+  Frames the change leaves alone keep their records as shipped. Onion skin
+  (**N**) draws the frames either side faintly.
 
 ## Development
 

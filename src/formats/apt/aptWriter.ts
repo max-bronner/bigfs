@@ -1,5 +1,7 @@
 import { AptReader, PLACE_FLAGS, parseAptMovie, parseFrames } from './aptMovie';
 import type { AptMovie, Character, Matrix2, Rect } from './aptMovie';
+import { applyOperation, decodeTimeline, encodeTimeline } from './aptTimeline';
+import type { FrameSpec, PlaceSpec, TimelineOperation } from './aptTimeline';
 
 /**
  * Edits an APT movie without moving anything that is not edited.
@@ -110,7 +112,11 @@ export type AptEdit =
   | { kind: 'clipAction'; offset: number; index: number; events: number }
   | { kind: 'removeClipAction'; offset: number; index: number }
   /** Exchanges two depths in every frame of a timeline, which reorders what draws on top */
-  | { kind: 'swapDepths'; timeline: number; a: number; b: number };
+  | { kind: 'swapDepths'; timeline: number; a: number; b: number }
+  /** Rewrites a timeline's frames, as `encodeTimeline` gives them */
+  | { kind: 'setTimeline'; timeline: number; frames: FrameSpec[] }
+  /** Runs a timeline operation (a tween, hiding for a range, retiming) and writes the result */
+  | { kind: 'timeline'; timeline: number; operation: TimelineOperation };
 
 /** What an edit made, for the inspector to select */
 export interface EditResult {
@@ -400,6 +406,37 @@ const placeObjectWords = (
     name,
     0,
     0,
+  ];
+};
+
+/** A PlaceObject record for a placement or a move, its flags set by the fields given */
+const placeSpecWords = (image: AptImage, place: PlaceSpec): number[] => {
+  const f = (value: number) =>
+    new Uint32Array(new Float32Array([value]).buffer)[0];
+  const flags =
+    (place.move ? PLACE_FLAGS.move : 0) |
+    (place.character !== undefined ? PLACE_FLAGS.hasCharacter : 0) |
+    (place.matrix ? PLACE_FLAGS.hasMatrix : 0) |
+    (place.colorTransform !== undefined ? PLACE_FLAGS.hasColorTransform : 0) |
+    (place.ratio !== undefined ? PLACE_FLAGS.hasRatio : 0) |
+    (place.name ? PLACE_FLAGS.hasName : 0) |
+    (place.clipDepth !== undefined ? PLACE_FLAGS.hasClipDepth : 0) |
+    (place.clipActions ? PLACE_FLAGS.hasClipActions : 0);
+
+  return [
+    3,
+    flags,
+    place.depth >>> 0,
+    place.character ?? 0,
+    ...(place.matrix ?? [1, 0, 0, 1]).map(f),
+    f(place.translate?.[0] ?? 0),
+    f(place.translate?.[1] ?? 0),
+    place.colorTransform ?? 0xffffffff,
+    place.colorAdd ?? 0,
+    f(place.ratio ?? 0),
+    place.name ? image.appendString(place.name) : 0,
+    (place.clipDepth ?? 0) >>> 0,
+    place.clipActions ?? 0,
   ];
 };
 
@@ -993,6 +1030,67 @@ export const applyAptEdit = (
           image.setI32(at, item.depth === edit.a ? edit.b : edit.a);
         }
       }
+      return {};
+    }
+    case 'timeline': {
+      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const states = decodeTimeline(
+        image.bytes,
+        parseFrames(
+          new AptReader(image.bytes),
+          image.u32(countAt),
+          image.u32(pointerAt),
+        ),
+      );
+
+      return applyAptEdit(image, movieOffset, {
+        kind: 'setTimeline',
+        timeline: edit.timeline,
+        frames: encodeTimeline(states, applyOperation(states, edit.operation)),
+      });
+    }
+    case 'setTimeline': {
+      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const count = image.u32(countAt);
+      const old = image.u32(pointerAt);
+      const words = edit.frames.flatMap((frame, index) => {
+        if ('reuse' in frame) {
+          if (
+            !Number.isInteger(frame.reuse) ||
+            frame.reuse < 0 ||
+            frame.reuse >= count
+          ) {
+            throw new Error(`#${edit.timeline} has no frame ${frame.reuse}`);
+          }
+          return [
+            image.u32(old + frame.reuse * 8),
+            image.u32(old + frame.reuse * 8 + 4),
+          ];
+        }
+
+        const items = frame.items.map((item) =>
+          'reuse' in item
+            ? item.reuse
+            : 'remove' in item
+              ? image.appendWords([4, item.remove >>> 0])
+              : 'label' in item
+                ? image.appendWords([
+                    2,
+                    image.appendString(item.label),
+                    item.flags >>> 0,
+                    index,
+                  ])
+                : image.appendWords(placeSpecWords(image, item.place)),
+        );
+
+        return [items.length, items.length ? image.appendWords(items) : 0];
+      });
+
+      if (!edit.frames.length) {
+        throw new Error('A timeline keeps at least one frame');
+      }
+      image.setU32(pointerAt, image.appendWords(words));
+      image.setU32(countAt, edit.frames.length);
       return {};
     }
     case 'addFrame': {

@@ -6,6 +6,7 @@ import { showIntegrity } from './integrity';
 import { nudge } from './edit';
 import './geometry';
 import { freeDepth, showInspector, updateInspector } from './inspector';
+import { markPlayhead, setOnion, showTimeline } from './timelinePanel';
 import {
   currentPlayer,
   goToFrame,
@@ -29,6 +30,7 @@ import { movie, state } from './state';
 const showPanels = () => {
   showInspector();
   showAtlas();
+  showTimeline();
 };
 
 const list = byId('list');
@@ -161,7 +163,10 @@ byId('show-boxes').onchange = () => toggle('boxes', 'show-boxes');
 byId('scripts').onchange = () => toggle('scripts', 'scripts');
 byId('interact').onchange = () => toggle('interact', 'interact');
 byId('wireframe').onchange = () => toggle('wireframe', 'wireframe');
-setInspectorView(showPanels, updateInspector);
+setInspectorView(showPanels, () => {
+  updateInspector();
+  markPlayhead();
+});
 window.addEventListener('resize', () => state.movie && render());
 
 // Hotkeys, except while typing into a field
@@ -192,6 +197,7 @@ document.addEventListener('keydown', (event) => {
     s: () => toggle('scripts', 'scripts'),
     i: () => toggle('interact', 'interact'),
     w: () => toggle('wireframe', 'wireframe'),
+    n: () => setOnion((view.onion + 1) % 4),
   };
   const action = actions[event.key];
 
