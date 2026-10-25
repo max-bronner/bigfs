@@ -1,5 +1,6 @@
 import type { Matrix2 } from '../../formats/apt/aptMovie';
-import { send } from './details';
+import { send, vscode } from './details';
+import { CLIP_EVENTS, bitNames, bitSelect } from './scriptSites';
 import { button, byId, heading, input, row } from './dom';
 import { commit, editable } from './edit';
 import { DOWN, OVER, UP, describe } from './player';
@@ -294,7 +295,30 @@ const editControls = (instance: Instance): HTMLElement[] => {
   const index = siblings.indexOf(depth);
   const alpha = Math.round(instance.alpha * 255);
 
+  const events = bitSelect(CLIP_EVENTS, 1 << 9);
+  const clipScript =
+    instance.character?.type === 'sprite' && instance.placedItem !== undefined
+      ? [
+          row(
+            'Add',
+            events,
+            button('Clip script', () =>
+              vscode.postMessage({
+                kind: 'addScript',
+                label: `${parent.movie.name} @${depth} on ${bitNames(Number(events.value), CLIP_EVENTS)}`,
+                to: {
+                  kind: 'clip',
+                  offset: instance.placedItem!,
+                  events: Number(events.value),
+                },
+              }),
+            ),
+          ),
+        ]
+      : [];
+
   return [
+    ...clipScript,
     heading('Placement'),
     row(
       'Position',

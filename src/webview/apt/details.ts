@@ -2,6 +2,12 @@ import type { Character, Matrix2 } from '../../formats/apt/aptMovie';
 import type { AptEdit } from '../../formats/apt/aptWriter';
 import { button, byId, heading, input, row } from './dom';
 import type { FromPage, ToPage } from './protocol';
+import {
+  BUTTON_CONDITIONS,
+  CLIP_EVENTS,
+  bitNames,
+  bitSelect,
+} from './scriptSites';
 import { movie, state } from './state';
 import { movieNamed, resolve } from './resolve';
 import { framesOf } from './timeline';
@@ -84,36 +90,109 @@ const matrixInputs = (
 };
 
 /** The action blocks a character or its timeline runs, for the details panel */
-const blocksOf = (character: Character) => {
-  const blocks: { label: string; block: number }[] = [];
+/** A script of a character or its timeline: where it runs, and how it is detached */
+interface ScriptEntry {
+  label: string;
+  block: number;
+  /** The edit that detaches it; absent when it cannot be detached here */
+  remove?: AptEdit;
+}
+
+const blocksOf = (character: Character): ScriptEntry[] => {
+  const blocks: ScriptEntry[] = [];
+  const timeline = character.id;
 
   framesOf(movie(), character).forEach((frame, index) => {
     for (const item of frame.items) {
-      if (item.type === 'action') {
-        blocks.push({ label: 'frame ' + index, block: item.block });
-      }
-      if (item.type === 'initAction') {
-        blocks.push({ label: 'init #' + item.sprite, block: item.block });
+      if (item.type === 'action' || item.type === 'initAction') {
+        blocks.push({
+          label:
+            item.type === 'action'
+              ? `frame ${index}`
+              : `frame ${index} init #${item.sprite}`,
+          block: item.block,
+          remove: {
+            kind: 'removeItem',
+            timeline,
+            frame: index,
+            offset: item.offset,
+          },
+        });
       }
       if (item.type === 'placeObject') {
-        for (const clip of item.clipActions ?? []) {
+        (item.clipActions ?? []).forEach((clip, clipIndex) =>
           blocks.push({
-            label: `frame ${index} clip events 0x${clip.events.toString(16)} @${item.depth}`,
+            label: `frame ${index} @${item.depth} on ${bitNames(clip.events, CLIP_EVENTS)}`,
             block: clip.block,
-          });
-        }
+            remove: {
+              kind: 'removeClipAction',
+              offset: item.offset,
+              index: clipIndex,
+            },
+          }),
+        );
       }
     }
   });
   if (character.type === 'button') {
-    character.actions.forEach((action) =>
+    character.actions.forEach((action, index) =>
       blocks.push({
-        label: 'button 0x' + action.condition.toString(16),
+        label: `on ${bitNames(action.condition, BUTTON_CONDITIONS)}`,
         block: action.block,
+        remove: { kind: 'removeButtonAction', id: character.id, index },
       }),
     );
   }
   return blocks;
+};
+
+/** Ways to attach a new script to the selected character */
+const addScriptFields = (character: Character): HTMLElement[] => {
+  const name = `#${character.id}`;
+  const add = (
+    to: Extract<FromPage, { kind: 'addScript' }>['to'],
+    label: string,
+  ) =>
+    vscode.postMessage({
+      kind: 'addScript',
+      to,
+      label: `${movie().name} ${label}`,
+    });
+
+  if (character.type === 'sprite' || character.type === 'movie') {
+    return [
+      row(
+        'Add',
+        button(`Frame ${state.frame} script`, () =>
+          add(
+            { kind: 'frame', timeline: character.id, frame: state.frame },
+            `${name} frame ${state.frame}`,
+          ),
+        ),
+      ),
+    ];
+  }
+  if (character.type === 'button') {
+    const condition = bitSelect(BUTTON_CONDITIONS, 0x1);
+
+    return [
+      row(
+        'Add',
+        condition,
+        button('Button script', () =>
+          add(
+            {
+              kind: 'button',
+              id: character.id,
+              condition: Number(condition.value),
+            },
+            `${name} on ${bitNames(Number(condition.value), BUTTON_CONDITIONS)}`,
+          ),
+        ),
+      ),
+    ];
+  }
+  return [];
 };
 
 /** The fields of the selected character that can be edited, by type */
@@ -214,6 +293,9 @@ const characterFields = (character: Character): HTMLElement[] => {
       fields.push(
         row(
           'Record ' + index,
+          button('×', () =>
+            send({ kind: 'removeButtonRecord', id: character.id, index }),
+          ),
           flags,
           input(record.character, (value) =>
             send({
@@ -236,7 +318,22 @@ const characterFields = (character: Character): HTMLElement[] => {
         ),
       );
     });
+    const added = { character: 1, flags: 15 };
+    const depth =
+      Math.max(0, ...character.records.map((record) => record.depth)) + 1;
+
+    fields.push(
+      row(
+        'New record',
+        input(1, (value) => (added.character = value)),
+        input(15, (value) => (added.flags = value)),
+        button('Add record', () =>
+          send({ kind: 'addButtonRecord', id: character.id, depth, ...added }),
+        ),
+      ),
+    );
   }
+
   if (character.type === 'movie') {
     const size = [character.record.screenWidth, character.record.screenHeight];
     const added = { name: '', character: 1 };
@@ -308,13 +405,14 @@ const characterFields = (character: Character): HTMLElement[] => {
       heading('New character'),
       row(
         '',
-        ...(['editText', 'sprite', 'shape', 'image'] as const).map((type) =>
-          button(
-            type === 'editText'
-              ? 'Text'
-              : type[0].toUpperCase() + type.slice(1),
-            () => send({ kind: 'addCharacter', type }),
-          ),
+        ...(['editText', 'sprite', 'shape', 'image', 'button'] as const).map(
+          (type) =>
+            button(
+              type === 'editText'
+                ? 'Text'
+                : type[0].toUpperCase() + type.slice(1),
+              () => send({ kind: 'addCharacter', type }),
+            ),
         ),
       ),
     );
@@ -511,30 +609,48 @@ export const showDetails = (): void => {
   if (character.type === 'sprite' || character.type === 'movie') {
     details.append(...frameFields(character));
   }
-  if (blocks.length) {
-    details.append(heading('Scripts'));
-    for (const each of blocks) {
-      const element = document.createElement('details');
-      const summary = document.createElement('summary');
-      const body = document.createElement('div');
+  const adding = addScriptFields(character);
 
-      element.dataset.block = String(each.block);
-      summary.textContent = each.label + ' · 0x' + each.block.toString(16);
-      body.className = 'script';
-      body.textContent = '…';
-      element.append(summary, body);
-      element.addEventListener('toggle', () => {
-        if (element.open) {
-          state.openBlocks.add(each.block);
-          vscode.postMessage({ kind: 'script', block: each.block });
-        } else {
-          state.openBlocks.delete(each.block);
-        }
-      });
-      details.append(element);
-      if (state.openBlocks.has(each.block)) {
-        element.open = true;
+  if (blocks.length || adding.length) {
+    details.append(heading('Scripts'), ...adding);
+  }
+  for (const each of blocks) {
+    const element = document.createElement('details');
+    const summary = document.createElement('summary');
+    const body = document.createElement('div');
+    const label = `${movie().name} #${character.id} ${each.label}`;
+    const edit = button('Edit in tab', () =>
+      vscode.postMessage({ kind: 'openScript', block: each.block, label }),
+    );
+
+    element.dataset.block = String(each.block);
+    summary.textContent = each.label + ' · 0x' + each.block.toString(16) + ' ';
+    summary.append(edit);
+    if (each.remove) {
+      const remove = each.remove;
+
+      summary.append(button('Remove', () => send(remove)));
+    }
+    // A button in the summary acts; it does not fold the panel
+    summary
+      .querySelectorAll('button')
+      .forEach((element) =>
+        element.addEventListener('click', (event) => event.preventDefault()),
+      );
+    body.className = 'script';
+    body.textContent = '…';
+    element.append(summary, body);
+    element.addEventListener('toggle', () => {
+      if (element.open) {
+        state.openBlocks.add(each.block);
+        vscode.postMessage({ kind: 'script', block: each.block });
+      } else {
+        state.openBlocks.delete(each.block);
       }
+    });
+    details.append(element);
+    if (state.openBlocks.has(each.block)) {
+      element.open = true;
     }
   }
 };

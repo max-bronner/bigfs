@@ -199,6 +199,72 @@ suite('APT editing', () => {
     );
   });
 
+  test('a new button reads back, gains a record, and its scripts attach and detach', () => {
+    const { movie, results } = edited(
+      { kind: 'addCharacter', type: 'button' },
+      {
+        kind: 'addButtonRecord',
+        id: 5,
+        flags: 15,
+        character: 1,
+        depth: 1,
+        translate: [4, 5],
+      },
+      { kind: 'addButtonAction', id: 5, condition: 0x1, block: 0x100 },
+      { kind: 'addButtonAction', id: 5, condition: 0x4, block: 0x200 },
+      { kind: 'buttonAction', id: 5, index: 1, condition: 0x8 },
+      { kind: 'removeButtonAction', id: 5, index: 0 },
+    );
+    const button = movie.characters[5];
+
+    assert.strictEqual(results[0].character, 5);
+    assert.ok(button.type === 'button');
+    assert.deepStrictEqual(button.bounds, [0, 0, 100, 30]);
+    assert.strictEqual(button.hitTriangles, 2);
+    assert.deepStrictEqual(
+      button.records.map(({ flags, character, depth, translate }) => ({
+        flags,
+        character,
+        depth,
+        translate,
+      })),
+      [{ flags: 15, character: 1, depth: 1, translate: [4, 5] }],
+    );
+    assert.deepStrictEqual(button.actions, [{ condition: 0x8, block: 0x200 }]);
+  });
+
+  test('frame and clip scripts attach to a timeline and a placement, and detach', () => {
+    const place = (movie: ReturnType<typeof edited>['movie']) =>
+      movie.frames[0].items.find((item) => item.type === 'placeObject')!;
+    const { movie: before } = edited();
+    const { movie } = edited(
+      { kind: 'addFrameScript', timeline: 0, frame: 0, block: 0x300 },
+      {
+        kind: 'addClipAction',
+        offset: place(before).offset,
+        events: 1 << 9,
+        block: 0x400,
+      },
+      {
+        kind: 'addClipAction',
+        offset: place(before).offset,
+        events: 1,
+        block: 0x500,
+      },
+      { kind: 'clipAction', offset: place(before).offset, index: 1, events: 2 },
+      { kind: 'removeClipAction', offset: place(before).offset, index: 0 },
+    );
+    const item = place(movie);
+
+    assert.deepStrictEqual(movie.frames[0].items.at(-1), {
+      offset: movie.frames[0].items.at(-1)!.offset,
+      type: 'action',
+      block: 0x300,
+    });
+    assert.ok(item.type === 'placeObject');
+    assert.deepStrictEqual(item.clipActions, [{ events: 2, block: 0x500 }]);
+  });
+
   test('an edit to a field the type lacks is refused', () => {
     assert.throws(
       () =>

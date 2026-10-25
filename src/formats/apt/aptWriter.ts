@@ -68,7 +68,21 @@ export type AptEdit =
   | { kind: 'removeImport'; index: number }
   | { kind: 'screen'; width: number; height: number }
   | { kind: 'duplicateCharacter'; id: number }
-  | { kind: 'addCharacter'; type: 'editText' | 'sprite' | 'shape' | 'image' }
+  | {
+      kind: 'addCharacter';
+      type: 'editText' | 'sprite' | 'shape' | 'image' | 'button';
+    }
+  /** Shows a character in a button's states (bit 0 up, 1 over, 2 down, 3 hit test) */
+  | {
+      kind: 'addButtonRecord';
+      id: number;
+      flags: number;
+      character: number;
+      depth: number;
+      matrix?: Matrix2;
+      translate?: [number, number];
+    }
+  | { kind: 'removeButtonRecord'; id: number; index: number }
   | {
       kind: 'placeObject';
       timeline: number;
@@ -83,6 +97,16 @@ export type AptEdit =
   | { kind: 'addFrameLabel'; timeline: number; frame: number; label: string }
   | { kind: 'removeItem'; timeline: number; frame: number; offset: number }
   | { kind: 'addFrame'; timeline: number }
+  /** Runs a compiled block when a frame of a timeline is shown */
+  | { kind: 'addFrameScript'; timeline: number; frame: number; block: number }
+  /** Runs a compiled block when a button meets a condition (SWF bit order) */
+  | { kind: 'addButtonAction'; id: number; condition: number; block: number }
+  | { kind: 'buttonAction'; id: number; index: number; condition: number }
+  | { kind: 'removeButtonAction'; id: number; index: number }
+  /** Runs a compiled block on clip events of a placed sprite */
+  | { kind: 'addClipAction'; offset: number; events: number; block: number }
+  | { kind: 'clipAction'; offset: number; index: number; events: number }
+  | { kind: 'removeClipAction'; offset: number; index: number }
   /** Exchanges two depths in every frame of a timeline, which reorders what draws on top */
   | { kind: 'swapDepths'; timeline: number; a: number; b: number };
 
@@ -263,6 +287,53 @@ export class AptImage {
     return at;
   }
 }
+
+/**
+ * Adds, changes or removes one record of a counted array of fixed-size
+ * records. The array is copied to the end first: another owner may share it.
+ */
+const editRecords = (
+  image: AptImage,
+  countAt: number,
+  pointerAt: number,
+  size: number,
+  change:
+    | { add: number[] }
+    | { index: number; set: number[] }
+    | { index: number; remove: true },
+): void => {
+  const count = image.u32(countAt);
+
+  if ('add' in change) {
+    const at = image.growArray(pointerAt, count * size, size);
+
+    change.add.forEach((word, index) =>
+      image.setU32(at + (count * size + index) * 4, word >>> 0),
+    );
+    image.setU32(countAt, count + 1);
+    return;
+  }
+  if (
+    !Number.isInteger(change.index) ||
+    change.index < 0 ||
+    change.index >= count
+  ) {
+    throw new Error(`There is no record ${change.index}`);
+  }
+
+  const at = image.growArray(pointerAt, count * size, 0);
+
+  if ('set' in change) {
+    change.set.forEach((word, index) =>
+      image.setU32(at + (change.index * size + index) * 4, word >>> 0),
+    );
+    return;
+  }
+  for (let word = change.index * size; word < (count - 1) * size; word++) {
+    image.setU32(at + word * 4, image.u32(at + (word + size) * 4));
+  }
+  image.setU32(countAt, count - 1);
+};
 
 /** Where a timeline's frame count and frame array pointer are */
 const timelineFields = (
@@ -671,6 +742,38 @@ export const applyAptEdit = (
         case 'image':
           words = [7, signature, id];
           break;
+        case 'button': {
+          // Bounds 0,0-100,30 and a hit mesh of the same box, so it can be
+          // clicked; no records and no actions yet (layout: mint's research)
+          const vertices = image.appendWords(
+            [0, 0, 100, 0, 100, 30, 0, 30].map(f32),
+          );
+          // Two triangles as u16 indices, two to a word
+          const triangles = image.appendWords([
+            0 | (1 << 16),
+            2 | (0 << 16),
+            2 | (3 << 16),
+          ]);
+
+          words = [
+            4,
+            signature,
+            0,
+            f32(0),
+            f32(0),
+            f32(100),
+            f32(30),
+            2,
+            4,
+            vertices,
+            triangles,
+            0,
+            0,
+            0,
+            0,
+          ];
+          break;
+        }
       }
 
       const at = image.appendWords(words);
@@ -742,6 +845,103 @@ export const applyAptEdit = (
       }
 
       image.setU32(frameAt, count - 1);
+      return {};
+    }
+    case 'addButtonRecord':
+    case 'removeButtonRecord': {
+      const button = movie.characters[edit.id];
+
+      if (button?.type !== 'button') {
+        throw new Error(`#${edit.id} is not a button`);
+      }
+
+      const f = (value: number) =>
+        new Uint32Array(new Float32Array([value]).buffer)[0];
+
+      // 68 bytes: flags, character, depth, matrix, translate, then a colour
+      // (multiplied, so white) and a vector OpenSAGE reads as unknown
+      editRecords(
+        image,
+        button.offset + 44,
+        button.offset + 48,
+        17,
+        edit.kind === 'addButtonRecord'
+          ? {
+              add: [
+                edit.flags,
+                edit.character,
+                edit.depth,
+                ...(edit.matrix ?? [1, 0, 0, 1]).map(f),
+                ...(edit.translate ?? [0, 0]).map(f),
+                f(1),
+                f(1),
+                f(1),
+                f(1),
+                0,
+                0,
+                0,
+                0,
+              ],
+            }
+          : { index: edit.index, remove: true },
+      );
+      return {};
+    }
+    case 'addFrameScript':
+      addFrameItem(image, movie, edit.timeline, edit.frame, [1, edit.block]);
+      return {};
+    case 'addButtonAction':
+    case 'buttonAction':
+    case 'removeButtonAction': {
+      const button = movie.characters[edit.id];
+
+      if (button?.type !== 'button') {
+        throw new Error(`#${edit.id} is not a button`);
+      }
+      editRecords(
+        image,
+        button.offset + 52,
+        button.offset + 56,
+        2,
+        edit.kind === 'addButtonAction'
+          ? { add: [edit.condition, edit.block] }
+          : edit.kind === 'buttonAction'
+            ? { index: edit.index, set: [edit.condition] }
+            : { index: edit.index, remove: true },
+      );
+      return {};
+    }
+    case 'addClipAction':
+    case 'clipAction':
+    case 'removeClipAction': {
+      if (image.u32(edit.offset) !== 3) {
+        throw new Error(`No PlaceObject at ${edit.offset}`);
+      }
+
+      const flags = image.u32(edit.offset + 4);
+      let list =
+        flags & PLACE_FLAGS.hasClipActions ? image.u32(edit.offset + 60) : 0;
+
+      if (!list) {
+        if (edit.kind !== 'addClipAction') {
+          throw new Error('The placement has no clip actions');
+        }
+        list = image.appendWords([0, 0]);
+        image.setU32(edit.offset + 60, list);
+        image.setU32(edit.offset + 4, flags | PLACE_FLAGS.hasClipActions);
+      }
+      // Each record is events, a word that is always 0, and the block
+      editRecords(
+        image,
+        list,
+        list + 4,
+        3,
+        edit.kind === 'addClipAction'
+          ? { add: [edit.events, 0, edit.block] }
+          : edit.kind === 'clipAction'
+            ? { index: edit.index, set: [edit.events] }
+            : { index: edit.index, remove: true },
+      );
       return {};
     }
     case 'swapDepths': {

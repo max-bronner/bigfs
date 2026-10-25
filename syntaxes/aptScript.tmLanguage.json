@@ -1,0 +1,71 @@
+{
+  "name": "APT Script",
+  "scopeName": "source.apt-script",
+  "patterns": [
+    { "name": "comment.line.double-slash.apt-script", "match": "//.*$" },
+    { "name": "comment.block.apt-script", "begin": "/\\*", "end": "\\*/" },
+    {
+      "name": "string.quoted.double.apt-script",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.apt-script", "match": "\\\\." }
+      ]
+    },
+    {
+      "name": "string.quoted.single.apt-script",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        { "name": "constant.character.escape.apt-script", "match": "\\\\." }
+      ]
+    },
+    {
+      "name": "variable.other.readwrite.backtick.apt-script",
+      "begin": "`",
+      "end": "`"
+    },
+    { "name": "variable.language.register.apt-script", "match": "\\$r\\d+\\b" },
+    { "name": "support.function.instruction.apt-script", "match": "#\\w+" },
+    {
+      "match": "\\b(asm)\\s+(\\w+)",
+      "captures": {
+        "1": { "name": "keyword.other.asm.apt-script" },
+        "2": { "name": "support.function.instruction.apt-script" }
+      }
+    },
+    {
+      "name": "keyword.control.apt-script",
+      "match": "\\b(if|else|while|goto|unless|return)\\b"
+    },
+    {
+      "name": "storage.type.apt-script",
+      "match": "\\b(function|var|constants|flags)\\b"
+    },
+    {
+      "name": "keyword.other.apt-script",
+      "match": "\\b(new|void|push|pop|eval|call|instanceof)\\b"
+    },
+    {
+      "name": "constant.language.apt-script",
+      "match": "\\b(true|false|null|undefined)\\b"
+    },
+    {
+      "name": "variable.language.apt-script",
+      "match": "\\b(this|_global|_root|_parent)\\b"
+    },
+    {
+      "name": "support.function.timeline.apt-script",
+      "match": "\\b(gotoAndPlay|gotoAndStop|play|stop|nextFrame|prevFrame|fscommand|trace|getURL)\\b"
+    },
+    { "name": "entity.name.label.apt-script", "match": "^\\s*\\w+(?=:\\s*$)" },
+    {
+      "name": "constant.numeric.apt-script",
+      "match": "\\b(0x[0-9a-fA-F]+|\\d+(\\.\\d+)?([eE][-+]?\\d+)?)\\b"
+    },
+    {
+      "name": "keyword.operator.apt-script",
+      "match": ":=|===|!==|==|!=|<=|>=|&&|\\|\\||[-+*/%<>=!&|^~?:]"
+    }
+  ]
+}
