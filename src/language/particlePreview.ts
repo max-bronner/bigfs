@@ -18,7 +18,6 @@ import type {
 import { encodePng } from '../formats/textureEncode';
 import { webviewPage } from '../providers/webviewPage';
 import { decodeDds, decodeTga } from '../tools/textureTools';
-import { PARTICLE_VIEW_SCRIPT } from './particleViewScript';
 import type { SageIniIndex } from './sageIniIndex';
 
 /**
@@ -117,10 +116,11 @@ class ParticlePreview {
         localResourceRoots: [scripts],
       },
     );
-    this.panel.webview.html = this.renderHtml(
-      this.panel.webview.asWebviewUri(
-        vscode.Uri.joinPath(scripts, 'particles.js'),
-      ),
+    this.panel.webview.html = particlePageHtml(
+      this.panel.webview.cspSource,
+      this.panel.webview
+        .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
+        .toString(),
     );
     this.disposables.push(
       this.panel.webview.onDidReceiveMessage((message) =>
@@ -427,78 +427,75 @@ class ParticlePreview {
     await this.panel.webview.postMessage(this.lastScene);
     this.restartNext = false;
   }
-
-  private renderHtml(script: vscode.Uri): string {
-    const source = this.panel.webview.cspSource;
-
-    return webviewPage({
-      allow: { img: 'data:', script: source },
-      scriptFiles: [script.toString()],
-      style: `
-  html, body { height: 100%; margin: 0; overflow: hidden; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
-  #layout { display: flex; height: 100%; }
-  #view { flex: 1; position: relative; min-width: 0; }
-  canvas { width: 100%; height: 100%; display: block; cursor: grab; }
-  #hud { position: absolute; left: 8px; top: 6px; font: 11px var(--vscode-editor-font-family); color: #ddd; text-shadow: 0 1px 2px #000; pointer-events: none; white-space: pre; }
-  #side { width: 340px; overflow-y: auto; padding: 8px 10px; box-sizing: border-box; border-left: 1px solid var(--vscode-panel-border); background: var(--vscode-sideBar-background); }
-  h3 { margin: 12px 0 4px; font-size: 11px; text-transform: uppercase; opacity: 0.75; }
-  .row { display: flex; gap: 6px; align-items: center; margin: 3px 0; flex-wrap: wrap; }
-  button, select, input { font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
-  button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); padding: 2px 8px; cursor: pointer; }
-  button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-  .field { display: grid; grid-template-columns: 112px 1fr 64px; gap: 4px; align-items: center; margin: 2px 0; }
-  .field label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-  .field.changed label { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); font-weight: 600; }
-  .field input[type=number] { width: 60px; }
-  .field input[type=range] { width: 100%; }
-  #notes div { opacity: 0.8; margin: 2px 0; }
-  #notice { color: var(--vscode-errorForeground); }
-  .muted { opacity: 0.7; }
-  kbd { font-size: 10px; opacity: 0.7; }
-`,
-      body: `<div id="layout">
-  <div id="view"><canvas id="canvas"></canvas><div id="hud"></div></div>
-  <div id="side">
-    <div class="row"><strong id="title"></strong></div>
-    <div class="row">
-      <button id="play" title="Space">Pause</button>
-      <button id="restart" title="R">Restart</button>
-      <button id="step" title=".">Step</button>
-      <select id="speed" title="Playback speed">
-        <option value="0.1">0.1×</option><option value="0.25">0.25×</option><option value="0.5">0.5×</option>
-        <option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
-      </select>
-      <label><input type="checkbox" id="loop" checked> Loop</label>
-    </div>
-    <h3>View</h3>
-    <div class="row">
-      <label><input type="checkbox" id="showVolume" checked> Emitter volume</label>
-      <label><input type="checkbox" id="showGrid" checked> Ground</label>
-      <label><input type="checkbox" id="keys" checked> Colour keys</label>
-    </div>
-    <div class="row">
-      Emitter <select id="motion"><option value="still">still</option><option value="circle">circling</option><option value="line">back and forth</option></select>
-      Sky <select id="sky"><option value="#1b1c1f">dark</option><option value="#7a8ea6">day</option><option value="#000000">black</option><option value="#c8c8c8">light</option></select>
-    </div>
-    <h3>Readings <span class="muted">where the game's rule is open</span></h3>
-    <div class="row">Wind <select id="wind" title="W"><option value="retail">as written</option><option value="doubled">doubled</option><option value="off">off</option></select></div>
-    <div class="row">Hollow box <select id="hollowBox" title="H"><option value="surface">surface</option><option value="point">point (EA release)</option></select></div>
-    <div class="row">
-      <label><input type="checkbox" id="compound" checked> Attached systems and events</label>
-      <label><input type="checkbox" id="batchLimit" checked> 512 per system</label>
-    </div>
-    <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · drag to orbit, right-drag to pan, wheel to zoom</div>
-    <div id="notice"></div>
-    <div id="notes"></div>
-    <h3>Values <span class="muted">preview only until applied</span></h3>
-    <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
-    <div id="fields"></div>
-  </div>
-</div>`,
-      script: PARTICLE_VIEW_SCRIPT,
-    });
-  }
 }
+
+/** The preview page: its controls, and the bundle that simulates and draws */
+export const particlePageHtml = (source: string, script: string): string =>
+  webviewPage({
+    allow: { img: 'data:', script: source },
+    scriptFiles: [script],
+    style: `
+html, body { height: 100%; margin: 0; overflow: hidden; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
+#layout { display: flex; height: 100%; }
+#view { flex: 1; position: relative; min-width: 0; }
+canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+#hud { position: absolute; left: 8px; top: 6px; font: 11px var(--vscode-editor-font-family); color: #ddd; text-shadow: 0 1px 2px #000; pointer-events: none; white-space: pre; }
+#side { width: 340px; overflow-y: auto; padding: 8px 10px; box-sizing: border-box; border-left: 1px solid var(--vscode-panel-border); background: var(--vscode-sideBar-background); }
+h3 { margin: 12px 0 4px; font-size: 11px; text-transform: uppercase; opacity: 0.75; }
+.row { display: flex; gap: 6px; align-items: center; margin: 3px 0; flex-wrap: wrap; }
+button, select, input { font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
+button { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); padding: 2px 8px; cursor: pointer; }
+button.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.field { display: grid; grid-template-columns: 112px 1fr 64px; gap: 4px; align-items: center; margin: 2px 0; }
+.field label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.field.changed label { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); font-weight: 600; }
+.field input[type=number] { width: 60px; }
+.field input[type=range] { width: 100%; }
+#notes div { opacity: 0.8; margin: 2px 0; }
+#notice { color: var(--vscode-errorForeground); }
+.muted { opacity: 0.7; }
+kbd { font-size: 10px; opacity: 0.7; }
+`,
+    body: `<div id="layout">
+<div id="view"><canvas id="canvas"></canvas><div id="hud"></div></div>
+<div id="side">
+  <div class="row"><strong id="title"></strong></div>
+  <div class="row">
+    <button id="play" title="Space">Pause</button>
+    <button id="restart" title="R">Restart</button>
+    <button id="step" title=".">Step</button>
+    <select id="speed" title="Playback speed">
+      <option value="0.1">0.1×</option><option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option>
+    </select>
+    <label><input type="checkbox" id="loop" checked> Loop</label>
+  </div>
+  <h3>View</h3>
+  <div class="row">
+    <label><input type="checkbox" id="showVolume" checked> Emitter volume</label>
+    <label><input type="checkbox" id="showGrid" checked> Ground</label>
+    <label><input type="checkbox" id="keys" checked> Colour keys</label>
+  </div>
+  <div class="row">
+    Emitter <select id="motion"><option value="still">still</option><option value="circle">circling</option><option value="line">back and forth</option></select>
+    Sky <select id="sky"><option value="#1b1c1f">dark</option><option value="#7a8ea6">day</option><option value="#000000">black</option><option value="#c8c8c8">light</option></select>
+  </div>
+  <h3>Readings <span class="muted">where the game's rule is open</span></h3>
+  <div class="row">Wind <select id="wind" title="W"><option value="retail">as written</option><option value="doubled">doubled</option><option value="off">off</option></select></div>
+  <div class="row">Hollow box <select id="hollowBox" title="H"><option value="surface">surface</option><option value="point">point (EA release)</option></select></div>
+  <div class="row">
+    <label><input type="checkbox" id="compound" checked> Attached systems and events</label>
+    <label><input type="checkbox" id="batchLimit" checked> 512 per system</label>
+  </div>
+  <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · drag to orbit, right-drag to pan, wheel to zoom</div>
+  <div id="notice"></div>
+  <div id="notes"></div>
+  <h3>Values <span class="muted">preview only until applied</span></h3>
+  <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
+  <div id="fields"></div>
+</div>
+</div>`,
+  });
 
 /** A lens over every particle system and FX list in an INI file */
 class ParticleLensProvider implements vscode.CodeLensProvider {

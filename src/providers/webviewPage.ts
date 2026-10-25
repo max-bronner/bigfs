@@ -7,8 +7,8 @@ import { createNonce } from './webviewNonce';
 export interface WebviewPage {
   style: string;
   body: string;
-  /** The page's inline script */
-  script: string;
+  /** The page's inline script, if it has one beside its files */
+  script?: string;
   /** Sources allowed beyond the page itself, by directive */
   allow?: { img?: string; media?: string; script?: string };
   /** Script files loaded before the inline script, from `allow.script` */
@@ -40,6 +40,6 @@ export const webviewPage = ({
 </head><body>
 ${body}
 ${scriptFiles.map((file) => `<script nonce="${nonce}" src="${file}"></script>`).join('\n')}
-<script nonce="${nonce}">${script}</script>
+${script ? `<script nonce="${nonce}">${script}</script>` : ''}
 </body></html>`;
 };
