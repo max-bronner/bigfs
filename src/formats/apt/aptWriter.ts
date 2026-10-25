@@ -1,4 +1,4 @@
-import { PLACE_FLAGS, parseAptMovie } from './aptMovie';
+import { AptReader, PLACE_FLAGS, parseAptMovie, parseFrames } from './aptMovie';
 import type { AptMovie, Character, Matrix2, Rect } from './aptMovie';
 
 /**
@@ -82,7 +82,9 @@ export type AptEdit =
   | { kind: 'removeObject'; timeline: number; frame: number; depth: number }
   | { kind: 'addFrameLabel'; timeline: number; frame: number; label: string }
   | { kind: 'removeItem'; timeline: number; frame: number; offset: number }
-  | { kind: 'addFrame'; timeline: number };
+  | { kind: 'addFrame'; timeline: number }
+  /** Exchanges two depths in every frame of a timeline, which reorders what draws on top */
+  | { kind: 'swapDepths'; timeline: number; a: number; b: number };
 
 /** What an edit made, for the inspector to select */
 export interface EditResult {
@@ -740,6 +742,39 @@ export const applyAptEdit = (
       }
 
       image.setU32(frameAt, count - 1);
+      return {};
+    }
+    case 'swapDepths': {
+      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const frames = parseFrames(
+        new AptReader(image.bytes),
+        image.u32(countAt),
+        image.u32(pointerAt),
+      );
+      const seen = new Set<number>();
+
+      for (const item of frames.flatMap((frame) => frame.items)) {
+        // Frames can share an item; it is swapped once
+        if (seen.has(item.offset)) {
+          continue;
+        }
+        seen.add(item.offset);
+
+        const at =
+          item.type === 'placeObject'
+            ? item.offset + 8
+            : item.type === 'removeObject'
+              ? item.offset + 4
+              : undefined;
+
+        if (
+          at !== undefined &&
+          'depth' in item &&
+          (item.depth === edit.a || item.depth === edit.b)
+        ) {
+          image.setI32(at, item.depth === edit.a ? edit.b : edit.a);
+        }
+      }
       return {};
     }
     case 'addFrame': {

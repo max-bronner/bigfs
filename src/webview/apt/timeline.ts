@@ -11,6 +11,10 @@ export interface Placement {
   name?: string;
   /** The frame this instance was placed in; a move keeps it, a new character does not */
   born: number;
+  /** The PlaceObject that placed it, in frame `born` */
+  placedItem: number;
+  /** The last PlaceObject up to this frame that set its matrix: where moving it is written */
+  matrixItem: number;
 }
 
 /** Frames of a timeline: the movie's own, or a sprite's */
@@ -52,8 +56,14 @@ export const displayList = (frames: Frame[], frame: number): Placement[] => {
               translate: [0, 0],
               alpha: 1,
               born: index,
+              placedItem: item.offset,
+              matrixItem: item.offset,
             }
-          : { ...existing, born: replaces ? index : existing.born };
+          : {
+              ...existing,
+              born: replaces ? index : existing.born,
+              placedItem: replaces ? item.offset : existing.placedItem,
+            };
 
         if (item.character !== undefined) {
           next.character = item.character;
@@ -61,6 +71,7 @@ export const displayList = (frames: Frame[], frame: number): Placement[] => {
         if (item.matrix) {
           next.matrix = item.matrix;
           next.translate = item.translate ?? [0, 0];
+          next.matrixItem = item.offset;
         }
         if (item.colorTransform !== undefined) {
           next.alpha = (item.colorTransform >>> 24) / 255;

@@ -67,6 +67,9 @@ export interface Instance {
   born: number;
   /** The character id it was placed with, before any import resolved it */
   placed: number;
+  /** The PlaceObject records it came from in its parent's timeline, if any */
+  placedItem?: number;
+  matrixItem?: number;
   frames: Frame[];
   frame: number;
   playing: boolean;
@@ -243,6 +246,8 @@ export class Player {
     parent: Instance | undefined,
     place: Pick<Instance, 'matrix' | 'translate' | 'alpha' | 'born'> & {
       name?: string;
+      placedItem?: number;
+      matrixItem?: number;
     },
   ): Instance {
     const found = this.options.resolve(from, id);
@@ -266,6 +271,8 @@ export class Player {
       alpha: place.alpha,
       born: place.born,
       placed: id,
+      placedItem: place.placedItem,
+      matrixItem: place.matrixItem,
       frames: found ? framesOf(found.movie, found.character) : [],
       frame: 0,
       playing: true,
@@ -322,6 +329,7 @@ export class Player {
           translate: placement.translate,
           alpha: placement.alpha,
           name: placement.name,
+          matrixItem: placement.matrixItem,
         });
         kept.set(key, existing);
       } else {

@@ -172,6 +172,33 @@ suite('APT editing', () => {
     );
   });
 
+  test('swapping depths moves every record of both depths, in every frame', () => {
+    const depths = (movie: ReturnType<typeof edited>['movie']) =>
+      movie.frames.map((frame) =>
+        frame.items.flatMap((item) =>
+          'depth' in item ? [`${item.type}@${item.depth}`] : [],
+        ),
+      );
+    const before = edited(
+      { kind: 'placeObject', timeline: 0, frame: 0, depth: 7, character: 1 },
+      { kind: 'addFrame', timeline: 0 },
+      { kind: 'removeObject', timeline: 0, frame: 1, depth: 7 },
+    );
+    const after = edited(
+      { kind: 'placeObject', timeline: 0, frame: 0, depth: 7, character: 1 },
+      { kind: 'addFrame', timeline: 0 },
+      { kind: 'removeObject', timeline: 0, frame: 1, depth: 7 },
+      { kind: 'swapDepths', timeline: 0, a: 7, b: 8 },
+    );
+
+    assert.deepStrictEqual(
+      depths(after.movie),
+      depths(before.movie).map((frame) =>
+        frame.map((entry) => entry.replace('@7', '@8')),
+      ),
+    );
+  });
+
   test('an edit to a field the type lacks is refused', () => {
     assert.throws(
       () =>

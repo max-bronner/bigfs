@@ -1,10 +1,13 @@
 import { byId, escapeHtml } from './dom';
-import { describe, showDetails, showScript, vscode } from './details';
+import { describe, send, showDetails, showScript, vscode } from './details';
 import type { ToPage } from './protocol';
-import { showInspector, updateInspector } from './inspector';
+import { nudge } from './edit';
+import { freeDepth, showInspector, updateInspector } from './inspector';
 import {
+  currentPlayer,
   goToFrame,
   play,
+  pointAt,
   render,
   restart,
   setInspectorView,
@@ -55,6 +58,13 @@ const showList = () => {
         element.dataset.id = String(character.id);
         element.textContent = describe(character);
         element.onclick = () => select(character.id);
+        // Dragged onto the stage, it is placed in the shown timeline
+        element.draggable = character.type !== 'movie';
+        element.ondragstart = (event) =>
+          event.dataTransfer?.setData(
+            'application/x-apt-character',
+            String(character.id),
+          );
         return element;
       }),
   );
@@ -94,6 +104,39 @@ const toggle = (
   render();
 };
 
+const stage = byId<HTMLCanvasElement>('stage');
+
+stage.addEventListener('dragover', (event) => {
+  if (event.dataTransfer?.types.includes('application/x-apt-character')) {
+    event.preventDefault();
+  }
+});
+stage.addEventListener('drop', (event) => {
+  const id = Number(event.dataTransfer?.getData('application/x-apt-character'));
+  const root = currentPlayer().root;
+
+  event.preventDefault();
+  if (
+    !Number.isInteger(id) ||
+    root.movie !== state.movie ||
+    !['sprite', 'movie'].includes(root.character?.type ?? '')
+  ) {
+    return;
+  }
+
+  const depth = freeDepth(root);
+
+  state.inspected = `/${depth}`;
+  send({
+    kind: 'placeObject',
+    timeline: root.id,
+    frame: root.frame,
+    depth,
+    character: id,
+    translate: pointAt(event),
+  });
+});
+
 filter.oninput = showList;
 zoomSelect.onchange = render;
 frameInput.oninput = () => goTo(Number(frameInput.value));
@@ -127,8 +170,13 @@ document.addEventListener('keydown', (event) => {
 
   const actions: Record<string, () => void> = {
     ' ': () => play(!view.playing),
-    ArrowLeft: () => step(-1),
-    ArrowRight: () => step(1),
+    // Arrows nudge what is selected on the stage, or step frames
+    ArrowLeft: () => nudge(event.shiftKey ? -10 : -1, 0) || step(-1),
+    ArrowRight: () => nudge(event.shiftKey ? 10 : 1, 0) || step(1),
+    ArrowUp: () => void nudge(0, event.shiftKey ? -10 : -1),
+    ArrowDown: () => void nudge(0, event.shiftKey ? 10 : 1),
+    ',': () => step(-1),
+    '.': () => step(1),
     o: () => toggle('origin', 'show-origin'),
     b: () => toggle('boxes', 'show-boxes'),
     s: () => toggle('scripts', 'scripts'),
