@@ -488,6 +488,7 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 .field.changed label { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); font-weight: 600; }
 .field input[type=number] { width: 60px; }
 .field input[type=range] { width: 100%; }
+#handles { position: absolute; inset: 0; pointer-events: none; cursor: default; }
 #notes div { opacity: 0.8; margin: 2px 0; }
 .curve { display: block; margin: 2px 0 4px; cursor: crosshair; touch-action: none; }
 .curve-heading { margin: 8px 0 2px; font-weight: 600; }
@@ -499,7 +500,7 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 kbd { font-size: 10px; opacity: 0.7; }
 `,
     body: `<div id="layout">
-<div id="view"><canvas id="canvas"></canvas><div id="hud"></div></div>
+<div id="view"><canvas id="canvas"></canvas><canvas id="handles"></canvas><div id="hud"></div></div>
 <div id="side">
   <div class="row"><strong id="title"></strong></div>
   <div class="row">
@@ -529,7 +530,7 @@ kbd { font-size: 10px; opacity: 0.7; }
     <label><input type="checkbox" id="compound" checked> Attached systems and events</label>
     <label><input type="checkbox" id="batchLimit" checked> 512 per system</label>
   </div>
-  <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · drag to orbit, right-drag to pan, wheel to zoom</div>
+  <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · drag the yellow handles to size the emission volume · drag to orbit, right-drag to pan, wheel to zoom</div>
   <div id="notice"></div>
   <div id="notes"></div>
   <div id="curves"></div>

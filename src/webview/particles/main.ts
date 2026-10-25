@@ -7,6 +7,7 @@ import {
 } from './camera';
 import { renderCurves } from './curves';
 import { renderFields } from './fields';
+import { attachHandles, drawHandles } from './handles';
 import {
   beginFrame,
   canvas,
@@ -122,6 +123,7 @@ const frame = (now: number) => {
   }
   if (hasGraphics) {
     draw();
+    drawHandles();
   }
   hud.textContent = [
     ...(hasGraphics ? [] : ['WebGL is not available; nothing is drawn.']),
@@ -163,6 +165,7 @@ const cycle = (id: string) => {
   select.dispatchEvent(new Event('change'));
 };
 
+attachHandles();
 attachCamera(canvas);
 $('play').onclick = () => setPlaying(!state.playing);
 $('restart').onclick = () => start();
