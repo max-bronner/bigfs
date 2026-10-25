@@ -6,7 +6,10 @@ export interface PageState {
   /** Movies the shown one imports from, by lowercased name */
   library: Map<string, PageMovie>;
   selected: number;
+  /** The frame of the selected character's own timeline shown */
   frame: number;
+  /** Frames since the selected character started playing; nested timelines run on it */
+  tick: number;
   /** Texture path to the canvas holding its pixels */
   textures: Map<string, HTMLCanvasElement>;
   /** Script blocks whose panel is open, kept across redraws */
@@ -19,6 +22,7 @@ export const state: PageState = {
   library: new Map(),
   selected: 0,
   frame: 0,
+  tick: 0,
   textures: new Map(),
   openBlocks: new Set(),
   drafts: new Map(),

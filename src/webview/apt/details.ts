@@ -12,7 +12,6 @@ export const vscode = acquireVsCodeApi();
 
 const details = byId('details');
 const frameInput = byId<HTMLInputElement>('frame');
-const frameLabel = byId('frame-label');
 
 const TYPE_NAMES: Record<Character['type'], string> = {
   movie: 'Movie',
@@ -499,15 +498,8 @@ export const showDetails = (): void => {
 
   frameInput.max = String(Math.max(0, frames.length - 1));
   frameInput.disabled = frames.length < 2;
+  frameInput.title = labels.length ? 'labels ' + labels.join(', ') : '';
   state.frame = Math.min(state.frame, Math.max(0, frames.length - 1));
-  frameInput.value = String(state.frame);
-  frameLabel.textContent = frames.length
-    ? 'frame ' +
-      state.frame +
-      ' of ' +
-      frames.length +
-      (labels.length ? ' · labels ' + labels.join(', ') : '')
-    : '';
 
   offset.className = 'muted';
   offset.textContent = 'record at 0x' + character.offset.toString(16);

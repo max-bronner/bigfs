@@ -1,301 +1,113 @@
 import type { Rect } from '../../formats/apt/aptMovie';
 import { byId } from './dom';
-import type { PageMovie } from './protocol';
-import { movie, state } from './state';
+import { paintLeaf } from './paint';
 import { resolve } from './resolve';
-import { displayList, framesOf } from './timeline';
+import { boundsOf, collect, localBounds, transformRect, union } from './scene';
+import type { Leaf, SceneOptions } from './scene';
+import { movie, state } from './state';
+import { framesOf } from './timeline';
 
-/** Nesting deeper than this is a loop in the data, not a real movie */
-const MAX_DEPTH = 12;
+/**
+ * The stage: draws the selected character at the current tick on a canvas
+ * sized once to everything the animation covers, so playing never resizes
+ * or rescales it. What moves is shown by overlays instead: the origin of
+ * the character's space, the box the current frame covers, and the box of
+ * each child at this level, all measured from what is drawn.
+ */
 
-/** The box an import that does not resolve draws */
-const UNRESOLVED: Rect = [0, 0, 64, 24];
+/** Ticks sampled past the root's own frames, for nested timelines */
+const EXTRA_SAMPLES = 240;
+const MAX_SAMPLES = 600;
+const MARGIN = 16;
 
-type Affine = [number, number, number, number, number, number];
+/** The modes the stage draws in; each has a hotkey and is printed on change */
+export const view = {
+  origin: true,
+  boxes: true,
+  honourStops: true,
+  playing: false,
+  fps: 30,
+};
 
 const stage = byId<HTMLCanvasElement>('stage');
 const zoomSelect = byId<HTMLSelectElement>('zoom');
+const frameInput = byId<HTMLInputElement>('frame');
+const frameLabel = byId('frame-label');
+const modeLabel = byId('mode');
 
-const rgba = ([r, g, b, a]: number[]) => `rgba(${r},${g},${b},${a / 255})`;
+/** The box the canvas covers, which only grows while one character is shown */
+let extent: Rect | undefined;
 
-/** Draws a character into a 2D context at the current transform */
-export const draw = (
-  ctx: CanvasRenderingContext2D,
-  source: PageMovie,
-  id: number,
-  depth: number,
-  frame: number,
-): void => {
-  const character = source.characters[id];
+const options = (): SceneOptions => ({ honourStops: view.honourStops });
 
-  if (!character || depth > MAX_DEPTH) {
-    return;
-  }
+/** The frames the selected character's own timeline has */
+export const rootFrames = (): number => {
+  const shown = resolve(movie(), state.selected);
 
-  switch (character.type) {
-    case 'shape': {
-      for (const run of source.shapes[id] ?? []) {
-        const path = new Path2D();
-
-        for (let i = 0; i < run.triangles.length; i += 6) {
-          path.moveTo(run.triangles[i], run.triangles[i + 1]);
-          path.lineTo(run.triangles[i + 2], run.triangles[i + 3]);
-          path.lineTo(run.triangles[i + 4], run.triangles[i + 5]);
-          path.closePath();
-        }
-
-        const { style } = run;
-
-        if (style.kind === 'solid') {
-          ctx.fillStyle = rgba(style.color);
-          ctx.fill(path);
-        } else if (style.kind === 'texture') {
-          const texture = state.textures.get(
-            source.imageTextures[style.character],
-          );
-
-          ctx.save();
-          ctx.clip(path);
-          if (texture) {
-            const [m00, m01, m10, m11, tx, ty] = style.transform;
-            const det = m00 * m11 - m01 * m10 || 1;
-
-            // The style maps shape space to image pixels; drawing needs the inverse
-            ctx.transform(
-              m11 / det,
-              -m01 / det,
-              -m10 / det,
-              m00 / det,
-              (m10 * ty - m11 * tx) / det,
-              (m01 * tx - m00 * ty) / det,
-            );
-            ctx.globalAlpha *= style.color[3] / 255;
-            ctx.drawImage(texture, 0, 0);
-          } else {
-            ctx.fillStyle = 'rgba(255,0,255,0.35)';
-            ctx.fill(path);
-          }
-          ctx.restore();
-        } else {
-          ctx.strokeStyle = rgba(style.color);
-          ctx.lineWidth = style.width || 1;
-          ctx.beginPath();
-          for (let i = 0; i < run.lines.length; i += 4) {
-            ctx.moveTo(run.lines[i], run.lines[i + 1]);
-            ctx.lineTo(run.lines[i + 2], run.lines[i + 3]);
-          }
-          ctx.stroke();
-        }
-      }
-      break;
-    }
-    case 'image': {
-      const texture = state.textures.get(source.imageTextures[id]);
-
-      if (texture) {
-        ctx.drawImage(texture, 0, 0);
-      }
-      break;
-    }
-    case 'editText': {
-      const [left, top, right, bottom] = character.bounds;
-      const color = character.color >>> 0;
-      const x =
-        character.alignment === 1
-          ? right
-          : character.alignment === 2
-            ? (left + right) / 2
-            : left;
-      const text =
-        character.text ??
-        (character.variable ? '{' + character.variable + '}' : '');
-
-      ctx.save();
-      ctx.setLineDash([3, 3]);
-      ctx.strokeStyle = 'rgba(120,160,255,0.6)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(left, top, right - left, bottom - top);
-      ctx.fillStyle = rgba([
-        (color >> 16) & 255,
-        (color >> 8) & 255,
-        color & 255,
-        color >>> 24,
-      ]);
-      ctx.font = Math.max(1, character.fontHeight) + 'px sans-serif';
-      ctx.textBaseline = 'top';
-      ctx.textAlign =
-        character.alignment === 1
-          ? 'right'
-          : character.alignment === 2
-            ? 'center'
-            : 'left';
-      String(text)
-        .split('\n')
-        .forEach((line, index) =>
-          ctx.fillText(
-            line,
-            x,
-            top + index * character.fontHeight * 1.15,
-            right - left,
-          ),
-        );
-      ctx.restore();
-      break;
-    }
-    case 'button':
-      for (const record of character.records) {
-        if (!(record.flags & 1)) {
-          continue;
-        }
-        ctx.save();
-        ctx.transform(...record.matrix, ...record.translate);
-        draw(ctx, source, record.character, depth + 1, 0);
-        ctx.restore();
-      }
-      break;
-    case 'sprite':
-    case 'movie':
-      for (const placement of displayList(
-        framesOf(source, character),
-        depth === 0 ? frame : 0,
-      )) {
-        ctx.save();
-        ctx.transform(...placement.matrix, ...placement.translate);
-        ctx.globalAlpha *= placement.alpha;
-        draw(ctx, source, placement.character, depth + 1, 0);
-        ctx.restore();
-      }
-      break;
-    case 'placeholder': {
-      const resolved = resolve(source, id);
-
-      // An import draws as what it imports, in the movie that exports it,
-      // at the import's own level: resolve has followed every hop already
-      if (resolved) {
-        draw(ctx, resolved.movie, resolved.id, depth, frame);
-        break;
-      }
-
-      const imported = source.imports.find((each) => each.character === id);
-
-      ctx.save();
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = 'rgba(255,80,0,0.9)';
-      ctx.strokeRect(0, 0, 64, 24);
-      ctx.fillStyle = 'rgba(255,80,0,0.95)';
-      ctx.font = '10px sans-serif';
-      ctx.fillText(
-        imported ? `${imported.movie}:${imported.name}` : 'import',
-        4,
-        14,
-        56,
-      );
-      ctx.restore();
-      break;
-    }
-  }
+  return shown ? framesOf(shown.movie, shown.character).length : 0;
 };
 
-/** A box around everything a character draws at a frame */
-export const boundsOf = (
-  source: PageMovie,
-  id: number,
-  frame: number,
-): Rect => {
-  const shown = resolve(source, id);
+/**
+ * Measures what the animation covers over its frames, and a while past
+ * them for nested timelines, so the canvas is sized once for all of it.
+ * A movie is its screen.
+ */
+export const measure = (): void => {
+  const source = movie();
+  const shown = resolve(source, state.selected);
 
-  if (!shown) {
-    return UNRESOLVED;
-  }
-  if (shown.character.type === 'movie') {
-    return [
+  if (shown?.character.type === 'movie') {
+    extent = [
       0,
       0,
       shown.movie.record.screenWidth,
       shown.movie.record.screenHeight,
     ];
+    return;
   }
 
-  const box: Rect = [Infinity, Infinity, -Infinity, -Infinity];
-  const visit = (
-    from: PageMovie,
-    cid: number,
-    m: Affine,
-    depth: number,
-    at: number,
-  ) => {
-    const found = depth <= MAX_DEPTH ? resolve(from, cid) : undefined;
-    const corner = (x: number, y: number) => {
-      const px = m[0] * x + m[2] * y + m[4];
-      const py = m[1] * x + m[3] * y + m[5];
+  const samples = Math.min(MAX_SAMPLES, rootFrames() + EXTRA_SAMPLES);
+  const boxes: Rect[] = [];
 
-      box[0] = Math.min(box[0], px);
-      box[1] = Math.min(box[1], py);
-      box[2] = Math.max(box[2], px);
-      box[3] = Math.max(box[3], py);
-    };
-    const corners = (rect: Rect) => {
-      corner(rect[0], rect[1]);
-      corner(rect[2], rect[3]);
-      corner(rect[0], rect[3]);
-      corner(rect[2], rect[1]);
-    };
+  for (let tick = 0; tick < samples; tick++) {
+    const box = boundsOf(collect(source, state.selected, tick, options()));
 
-    if (!found) {
-      if (from.characters[cid]?.type === 'placeholder') {
-        corners(UNRESOLVED);
-      }
-      return;
+    if (box) {
+      boxes.push(box);
     }
-
-    const { movie: owner, id: own, character: c } = found;
-
-    if ('bounds' in c) {
-      corners(c.bounds);
-      return;
-    }
-    if (c.type === 'image') {
-      const texture = state.textures.get(owner.imageTextures[own]);
-
-      corners([0, 0, texture?.width ?? 64, texture?.height ?? 64]);
-      return;
-    }
-
-    const children =
-      c.type === 'sprite' || c.type === 'movie'
-        ? displayList(framesOf(owner, c), depth === 0 ? at : 0)
-        : [];
-
-    for (const child of children) {
-      const [a, b, cc, d] = child.matrix;
-      const [tx, ty] = child.translate;
-
-      visit(
-        owner,
-        child.character,
-        [
-          m[0] * a + m[2] * b,
-          m[1] * a + m[3] * b,
-          m[0] * cc + m[2] * d,
-          m[1] * cc + m[3] * d,
-          m[0] * tx + m[2] * ty + m[4],
-          m[1] * tx + m[3] * ty + m[5],
-        ],
-        depth + 1,
-        0,
-      );
-    }
-  };
-
-  visit(source, id, [1, 0, 0, 1, 0, 0], 0, frame);
-  return Number.isFinite(box[0]) ? box : [0, 0, 64, 64];
+  }
+  extent = union([...boxes, [0, 0, 0, 0]]);
 };
 
-/** Draws the selected character at the shown frame, fitted or zoomed */
+const formatRect = ([left, top, right, bottom]: Rect) =>
+  `${round(right - left)}×${round(bottom - top)} at (${round(left)}, ${round(top)})`;
+const round = (value: number) => Math.round(value * 10) / 10;
+
+/** Prints the modes, in a form that pastes into a report */
+export const showMode = (): void => {
+  modeLabel.textContent = [
+    view.playing ? `playing at ${view.fps} fps` : 'paused',
+    `origin ${view.origin ? 'on' : 'off'}`,
+    `boxes ${view.boxes ? 'on' : 'off'}`,
+    `stop() ${view.honourStops ? 'honoured' : 'ignored'}`,
+  ].join(' · ');
+};
+
+/** Draws the selected character at the current tick */
 export const render = (): void => {
   const source = movie();
-  const id = state.selected;
-  const [left, top, right, bottom] = boundsOf(source, id, state.frame);
+  const leaves = collect(source, state.selected, state.tick, options());
+  const frameBox = boundsOf(leaves);
+
+  if (!extent) {
+    measure();
+  }
+  // A nested timeline that outgrows what was sampled widens the canvas once
+  if (frameBox) {
+    extent = union([extent!, frameBox]);
+  }
+
+  const [left, top, right, bottom] = extent!;
   const width = Math.max(1, right - left);
   const height = Math.max(1, bottom - top);
   const zoom =
@@ -305,29 +117,164 @@ export const render = (): void => {
           Math.max(
             0.05,
             Math.min(
-              (stage.parentElement!.clientWidth - 24) / width,
-              (window.innerHeight - 160) / height,
+              (stage.parentElement!.clientWidth - 24) / (width + 2 * MARGIN),
+              (window.innerHeight - 190) / (height + 2 * MARGIN),
             ),
           ),
         )
       : Number(zoomSelect.value);
   const ratio = window.devicePixelRatio || 1;
+  const pixelWidth = Math.ceil((width + 2 * MARGIN) * zoom * ratio);
+  const pixelHeight = Math.ceil((height + 2 * MARGIN) * zoom * ratio);
 
-  stage.width = Math.ceil((width + 16) * zoom * ratio);
-  stage.height = Math.ceil((height + 16) * zoom * ratio);
-  stage.style.width = stage.width / ratio + 'px';
-  stage.style.height = stage.height / ratio + 'px';
+  if (stage.width !== pixelWidth || stage.height !== pixelHeight) {
+    stage.width = pixelWidth;
+    stage.height = pixelHeight;
+    stage.style.width = pixelWidth / ratio + 'px';
+    stage.style.height = pixelHeight / ratio + 'px';
+  }
 
   const ctx = stage.getContext('2d')!;
+  const scale = zoom * ratio;
+  const base: [number, number, number, number, number, number] = [
+    scale,
+    0,
+    0,
+    scale,
+    (MARGIN - left) * scale,
+    (MARGIN - top) * scale,
+  ];
 
-  ctx.setTransform(
-    zoom * ratio,
-    0,
-    0,
-    zoom * ratio,
-    (8 - left) * zoom * ratio,
-    (8 - top) * zoom * ratio,
-  );
-  ctx.clearRect(left - 8, top - 8, width + 16, height + 16);
-  draw(ctx, source, id, 0, state.frame);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, stage.width, stage.height);
+
+  for (const leaf of leaves) {
+    ctx.save();
+    ctx.setTransform(...base);
+    ctx.transform(...leaf.matrix);
+    ctx.globalAlpha = leaf.alpha;
+    paintLeaf(ctx, leaf);
+    ctx.restore();
+  }
+
+  ctx.setTransform(...base);
+  overlays(ctx, leaves, frameBox, scale, extent!);
+  showFrame(frameBox);
+};
+
+/** The origin, the frame's box and each child's box, a pixel wide at any zoom */
+const overlays = (
+  ctx: CanvasRenderingContext2D,
+  leaves: Leaf[],
+  frameBox: Rect | undefined,
+  scale: number,
+  [left, top, right, bottom]: Rect,
+) => {
+  const pixel = (window.devicePixelRatio || 1) / scale;
+
+  ctx.lineWidth = pixel;
+  ctx.font = `${11 * pixel}px sans-serif`;
+  ctx.textBaseline = 'bottom';
+
+  if (view.boxes) {
+    const byChild = new Map<number, Rect[]>();
+
+    for (const leaf of leaves) {
+      if (leaf.top !== undefined) {
+        const boxes = byChild.get(leaf.top) ?? [];
+
+        boxes.push(transformRect(leaf.matrix, localBounds(leaf)));
+        byChild.set(leaf.top, boxes);
+      }
+    }
+
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(0,200,255,0.55)';
+    ctx.fillStyle = 'rgba(0,200,255,0.9)';
+    for (const [depth, boxes] of byChild) {
+      const [l, t, r, b] = union(boxes)!;
+
+      ctx.strokeRect(l, t, r - l, b - t);
+      ctx.fillText(`@${depth}`, l + 2 * pixel, t - pixel);
+    }
+
+    if (frameBox) {
+      const [l, t, r, b] = frameBox;
+
+      ctx.setLineDash([6 * pixel, 4 * pixel]);
+      ctx.strokeStyle = 'rgba(255,220,0,0.95)';
+      ctx.strokeRect(l, t, r - l, b - t);
+    }
+  }
+
+  if (view.origin) {
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,60,60,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(left - MARGIN, 0);
+    ctx.lineTo(right + MARGIN, 0);
+    ctx.moveTo(0, top - MARGIN);
+    ctx.lineTo(0, bottom + MARGIN);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 3 * pixel, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+};
+
+/** The frame counter, with the box the frame covers */
+const showFrame = (frameBox: Rect | undefined) => {
+  const count = rootFrames();
+
+  frameInput.value = String(state.frame);
+  frameLabel.textContent =
+    (count ? `frame ${state.frame} of ${count}` : 'no timeline') +
+    (state.tick !== state.frame ? ` · tick ${state.tick}` : '') +
+    (frameBox ? ` · ${formatRect(frameBox)}` : '');
+};
+
+/** Forgets the measured extent, for a new selection or a changed movie */
+export const remeasure = (): void => {
+  extent = undefined;
+};
+
+/** Shows the frame a tick lands on; the root plays its frames straight through */
+export const setTick = (tick: number): void => {
+  const count = rootFrames();
+
+  state.tick = tick;
+  state.frame = count ? tick % count : 0;
+};
+
+let lastTime: number | undefined;
+let owed = 0;
+
+const loop = (time: number) => {
+  if (!view.playing) {
+    lastTime = undefined;
+    return;
+  }
+
+  owed += lastTime === undefined ? 0 : ((time - lastTime) / 1000) * view.fps;
+  lastTime = time;
+
+  // A tab that was hidden owes many frames; catch up at most a few
+  const steps = Math.min(8, Math.floor(owed));
+
+  if (steps > 0) {
+    owed -= Math.floor(owed);
+    setTick(state.tick + steps);
+    render();
+  }
+  requestAnimationFrame(loop);
+};
+
+export const play = (playing: boolean): void => {
+  view.playing = playing;
+  owed = 0;
+  byId('play').textContent = playing ? '⏸' : '▶';
+  showMode();
+  if (playing) {
+    requestAnimationFrame(loop);
+  }
 };
