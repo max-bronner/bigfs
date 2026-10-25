@@ -29,6 +29,8 @@ const LOG_LINES = 8;
 export const view = {
   origin: true,
   wireframe: false,
+  /** Frames either side of the shown one, drawn faintly behind it */
+  onion: 0,
   boxes: true,
   scripts: true,
   interact: false,
@@ -87,6 +89,23 @@ let base: Affine = [1, 0, 0, 1, 0, 0];
 let hovered: Instance | undefined;
 let pressed: Instance | undefined;
 const log: string[] = [];
+/** What other frames of the shown timeline draw, for onion skinning */
+const ghosts = new Map<number, Leaf[]>();
+
+const ghostOf = (frame: number): Leaf[] => {
+  let leaves = ghosts.get(frame);
+
+  if (!leaves) {
+    const ghost = newPlayer(false, false);
+
+    while (ghost.ticks < frame) {
+      ghost.tick();
+    }
+    leaves = collect(ghost).leaves;
+    ghosts.set(frame, leaves);
+  }
+  return leaves;
+};
 
 const newPlayer = (rootScripts: boolean, logged: boolean) =>
   new Player(movie(), state.selected, {
@@ -118,6 +137,7 @@ export const currentPlayer = (): Player => {
 /** Starts the shown character over, for a new selection, mode or movie */
 export const restart = (): void => {
   player = undefined;
+  ghosts.clear();
   extent = undefined;
   hovered = undefined;
   pressed = undefined;
@@ -192,6 +212,7 @@ export const showMode = (): void => {
     `boxes ${view.boxes ? 'on' : 'off'}`,
     `scripts ${view.scripts ? 'on' : 'off'}`,
     `wireframe ${view.wireframe ? 'on' : 'off'}`,
+    `onion ${view.onion ? `±${view.onion}` : 'off'}`,
   ].join(' · ');
 };
 
@@ -286,6 +307,26 @@ export const render = (): void => {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, stage.width, stage.height);
 
+  // Onion skin: neighbours by replaying, so it shows only when inspecting a still frame
+  if (view.onion && !view.interact && !view.playing) {
+    const root = current.root.frame;
+
+    for (let offset = -view.onion; offset <= view.onion; offset++) {
+      const frame = root + offset;
+
+      if (!offset || frame < 0 || frame >= current.root.frames.length) {
+        continue;
+      }
+      for (const leaf of ghostOf(frame)) {
+        ctx.save();
+        ctx.setTransform(...base);
+        ctx.transform(...leaf.matrix);
+        ctx.globalAlpha = (leaf.alpha * 0.3) / Math.abs(offset);
+        paintLeaf(ctx, leaf);
+        ctx.restore();
+      }
+    }
+  }
   for (const leaf of scene.leaves) {
     ctx.save();
     ctx.setTransform(...base);

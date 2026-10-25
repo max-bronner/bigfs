@@ -572,6 +572,21 @@ export const renderHtml = (
   #integrity .error { color: var(--vscode-errorForeground); }
   #integrity .warning { color: var(--vscode-editorWarning-foreground); }
   #integrity .info { opacity: 0.75; }
+  #timeline .grid { overflow-x: auto; max-height: 220px; overflow-y: auto; border: 1px solid var(--vscode-panel-border); }
+  #timeline table { border-collapse: collapse; font-size: 10px; }
+  #timeline td { min-width: 9px; height: 13px; padding: 0 1px; text-align: center; cursor: pointer; border-right: 1px solid var(--vscode-panel-border); }
+  #timeline td.depth { position: sticky; left: 0; min-width: 34px; background: var(--vscode-editor-background); cursor: default; }
+  #timeline td.frame { opacity: 0.8; }
+  #timeline td.held { background: color-mix(in srgb, var(--vscode-charts-blue, #3794ff) 35%, transparent); }
+  #timeline td.key { background: color-mix(in srgb, var(--vscode-charts-blue, #3794ff) 65%, transparent); }
+  #timeline td.born { background: var(--vscode-charts-blue, #3794ff); }
+  #timeline td.removed { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 50%, transparent); }
+  #timeline td.picked { outline: 1px solid var(--vscode-focusBorder, #007fd4); outline-offset: -1px; }
+  #timeline td.now { box-shadow: inset 0 0 0 1px var(--vscode-charts-orange, #d18616); }
+  #timeline .field label { min-width: 0; }
+  #timeline input.short { width: 44px; }
+  #timeline input.line { width: 150px; }
+  #timeline .error-text { color: var(--vscode-errorForeground); }
   #log { font-family: var(--vscode-editor-font-family); font-size: 12px; opacity: 0.8; }
   button.chosen { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
   pre { white-space: pre-wrap; word-break: break-all; font-family: var(--vscode-editor-font-family); font-size: 12px; }
@@ -611,6 +626,7 @@ export const renderHtml = (
     <span id="mode" class="muted"></span>
   </div>
   <canvas id="stage"></canvas>
+  <div id="timeline"></div>
   <p id="summary"></p>
   <div id="integrity"></div>
   <div id="log"></div>
