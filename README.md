@@ -83,6 +83,11 @@ your mod's archives.
 - Every number in the block gets a slider. Sliders change the preview only;
   **Apply to INI** writes them back as one undoable edit, **Reset** drops
   them. Typing in the block updates the preview as well.
+- **Over lifetime** curves for a system: colour keys as a gradient, alpha
+  keys as a min-max band, size as the game grows it. Drag keys along and up
+  or down, pick a key's colour, add and remove keys (written at once,
+  renumbered), and drag the end of a size curve to set the `SizeRate` that
+  reaches it.
 - Slave systems, per-particle attached systems, terrain-collision events and
   an FX list's `ParticleSystem` nuggets (offset, count, delay) play along.
 - The simulation follows the Generals engine's rules as BFME keeps them, at
