@@ -2,6 +2,7 @@ import { byId, escapeHtml } from './dom';
 import { describe, send, showDetails, showScript, vscode } from './details';
 import type { ToPage } from './protocol';
 import { showAtlas } from './atlas';
+import { showIntegrity } from './integrity';
 import { nudge } from './edit';
 import './geometry';
 import { freeDepth, showInspector, updateInspector } from './inspector';
@@ -248,6 +249,12 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     case 'select':
       showList();
       select(data.character);
+      break;
+    case 'integrity':
+      showIntegrity(data.problems, (character) => {
+        showList();
+        select(character);
+      });
       break;
     case 'script':
       showScript(data);

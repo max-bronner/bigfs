@@ -18,6 +18,11 @@ import {
   replaceBlock,
 } from '../formats/apt/aptScript';
 import { AptScripts } from './aptScripts';
+import { checkMovie } from '../formats/apt/aptIntegrity';
+import type { Problem } from '../formats/apt/aptIntegrity';
+import { movieAccess } from './aptAccess';
+import { getFileNodes } from '../model/virtualNode';
+import { getNodeUri } from '../model/nodeAddress';
 import {
   checkRuns,
   fitRunTo,
@@ -248,6 +253,11 @@ export class AptDocument implements vscode.CustomDocument {
   /** The `.const` as it now stands */
   public get constFile(): ConstFile {
     return this.parsedConst;
+  }
+
+  /** The files beside the movie as edited, the `.const` among them */
+  public get editedFiles(): Map<string, Uint8Array> {
+    return new Map([...this.files, [`${this.name}.const`, this.constBytes]]);
   }
 
   /** Adds `.const` items a compiled script needs */
@@ -542,6 +552,11 @@ export const renderHtml = (
   #inspector:not(:empty) { border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 6px; }
   #atlas:not(:empty) { border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 6px; }
   canvas.atlas { display: block; max-width: 100%; background: repeating-conic-gradient(#808080 0 25%, #a0a0a0 0 50%) 0 0 / 12px 12px; }
+  #integrity .problem { cursor: default; margin: 1px 0; }
+  #integrity .problem[data-character] { cursor: pointer; }
+  #integrity .error { color: var(--vscode-errorForeground); }
+  #integrity .warning { color: var(--vscode-editorWarning-foreground); }
+  #integrity .info { opacity: 0.75; }
   #log { font-family: var(--vscode-editor-font-family); font-size: 12px; opacity: 0.8; }
   button.chosen { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
   pre { white-space: pre-wrap; word-break: break-all; font-family: var(--vscode-editor-font-family); font-size: 12px; }
@@ -582,6 +597,7 @@ export const renderHtml = (
   </div>
   <canvas id="stage"></canvas>
   <p id="summary"></p>
+  <div id="integrity"></div>
   <div id="log"></div>
 </main>
 <section id="side"><div id="inspector"></div><div id="atlas"></div><div id="details"></div></section>
@@ -636,6 +652,10 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
   /** Action blocks opened as tabs */
   private scriptTabs?: AptScripts;
 
+  /** What the integrity check found, on each movie's `.apt` */
+  private readonly problems =
+    vscode.languages.createDiagnosticCollection('apt');
+
   public constructor(
     private readonly tools: ToolBox,
     private readonly locator: EntryLocator,
@@ -683,6 +703,10 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
 
     return vscode.Disposable.from(
       provider.scriptTabs,
+      provider.problems,
+      vscode.commands.registerCommand('bigfs.checkAptMovies', () =>
+        provider.checkWorkspace(archiveModel),
+      ),
       // The page's ways into script tabs, for automation and tests
       vscode.commands.registerCommand(
         'bigfs.aptOpenScript',
@@ -899,6 +923,142 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     return result;
   }
 
+  /**
+   * Checks a movie and the files beside it, as edited, and shows what was
+   * found on its `.apt`; imports that do not resolve are warnings with it
+   */
+  private async check(
+    document: AptDocument,
+    unresolved: string[],
+  ): Promise<Problem[]> {
+    const found = [
+      ...(await checkMovie(
+        movieAccess(
+          document.uri,
+          document.name,
+          document.image.bytes,
+          document.editedFiles,
+        ),
+      )),
+      ...unresolved.map((entry): Problem => ({
+        severity: 'warning',
+        message: `The import ${entry} resolves in no install`,
+      })),
+    ];
+
+    this.show(document.uri, found);
+    return found;
+  }
+
+  private show(uri: vscode.Uri, found: Problem[]): void {
+    this.problems.set(
+      uri,
+      found.map((problem) => {
+        const diagnostic = new vscode.Diagnostic(
+          new vscode.Range(0, 0, 0, 0),
+          problem.message,
+          problem.severity === 'error'
+            ? vscode.DiagnosticSeverity.Error
+            : problem.severity === 'warning'
+              ? vscode.DiagnosticSeverity.Warning
+              : vscode.DiagnosticSeverity.Information,
+        );
+
+        diagnostic.source = 'APT';
+        return diagnostic;
+      }),
+    );
+  }
+
+  /** Checks every movie of the workspace, loose or in an archive, and says what was found */
+  private async checkWorkspace(archiveModel: ArchiveModel): Promise<void> {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Checking APT movies',
+        cancellable: true,
+      },
+      async (progress, token) => {
+        await archiveModel.whenReady();
+
+        const movies = await vscode.workspace.findFiles(
+          '**/*.{apt,APT}',
+          '**/node_modules/**',
+        );
+
+        for (const archive of archiveModel.getArchiveRoots()) {
+          try {
+            await archiveModel.loadArchiveOf(archive);
+          } catch {
+            continue;
+          }
+          movies.push(
+            ...getFileNodes(archive)
+              .filter((node) => /\.apt$/i.test(node.name))
+              .map(getNodeUri),
+          );
+        }
+
+        let errors = 0;
+        let warnings = 0;
+
+        for (const [index, uri] of movies.entries()) {
+          if (token.isCancellationRequested) {
+            break;
+          }
+          progress.report({
+            message: `${index + 1} of ${movies.length}`,
+            increment: 100 / movies.length,
+          });
+
+          const name = uri.path
+            .slice(uri.path.lastIndexOf('/') + 1)
+            .replace(/\.apt$/i, '');
+          const open = this.open.get(uri.toString());
+          let found: Problem[];
+
+          try {
+            found = await checkMovie(
+              open
+                ? movieAccess(
+                    uri,
+                    open.name,
+                    open.image.bytes,
+                    open.editedFiles,
+                  )
+                : movieAccess(
+                    uri,
+                    name,
+                    await vscode.workspace.fs.readFile(uri),
+                  ),
+            );
+          } catch (error) {
+            found = [
+              {
+                severity: 'error',
+                message: `Cannot read the movie: ${error instanceof Error ? error.message : error}`,
+              },
+            ];
+          }
+          errors += found.filter((each) => each.severity === 'error').length;
+          warnings += found.filter(
+            (each) => each.severity === 'warning',
+          ).length;
+          this.show(uri, found);
+        }
+
+        void vscode.window.showInformationMessage(
+          `Checked ${movies.length} APT movie${movies.length === 1 ? '' : 's'}: ${errors} error${errors === 1 ? '' : 's'}, ${warnings} warning${warnings === 1 ? '' : 's'}.`,
+        );
+        if (errors || warnings) {
+          await vscode.commands.executeCommand(
+            'workbench.actions.view.problems',
+          );
+        }
+      },
+    );
+  }
+
   /** Redraws every open page */
   private redrawAll(): Promise<void> {
     return Promise.all(
@@ -1107,6 +1267,10 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         origins: message.origins,
       });
       await post(message);
+      await post({
+        kind: 'integrity',
+        problems: await this.check(document, message.unresolved),
+      });
     });
     this.open.set(document.uri.toString(), document);
 

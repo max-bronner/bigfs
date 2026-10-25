@@ -230,6 +230,11 @@
         "command": "bigfs.convertToVp6",
         "title": "Convert to VP6 Movie…",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.checkAptMovies",
+        "title": "Check APT Movies",
+        "category": "BIG"
       }
     ],
     "menus": {

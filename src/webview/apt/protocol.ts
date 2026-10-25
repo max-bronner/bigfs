@@ -2,6 +2,7 @@ import type { AptMovie, Frame } from '../../formats/apt/aptMovie';
 import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
 import type { AptEdit } from '../../formats/apt/aptWriter';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
+import type { Problem } from '../../formats/apt/aptIntegrity';
 
 /**
  * The messages between the APT editor and its page. Shared by both sides,
@@ -48,6 +49,8 @@ export type ToPage =
       origins: Record<string, string>;
     }
   | { kind: 'select'; character: number }
+  /** What the integrity check found in the movie and the files beside it */
+  | { kind: 'integrity'; problems: Problem[] }
   | {
       kind: 'script';
       block: number;
