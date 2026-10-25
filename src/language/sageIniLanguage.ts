@@ -8,6 +8,7 @@ import { watchSageIniDialect } from './sageIniDialect';
 import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
 import { createCommandSetPreview } from './commandSetPreview';
+import { registerBulkEdit } from './bulkEditCommand';
 import { registerParticleTemplates } from './particleTemplates';
 import { registerParticlePreview } from './particlePreview';
 import { registerUnusedDefinitions } from './unusedDefinitions';
@@ -82,6 +83,7 @@ export const registerSageIniLanguage = (
     documents.onDidChangeSchema(() => index.reset()),
     ...registerParticlePreview(context, selector, index, locator),
     registerParticleTemplates(),
+    registerBulkEdit(context, documents),
     ...registerUnusedDefinitions(index),
     watchHotkeyClashes(documents, index),
     languages.registerCallHierarchyProvider(

@@ -1,8 +1,8 @@
 /**
- * A small arithmetic language for animating a property over frames, so a
- * motion is one line instead of one value per frame: `x0 + 120*t`,
- * `y0 - 40*sin(t*pi)`, `alpha0 * (1 - t)`. Parsed into a function once,
- * never evaluated as JavaScript.
+ * A small arithmetic language for the formulas a modder types instead of
+ * editing values one by one: a motion over frames (`x0 + 120*t`,
+ * `y0 - 40*sin(t*pi)`), or a change to many INI values (`round(x * 1.1)`).
+ * Parsed into a function once, never evaluated as JavaScript.
  *
  * Numbers, variables, `+ - * / % ^`, unary minus, parentheses, and the
  * functions and constants below. `^` is a power and binds right.
