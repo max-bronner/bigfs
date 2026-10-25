@@ -440,7 +440,7 @@ export class PreviewEditorProvider
     document: vscode.CustomDocument,
     panel: vscode.WebviewPanel,
   ): Promise<void> {
-    panel.webview.options = { enableScripts: true };
+    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
     panel.webview.html = renderHtml(panel.webview);
 
     // Decoding starts at once; the page asks for the result when its script

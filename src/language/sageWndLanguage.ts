@@ -161,7 +161,7 @@ class WndPreview {
       'bigfs.wndPreview',
       `Layout: ${document.uri.path.slice(document.uri.path.lastIndexOf('/') + 1)}`,
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      { enableScripts: true },
+      { enableScripts: true, localResourceRoots: [] },
     );
     this.panel.webview.html = renderPreviewHtml();
     this.panel.webview.onDidReceiveMessage(async (message) => {

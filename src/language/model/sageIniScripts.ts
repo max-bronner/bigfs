@@ -23,6 +23,17 @@ export const findScriptProblems = (
 
       return [];
     } catch (error) {
+      // luaparse recurses per nesting level; the stack is its depth limit
+      if (error instanceof RangeError) {
+        return [
+          {
+            line: startLine,
+            column: 0,
+            message: 'Lua: the script is nested too deeply to check',
+          },
+        ];
+      }
+
       const failure = error as {
         line?: number;
         column?: number;

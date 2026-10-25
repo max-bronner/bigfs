@@ -182,9 +182,7 @@ export const registerModDiffCommands = (
             'bigfs.modDiff',
             'Mod against Base Game',
             vscode.ViewColumn.Active,
-            {
-              enableScripts: true,
-            },
+            { enableScripts: true, localResourceRoots: [] },
           );
 
           panel.webview.html = renderReport(

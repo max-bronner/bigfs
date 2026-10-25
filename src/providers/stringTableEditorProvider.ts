@@ -91,7 +91,7 @@ const connect = (
   },
   handle: (message: PageMessage) => Promise<void> | void,
 ): (() => Thenable<boolean>) => {
-  panel.webview.options = { enableScripts: true };
+  panel.webview.options = { enableScripts: true, localResourceRoots: [] };
   panel.webview.html = renderHtml();
 
   const send = () => panel.webview.postMessage({ kind: 'table', ...table() });

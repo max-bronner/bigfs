@@ -64,7 +64,11 @@ class SoundPanel {
       'bigfs.soundPlayer',
       'Sound',
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      { enableScripts: true, retainContextWhenHidden: true },
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [],
+      },
     );
 
     let markReady = () => {};
@@ -194,8 +198,13 @@ const definitionLines = async (
   return undefined;
 };
 
+/** INI text in markdown: it must not open a link or a code span of its own */
+const escapeMarkdown = (text: string) =>
+  text.replace(/[\\`*_{}[\]()<>#+!|-]/g, '\\$&');
+const code = (text: string) => `\`${text.replace(/`/g, "'")}\``;
+
 const commandLink = (title: string, command: string, args: unknown[]) =>
-  `[${title}](command:${command}?${encodeURIComponent(JSON.stringify(args))})`;
+  `[${escapeMarkdown(title)}](command:${command}?${encodeURIComponent(JSON.stringify(args)).replace(/[()]/g, (bracket) => (bracket === '(' ? '%28' : '%29'))})`;
 
 /**
  * Play links for a hovered value: a sound variant plays its file, a name of
@@ -221,7 +230,7 @@ export const describeSound = async (
 
   if (reference) {
     text.appendMarkdown(
-      `\`${reference.name}\` — sound\n\n${commandLink('▶ Play', 'bigfs.playSound', [reference.name, documentUri.toString()])}`,
+      `${code(reference.name)} — sound\n\n${commandLink('▶ Play', 'bigfs.playSound', [reference.name, documentUri.toString()])}`,
     );
     return text;
   }
@@ -235,7 +244,7 @@ export const describeSound = async (
   const variants = soundVariants(lines);
 
   text.appendMarkdown(
-    `\`${token.text}\` — ${variants.length} sound${variants.length === 1 ? '' : 's'}\n\n` +
+    `${code(token.text)} — ${variants.length} sound${variants.length === 1 ? '' : 's'}\n\n` +
       variants
         .map((variant) =>
           commandLink(`▶ ${variant}`, 'bigfs.playSound', [

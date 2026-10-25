@@ -88,7 +88,11 @@ class BalanceSheet {
       'bigfs.balanceSheet',
       'Balance Sheet',
       vscode.ViewColumn.Active,
-      { enableScripts: true, retainContextWhenHidden: true },
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [],
+      },
     );
     this.panel.webview.html = renderHtml();
     this.disposables.push(
@@ -117,12 +121,14 @@ class BalanceSheet {
     return this.loaded ?? Promise.resolve();
   }
 
+  /**
+   * The page names a row and a column only; where the value is written is
+   * looked up here, so the page can never point an edit at another file.
+   */
   public async receive(message: {
     kind?: string;
-    uri?: string;
-    line?: number;
-    start?: number;
-    end?: number;
+    row?: string;
+    column?: string;
     value?: string;
     old?: string;
   }): Promise<void> {
@@ -136,11 +142,17 @@ class BalanceSheet {
         await this.refresh();
         break;
       case 'open': {
+        const row = this.rowNamed(message.row);
+
+        if (!row) {
+          return;
+        }
+
         const editor = await vscode.window.showTextDocument(
-          vscode.Uri.parse(String(message.uri)),
+          vscode.Uri.parse(row.uri),
           { viewColumn: vscode.ViewColumn.Beside },
         );
-        const at = new vscode.Position(Number(message.line) || 0, 0);
+        const at = new vscode.Position(row.line, 0);
 
         editor.selection = new vscode.Selection(at, at);
         editor.revealRange(new vscode.Range(at, at));
@@ -152,28 +164,34 @@ class BalanceSheet {
     }
   }
 
+  private rowNamed(name: unknown): SheetRow | undefined {
+    return this.rows.find((row) => row.name === name);
+  }
+
   /** Writes one value where it is written, and saves a file that was clean */
   private async edit(change: {
-    uri?: string;
-    line?: number;
-    start?: number;
-    end?: number;
+    row?: string;
+    column?: string;
     value?: string;
     old?: string;
   }): Promise<void> {
     const value = String(change.value ?? '').trim();
+    const cell = this.rowNamed(change.row)?.cells[change.column as StatColumn];
 
-    if (!change.uri || !value || /\s/.test(value)) {
+    if (!value || /\s/.test(value)) {
       throw new Error('A value is one word or number');
     }
+    if (cell?.uri === undefined || cell.line === undefined) {
+      throw new Error(`${change.row} has no ${change.column} written to edit`);
+    }
 
-    const uri = vscode.Uri.parse(change.uri);
+    const uri = vscode.Uri.parse(cell.uri);
     const document = await vscode.workspace.openTextDocument(uri);
     const range = new vscode.Range(
-      Number(change.line),
-      Number(change.start),
-      Number(change.line),
-      Number(change.end),
+      cell.line,
+      cell.start ?? 0,
+      cell.line,
+      cell.end ?? 0,
     );
 
     if (document.getText(range) !== change.old) {

@@ -692,7 +692,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     document: AptDocument,
     panel: vscode.WebviewPanel,
   ): Promise<void> {
-    panel.webview.options = { enableScripts: true };
+    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
     panel.webview.html = renderHtml(panel.webview);
 
     const sentTextures = new Set<string>();
