@@ -21,6 +21,7 @@
 - Particle preview: colour, alpha and size curves over a particle's life,
   with draggable, addable and removable keys.
 - Particle preview: handles on the emission volume to size it in the view.
+- Particle system templates: fire, smoke, sparks, dust cloud, magic glow, flash.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start

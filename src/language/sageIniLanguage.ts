@@ -8,6 +8,7 @@ import { watchSageIniDialect } from './sageIniDialect';
 import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
 import { createCommandSetPreview } from './commandSetPreview';
+import { registerParticleTemplates } from './particleTemplates';
 import { registerParticlePreview } from './particlePreview';
 import { registerUnusedDefinitions } from './unusedDefinitions';
 import { watchHotkeyClashes } from './hotkeyDiagnostics';
@@ -80,6 +81,7 @@ export const registerSageIniLanguage = (
     // Another game reads some lines differently, so every file is read again
     documents.onDidChangeSchema(() => index.reset()),
     ...registerParticlePreview(context, selector, index, locator),
+    registerParticleTemplates(),
     ...registerUnusedDefinitions(index),
     watchHotkeyClashes(documents, index),
     languages.registerCallHierarchyProvider(

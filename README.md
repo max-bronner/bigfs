@@ -89,6 +89,9 @@ your mod's archives.
   or down, pick a key's colour, add and remove keys (written at once,
   renumbered), and drag the end of a size curve to set the `SizeRate` that
   reaches it.
+- **New Particle System from Template…** (editor context menu) inserts a
+  working system to start from: fire, smoke, sparks, dust cloud, magic glow
+  or flash, with its name and texture as tab stops.
 - Slave systems, per-particle attached systems, terrain-collision events and
   an FX list's `ParticleSystem` nuggets (offset, count, delay) play along.
 - The simulation follows the Generals engine's rules as BFME keeps them, at
