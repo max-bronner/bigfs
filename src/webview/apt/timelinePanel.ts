@@ -1,4 +1,4 @@
-import { EASINGS, compileExpression } from '../../formats/apt/aptExpression';
+import { EASINGS, compileExpression } from '../../common/expression';
 import { poseOf } from '../../formats/apt/aptTimeline';
 import type { Pose, TimelineOperation } from '../../formats/apt/aptTimeline';
 import { send, showDetails } from './details';

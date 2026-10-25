@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import {
   compileExpression,
   ExpressionError,
-} from '../../formats/apt/aptExpression';
+} from '../../common/expression';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
 import {
   animate,

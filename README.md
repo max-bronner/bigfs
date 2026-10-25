@@ -65,6 +65,11 @@ your mod's archives.
   upgrade, FX list, command button and other definition in the workspace that
   no INI file references (objects and images, which maps and UI name, are
   left out).
+- **Bulk Edit INI Values…** changes many values by one formula: pick blocks
+  (`Object *Archer*`), conditions (`Side = Rohan; KindOf ~ INFANTRY`), a
+  field (`ActiveBody/MaxHealth`) and a formula of `x` and the block's own
+  fields (`round(x * 1.1)`). Every change opens in the refactor preview as a
+  diff to review and untick before applying. Loose INI files only.
 - **Show Call Hierarchy** (Shift+Alt+H) on a definition shows what it uses,
   down through weapons, FX lists and particle systems, and what uses it.
   **Show Type Hierarchy** follows ChildObject and ObjectReskin parents and

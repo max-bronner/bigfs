@@ -191,6 +191,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.bulkEditIni",
+        "title": "Bulk Edit INI Values…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.newAptMovie",
         "title": "New APT Movie…",
         "category": "BIG"
@@ -546,6 +551,11 @@
         {
           "command": "bigfs.newParticleSystem",
           "group": "1_modification@5",
+          "when": "editorLangId == sage-ini"
+        },
+        {
+          "command": "bigfs.bulkEditIni",
+          "group": "1_modification@6",
           "when": "editorLangId == sage-ini"
         },
         {
