@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { decodeWindows1252 } from '../common/windows1252';
+import { readWorkspaceText } from './workspaceText';
 import type { EntryLocator } from '../formats/entryLocator';
 import { toPlayableAudio } from '../tools/audioTools';
-import { createNonce } from '../providers/webviewNonce';
+import { webviewPage } from '../providers/webviewPage';
 import { findAssetReferences } from './model/sageIniAssets';
 import type { SageDocument, SageToken } from './model/sageIniParser';
 import type { SageIniIndex } from './sageIniIndex';
@@ -100,23 +100,20 @@ class SoundPanel {
 }
 
 const renderHtml = (): string => {
-  const nonce = createNonce();
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">
+  return webviewPage({
+    allow: { media: 'blob:' },
+    style: `
   body { padding: 10px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   audio { width: 100%; margin: 6px 0 12px; }
   li { cursor: pointer; margin: 2px 0; }
   li:hover { text-decoration: underline; }
   .muted { opacity: 0.7; }
-</style></head><body>
-<strong id="name" class="muted">Nothing played yet</strong>
+`,
+    body: `<strong id="name" class="muted">Nothing played yet</strong>
 <audio id="audio" controls></audio>
 <div class="muted">Played before</div>
-<ul id="history"></ul>
-<script nonce="${nonce}">
+<ul id="history"></ul>`,
+    script: `
 const vscode = acquireVsCodeApi();
 const audio = document.getElementById('audio');
 const history = [];
@@ -140,7 +137,8 @@ window.addEventListener('message', ({ data }) => {
   play(entry);
 });
 vscode.postMessage({ kind: 'ready' });
-</script></body></html>`;
+`,
+  });
 };
 
 /** Finds a sound by any of its candidate names and plays it */
@@ -186,11 +184,7 @@ const definitionLines = async (
     const [place] = index.findDefinitions(keyword, name);
 
     if (place) {
-      const text =
-        vscode.workspace.textDocuments
-          .find((document) => document.uri.toString() === place.uri.toString())
-          ?.getText() ??
-        decodeWindows1252(await vscode.workspace.fs.readFile(place.uri));
+      const text = await readWorkspaceText(place.uri);
 
       return text.split(/\r?\n/).slice(place.line + 1, place.endLine);
     }

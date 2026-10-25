@@ -6,7 +6,7 @@ import { decodePng } from '../formats/textureEncode';
 import { Vp6Movie } from '../formats/vp6/container';
 import { MAX_SIDE, encodeMovie, resizeRgba } from '../formats/vp6/encodeMovie';
 import type { FrameSource } from '../formats/vp6/encodeMovie';
-import { createNonce } from '../providers/webviewNonce';
+import { webviewPage } from '../providers/webviewPage';
 import { ffmpegSource, probe, run } from '../tools/ffmpeg';
 import { decodeDds, decodeTga } from '../tools/textureTools';
 
@@ -124,17 +124,13 @@ class BrowserFrames {
 }
 
 const browserPage = (video: vscode.Uri, source: string): string => {
-  const nonce = createNonce();
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src ${source}; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); padding: 10px; } canvas { max-width: 100%; }</style>
-</head><body>
-<div id="status">Reading frames…</div>
+  return webviewPage({
+    allow: { media: source },
+    style: `body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); padding: 10px; } canvas { max-width: 100%; }`,
+    body: `<div id="status">Reading frames…</div>
 <video id="video" src="${video}" muted preload="auto" hidden></video>
-<canvas id="canvas"></canvas>
-<script nonce="${nonce}">
+<canvas id="canvas"></canvas>`,
+    script: `
 const vscode = acquireVsCodeApi();
 const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
@@ -160,7 +156,8 @@ window.addEventListener('message', ({ data }) => {
     else { video.addEventListener('seeked', draw, { once: true }); video.currentTime = data.time; }
   }));
 });
-</script></body></html>`;
+`,
+  });
 };
 
 const askNumber = async (

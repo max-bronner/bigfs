@@ -1,15 +1,10 @@
 import * as vscode from 'vscode';
-import { decodeWindows1252 } from '../common/windows1252';
-import {
-  isFragmentPath,
-  parseSageIni,
-  stripComment,
-  tokenize,
-} from './model/sageIniParser';
+import { stripComment, tokenize } from './model/sageIniParser';
 import type { SageBlock, SageDocument } from './model/sageIniParser';
 import { resolveSageSymbol } from './model/sageIniSymbol';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageDefinition, SageIniIndex } from './sageIniIndex';
+import { createParseCache, readWorkspaceText } from './workspaceText';
 
 /**
  * Definitions as a graph, in the editor's own views. The call hierarchy
@@ -21,36 +16,6 @@ import type { SageDefinition, SageIniIndex } from './sageIniIndex';
 
 const TEMPLATE_KEYWORDS = ['Object', 'ChildObject', 'ObjectReskin'];
 const INHERITING = ['ChildObject', 'ObjectReskin'];
-
-/** Parses files once per request, from their editor when open */
-const createReader = (documents: SageIniDocuments) => {
-  const parses = new Map<string, Promise<SageDocument | undefined>>();
-
-  return (uri: vscode.Uri): Promise<SageDocument | undefined> => {
-    const key = uri.toString();
-    let parse = parses.get(key);
-
-    if (!parse) {
-      parse = (async () => {
-        const open = vscode.workspace.textDocuments.find(
-          (document) => document.uri.toString() === key,
-        );
-
-        if (open) {
-          return documents.parse(open);
-        }
-
-        const text = decodeWindows1252(await vscode.workspace.fs.readFile(uri));
-
-        return parseSageIni(text.split(/\r?\n/), await documents.getSchema(), {
-          isFragment: isFragmentPath(uri.path),
-        });
-      })().catch(() => undefined);
-      parses.set(key, parse);
-    }
-    return parse;
-  };
-};
 
 const topBlockAt = (parsed: SageDocument, line: number) =>
   parsed.blocks.find(
@@ -173,7 +138,8 @@ export const createCallHierarchyProvider = (
     prepare(vscode.CallHierarchyItem, documents, index, document, position),
 
   async provideCallHierarchyOutgoingCalls(item) {
-    const read = createReader(documents);
+    const parses = createParseCache(documents);
+    const read = (uri: vscode.Uri) => parses.get(uri);
     const parsed = await read(item.uri);
     const schema = await documents.getSchema();
     const block = parsed && topBlockAt(parsed, item.range.start.line);
@@ -238,7 +204,8 @@ export const createCallHierarchyProvider = (
   async provideCallHierarchyIncomingCalls(item) {
     await index.whenReady();
 
-    const read = createReader(documents);
+    const parses = createParseCache(documents);
+    const read = (uri: vscode.Uri) => parses.get(uri);
     const calls = new Map<string, vscode.CallHierarchyIncomingCall>();
 
     for (const place of index.findReferences(item.detail ?? '', item.name)) {
@@ -296,12 +263,7 @@ export const createTypeHierarchyProvider = (
       let text = texts.get(key);
 
       if (!text) {
-        text = Promise.resolve(
-          vscode.workspace.textDocuments
-            .find((document) => document.uri.toString() === key)
-            ?.getText() ??
-            vscode.workspace.fs.readFile(uri).then(decodeWindows1252),
-        )
+        text = readWorkspaceText(uri)
           .then((content) => content.split(/\r?\n/))
           .catch(() => []);
         texts.set(key, text);

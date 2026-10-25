@@ -8,7 +8,7 @@ import {
   writeMap,
 } from '../formats/map/mapFile';
 import { MAP_VIEW_SCRIPT } from './mapViewScript';
-import { createNonce } from './webviewNonce';
+import { webviewPage } from './webviewPage';
 
 /**
  * Editor for `.map` and `.bse` files: terrain relief with objects and start
@@ -30,12 +30,8 @@ class MapDocument implements vscode.CustomDocument {
 }
 
 export const renderHtml = (): string => {
-  const nonce = createNonce();
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">
+  return webviewPage({
+    style: `
   body { margin: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); display: grid; grid-template-columns: 300px 1fr 300px; height: 100vh; }
   #info, #side { overflow: auto; padding: 0 10px; }
   #info { border-right: 1px solid var(--vscode-panel-border); }
@@ -65,9 +61,8 @@ export const renderHtml = (): string => {
   .script label { display: flex; gap: 4px; align-items: center; }
   .light { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 3px; align-items: center; }
   #notice { position: fixed; bottom: 8px; left: 310px; right: 310px; padding: 6px 10px; background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
-</style></head>
-<body>
-<section id="info"></section>
+`,
+    body: `<section id="info"></section>
 <main>
   <div id="layers">
     <label><input type="checkbox" id="layer-objects"> Objects</label>
@@ -83,9 +78,9 @@ export const renderHtml = (): string => {
   <div id="objects"></div>
   <div id="object"></div>
 </section>
-<div id="notice" hidden></div>
-<script nonce="${nonce}">${MAP_VIEW_SCRIPT}</script>
-</body></html>`;
+<div id="notice" hidden></div>`,
+    script: MAP_VIEW_SCRIPT,
+  });
 };
 
 const entriesOf = (dict: Dict | undefined) =>

@@ -9,7 +9,7 @@ import {
   indexBaseGame,
   readBaseEntry,
 } from '../model/modDiff';
-import { createNonce } from '../providers/webviewNonce';
+import { webviewPage } from '../providers/webviewPage';
 import { decodeWindows1252 } from '../common/windows1252';
 
 /**
@@ -33,7 +33,6 @@ const renderReport = (
   archives: number,
   unreadable: string[],
 ): string => {
-  const nonce = createNonce();
   const groups: [string, string, ComparedFile[]][] = [
     ['changed', 'Changed', results.filter((file) => file.change === 'changed')],
     ['added', 'Added', results.filter((file) => file.change === 'added')],
@@ -55,17 +54,16 @@ const renderReport = (
       )
       .join('');
 
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">
+  return webviewPage({
+    style: `
   body { padding: 8px 16px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   input { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 4px; }
   table { border-collapse: collapse; width: 100%; } td { padding: 2px 6px; border-bottom: 1px solid var(--vscode-panel-border); }
   td.path { font-family: var(--vscode-editor-font-family, monospace); word-break: break-all; } td.actions { white-space: nowrap; text-align: right; }
   button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: none; padding: 2px 8px; margin-left: 4px; cursor: pointer; }
   summary { cursor: pointer; font-weight: bold; margin: 10px 0 4px; } .muted { opacity: 0.7; }
-</style></head><body>
-<h2>Mod against the base game</h2>
+`,
+    body: `<h2>Mod against the base game</h2>
 <p class="muted">Base: ${escape(folder)} (${archives} archives${unreadable.length ? `, ${unreadable.length} unreadable: ${escape(unreadable.join(', '))}` : ''})</p>
 <input id="filter" placeholder="Filter by path">
 ${groups
@@ -73,8 +71,8 @@ ${groups
     ([key, title, files]) =>
       `<details ${key === 'same' ? '' : 'open'} data-group="${key}"><summary>${title} (${files.length})</summary><table>${rows(files)}</table></details>`,
   )
-  .join('')}
-<script nonce="${nonce}">
+  .join('')}`,
+    script: `
   const vscode = acquireVsCodeApi();
   document.getElementById('filter').addEventListener('input', (event) => {
     const text = event.target.value.toLowerCase();
@@ -84,7 +82,8 @@ ${groups
     const button = event.target.closest('button[data-action]');
     if (button) vscode.postMessage({ action: button.dataset.action, path: button.closest('tr').dataset.path });
   });
-</script></body></html>`;
+`,
+  });
 };
 
 export const registerModDiffCommands = (

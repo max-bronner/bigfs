@@ -1,16 +1,18 @@
-import {
-  MODEL_INDEX,
-  MbType,
-  Ref,
-  Vp6Decoder,
-  predictMb,
-  referenceOf,
-} from './decoder';
+import { MODEL_INDEX, Vp6Decoder, predictMb } from './decoder';
 import { Picture } from './dsp';
 import { mcBlock } from './dsp';
 import type { Filter, Mv } from './dsp';
 import { Models } from './models';
 import type { MvModel } from './models';
+import {
+  DcPredictor,
+  MbType,
+  Ref,
+  ZERO_MV,
+  mvCandidates,
+  referenceOf,
+} from './prediction';
+import type { MvCandidates } from './prediction';
 import * as T from './tables';
 
 /**
@@ -330,108 +332,10 @@ const writeMvComponent = (sink: Sink, model: MvModel, value: number): void => {
   }
 };
 
-/** The DC predictor, mirroring the decoder's for every reference */
-class DcPredictor {
-  private readonly dc: Int16Array[];
-  private readonly refsY: (Ref | undefined)[];
-  private readonly refsC: (Ref | undefined)[];
-  private leftY = [0, 0];
-  private leftU = 0;
-  private leftV = 0;
-  private leftRef: Ref | undefined;
-  private yIdx = 1;
-  private cIdx = 1;
-  private readonly lastDc = [
-    [0, 0x80, 0x80],
-    [0, 0, 0],
-    [0, 0, 0],
-  ];
-
-  public constructor(mbWidth: number) {
-    this.dc = [
-      new Int16Array(mbWidth * 2 + 2),
-      new Int16Array(mbWidth + 2),
-      new Int16Array(mbWidth + 2),
-    ];
-    this.refsY = new Array(mbWidth * 2 + 2).fill(undefined);
-    this.refsC = new Array(mbWidth + 2).fill(undefined);
-  }
-
-  public newRow(): void {
-    this.yIdx = 1;
-    this.cIdx = 1;
-    this.leftY = [0, 0];
-    this.leftU = 0;
-    this.leftV = 0;
-    this.leftRef = undefined;
-  }
-
-  public nextMb(): void {
-    this.yIdx += 2;
-    this.cIdx += 1;
-  }
-
-  public predict(blockNo: number, reference: Ref): number {
-    const luma = blockNo < 4;
-    const plane = luma ? 0 : blockNo - 3;
-    const index = luma ? this.yIdx + (blockNo & 1) : this.cIdx;
-    const refs = luma ? this.refsY : this.refsC;
-    let sum = 0;
-    let count = 0;
-
-    if ((luma && (blockNo & 1) === 1) || this.leftRef === reference) {
-      sum +=
-        blockNo <= 1
-          ? this.leftY[0]
-          : blockNo <= 3
-            ? this.leftY[1]
-            : blockNo === 4
-              ? this.leftU
-              : this.leftV;
-      count++;
-    }
-    if (refs[index] === reference) {
-      sum += this.dc[plane][index];
-      count++;
-    }
-    sum = i16(sum);
-    return count === 0
-      ? this.lastDc[reference][plane]
-      : count === 2
-        ? Math.trunc(sum / 2)
-        : sum;
-  }
-
-  public update(blockNo: number, reference: Ref, dc: number): void {
-    const luma = blockNo < 4;
-    const plane = luma ? 0 : blockNo - 3;
-    const index = luma ? this.yIdx + (blockNo & 1) : this.cIdx;
-
-    if (blockNo !== 4) {
-      (luma ? this.refsY : this.refsC)[index] = reference;
-    }
-    if (blockNo <= 1) {
-      this.leftY[0] = dc;
-    } else if (blockNo <= 3) {
-      this.leftY[1] = dc;
-    } else if (blockNo === 4) {
-      this.leftU = dc;
-    } else {
-      this.leftV = dc;
-      this.leftRef = reference;
-    }
-    this.dc[plane][index] = dc;
-    this.lastDc[reference][plane] = dc;
-  }
-}
-
 export interface EncodeOptions {
   /** 0 (smallest) to 63 (best), VP6's quantizer index */
   quality: number;
 }
-
-const ZERO_MV: Mv = { x: 0, y: 0 };
-const sameMv = (a: Mv, b: Mv) => a.x === b.x && a.y === b.y;
 
 /** One coded block: its DC token and its AC levels in scan order */
 interface CodedBlock {
@@ -632,61 +536,15 @@ export class Vp6Encoder {
   }
 
   /** The decoder's motion vector candidates for a macroblock */
-  private candidates(
-    mbs: CodedMb[],
-    mbX: number,
-    mbY: number,
-  ): { count: number; nearest: Mv; near: Mv; pred: Mv } {
-    const OFFSETS = [
-      [-1, 0],
-      [0, -1],
-      [-1, -1],
-      [-1, 1],
-      [-2, 0],
-      [0, -2],
-      [-1, -2],
-      [-2, -1],
-      [-2, 1],
-      [-1, 2],
-      [-2, -2],
-      [-2, 2],
-    ];
-    let nearest = ZERO_MV;
-    let near = ZERO_MV;
-    let pred = ZERO_MV;
-    let count = 0;
-
-    for (let index = 0; index < OFFSETS.length; index++) {
-      const [yOffset, xOffset] = OFFSETS[index];
-      const cx = mbX + xOffset;
-      const cy = mbY + yOffset;
-
-      if (cx < 0 || cy < 0 || cx >= this.mbWidth || cy >= this.mbHeight) {
-        continue;
-      }
-
-      const info = mbs[cy * this.mbWidth + cx];
-
-      if (
-        !info ||
-        referenceOf(info.type) !== Ref.Previous ||
-        sameMv(info.mv, ZERO_MV)
-      ) {
-        continue;
-      }
-      if (count === 0) {
-        nearest = info.mv;
-        count = 1;
-        if (index < 2) {
-          pred = info.mv;
-        }
-      } else if (!sameMv(info.mv, nearest)) {
-        near = info.mv;
-        count = 2;
-        break;
-      }
-    }
-    return { count, nearest, near, pred };
+  private candidates(mbs: CodedMb[], mbX: number, mbY: number): MvCandidates {
+    return mvCandidates(
+      (index) => mbs[index],
+      mbX,
+      mbY,
+      this.mbWidth,
+      this.mbHeight,
+      Ref.Previous,
+    );
   }
 
   private filter(): Filter {

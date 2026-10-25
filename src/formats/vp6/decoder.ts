@@ -1,6 +1,15 @@
 import { BitReader, BoolDecoder, Huff, MAX_OVERRUN, tree } from './coders';
 import { Filter, Mv, Picture, addBlock, mcBlock, putBlock } from './dsp';
 import { CoeffModel, Models, MvModel } from './models';
+import {
+  DcPredictor,
+  MbType,
+  Ref,
+  ZERO_MV,
+  mvCandidates,
+  referenceOf,
+} from './prediction';
+import type { MvCandidates } from './prediction';
 import * as T from './tables';
 
 /**
@@ -19,31 +28,7 @@ const TOKEN_EOB = 42;
 const PROFILE_SIMPLE = 0;
 const PROFILE_ADVANCED = 3;
 
-export const enum Ref {
-  Intra = 0,
-  Previous = 1,
-  Golden = 2,
-}
-
-export const enum MbType {
-  Intra,
-  InterNoMv,
-  InterMv,
-  InterNearest,
-  InterNear,
-  InterFourMv,
-  GoldenNoMv,
-  GoldenMv,
-  GoldenNearest,
-  GoldenNear,
-}
-
-export const referenceOf = (type: MbType): Ref =>
-  type === MbType.Intra
-    ? Ref.Intra
-    : type <= MbType.InterFourMv
-      ? Ref.Previous
-      : Ref.Golden;
+export { MbType, Ref, referenceOf } from './prediction';
 
 export const MODEL_INDEX: Record<MbType, number> = {
   [MbType.InterNoMv]: 0,
@@ -58,10 +43,8 @@ export const MODEL_INDEX: Record<MbType, number> = {
   [MbType.GoldenNear]: 9,
 };
 
-const ZERO_MV: Mv = { x: 0, y: 0 };
 const i16 = (value: number) => (value << 16) >> 16;
 const addMv = (a: Mv, b: Mv): Mv => ({ x: i16(a.x + b.x), y: i16(a.y + b.y) });
-const sameMv = (a: Mv, b: Mv) => a.x === b.x && a.y === b.y;
 
 interface Header {
   isIntra: boolean;
@@ -221,51 +204,6 @@ type CoeffReader =
   | { kind: 'bool'; bc: BoolDecoder }
   | { kind: 'huff'; br: BitReader };
 
-class DcPred {
-  public dc: Int16Array[] = [];
-  public refsY: (Ref | undefined)[] = [];
-  public refsC: (Ref | undefined)[] = [];
-  public leftY = [0, 0];
-  public leftU = 0;
-  public leftV = 0;
-  public leftRef: Ref | undefined;
-  public yIdx = 1;
-  public cIdx = 1;
-
-  public resize(mbWidth: number): void {
-    const luma = mbWidth * 2 + 2;
-    const chroma = mbWidth + 2;
-
-    this.dc = [
-      new Int16Array(luma),
-      new Int16Array(chroma),
-      new Int16Array(chroma),
-    ];
-    this.refsY = new Array(luma).fill(undefined);
-    this.refsC = new Array(chroma).fill(undefined);
-  }
-
-  public reset(): void {
-    this.newRow();
-    this.refsY.fill(undefined);
-    this.refsC.fill(undefined);
-  }
-
-  public newRow(): void {
-    this.yIdx = 1;
-    this.cIdx = 1;
-    this.leftY = [0, 0];
-    this.leftU = 0;
-    this.leftV = 0;
-    this.leftRef = undefined;
-  }
-
-  public nextMb(): void {
-    this.yIdx += 2;
-    this.cIdx += 1;
-  }
-}
-
 export class Vp6Decoder {
   private st: StreamState = {
     version: 0,
@@ -283,12 +221,7 @@ export class Vp6Decoder {
   private mbHeight = 0;
   private models = new Models();
   private mbInfo: MbInfo[] = [];
-  private dcPred = new DcPred();
-  private lastDc: number[][] = [
-    [0, 0, 0],
-    [0, 0, 0],
-    [0, 0, 0],
-  ];
+  private dcPred = new DcPredictor();
   private topCtx: Uint8Array[] = [
     new Uint8Array(0),
     new Uint8Array(0),
@@ -423,11 +356,6 @@ export class Vp6Decoder {
     };
     this.lastMbt = MbType.InterNoMv;
     this.topCtx.forEach((ctx) => ctx.fill(0));
-    this.lastDc = [
-      [0, 0x80, 0x80],
-      [0, 0, 0],
-      [0, 0, 0],
-    ];
     this.dcPred.reset();
     this.ilaceMb = false;
 
@@ -450,60 +378,15 @@ export class Vp6Decoder {
     }
   }
 
-  private findMvPred(
-    mbX: number,
-    mbY: number,
-    want: Ref,
-  ): [number, Mv, Mv, Mv] {
-    const CANDIDATES = [
-      [-1, 0],
-      [0, -1],
-      [-1, -1],
-      [-1, 1],
-      [-2, 0],
-      [0, -2],
-      [-1, -2],
-      [-2, -1],
-      [-2, 1],
-      [-1, 2],
-      [-2, -2],
-      [-2, 2],
-    ];
-    let nearest = ZERO_MV;
-    let near = ZERO_MV;
-    let pred = ZERO_MV;
-    let count = 0;
-
-    for (let index = 0; index < CANDIDATES.length; index++) {
-      const [yOffset, xOffset] = CANDIDATES[index];
-      const cx = mbX + xOffset;
-      const cy = mbY + yOffset;
-
-      if (cx < 0 || cy < 0 || cx >= this.mbWidth || cy >= this.mbHeight) {
-        continue;
-      }
-
-      const info = this.mbInfo[cy * this.mbWidth + cx];
-
-      if (referenceOf(info.type) !== want || sameMv(info.mv, ZERO_MV)) {
-        continue;
-      }
-
-      if (count === 0) {
-        nearest = info.mv;
-        count = 1;
-
-        if (index < 2) {
-          pred = info.mv;
-        }
-      } else if (!sameMv(info.mv, nearest)) {
-        near = info.mv;
-        count = 2;
-        break;
-      }
-    }
-
-    return [count, nearest, near, pred];
+  private findMvPred(mbX: number, mbY: number, want: Ref): MvCandidates {
+    return mvCandidates(
+      (index) => this.mbInfo[index],
+      mbX,
+      mbY,
+      this.mbWidth,
+      this.mbHeight,
+      want,
+    );
   }
 
   private decodeMv(bc: BoolDecoder): Mv {
@@ -610,8 +493,8 @@ export class Vp6Decoder {
       this.ilaceMb = bc.readProb(prob);
     }
 
-    const [count, nearest, near, pred] = header.isIntra
-      ? [0, ZERO_MV, ZERO_MV, ZERO_MV]
+    const { count, nearest, near, pred } = header.isIntra
+      ? { count: 0, nearest: ZERO_MV, near: ZERO_MV, pred: ZERO_MV }
       : this.findMvPred(mbX, mbY, Ref.Previous);
     const type = header.isIntra
       ? MbType.Intra
@@ -650,11 +533,11 @@ export class Vp6Decoder {
         break;
       }
       default: {
-        const [, goldNearest, goldNear, goldPred] = this.findMvPred(
-          mbX,
-          mbY,
-          Ref.Golden,
-        );
+        const {
+          nearest: goldNearest,
+          near: goldNear,
+          pred: goldPred,
+        } = this.findMvPred(mbX, mbY, Ref.Golden);
 
         mv =
           type === MbType.GoldenMv
@@ -733,62 +616,11 @@ export class Vp6Decoder {
   }
 
   private predictDc(type: MbType, blockNo: number): void {
-    const luma = blockNo < 4;
-    const plane = luma ? 0 : blockNo - 3;
     const reference = referenceOf(type);
-    const dp = this.dcPred;
-    const dcIdx = luma ? dp.yIdx + (blockNo & 1) : dp.cIdx;
-    const refs = luma ? dp.refsY : dp.refsC;
-    const dcs = dp.dc[plane];
-    let pred = 0;
-    let count = 0;
-    const hasLeftBlock = luma && (blockNo & 1) === 1;
-
-    if (hasLeftBlock || dp.leftRef === reference) {
-      pred +=
-        blockNo <= 1
-          ? dp.leftY[0]
-          : blockNo <= 3
-            ? dp.leftY[1]
-            : blockNo === 4
-              ? dp.leftU
-              : dp.leftV;
-      count++;
-    }
-
-    if (refs[dcIdx] === reference) {
-      pred += dcs[dcIdx];
-      count++;
-    }
-
-    pred = i16(pred);
-
-    if (count === 0) {
-      pred = this.lastDc[reference][plane];
-    } else if (count === 2) {
-      pred = Math.trunc(pred / 2);
-    }
-
     const coeffs = this.coeffs[blockNo];
-    const dc = i16(coeffs[0] + pred);
+    const dc = i16(coeffs[0] + this.dcPred.predict(blockNo, reference));
 
-    if (blockNo !== 4) {
-      refs[dcIdx] = reference;
-    }
-
-    if (blockNo <= 1) {
-      dp.leftY[0] = dc;
-    } else if (blockNo <= 3) {
-      dp.leftY[1] = dc;
-    } else if (blockNo === 4) {
-      dp.leftU = dc;
-    } else {
-      dp.leftV = dc;
-      dp.leftRef = reference;
-    }
-
-    dcs[dcIdx] = dc;
-    this.lastDc[reference][plane] = dc;
+    this.dcPred.update(blockNo, reference, dc);
     coeffs[0] = i16(Math.imul(dc, this.blk.dcQuant));
   }
 }
