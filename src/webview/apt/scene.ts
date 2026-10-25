@@ -27,6 +27,28 @@ export const multiply = (m: Affine, n: Affine): Affine => [
   m[1] * n[4] + m[3] * n[5] + m[5],
 ];
 
+/** The matrix that undoes another; the identity for one that cannot be undone */
+export const invert = ([a, b, c, d, tx, ty]: Affine): Affine => {
+  const det = a * d - b * c;
+
+  if (!det) {
+    return IDENTITY;
+  }
+  return [
+    d / det,
+    -b / det,
+    -c / det,
+    a / det,
+    (c * ty - d * tx) / det,
+    (b * tx - a * ty) / det,
+  ];
+};
+
+export const apply = (
+  [a, b, c, d, tx, ty]: Affine,
+  [x, y]: [number, number],
+): [number, number] => [a * x + c * y + tx, b * x + d * y + ty];
+
 /** One thing that draws, where it draws */
 export interface Leaf {
   movie: PageMovie;

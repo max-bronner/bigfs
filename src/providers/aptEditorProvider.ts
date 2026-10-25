@@ -519,9 +519,9 @@ export const renderHtml = (
   <div class="toolbar">
     <select id="zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select>
     <button id="play" title="Play or pause (Space)">▶</button>
-    <button id="back" title="Previous frame (←)">‹</button>
+    <button id="back" title="Previous frame (, or ← with nothing selected)">‹</button>
     <input id="frame" type="range" min="0" max="0" value="0">
-    <button id="forward" title="Next frame (→)">›</button>
+    <button id="forward" title="Next frame (. or → with nothing selected)">›</button>
     <select id="fps" title="Frames per second"><option>15</option><option selected>30</option><option>60</option></select>
     <span id="frame-label"></span>
   </div>

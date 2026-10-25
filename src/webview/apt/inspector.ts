@@ -1,4 +1,7 @@
-import { button, byId, heading, row } from './dom';
+import type { Matrix2 } from '../../formats/apt/aptMovie';
+import { send } from './details';
+import { button, byId, heading, input, row } from './dom';
+import { commit, editable } from './edit';
 import { DOWN, OVER, UP, describe } from './player';
 import type { Instance } from './player';
 import { currentPlayer, inspected, render } from './stage';
@@ -207,5 +210,195 @@ export const showInspector = (): void => {
   if (character?.type === 'button') {
     parts.push(buttonControls(instance));
   }
+  const owner = instance.parent?.movie;
+
+  if (editable(instance)) {
+    parts.push(...editControls(instance));
+  } else if (owner && owner !== state.movie) {
+    parts.push(row('', label(`Edit it in ${owner.name}`)));
+  }
   panel.replaceChildren(...parts);
+};
+
+/** Position, scale, rotation and skew of a placement, the way an editor shows them */
+const decompose = ([a, b, c, d]: Matrix2) => {
+  const scaleX = Math.hypot(a, b);
+  const rotation = Math.atan2(b, a);
+  const scaleY = scaleX ? (a * d - b * c) / scaleX : Math.hypot(c, d);
+  // What is left once scale and rotation are taken out
+  const skew = scaleX ? (a * c + b * d) / (scaleX * scaleX) : 0;
+
+  return { scaleX, scaleY, rotation, skew };
+};
+
+const compose = (
+  scaleX: number,
+  scaleY: number,
+  rotation: number,
+  skew: number,
+): Matrix2 => {
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+
+  return [
+    scaleX * cos,
+    scaleX * sin,
+    scaleX * skew * cos - scaleY * sin,
+    scaleX * skew * sin + scaleY * cos,
+  ];
+};
+
+const round = (value: number, places = 3) =>
+  Math.round(value * 10 ** places) / 10 ** places;
+
+/** The depth an instance sits at, from the last step of its path */
+const depthOf = (instance: Instance) =>
+  Number(instance.path.slice(instance.path.lastIndexOf('/') + 1));
+
+/** A depth no frame of a timeline uses, above every other */
+export const freeDepth = (timeline: Instance): number =>
+  Math.max(
+    0,
+    ...timeline.frames.flatMap((frame) =>
+      frame.items.flatMap((item) =>
+        item.type === 'placeObject' || item.type === 'removeObject'
+          ? [item.depth]
+          : [],
+      ),
+    ),
+  ) + 1;
+
+/** Fields and actions for an instance whose placement can be written */
+const editControls = (instance: Instance): HTMLElement[] => {
+  const parent = instance.parent!;
+  const timeline = parent.id;
+  const depth = depthOf(instance);
+  const parts = decompose(instance.matrix);
+  const write = (matrix: Matrix2, translate = instance.translate) =>
+    commit(instance, [...matrix, ...translate]);
+  const field = (
+    name: string,
+    value: number,
+    onCommit: (value: number) => void,
+  ) => {
+    const element = input(round(value), onCommit);
+
+    element.classList.add('short');
+    element.title = name;
+    return element;
+  };
+  const siblings = [...parent.children.keys()]
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b);
+  const index = siblings.indexOf(depth);
+  const alpha = Math.round(instance.alpha * 255);
+
+  return [
+    heading('Placement'),
+    row(
+      'Position',
+      field('x', instance.translate[0], (x) =>
+        write(instance.matrix, [x, instance.translate[1]]),
+      ),
+      field('y', instance.translate[1], (y) =>
+        write(instance.matrix, [instance.translate[0], y]),
+      ),
+    ),
+    row(
+      'Scale',
+      field('scale x', parts.scaleX, (value) =>
+        write(compose(value, parts.scaleY, parts.rotation, parts.skew)),
+      ),
+      field('scale y', parts.scaleY, (value) =>
+        write(compose(parts.scaleX, value, parts.rotation, parts.skew)),
+      ),
+    ),
+    row(
+      'Rotation °',
+      field('degrees', (parts.rotation * 180) / Math.PI, (degrees) =>
+        write(
+          compose(
+            parts.scaleX,
+            parts.scaleY,
+            (degrees * Math.PI) / 180,
+            parts.skew,
+          ),
+        ),
+      ),
+      ...(Math.abs(parts.skew) > 1e-6
+        ? [label(`skew ${round(parts.skew)}`)]
+        : []),
+    ),
+    row(
+      'Alpha',
+      field('0 to 255', alpha, (value) =>
+        send({
+          kind: 'placement',
+          offset: instance.matrixItem!,
+          change: {
+            colorTransform:
+              (0xffffff | (Math.max(0, Math.min(255, value)) << 24)) >>> 0,
+          },
+        }),
+      ),
+    ),
+    row(
+      'Name',
+      input(
+        instance.name ?? '',
+        (name) =>
+          send({
+            kind: 'placement',
+            offset: instance.placedItem ?? instance.matrixItem!,
+            change: { name },
+          }),
+        'line',
+      ),
+    ),
+    row(
+      '',
+      button('Duplicate', () => {
+        const next = freeDepth(parent);
+
+        state.inspected = `${parent.path}/${next}`;
+        send({
+          kind: 'placeObject',
+          timeline,
+          frame: parent.frame,
+          depth: next,
+          character: instance.placed,
+          matrix: instance.matrix,
+          translate: [instance.translate[0] + 10, instance.translate[1] + 10],
+        });
+      }),
+      button('Remove', () => {
+        state.inspected = undefined;
+        // Placed in this frame: drop the record; placed earlier: remove it from here on
+        send(
+          instance.born === parent.frame && instance.placedItem !== undefined
+            ? {
+                kind: 'removeItem',
+                timeline,
+                frame: parent.frame,
+                offset: instance.placedItem,
+              }
+            : { kind: 'removeObject', timeline, frame: parent.frame, depth },
+        );
+      }),
+      ...[
+        ['Forward', siblings[index + 1]],
+        ['Backward', siblings[index - 1]],
+      ].map(([name, other]) => {
+        const element = button(name as string, () => {
+          state.inspected = `${parent.path}/${other}`;
+          send({ kind: 'swapDepths', timeline, a: depth, b: other as number });
+        });
+
+        element.disabled = other === undefined;
+        element.title = `Swap depth ${depth} with ${other ?? 'nothing'}`;
+        return element;
+      }),
+    ),
+  ];
 };

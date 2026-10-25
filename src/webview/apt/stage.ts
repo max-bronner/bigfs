@@ -55,6 +55,25 @@ export const setInspectorView = (
   onRendered = update;
 };
 
+/** A tool that can take the pointer before the stage picks, and draw on top */
+export interface StageTool {
+  /** Takes a press; false lets the stage pick as usual */
+  down(point: [number, number], event: MouseEvent): boolean;
+  /** Takes a move while it holds the pointer */
+  move(point: [number, number], event: MouseEvent): boolean;
+  up(): void;
+  /** Draws in the shown character's space, `pixel` wide lines */
+  draw(ctx: CanvasRenderingContext2D, pixel: number): void;
+  /** The cursor over a point, when the tool has one */
+  cursor(point: [number, number]): string | undefined;
+}
+
+let tool: StageTool | undefined;
+
+export const setTool = (next: StageTool): void => {
+  tool = next;
+};
+
 let player: Player | undefined;
 let extent: Rect | undefined;
 let scene: { leaves: Leaf[]; hits: HitArea[] } = { leaves: [], hits: [] };
@@ -169,22 +188,39 @@ export const showMode = (): void => {
   ].join(' · ');
 };
 
-/** The instance a stage leaf belongs to that is worth inspecting: a timeline or button */
-const inspectable = (leaf: Leaf): Instance => {
-  let at: Instance | undefined = leaf.instance;
+/** What is drawn now, in paint order */
+export const sceneLeaves = (): Leaf[] => scene.leaves;
 
+/** The extent the canvas shows, for snapping to its edges */
+export const stageExtent = (): Rect | undefined => extent;
+
+/** How many of the shown character's units one screen pixel is */
+export const pixelSize = (): number =>
+  1 / (base[0] / (window.devicePixelRatio || 1));
+
+/** The instance a stage leaf belongs to that is worth inspecting: a timeline or button */
+const inspectable = (leaf: Leaf, deep: boolean): Instance => {
+  let at: Instance = leaf.instance;
+
+  if (!deep) {
+    // What the shown timeline itself places, as an editor selects first
+    while (at.parent && at.parent !== currentPlayer().root) {
+      at = at.parent;
+    }
+    return at;
+  }
+  // The innermost sprite or button, for reaching inside
   while (
-    at?.parent &&
-    at.character &&
-    !['sprite', 'button'].includes(at.character.type)
+    at.parent &&
+    !['sprite', 'button'].includes(at.character?.type ?? '')
   ) {
     at = at.parent;
   }
-  return at ?? leaf.instance;
+  return at;
 };
 
 /** The box an instance covers now, from what it draws */
-const instanceBox = (instance: Instance): Rect | undefined =>
+export const instanceBox = (instance: Instance): Rect | undefined =>
   boundsOf(
     scene.leaves.filter((leaf) => {
       for (let at: Instance | undefined = leaf.instance; at; at = at.parent) {
@@ -315,6 +351,10 @@ const overlays = (
     ctx.stroke();
   }
 
+  ctx.save();
+  tool?.draw(ctx, pixel);
+  ctx.restore();
+
   ctx.setLineDash([]);
   for (const [instance, colour, width] of [
     [hovered, 'rgba(255,0,255,0.6)', 1],
@@ -348,7 +388,7 @@ const showFrame = (frameBox: Rect | undefined) => {
 };
 
 /** A point on the canvas, in the shown character's space */
-const pointAt = (event: MouseEvent): [number, number] => {
+export const pointAt = (event: MouseEvent): [number, number] => {
   const ratio = window.devicePixelRatio || 1;
 
   return [
@@ -426,10 +466,13 @@ const buttonAt = (point: [number, number]): Instance | undefined => {
 };
 
 /** The topmost instance worth inspecting under the point */
-const instanceAt = (point: [number, number]): Instance | undefined => {
+const instanceAt = (
+  point: [number, number],
+  deep = false,
+): Instance | undefined => {
   for (let index = scene.leaves.length - 1; index >= 0; index--) {
     if (covers(scene.leaves[index], point)) {
-      return inspectable(scene.leaves[index]);
+      return inspectable(scene.leaves[index], deep);
     }
   }
   return undefined;
@@ -441,6 +484,10 @@ stage.addEventListener('mousemove', (event) => {
   }
 
   const point = pointAt(event);
+
+  if (!view.interact && tool?.move(point, event)) {
+    return;
+  }
 
   if (view.interact) {
     const next = buttonAt(point);
@@ -454,6 +501,7 @@ stage.addEventListener('mousemove', (event) => {
   } else {
     const next = instanceAt(point);
 
+    stage.style.cursor = tool?.cursor(point) ?? 'default';
     if (next !== hovered) {
       hovered = next;
       stage.title = next ? next.path || 'the shown character' : '';
@@ -485,7 +533,12 @@ stage.addEventListener('mousedown', (event) => {
     return;
   }
 
-  const picked = instanceAt(pointAt(event));
+  if (tool?.down(pointAt(event), event)) {
+    return;
+  }
+
+  // A click picks what the shown timeline places; a double click reaches inside
+  const picked = instanceAt(pointAt(event), event.detail >= 2);
 
   state.inspected = picked?.path;
   onInspect();
@@ -493,6 +546,7 @@ stage.addEventListener('mousedown', (event) => {
 });
 
 window.addEventListener('mouseup', () => {
+  tool?.up();
   if (view.interact && pressed) {
     currentPlayer().release(pressed, pressed === hovered);
     pressed = undefined;
