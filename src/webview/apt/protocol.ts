@@ -1,5 +1,5 @@
 import type { AptMovie, Frame } from '../../formats/apt/aptMovie';
-import type { RuRun } from '../../formats/apt/aptGeometry';
+import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
 import type { AptEdit } from '../../formats/apt/aptWriter';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 
@@ -20,6 +20,8 @@ export type PageMovie = AptMovie & {
   shapes: Record<number, RuRun[]>;
   /** Image character id to the texture path its pixels are in */
   imageTextures: Record<number, string>;
+  /** Image character id to where the `.dat` puts it */
+  imageLocations: Record<number, DatLocation>;
 };
 
 export interface TexturePixels {
@@ -63,4 +65,14 @@ export type FromPage =
   | { kind: 'edit'; edit: AptEdit }
   | { kind: 'scriptEdit'; block: number; text: string }
   | { kind: 'openGeometry'; geometry: number }
-  | { kind: 'openMovie'; name: string };
+  | { kind: 'openMovie'; name: string }
+  /** A shape's runs, all of them, to write as its geometry */
+  | { kind: 'geometry'; shape: number; runs: RuRun[] }
+  /** An image to add as a new texture, laid over a shape's run when given */
+  | {
+      kind: 'importTexture';
+      width: number;
+      height: number;
+      pixels: Uint8Array;
+      assign?: { shape: number; run: number; runs: RuRun[] };
+    };

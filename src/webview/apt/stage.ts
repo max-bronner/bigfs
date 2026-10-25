@@ -28,6 +28,7 @@ const LOG_LINES = 8;
 /** The modes the stage draws in; each has a hotkey and is printed on change */
 export const view = {
   origin: true,
+  wireframe: false,
   boxes: true,
   scripts: true,
   interact: false,
@@ -68,11 +69,16 @@ export interface StageTool {
   cursor(point: [number, number]): string | undefined;
 }
 
-let tool: StageTool | undefined;
+/** Tools in the order they are offered the pointer */
+const tools: StageTool[] = [];
 
-export const setTool = (next: StageTool): void => {
-  tool = next;
+/** Adds a tool; one added later is asked first */
+export const addTool = (next: StageTool): void => {
+  tools.unshift(next);
 };
+
+/** The tool that holds the pointer, while a drag lasts */
+let holder: StageTool | undefined;
 
 let player: Player | undefined;
 let extent: Rect | undefined;
@@ -185,6 +191,7 @@ export const showMode = (): void => {
     `origin ${view.origin ? 'on' : 'off'}`,
     `boxes ${view.boxes ? 'on' : 'off'}`,
     `scripts ${view.scripts ? 'on' : 'off'}`,
+    `wireframe ${view.wireframe ? 'on' : 'off'}`,
   ].join(' · ');
 };
 
@@ -351,9 +358,11 @@ const overlays = (
     ctx.stroke();
   }
 
-  ctx.save();
-  tool?.draw(ctx, pixel);
-  ctx.restore();
+  for (const each of [...tools].reverse()) {
+    ctx.save();
+    each.draw(ctx, pixel);
+    ctx.restore();
+  }
 
   ctx.setLineDash([]);
   for (const [instance, colour, width] of [
@@ -485,7 +494,7 @@ stage.addEventListener('mousemove', (event) => {
 
   const point = pointAt(event);
 
-  if (!view.interact && tool?.move(point, event)) {
+  if (!view.interact && holder?.move(point, event)) {
     return;
   }
 
@@ -501,7 +510,8 @@ stage.addEventListener('mousemove', (event) => {
   } else {
     const next = instanceAt(point);
 
-    stage.style.cursor = tool?.cursor(point) ?? 'default';
+    stage.style.cursor =
+      tools.map((each) => each.cursor(point)).find(Boolean) ?? 'default';
     if (next !== hovered) {
       hovered = next;
       stage.title = next ? next.path || 'the shown character' : '';
@@ -533,7 +543,8 @@ stage.addEventListener('mousedown', (event) => {
     return;
   }
 
-  if (tool?.down(pointAt(event), event)) {
+  holder = tools.find((each) => each.down(pointAt(event), event));
+  if (holder) {
     return;
   }
 
@@ -546,7 +557,8 @@ stage.addEventListener('mousedown', (event) => {
 });
 
 window.addEventListener('mouseup', () => {
-  tool?.up();
+  holder?.up();
+  holder = undefined;
   if (view.interact && pressed) {
     currentPlayer().release(pressed, pressed === hovered);
     pressed = undefined;

@@ -1,7 +1,9 @@
 import { byId, escapeHtml } from './dom';
 import { describe, send, showDetails, showScript, vscode } from './details';
 import type { ToPage } from './protocol';
+import { showAtlas } from './atlas';
 import { nudge } from './edit';
+import './geometry';
 import { freeDepth, showInspector, updateInspector } from './inspector';
 import {
   currentPlayer,
@@ -22,6 +24,12 @@ import { movie, state } from './state';
  * through messages: to ask for a script, or to send an edit.
  */
 
+/** The panels about what is picked: the inspector, and the texture behind it */
+const showPanels = () => {
+  showInspector();
+  showAtlas();
+};
+
 const list = byId('list');
 const filter = byId<HTMLInputElement>('filter');
 const frameInput = byId<HTMLInputElement>('frame');
@@ -31,7 +39,7 @@ const select = (id: number) => {
   state.selected = id;
   state.frame = 0;
   restart();
-  showInspector();
+  showPanels();
   list
     .querySelectorAll<HTMLElement>('.row')
     .forEach((each) =>
@@ -83,7 +91,7 @@ const step = (by: number) => {
 };
 
 const toggle = (
-  key: 'origin' | 'boxes' | 'scripts' | 'interact',
+  key: 'origin' | 'boxes' | 'scripts' | 'interact' | 'wireframe',
   id: string,
 ) => {
   view[key] = !view[key];
@@ -98,7 +106,7 @@ const toggle = (
     if (key === 'interact' && view.interact && !view.playing) {
       play(true);
     }
-    showInspector();
+    showPanels();
   }
   showMode();
   render();
@@ -151,7 +159,8 @@ byId('show-origin').onchange = () => toggle('origin', 'show-origin');
 byId('show-boxes').onchange = () => toggle('boxes', 'show-boxes');
 byId('scripts').onchange = () => toggle('scripts', 'scripts');
 byId('interact').onchange = () => toggle('interact', 'interact');
-setInspectorView(showInspector, updateInspector);
+byId('wireframe').onchange = () => toggle('wireframe', 'wireframe');
+setInspectorView(showPanels, updateInspector);
 window.addEventListener('resize', () => state.movie && render());
 
 // Hotkeys, except while typing into a field
@@ -181,6 +190,7 @@ document.addEventListener('keydown', (event) => {
     b: () => toggle('boxes', 'show-boxes'),
     s: () => toggle('scripts', 'scripts'),
     i: () => toggle('interact', 'interact'),
+    w: () => toggle('wireframe', 'wireframe'),
   };
   const action = actions[event.key];
 
@@ -229,7 +239,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       restart();
       state.inspected = inspected;
       goToFrame(state.frame);
-      showInspector();
+      showPanels();
       showList();
       showDetails();
       render();
