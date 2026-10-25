@@ -235,6 +235,16 @@
         "command": "bigfs.checkAptMovies",
         "title": "Check APT Movies",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.renameAptMovie",
+        "title": "Rename APT Movie…",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.deleteAptMovie",
+        "title": "Delete APT Movie…",
+        "category": "BIG"
       }
     ],
     "menus": {
@@ -360,6 +370,16 @@
           "command": "bigfs.convertToVp6",
           "group": "7_modification@15",
           "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif)$/i"
+        },
+        {
+          "command": "bigfs.renameAptMovie",
+          "group": "7_modification@15",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i"
+        },
+        {
+          "command": "bigfs.deleteAptMovie",
+          "group": "7_modification@16",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i"
         }
       ],
       "commandPalette": [
@@ -484,6 +504,16 @@
           "command": "bigfs.convertToVp6",
           "group": "7_modification@15",
           "when": "resourceExtname =~ /^\\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif|bik|png|tga|dds)$/i || explorerResourceIsFolder"
+        },
+        {
+          "command": "bigfs.renameAptMovie",
+          "group": "7_modification@15",
+          "when": "resourceExtname =~ /^\\.apt$/i"
+        },
+        {
+          "command": "bigfs.deleteAptMovie",
+          "group": "7_modification@16",
+          "when": "resourceExtname =~ /^\\.apt$/i"
         }
       ],
       "editor/title": [

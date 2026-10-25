@@ -349,6 +349,15 @@ const characterFields = (character: Character): HTMLElement[] => {
           }),
         ),
       ),
+      row(
+        'Movie',
+        button('Rename movie…', () =>
+          vscode.postMessage({ kind: 'manageMovie', action: 'rename' }),
+        ),
+        button('Delete movie…', () =>
+          vscode.postMessage({ kind: 'manageMovie', action: 'delete' }),
+        ),
+      ),
       heading('Exports'),
       ...source.exports.map((entry, index) =>
         row(
@@ -426,6 +435,9 @@ const characterFields = (character: Character): HTMLElement[] => {
         '',
         button('Duplicate', () =>
           send({ kind: 'duplicateCharacter', id: character.id }),
+        ),
+        button('Remove', () =>
+          vscode.postMessage({ kind: 'removeCharacter', id: character.id }),
         ),
       ),
     );

@@ -19,16 +19,18 @@ import {
 } from '../formats/apt/aptScript';
 import { AptScripts } from './aptScripts';
 import { checkMovie } from '../formats/apt/aptIntegrity';
+import { referencesTo } from '../formats/apt/aptManage';
 import type { Problem } from '../formats/apt/aptIntegrity';
-import { movieAccess } from './aptAccess';
-import { getFileNodes } from '../model/virtualNode';
-import { getNodeUri } from '../model/nodeAddress';
+import { movieAccess, workspaceMovies } from './aptAccess';
+import { deleteMovie, renameMovie } from './aptMovieFiles';
+import type { MovieHost } from './aptMovieFiles';
 import {
   checkRuns,
   fitRunTo,
   getTexturePath,
   parseDat,
   parseRu,
+  writeDat,
 } from '../formats/apt/aptGeometry';
 import { addTexture, setShapeGeometry } from '../formats/apt/aptAssets';
 import type { DatLocation, RuRun } from '../formats/apt/aptGeometry';
@@ -94,6 +96,10 @@ const actionBlocks = (
   }
   return [...blocks];
 };
+
+/** A file an edit removed is kept as an empty one until the movie is saved */
+const removedOr = (bytes: Uint8Array): Uint8Array | undefined =>
+  bytes.length ? bytes : undefined;
 
 /** Reads a file, or nothing when it is not there */
 const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
@@ -186,7 +192,10 @@ export class AptDocument implements vscode.CustomDocument {
   /** Goes up with every change, so a page knows when to take the movie again */
   public version = 0;
 
-  /** Files an edit adds beside the movie, by path relative to its folder */
+  /**
+   * Files an edit adds beside the movie, by path relative to its folder; an
+   * empty one is a file an edit removed, deleted when the movie is saved
+   */
   public files = new Map<string, Uint8Array>();
 
   /** The `.const` as edited; a script edit can add items to it */
@@ -217,7 +226,7 @@ export class AptDocument implements vscode.CustomDocument {
     this.parsedConst = parseConst(constBytes);
     this.read = (relative) =>
       this.files.has(relative)
-        ? Promise.resolve(this.files.get(relative))
+        ? Promise.resolve(removedOr(this.files.get(relative)!))
         : this.cached(
             relative,
             async () =>
@@ -516,6 +525,12 @@ export class AptDocument implements vscode.CustomDocument {
     }
 
     for (const [relative, bytes] of this.files) {
+      if (!bytes.length) {
+        await Promise.resolve(
+          vscode.workspace.fs.delete(vscode.Uri.joinPath(folder, relative)),
+        ).catch(() => undefined); // already gone
+        continue;
+      }
       await vscode.workspace.fs.writeFile(
         vscode.Uri.joinPath(folder, relative),
         bytes,
@@ -692,6 +707,18 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         provider.editScript(document, block, text),
     });
 
+    const movieHost: MovieHost = {
+      archiveModel,
+      async editOpen(uri, edit) {
+        const document = provider.open.get(uri.toString());
+
+        if (!document) {
+          return false;
+        }
+        await provider.edit(document, edit);
+        return true;
+      },
+    };
     const opened = (uri: vscode.Uri) => {
       const document = provider.open.get(uri.toString());
 
@@ -706,6 +733,34 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       provider.problems,
       vscode.commands.registerCommand('bigfs.checkAptMovies', () =>
         provider.checkWorkspace(archiveModel),
+      ),
+      vscode.commands.registerCommand(
+        'bigfs.renameAptMovie',
+        async (target?: unknown, name?: string) => {
+          try {
+            const renamed = await renameMovie(movieHost, target, name);
+
+            // Reopened under its new name when it was asked for from the editor
+            if (renamed && !name) {
+              await vscode.commands.executeCommand(
+                'vscode.openWith',
+                renamed,
+                APT_VIEW_TYPE,
+              );
+            }
+            return renamed;
+          } catch (error) {
+            void vscode.window.showErrorMessage(
+              error instanceof Error ? error.message : String(error),
+            );
+            return undefined;
+          }
+        },
+      ),
+      vscode.commands.registerCommand(
+        'bigfs.deleteAptMovie',
+        (target?: unknown, confirmed?: boolean) =>
+          deleteMovie(movieHost, target, confirmed === true),
       ),
       // The page's ways into script tabs, for automation and tests
       vscode.commands.registerCommand(
@@ -979,25 +1034,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         cancellable: true,
       },
       async (progress, token) => {
-        await archiveModel.whenReady();
-
-        const movies = await vscode.workspace.findFiles(
-          '**/*.{apt,APT}',
-          '**/node_modules/**',
-        );
-
-        for (const archive of archiveModel.getArchiveRoots()) {
-          try {
-            await archiveModel.loadArchiveOf(archive);
-          } catch {
-            continue;
-          }
-          movies.push(
-            ...getFileNodes(archive)
-              .filter((node) => /\.apt$/i.test(node.name))
-              .map(getNodeUri),
-          );
-        }
+        const movies = await workspaceMovies(archiveModel);
 
         let errors = 0;
         let warnings = 0;
@@ -1057,6 +1094,81 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         }
       },
     );
+  }
+
+  /**
+   * Removes a character nothing refers to, with the files that are only
+   * its own: a shape's geometry, an image's `.dat` line and its texture
+   * when no other image uses that file
+   */
+  private async removeCharacter(
+    document: AptDocument,
+    id: number,
+  ): Promise<void> {
+    const { movie } = await document.build();
+    const references = referencesTo(
+      movie,
+      movie.spriteFrames,
+      movie.shapes,
+      id,
+    );
+    const character = movie.characters[id];
+
+    if (references.length) {
+      throw new Error(
+        `#${id} is still used: ${references.slice(0, 5).join('; ')}${references.length > 5 ? '…' : ''}`,
+      );
+    }
+
+    await this.record(document, 'remove character', async () => {
+      applyAptEdit(document.image, document.constFile.movieOffset, {
+        kind: 'removeCharacter',
+        id,
+      });
+
+      if (character?.type === 'shape') {
+        document.files.set(
+          `${document.name}_geometry/${character.geometry}.ru`,
+          new Uint8Array(),
+        );
+      } else if (character?.type === 'image') {
+        const datName = `${document.name}.dat`;
+        const datBytes = await document.readBeside(datName);
+        const dat = datBytes
+          ? parseDat(latin1(datBytes))
+          : new Map<number, DatLocation>();
+        const location = dat.get(character.texture);
+        const stillUsed = movie.characters.some(
+          (other) =>
+            other.type === 'image' &&
+            other.id !== id &&
+            other.texture === character.texture,
+        );
+
+        if (location && !stillUsed) {
+          const path = getTexturePath(
+            document.name,
+            character.texture,
+            location,
+          );
+          const shared = [...dat].some(
+            ([other, place]) =>
+              other !== character.texture &&
+              getTexturePath(document.name, other, place) === path,
+          );
+
+          dat.delete(character.texture);
+          document.files.set(
+            datName,
+            Uint8Array.from(writeDat(dat), (c) => c.charCodeAt(0)),
+          );
+          // An atlas page other images share stays
+          if (!shared) {
+            document.files.set(path, new Uint8Array());
+          }
+        }
+      }
+    });
   }
 
   /** Redraws every open page */
@@ -1315,6 +1427,15 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             block,
             previous: Number(message.block),
           });
+        } else if (message?.kind === 'removeCharacter') {
+          await this.removeCharacter(document, Number(message.id));
+        } else if (message?.kind === 'manageMovie') {
+          await vscode.commands.executeCommand(
+            message.action === 'rename'
+              ? 'bigfs.renameAptMovie'
+              : 'bigfs.deleteAptMovie',
+            document.uri,
+          );
         } else if (message?.kind === 'openScript') {
           await this.scriptTabs?.open(
             document,
