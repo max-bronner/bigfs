@@ -8,7 +8,7 @@ import {
   parseConst,
   parseSpriteFrames,
 } from '../formats/apt/aptMovie';
-import type { ConstFile, Frame } from '../formats/apt/aptMovie';
+import type { AptMovie, ConstFile, Frame } from '../formats/apt/aptMovie';
 import { AptImage, applyAptEdit } from '../formats/apt/aptWriter';
 import type { AptEdit, EditResult } from '../formats/apt/aptWriter';
 import {
@@ -17,7 +17,8 @@ import {
   replaceBlock,
 } from '../formats/apt/aptScript';
 import { getTexturePath, parseDat, parseRu } from '../formats/apt/aptGeometry';
-import { stopsTimeline } from '../formats/apt/aptBytecode';
+import { behaviourOf } from '../formats/apt/aptBehaviour';
+import type { Behaviour } from '../formats/apt/aptBehaviour';
 import type { RuRun } from '../formats/apt/aptGeometry';
 import type { PageMovie, ToPage } from '../webview/apt/protocol';
 import { AptLibrary, movieKey } from './aptLibrary';
@@ -53,19 +54,31 @@ interface BuiltMovie {
 const MAX_IMPORT_DEPTH = 8;
 const MAX_IMPORTED_MOVIES = 64;
 
-/** The frames of a timeline whose script always stops it */
-const stopFrames = (apt: Uint8Array, frames: Frame[]): number[] =>
-  frames.flatMap((frame, index) =>
-    frame.items.some((item) => {
-      try {
-        return item.type === 'action' && stopsTimeline(apt, item.block);
-      } catch {
-        return false; // a block that does not decode is not known to stop
+/** Every action block a movie runs: frame actions, button and clip actions */
+const actionBlocks = (
+  movie: AptMovie,
+  spriteFrames: Record<number, Frame[]>,
+): number[] => {
+  const blocks = new Set<number>();
+
+  for (const frames of [movie.frames, ...Object.values(spriteFrames)]) {
+    for (const frame of frames) {
+      for (const item of frame.items) {
+        if (item.type === 'action' || item.type === 'initAction') {
+          blocks.add(item.block);
+        } else if (item.type === 'placeObject') {
+          item.clipActions?.forEach((clip) => blocks.add(clip.block));
+        }
       }
-    })
-      ? [index]
-      : [],
-  );
+    }
+  }
+  for (const character of movie.characters) {
+    if (character.type === 'button') {
+      character.actions.forEach((action) => blocks.add(action.block));
+    }
+  }
+  return [...blocks];
+};
 
 /** Reads a file, or nothing when it is not there */
 const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
@@ -320,7 +333,7 @@ export class AptDocument implements vscode.CustomDocument {
     const datBytes = await this.read(`${this.name}.dat`);
     const dat = datBytes ? parseDat(latin1(datBytes)) : new Map();
     const spriteFrames: Record<number, Frame[]> = {};
-    const stops: Record<number, number[]> = {};
+
     const shapes: Record<number, RuRun[]> = {};
     const imageTextures: Record<number, string> = {};
     const problems: string[] = [];
@@ -330,9 +343,6 @@ export class AptDocument implements vscode.CustomDocument {
         try {
           if (character.type === 'sprite') {
             spriteFrames[character.id] = parseSpriteFrames(apt, character);
-            stops[character.id] = stopFrames(apt, spriteFrames[character.id]);
-          } else if (character.type === 'movie') {
-            stops[character.id] = stopFrames(apt, movie.frames);
           } else if (character.type === 'shape') {
             const ru = await this.read(
               `${this.name}_geometry/${character.geometry}.ru`,
@@ -400,12 +410,33 @@ export class AptDocument implements vscode.CustomDocument {
         ...movie,
         name: this.name,
         spriteFrames,
-        stops,
+        behaviours: this.behaviours(movie, spriteFrames),
         shapes,
         imageTextures,
       },
       textures,
     };
+  }
+
+  /** What each action block does to timelines, for the preview to play */
+  private behaviours(
+    movie: AptMovie,
+    spriteFrames: Record<number, Frame[]>,
+  ): Record<number, Behaviour> {
+    const behaviours: Record<number, Behaviour> = {};
+
+    for (const block of actionBlocks(movie, spriteFrames)) {
+      try {
+        behaviours[block] = behaviourOf(
+          this.image.bytes,
+          block,
+          this.constFile.items,
+        );
+      } catch {
+        behaviours[block] = { commands: [], skipped: 1, conditional: false };
+      }
+    }
+    return behaviours;
   }
 
   /** Writes the movie, and the files edits added, to `target`'s folder */
@@ -462,7 +493,10 @@ export const renderHtml = (
   main { overflow: auto; padding: 8px 12px; }
   .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
   #stage { background: repeating-conic-gradient(#808080 0 25%, #a0a0a0 0 50%) 0 0 / 16px 16px; }
-  #details { border-left: 1px solid var(--vscode-panel-border); padding: 0 10px; }
+  #side { border-left: 1px solid var(--vscode-panel-border); padding: 0 10px; }
+  #inspector:not(:empty) { border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 6px; }
+  #log { font-family: var(--vscode-editor-font-family); font-size: 12px; opacity: 0.8; }
+  button.chosen { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
   pre { white-space: pre-wrap; word-break: break-all; font-family: var(--vscode-editor-font-family); font-size: 12px; }
   .muted, #summary { opacity: 0.75; }
   .error { color: var(--vscode-errorForeground); padding: 12px; }
@@ -494,13 +528,15 @@ export const renderHtml = (
   <div class="toolbar">
     <label title="O"><input type="checkbox" id="show-origin" checked> Origin</label>
     <label title="B"><input type="checkbox" id="show-boxes" checked> Boxes</label>
-    <label title="S: hold nested timelines on a frame whose script calls stop()"><input type="checkbox" id="honour-stops" checked> stop()</label>
+    <label title="S: run what frame scripts do to timelines (stop, play, goto) in nested timelines"><input type="checkbox" id="scripts" checked> Scripts</label>
+    <label title="I: run everything as the game does and let the pointer drive buttons"><input type="checkbox" id="interact"> Interact</label>
     <span id="mode" class="muted"></span>
   </div>
   <canvas id="stage"></canvas>
   <p id="summary"></p>
+  <div id="log"></div>
 </main>
-<section id="details"></section>
+<section id="side"><div id="inspector"></div><div id="details"></div></section>
 <div id="notice" hidden></div>
 <script nonce="${nonce}" src="${script}"></script>
 </body>

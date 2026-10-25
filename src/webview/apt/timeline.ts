@@ -21,12 +21,6 @@ export const framesOf = (movie: PageMovie, character: Character): Frame[] =>
       ? (movie.spriteFrames[character.id] ?? [])
       : [];
 
-/** Frames whose script stops the timeline, sorted */
-export const stopsOf = (movie: PageMovie, character: Character): number[] =>
-  character.type === 'movie' || character.type === 'sprite'
-    ? (movie.stops[character.id] ?? [])
-    : [];
-
 /** Display lists already built, per timeline and frame */
 const built = new WeakMap<Frame[], Map<number, Placement[]>>();
 
@@ -95,57 +89,4 @@ export const displayList = (frames: Frame[], frame: number): Placement[] => {
   }
   cache.set(frame, placements);
   return placements;
-};
-
-/** A timeline instance at a moment: the frame it shows, and its children's own clocks */
-export interface TimelineAt {
-  frame: number;
-  placements: (Placement & { tick: number })[];
-}
-
-/**
- * Where a timeline instance is `tick` frames after it was placed, the way a
- * Flash player runs it: it advances one frame a tick from frame 0, holds on
- * the first frame whose script stops it (when `honourStops`), and otherwise
- * loops. A child plays from the frame it was placed in. When the parent
- * loops, a child placed in frame 0 and still there at the end keeps
- * playing, since the player keeps that instance; any other is placed again.
- */
-export const timelineAt = (
-  frames: Frame[],
-  stops: number[],
-  tick: number,
-  honourStops: boolean,
-): TimelineAt => {
-  const count = frames.length;
-
-  if (!count) {
-    return { frame: 0, placements: [] };
-  }
-
-  const stop = honourStops ? stops[0] : undefined;
-  const held = stop !== undefined && tick >= stop;
-  const looping = !held && tick >= count;
-  const frame = held ? stop : tick % count;
-  const placements = displayList(frames, frame);
-  const last = looping ? displayList(frames, count - 1) : [];
-
-  return {
-    frame,
-    placements: placements.map((placement) => {
-      const lasts =
-        placement.born === 0 &&
-        last.some(
-          (each) =>
-            each.depth === placement.depth &&
-            each.born === 0 &&
-            each.character === placement.character,
-        );
-
-      return {
-        ...placement,
-        tick: (looping && !lasts ? frame : tick) - placement.born,
-      };
-    }),
-  };
 };
