@@ -79,7 +79,8 @@ your mod's archives.
 - A **Preview** lens on every `FXParticleSystem`, `ParticleSystem` and
   `FXList` block opens a live 3D preview with the system's textures: orbit,
   pan and zoom, play, pause, step, restart, speed from 0.1× to 4×, a moving
-  emitter, the emission volume drawn as a wireframe.
+  emitter, the emission volume drawn as a wireframe with handles: drag them
+  to size a sphere, cylinder or box, or move a line's ends.
 - Every number in the block gets a slider. Sliders change the preview only;
   **Apply to INI** writes them back as one undoable edit, **Reset** drops
   them. Typing in the block updates the preview as well.
