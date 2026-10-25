@@ -61,6 +61,9 @@ export interface ArchiveModelOptions {
  */
 const BACKGROUND_LOAD_DELAY = 500;
 
+/** How long a file that failed to read is left before it is read again */
+const RETRY_DELAY = 1500;
+
 const delay = (milliseconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -118,6 +121,8 @@ export class ArchiveModel {
 
   /** The scan in flight, replaced by each rescan and awaited by `whenReady` */
   private currentScan: Promise<void>;
+  /** Archive paths that failed to read and were given their one retry */
+  private readonly retried = new Set<string>();
 
   /**
    * Starts the first scan and the watcher straight away, so the model can be
@@ -145,11 +150,17 @@ export class ArchiveModel {
   private watchArchives(): FileSystemWatcher {
     const watcher = workspace.createFileSystemWatcher(BIG_PATTERN);
 
-    watcher.onDidChange((uri) => this.reloadArchive(uri));
-    watcher.onDidCreate((uri) => this.reloadArchive(uri));
+    watcher.onDidChange((uri) => this.reported(uri));
+    watcher.onDidCreate((uri) => this.reported(uri));
     watcher.onDidDelete((uri) => this.forgetArchive(uri));
 
     return watcher;
+  }
+
+  /** A file the watcher saw change: worth another retry if it fails again */
+  private reported(uri: Uri): Promise<void> {
+    this.retried.delete(uri.fsPath);
+    return this.reloadArchive(uri);
   }
 
   /**
@@ -205,6 +216,7 @@ export class ArchiveModel {
 
       return true;
     } catch (error) {
+      this.retryLater(archive.archivePath);
       if (error instanceof NotAnArchiveError) {
         this.log.info(`Ignoring ${archive.archivePath}: ${error.message}`);
       } else {
@@ -216,6 +228,26 @@ export class ArchiveModel {
 
       return false;
     }
+  }
+
+  /**
+   * Looks at a file that failed to read once more, a little later. A file
+   * read while it is still being written fails, and the watcher may have
+   * reported its creation and its last write as one event, so without this
+   * an archive copied into the workspace could stay missing until it
+   * changed again. A file that fails twice is left alone until the watcher
+   * reports it again.
+   */
+  private retryLater(archivePath: string): void {
+    if (this.retried.has(archivePath)) {
+      return;
+    }
+    this.retried.add(archivePath);
+    void delay(RETRY_DELAY).then(() => {
+      if (!this.disposed && !this.getArchiveByPath(archivePath)) {
+        return this.reloadArchive(Uri.file(archivePath));
+      }
+    });
   }
 
   /** Drops an archive whose file is gone, which changes the set of roots */
