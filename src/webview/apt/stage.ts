@@ -1,30 +1,36 @@
 import type { Rect } from '../../formats/apt/aptMovie';
 import { byId } from './dom';
 import { paintLeaf } from './paint';
+import { Player } from './player';
+import type { Instance } from './player';
 import { resolve } from './resolve';
 import { boundsOf, collect, localBounds, transformRect, union } from './scene';
-import type { Leaf, SceneOptions } from './scene';
+import type { Affine, HitArea, Leaf } from './scene';
 import { movie, state } from './state';
-import { framesOf } from './timeline';
 
 /**
- * The stage: draws the selected character at the current tick on a canvas
- * sized once to everything the animation covers, so playing never resizes
- * or rescales it. What moves is shown by overlays instead: the origin of
- * the character's space, the box the current frame covers, and the box of
- * each child at this level, all measured from what is drawn.
+ * The stage: plays the selected character on a canvas sized once to
+ * everything it covers, so playing never resizes or rescales it. What
+ * moves is shown by overlays: the origin, the box the frame covers and
+ * each child's box at this level, all measured from what is drawn.
+ *
+ * Two modes. Inspect steps through the shown timeline's own frames;
+ * pointing highlights an instance and clicking selects it for the
+ * inspector. Interact runs everything as the game does, and the pointer
+ * drives the buttons.
  */
 
-/** Ticks sampled past the root's own frames, for nested timelines */
 const EXTRA_SAMPLES = 240;
 const MAX_SAMPLES = 600;
 const MARGIN = 16;
+const LOG_LINES = 8;
 
 /** The modes the stage draws in; each has a hotkey and is printed on change */
 export const view = {
   origin: true,
   boxes: true,
-  honourStops: true,
+  scripts: true,
+  interact: false,
   playing: false,
   fps: 30,
 };
@@ -34,80 +40,176 @@ const zoomSelect = byId<HTMLSelectElement>('zoom');
 const frameInput = byId<HTMLInputElement>('frame');
 const frameLabel = byId('frame-label');
 const modeLabel = byId('mode');
+const logList = byId('log');
 
-/** The box the canvas covers, which only grows while one character is shown */
-let extent: Rect | undefined;
+/** Called when the inspected instance changes, to show it */
+let onInspect: () => void = () => {};
+let onRendered: () => void = () => {};
 
-const options = (): SceneOptions => ({ honourStops: view.honourStops });
-
-/** The frames the selected character's own timeline has */
-export const rootFrames = (): number => {
-  const shown = resolve(movie(), state.selected);
-
-  return shown ? framesOf(shown.movie, shown.character).length : 0;
+/** How the stage tells the inspector: a new pick, and each frame drawn */
+export const setInspectorView = (
+  show: () => void,
+  update: () => void,
+): void => {
+  onInspect = show;
+  onRendered = update;
 };
 
+let player: Player | undefined;
+let extent: Rect | undefined;
+let scene: { leaves: Leaf[]; hits: HitArea[] } = { leaves: [], hits: [] };
+let base: Affine = [1, 0, 0, 1, 0, 0];
+let hovered: Instance | undefined;
+let pressed: Instance | undefined;
+const log: string[] = [];
+
+const newPlayer = (rootScripts: boolean, logged: boolean) =>
+  new Player(movie(), state.selected, {
+    resolve,
+    scripts: view.scripts,
+    rootScripts,
+    log: logged ? addLog : undefined,
+  });
+
+const addLog = (line: string) => {
+  log.push(line);
+  log.splice(0, Math.max(0, log.length - LOG_LINES));
+  logList.replaceChildren(
+    ...log.map((text) => {
+      const element = document.createElement('div');
+
+      element.textContent = text;
+      return element;
+    }),
+  );
+};
+
+/** The player of the shown character, built on first use */
+export const currentPlayer = (): Player => {
+  player ??= newPlayer(view.interact, true);
+  return player;
+};
+
+/** Starts the shown character over, for a new selection, mode or movie */
+export const restart = (): void => {
+  player = undefined;
+  extent = undefined;
+  hovered = undefined;
+  pressed = undefined;
+  state.inspected = undefined;
+};
+
+/** The frames of the shown character's own timeline */
+export const rootFrames = (): number => currentPlayer().root.frames.length;
+
 /**
- * Measures what the animation covers over its frames, and a while past
- * them for nested timelines, so the canvas is sized once for all of it.
- * A movie is its screen.
+ * Shows a frame of the shown timeline. Inspecting replays from the start,
+ * so nested timelines are where they would be; interacting jumps there.
  */
-export const measure = (): void => {
-  const source = movie();
-  const shown = resolve(source, state.selected);
+export const goToFrame = (frame: number): void => {
+  const count = rootFrames();
+  const target = count ? Math.max(0, Math.min(count - 1, frame)) : 0;
+
+  if (view.interact) {
+    currentPlayer().goTo(currentPlayer().root, target, view.playing);
+  } else {
+    if (target < currentPlayer().root.frame || currentPlayer().ticks > target) {
+      player = newPlayer(false, true);
+    }
+    while (currentPlayer().ticks < target) {
+      currentPlayer().tick();
+    }
+  }
+  state.frame = currentPlayer().root.frame;
+};
+
+/** Measures what the animation covers over a while of playing; a movie is its screen */
+const measure = (): Rect => {
+  const shown = resolve(movie(), state.selected);
 
   if (shown?.character.type === 'movie') {
-    extent = [
+    return [
       0,
       0,
       shown.movie.record.screenWidth,
       shown.movie.record.screenHeight,
     ];
-    return;
   }
 
-  const samples = Math.min(MAX_SAMPLES, rootFrames() + EXTRA_SAMPLES);
+  const sample = newPlayer(false, false);
+  const samples = Math.min(
+    MAX_SAMPLES,
+    sample.root.frames.length + EXTRA_SAMPLES,
+  );
   const boxes: Rect[] = [];
 
   for (let tick = 0; tick < samples; tick++) {
-    const box = boundsOf(collect(source, state.selected, tick, options()));
+    const box = boundsOf(collect(sample).leaves);
 
     if (box) {
       boxes.push(box);
     }
+    sample.tick();
   }
-  extent = union([...boxes, [0, 0, 0, 0]]);
+  return union([...boxes, [0, 0, 0, 0]])!;
 };
 
+const round = (value: number) => Math.round(value * 10) / 10;
 const formatRect = ([left, top, right, bottom]: Rect) =>
   `${round(right - left)}×${round(bottom - top)} at (${round(left)}, ${round(top)})`;
-const round = (value: number) => Math.round(value * 10) / 10;
 
 /** Prints the modes, in a form that pastes into a report */
 export const showMode = (): void => {
   modeLabel.textContent = [
+    view.interact ? 'interact' : 'inspect',
     view.playing ? `playing at ${view.fps} fps` : 'paused',
     `origin ${view.origin ? 'on' : 'off'}`,
     `boxes ${view.boxes ? 'on' : 'off'}`,
-    `stop() ${view.honourStops ? 'honoured' : 'ignored'}`,
+    `scripts ${view.scripts ? 'on' : 'off'}`,
   ].join(' · ');
 };
 
-/** Draws the selected character at the current tick */
+/** The instance a stage leaf belongs to that is worth inspecting: a timeline or button */
+const inspectable = (leaf: Leaf): Instance => {
+  let at: Instance | undefined = leaf.instance;
+
+  while (
+    at?.parent &&
+    at.character &&
+    !['sprite', 'button'].includes(at.character.type)
+  ) {
+    at = at.parent;
+  }
+  return at ?? leaf.instance;
+};
+
+/** The box an instance covers now, from what it draws */
+const instanceBox = (instance: Instance): Rect | undefined =>
+  boundsOf(
+    scene.leaves.filter((leaf) => {
+      for (let at: Instance | undefined = leaf.instance; at; at = at.parent) {
+        if (at === instance) {
+          return true;
+        }
+      }
+      return false;
+    }),
+  );
+
+/** Draws the shown character as the player has it now */
 export const render = (): void => {
-  const source = movie();
-  const leaves = collect(source, state.selected, state.tick, options());
-  const frameBox = boundsOf(leaves);
+  const current = currentPlayer();
 
-  if (!extent) {
-    measure();
-  }
-  // A nested timeline that outgrows what was sampled widens the canvas once
+  scene = collect(current);
+
+  const frameBox = boundsOf(scene.leaves);
+
+  extent ??= measure();
   if (frameBox) {
-    extent = union([extent!, frameBox]);
+    extent = union([extent, frameBox])!;
   }
 
-  const [left, top, right, bottom] = extent!;
+  const [left, top, right, bottom] = extent;
   const width = Math.max(1, right - left);
   const height = Math.max(1, bottom - top);
   const zoom =
@@ -118,7 +220,7 @@ export const render = (): void => {
             0.05,
             Math.min(
               (stage.parentElement!.clientWidth - 24) / (width + 2 * MARGIN),
-              (window.innerHeight - 190) / (height + 2 * MARGIN),
+              (window.innerHeight - 230) / (height + 2 * MARGIN),
             ),
           ),
         )
@@ -136,19 +238,12 @@ export const render = (): void => {
 
   const ctx = stage.getContext('2d')!;
   const scale = zoom * ratio;
-  const base: [number, number, number, number, number, number] = [
-    scale,
-    0,
-    0,
-    scale,
-    (MARGIN - left) * scale,
-    (MARGIN - top) * scale,
-  ];
 
+  base = [scale, 0, 0, scale, (MARGIN - left) * scale, (MARGIN - top) * scale];
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, stage.width, stage.height);
 
-  for (const leaf of leaves) {
+  for (const leaf of scene.leaves) {
     ctx.save();
     ctx.setTransform(...base);
     ctx.transform(...leaf.matrix);
@@ -158,19 +253,20 @@ export const render = (): void => {
   }
 
   ctx.setTransform(...base);
-  overlays(ctx, leaves, frameBox, scale, extent!);
+  overlays(ctx, frameBox, scale, extent);
   showFrame(frameBox);
+  onRendered();
 };
 
-/** The origin, the frame's box and each child's box, a pixel wide at any zoom */
+/** The origin, the frame's box, each child's box, and the instances pointed at */
 const overlays = (
   ctx: CanvasRenderingContext2D,
-  leaves: Leaf[],
   frameBox: Rect | undefined,
   scale: number,
   [left, top, right, bottom]: Rect,
 ) => {
   const pixel = (window.devicePixelRatio || 1) / scale;
+  const box = ([l, t, r, b]: Rect) => ctx.strokeRect(l, t, r - l, b - t);
 
   ctx.lineWidth = pixel;
   ctx.font = `${11 * pixel}px sans-serif`;
@@ -179,7 +275,7 @@ const overlays = (
   if (view.boxes) {
     const byChild = new Map<number, Rect[]>();
 
-    for (const leaf of leaves) {
+    for (const leaf of scene.leaves) {
       if (leaf.top !== undefined) {
         const boxes = byChild.get(leaf.top) ?? [];
 
@@ -192,18 +288,16 @@ const overlays = (
     ctx.strokeStyle = 'rgba(0,200,255,0.55)';
     ctx.fillStyle = 'rgba(0,200,255,0.9)';
     for (const [depth, boxes] of byChild) {
-      const [l, t, r, b] = union(boxes)!;
+      const rect = union(boxes)!;
 
-      ctx.strokeRect(l, t, r - l, b - t);
-      ctx.fillText(`@${depth}`, l + 2 * pixel, t - pixel);
+      box(rect);
+      ctx.fillText(`@${depth}`, rect[0] + 2 * pixel, rect[1] - pixel);
     }
 
     if (frameBox) {
-      const [l, t, r, b] = frameBox;
-
       ctx.setLineDash([6 * pixel, 4 * pixel]);
       ctx.strokeStyle = 'rgba(255,220,0,0.95)';
-      ctx.strokeRect(l, t, r - l, b - t);
+      box(frameBox);
     }
   }
 
@@ -220,31 +314,191 @@ const overlays = (
     ctx.arc(0, 0, 3 * pixel, 0, Math.PI * 2);
     ctx.stroke();
   }
+
+  ctx.setLineDash([]);
+  for (const [instance, colour, width] of [
+    [hovered, 'rgba(255,0,255,0.6)', 1],
+    [inspected(), 'rgba(255,0,255,1)', 2],
+  ] as const) {
+    const rect = instance && instanceBox(instance);
+
+    if (rect) {
+      ctx.lineWidth = pixel * width;
+      ctx.strokeStyle = colour;
+      box(rect);
+    }
+  }
 };
 
-/** The frame counter, with the box the frame covers */
+/** The instance the inspector shows, if it is still there */
+export const inspected = (): Instance | undefined =>
+  state.inspected === undefined
+    ? undefined
+    : currentPlayer().find(state.inspected);
+
 const showFrame = (frameBox: Rect | undefined) => {
   const count = rootFrames();
+  const ticks = currentPlayer().ticks;
 
   frameInput.value = String(state.frame);
   frameLabel.textContent =
     (count ? `frame ${state.frame} of ${count}` : 'no timeline') +
-    (state.tick !== state.frame ? ` · tick ${state.tick}` : '') +
+    (ticks !== state.frame ? ` · tick ${ticks}` : '') +
     (frameBox ? ` · ${formatRect(frameBox)}` : '');
 };
 
-/** Forgets the measured extent, for a new selection or a changed movie */
-export const remeasure = (): void => {
-  extent = undefined;
+/** A point on the canvas, in the shown character's space */
+const pointAt = (event: MouseEvent): [number, number] => {
+  const ratio = window.devicePixelRatio || 1;
+
+  return [
+    (event.offsetX * ratio - base[4]) / base[0],
+    (event.offsetY * ratio - base[5]) / base[3],
+  ];
 };
 
-/** Shows the frame a tick lands on; the root plays its frames straight through */
-export const setTick = (tick: number): void => {
-  const count = rootFrames();
+/** Whether a leaf covers a point: a shape by its triangles, the rest by their box */
+const covers = (leaf: Leaf, [x, y]: [number, number]): boolean => {
+  const [a, b, c, d, tx, ty] = leaf.matrix;
+  const det = a * d - b * c;
 
-  state.tick = tick;
-  state.frame = count ? tick % count : 0;
+  if (!det) {
+    return false;
+  }
+
+  const lx = (d * (x - tx) - c * (y - ty)) / det;
+  const ly = (a * (y - ty) - b * (x - tx)) / det;
+
+  if (leaf.character?.type === 'shape') {
+    return (leaf.movie.shapes[leaf.id] ?? []).some((run) => {
+      const t = run.triangles;
+
+      for (let i = 0; i < t.length; i += 6) {
+        if (
+          inTriangle(
+            lx,
+            ly,
+            t[i],
+            t[i + 1],
+            t[i + 2],
+            t[i + 3],
+            t[i + 4],
+            t[i + 5],
+          )
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  const [l, top, r, bottom] = localBounds(leaf);
+
+  return lx >= l && lx <= r && ly >= top && ly <= bottom;
 };
+
+const inTriangle = (
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+): boolean => {
+  const d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
+  const d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
+  const d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
+
+  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+};
+
+/** The topmost button whose hit area is under the point */
+const buttonAt = (point: [number, number]): Instance | undefined => {
+  for (let index = scene.hits.length - 1; index >= 0; index--) {
+    if (covers(scene.hits[index].leaf, point)) {
+      return scene.hits[index].button;
+    }
+  }
+  return undefined;
+};
+
+/** The topmost instance worth inspecting under the point */
+const instanceAt = (point: [number, number]): Instance | undefined => {
+  for (let index = scene.leaves.length - 1; index >= 0; index--) {
+    if (covers(scene.leaves[index], point)) {
+      return inspectable(scene.leaves[index]);
+    }
+  }
+  return undefined;
+};
+
+stage.addEventListener('mousemove', (event) => {
+  if (!state.movie) {
+    return;
+  }
+
+  const point = pointAt(event);
+
+  if (view.interact) {
+    const next = buttonAt(point);
+
+    if (next !== hovered) {
+      currentPlayer().hover(hovered, next);
+      hovered = next;
+      render();
+    }
+    stage.style.cursor = next ? 'pointer' : 'default';
+  } else {
+    const next = instanceAt(point);
+
+    if (next !== hovered) {
+      hovered = next;
+      stage.title = next ? next.path || 'the shown character' : '';
+      render();
+    }
+  }
+});
+
+stage.addEventListener('mouseleave', () => {
+  if (view.interact && hovered) {
+    currentPlayer().hover(hovered, undefined);
+  }
+  hovered = undefined;
+  if (state.movie) {
+    render();
+  }
+});
+
+stage.addEventListener('mousedown', (event) => {
+  if (!state.movie) {
+    return;
+  }
+  if (view.interact) {
+    if (hovered) {
+      pressed = hovered;
+      currentPlayer().press(hovered);
+      render();
+    }
+    return;
+  }
+
+  const picked = instanceAt(pointAt(event));
+
+  state.inspected = picked?.path;
+  onInspect();
+  render();
+});
+
+window.addEventListener('mouseup', () => {
+  if (view.interact && pressed) {
+    currentPlayer().release(pressed, pressed === hovered);
+    pressed = undefined;
+    render();
+  }
+});
 
 let lastTime: number | undefined;
 let owed = 0;
@@ -263,7 +517,10 @@ const loop = (time: number) => {
 
   if (steps > 0) {
     owed -= Math.floor(owed);
-    setTick(state.tick + steps);
+    for (let step = 0; step < steps; step++) {
+      currentPlayer().tick();
+    }
+    state.frame = currentPlayer().root.frame;
     render();
   }
   requestAnimationFrame(loop);

@@ -1,7 +1,16 @@
 import { byId, escapeHtml } from './dom';
 import { describe, showDetails, showScript, vscode } from './details';
 import type { ToPage } from './protocol';
-import { play, remeasure, render, setTick, showMode, view } from './stage';
+import { showInspector, updateInspector } from './inspector';
+import {
+  goToFrame,
+  play,
+  render,
+  restart,
+  setInspectorView,
+  showMode,
+  view,
+} from './stage';
 import { movie, state } from './state';
 
 /**
@@ -17,8 +26,9 @@ const zoomSelect = byId<HTMLSelectElement>('zoom');
 
 const select = (id: number) => {
   state.selected = id;
-  setTick(0);
-  remeasure();
+  state.frame = 0;
+  restart();
+  showInspector();
   list
     .querySelectorAll<HTMLElement>('.row')
     .forEach((each) =>
@@ -52,7 +62,7 @@ const showList = () => {
 
 /** Moves to a frame of the shown timeline, which restarts the clocks of nested ones */
 const goTo = (frame: number) => {
-  setTick(Math.max(0, frame));
+  goToFrame(frame);
   showDetails();
   render();
 };
@@ -62,11 +72,23 @@ const step = (by: number) => {
   goTo(state.frame + by);
 };
 
-const toggle = (key: 'origin' | 'boxes' | 'honourStops', id: string) => {
+const toggle = (
+  key: 'origin' | 'boxes' | 'scripts' | 'interact',
+  id: string,
+) => {
   view[key] = !view[key];
   byId<HTMLInputElement>(id).checked = view[key];
-  if (key === 'honourStops') {
-    remeasure();
+  // Scripts and interaction change what plays, so it starts over
+  if (key === 'scripts' || key === 'interact') {
+    const inspected = state.inspected;
+
+    restart();
+    state.inspected = inspected;
+    goToFrame(state.frame);
+    if (key === 'interact' && view.interact && !view.playing) {
+      play(true);
+    }
+    showInspector();
   }
   showMode();
   render();
@@ -84,7 +106,9 @@ byId<HTMLSelectElement>('fps').onchange = (event) => {
 };
 byId('show-origin').onchange = () => toggle('origin', 'show-origin');
 byId('show-boxes').onchange = () => toggle('boxes', 'show-boxes');
-byId('honour-stops').onchange = () => toggle('honourStops', 'honour-stops');
+byId('scripts').onchange = () => toggle('scripts', 'scripts');
+byId('interact').onchange = () => toggle('interact', 'interact');
+setInspectorView(showInspector, updateInspector);
 window.addEventListener('resize', () => state.movie && render());
 
 // Hotkeys, except while typing into a field
@@ -107,7 +131,8 @@ document.addEventListener('keydown', (event) => {
     ArrowRight: () => step(1),
     o: () => toggle('origin', 'show-origin'),
     b: () => toggle('boxes', 'show-boxes'),
-    s: () => toggle('honourStops', 'honour-stops'),
+    s: () => toggle('scripts', 'scripts'),
+    i: () => toggle('interact', 'interact'),
   };
   const action = actions[event.key];
 
@@ -147,9 +172,16 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       byId('summary').textContent = data.summary;
       if (isFirst || !data.movie.characters[state.selected]) {
         state.selected = 0;
-        setTick(0);
+        state.frame = 0;
       }
-      remeasure();
+
+      // An edit changes what plays; it starts over at the same frame
+      const inspected = state.inspected;
+
+      restart();
+      state.inspected = inspected;
+      goToFrame(state.frame);
+      showInspector();
       showList();
       showDetails();
       render();

@@ -1,8 +1,7 @@
 import type { Character, Rect } from '../../formats/apt/aptMovie';
+import type { Instance, Player } from './player';
 import type { PageMovie } from './protocol';
-import { resolve } from './resolve';
 import { state } from './state';
-import { framesOf, stopsOf, timelineAt } from './timeline';
 
 /**
  * The display tree of a character at a moment, flattened to the things
@@ -10,9 +9,6 @@ import { framesOf, stopsOf, timelineAt } from './timeline';
  * stage paints from it, and every box it shows is measured from it, so what
  * is drawn and what is measured cannot disagree.
  */
-
-/** Nesting deeper than this is a loop in the data, not a real movie */
-const MAX_DEPTH = 12;
 
 /** The box an import that does not resolve draws */
 export const UNRESOLVED: Rect = [0, 0, 64, 24];
@@ -41,122 +37,75 @@ export interface Leaf {
   missing?: string;
   matrix: Affine;
   alpha: number;
-  /** The depth chain of instances down to it, `/` separated */
-  path: string;
+  /** The instance that draws it */
+  instance: Instance;
   /** The depth of the root's child it is drawn inside, if any */
   top?: number;
 }
 
-export interface SceneOptions {
-  /** Whether nested timelines hold on a frame that stops them */
-  honourStops: boolean;
-  /** Which of a button's records draw, by instance path: bit 0 up, 1 over, 2 down */
-  buttonState?: (path: string) => number;
+/** Where a button can be pointed at: one of its hit-test records' leaves */
+export interface HitArea {
+  leaf: Leaf;
+  button: Instance;
 }
 
-/**
- * Flattens what `id` draws `tick` frames into its timeline. The root plays
- * its own frames straight through, so every frame can be inspected; nested
- * timelines run as the player runs them.
- */
+/** What a player shows right now, flattened in paint order, with button hit areas */
 export const collect = (
-  source: PageMovie,
-  id: number,
-  tick: number,
-  options: SceneOptions,
-): Leaf[] => {
-  const out: Leaf[] = [];
+  player: Player,
+): { leaves: Leaf[]; hits: HitArea[] } => {
+  const leaves: Leaf[] = [];
+  const hits: HitArea[] = [];
 
   const visit = (
-    from: PageMovie,
-    cid: number,
+    instance: Instance,
     matrix: Affine,
     alpha: number,
-    depth: number,
-    at: number,
-    path: string,
     top: number | undefined,
+    out: Leaf[],
   ): void => {
-    if (depth > MAX_DEPTH) {
+    const { character } = instance;
+
+    if (
+      !character ||
+      ['shape', 'image', 'editText', 'text'].includes(character.type)
+    ) {
+      out.push({
+        movie: instance.movie,
+        id: instance.id,
+        character,
+        missing: instance.missing,
+        matrix,
+        alpha,
+        instance,
+        top,
+      });
       return;
     }
 
-    const found = resolve(from, cid);
+    const place = (child: Instance) =>
+      multiply(matrix, [...child.matrix, ...child.translate] as Affine);
 
-    if (!found) {
-      const entry = from.imports.find((each) => each.character === cid);
-
-      if (entry || from.characters[cid]?.type === 'placeholder') {
-        out.push({
-          movie: from,
-          id: cid,
-          missing: entry ? `${entry.movie}:${entry.name}` : 'import',
-          matrix,
-          alpha,
-          path,
-          top,
-        });
-      }
-      return;
+    for (const [key, child] of instance.children) {
+      visit(
+        child,
+        place(child),
+        alpha * child.alpha,
+        top ?? (instance === player.root ? Number(key) : undefined),
+        out,
+      );
     }
+    if (character.type === 'button') {
+      for (const hit of instance.hits) {
+        const area: Leaf[] = [];
 
-    const { movie, id: own, character } = found;
-
-    switch (character.type) {
-      case 'sprite':
-      case 'movie': {
-        const isRoot = depth === 0;
-        const timeline = timelineAt(
-          framesOf(movie, character),
-          stopsOf(movie, character),
-          at,
-          !isRoot && options.honourStops,
-        );
-
-        for (const placement of timeline.placements) {
-          visit(
-            movie,
-            placement.character,
-            multiply(matrix, [...placement.matrix, ...placement.translate]),
-            alpha * placement.alpha,
-            depth + 1,
-            placement.tick,
-            `${path}/${placement.depth}`,
-            top ?? placement.depth,
-          );
-        }
-        break;
+        visit(hit, place(hit), alpha, top, area);
+        hits.push(...area.map((leaf) => ({ leaf, button: instance })));
       }
-      case 'button': {
-        const shown = options.buttonState?.(path) ?? 1;
-
-        for (const record of character.records) {
-          if (record.flags & shown) {
-            visit(
-              movie,
-              record.character,
-              multiply(matrix, [...record.matrix, ...record.translate]),
-              alpha,
-              depth + 1,
-              at,
-              `${path}/b${record.depth}`,
-              top,
-            );
-          }
-        }
-        break;
-      }
-      case 'shape':
-      case 'image':
-      case 'editText':
-      case 'text':
-        out.push({ movie, id: own, character, matrix, alpha, path, top });
-        break;
     }
   };
 
-  visit(source, id, IDENTITY, 1, 0, tick, '', undefined);
-  return out;
+  visit(player.root, IDENTITY, 1, undefined, leaves);
+  return { leaves, hits };
 };
 
 /** The box a leaf covers in its own space */

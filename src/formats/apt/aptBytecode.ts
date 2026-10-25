@@ -514,20 +514,3 @@ export const printListing = (
 
   return lines.join('\n');
 };
-
-/**
- * Whether a frame's action block always stops its timeline: a top-level
- * `Stop` runs before any branch could skip it. A block that stops only on
- * some condition, or not at all, plays on.
- */
-export const stopsTimeline = (apt: Uint8Array, block: number): boolean => {
-  for (const instruction of decodeBlock(apt, block)) {
-    if (instruction.name === 'Stop') {
-      return true;
-    }
-    if (instruction.target !== undefined || instruction.name === 'Return') {
-      return false;
-    }
-  }
-  return false;
-};

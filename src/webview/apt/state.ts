@@ -12,6 +12,8 @@ export interface PageState {
   tick: number;
   /** Texture path to the canvas holding its pixels */
   textures: Map<string, HTMLCanvasElement>;
+  /** The path of the instance the inspector shows */
+  inspected?: string;
   /** Script blocks whose panel is open, kept across redraws */
   openBlocks: Set<number>;
   /** Unapplied script text by block */
