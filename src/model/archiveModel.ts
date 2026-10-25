@@ -96,6 +96,11 @@ export class ArchiveModel {
    */
   public readonly onDidChangeArchive = this._onDidChangeArchive.event;
 
+  private _onDidScan = new EventEmitter<void>();
+
+  /** Fires when a scan has found the archives again, which can add or drop any */
+  public readonly onDidScan = this._onDidScan.event;
+
   /** Keyed by each archive's root key */
   private archives = new Map<string, Archive>();
 
@@ -249,7 +254,7 @@ export class ArchiveModel {
    * directories that live only in it survive the rescan.
    */
   public scanWorkspace(): Promise<void> {
-    this.currentScan = this.runScan();
+    this.currentScan = this.runScan().finally(() => this._onDidScan.fire());
 
     return this.currentScan;
   }

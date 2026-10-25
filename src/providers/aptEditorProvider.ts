@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { ToolBox } from '../tools/toolRegistry';
 import { decodeTgaTool } from '../tools/textureTools';
 import type { EntryLocator } from '../formats/entryLocator';
+import type { ArchiveModel } from '../model/archiveModel';
 import {
   parseAptMovie,
   parseConst,
@@ -17,7 +18,9 @@ import {
 } from '../formats/apt/aptScript';
 import { getTexturePath, parseDat, parseRu } from '../formats/apt/aptGeometry';
 import type { RuRun } from '../formats/apt/aptGeometry';
-import type { ToPage } from '../webview/apt/protocol';
+import type { PageMovie, ToPage } from '../webview/apt/protocol';
+import { AptLibrary, movieKey } from './aptLibrary';
+import type { MovieLocation } from './aptLibrary';
 import { createNonce } from './webviewNonce';
 import { decodeWindows1252 } from '../common/windows1252';
 
@@ -37,6 +40,17 @@ import { decodeWindows1252 } from '../common/windows1252';
 export const APT_VIEW_TYPE = 'bigfs.aptEditor';
 
 type MovieMessage = Extract<ToPage, { kind: 'movie' }>;
+
+/** A movie as the page draws it, with the textures it needs sent */
+interface BuiltMovie {
+  movie: PageMovie;
+  textures: MovieMessage['textures'];
+  summary: string;
+}
+
+/** How far imports are followed, and how many movies at most, against loops */
+const MAX_IMPORT_DEPTH = 8;
+const MAX_IMPORTED_MOVIES = 64;
 
 /** Reads a file, or nothing when it is not there */
 const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
@@ -125,6 +139,9 @@ const unpackSnapshot = (bytes: Uint8Array): Snapshot => {
 export class AptDocument implements vscode.CustomDocument {
   /** The image as edited; saving writes it */
   public image: AptImage;
+
+  /** Goes up with every change, so a page knows when to take the movie again */
+  public version = 0;
 
   /** Files an edit adds beside the movie, by path relative to its folder */
   public files = new Map<string, Uint8Array>();
@@ -243,6 +260,7 @@ export class AptDocument implements vscode.CustomDocument {
   }
 
   public restore(snapshot: Snapshot): void {
+    this.version++;
     this.image = new AptImage(snapshot.apt);
     this.constBytes = snapshot.constBytes;
     this.parsedConst = parseConst(snapshot.constBytes);
@@ -278,10 +296,10 @@ export class AptDocument implements vscode.CustomDocument {
   }
 
   /**
-   * Parses the movie as it now stands into what the page draws. Textures
-   * already sent are left out; the page keeps them.
+   * Parses the movie as it now stands into what the page draws, with every
+   * texture it samples
    */
-  public async buildMessage(sentTextures: Set<string>): Promise<MovieMessage> {
+  public async build(): Promise<BuiltMovie> {
     const apt = this.image.bytes;
     const movie = parseAptMovie(apt, this.constFile.movieOffset);
     const datBytes = await this.read(`${this.name}.dat`);
@@ -326,14 +344,18 @@ export class AptDocument implements vscode.CustomDocument {
     );
 
     const textures: MovieMessage['textures'] = {};
+    // Movies drawn together can name the same path; each reads its own
+    const textureKey = (path: string) => `${movieKey(this.name)}/${path}`;
 
     for (const path of new Set(Object.values(imageTextures))) {
       const texture = await this.texture(path, problems);
 
-      if (texture && !sentTextures.has(path)) {
-        textures[path] = texture;
-        sentTextures.add(path);
+      if (texture) {
+        textures[textureKey(path)] = texture;
       }
+    }
+    for (const id of Object.keys(imageTextures)) {
+      imageTextures[Number(id)] = textureKey(imageTextures[Number(id)]);
     }
 
     const counts = new Map<string, number>();
@@ -354,9 +376,14 @@ export class AptDocument implements vscode.CustomDocument {
       .join(' · ');
 
     return {
-      kind: 'movie',
       summary,
-      movie: { ...movie, spriteFrames, shapes, imageTextures },
+      movie: {
+        ...movie,
+        name: this.name,
+        spriteFrames,
+        shapes,
+        imageTextures,
+      },
       textures,
     };
   }
@@ -467,26 +494,62 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
   /** Whether each open document's page has loaded and asked for its data */
   private readonly pagesReady = new Set<AptDocument>();
 
+  /** What each page was last sent about imports: unresolved, and where each movie came from */
+  private readonly shownImports = new Map<
+    AptDocument,
+    { unresolved: string[]; origins: Record<string, string> }
+  >();
+
   /** Where the page bundle is built */
   private readonly scripts: vscode.Uri;
+
+  /** Finds the movies imports name, the way the game does */
+  private readonly library: AptLibrary;
+
+  /** Imported movies that are not open, read once, by `.apt` uri */
+  private readonly loaded = new Map<string, Promise<AptDocument | undefined>>();
+
+  /** Imported movies as last built, by `.apt` uri, with the stamp built from */
+  private readonly built = new Map<
+    string,
+    { stamp: string; movie: Promise<BuiltMovie> }
+  >();
+
+  /** Goes up whenever the library forgets, so every movie is read afresh */
+  private generation = 0;
 
   public constructor(
     private readonly tools: ToolBox,
     private readonly locator: EntryLocator,
+    archiveModel: ArchiveModel,
     extensionUri: vscode.Uri,
   ) {
     this.scripts = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
+    this.library = new AptLibrary(archiveModel);
+    this.library.onDidChange(() => {
+      this.loaded.clear();
+      this.built.clear();
+      this.generation++;
+      this.redrawAll();
+    });
   }
 
   /** Registers the provider under `APT_VIEW_TYPE` */
   public static register(
     tools: ToolBox,
     locator: EntryLocator,
+    archiveModel: ArchiveModel,
     extensionUri: vscode.Uri,
   ): vscode.Disposable {
-    const provider = new AptEditorProvider(tools, locator, extensionUri);
+    const provider = new AptEditorProvider(
+      tools,
+      locator,
+      archiveModel,
+      extensionUri,
+    );
 
     return vscode.Disposable.from(
+      provider.library,
       vscode.window.registerCustomEditorProvider(APT_VIEW_TYPE, provider, {
         webviewOptions: { retainContextWhenHidden: true },
         supportsMultipleEditorsPerDocument: false,
@@ -502,7 +565,10 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
           }
 
           if (!edit) {
-            return { pageReady: provider.pagesReady.has(document) };
+            return {
+              pageReady: provider.pagesReady.has(document),
+              ...provider.shownImports.get(document),
+            };
           }
 
           const result = await provider.edit(document, edit);
@@ -618,7 +684,8 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     }
 
     const after = document.snapshot();
-    const redraw = () => this.redraws.get(document)?.() ?? Promise.resolve();
+    // Another open movie can import this one, so every page draws again
+    const redraw = () => this.redrawAll();
 
     this.onDidChangeEmitter.fire({
       document,
@@ -635,6 +702,137 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     await redraw();
 
     return result;
+  }
+
+  /** Redraws every open page */
+  private redrawAll(): Promise<void> {
+    return Promise.all(
+      [...this.redraws.values()].map((redraw) => redraw().catch(() => {})),
+    ).then(() => undefined);
+  }
+
+  /** The movie at an imported location: an open one as edited, else as read */
+  private importedMovie(
+    location: MovieLocation,
+  ): Promise<AptDocument | undefined> {
+    const key = location.uri.toString();
+    const open = this.open.get(key);
+
+    if (open) {
+      return Promise.resolve(open);
+    }
+
+    let movie = this.loaded.get(key);
+
+    if (!movie) {
+      movie = AptDocument.open(location.uri, this.locator, this.tools).catch(
+        () => undefined,
+      );
+      this.loaded.set(key, movie);
+    }
+    return movie;
+  }
+
+  /**
+   * What a page shows for a movie: the movie, and every movie its imports
+   * reach, followed through their own imports. Movies and textures the page
+   * already has are left out; it keeps them.
+   */
+  private async message(
+    document: AptDocument,
+    sentTextures: Set<string>,
+    sentMovies: Map<string, string>,
+  ): Promise<MovieMessage> {
+    const root = await document.build();
+    const library: Record<string, PageMovie> = {};
+    const textures: MovieMessage['textures'] = {};
+    const unresolved: string[] = [];
+    const origins: Record<string, string> = {};
+    const movies = new Map<string, PageMovie>([
+      [movieKey(document.name), root.movie],
+    ]);
+    const queue: { movie: PageMovie; depth: number }[] = [
+      { movie: root.movie, depth: 0 },
+    ];
+    let attempted = 0;
+    const take = (all: MovieMessage['textures']) => {
+      for (const [key, texture] of Object.entries(all)) {
+        if (!sentTextures.has(key)) {
+          textures[key] = texture;
+          sentTextures.add(key);
+        }
+      }
+    };
+
+    take(root.textures);
+
+    while (queue.length) {
+      const { movie, depth } = queue.shift()!;
+
+      for (const entry of movie.imports) {
+        const key = movieKey(entry.movie);
+
+        attempted++;
+
+        if (
+          !movies.has(key) &&
+          depth < MAX_IMPORT_DEPTH &&
+          movies.size <= MAX_IMPORTED_MOVIES
+        ) {
+          const location = await this.library.locate(entry.movie);
+          const source = location && (await this.importedMovie(location));
+
+          if (location && source) {
+            const stamp = `${location.uri.toString()}#${source.version}#${this.generation}`;
+            let built = this.built.get(location.uri.toString());
+
+            if (built?.stamp !== stamp) {
+              built = { stamp, movie: source.build() };
+              this.built.set(location.uri.toString(), built);
+            }
+
+            const { movie: target, textures: own } = await built.movie;
+            const page = { ...target, origin: location.origin };
+
+            movies.set(key, page);
+            origins[key] = location.origin;
+            queue.push({ movie: page, depth: depth + 1 });
+            take(own);
+            if (sentMovies.get(key) !== stamp) {
+              library[key] = page;
+              sentMovies.set(key, stamp);
+            }
+          }
+        }
+
+        const target = movies.get(key);
+
+        if (
+          !target?.exports.some(
+            (each) => each.name.toLowerCase() === entry.name.toLowerCase(),
+          )
+        ) {
+          unresolved.push(`${entry.movie}:${entry.name}`);
+        }
+      }
+    }
+
+    const imports = attempted
+      ? `imports ${attempted - unresolved.length} of ${attempted} resolved across ${movies.size - 1} movies` +
+        (unresolved.length
+          ? ` (unresolved: ${unresolved.slice(0, 6).join(', ')}${unresolved.length > 6 ? '…' : ''})`
+          : '')
+      : '';
+
+    return {
+      kind: 'movie',
+      summary: [root.summary, imports].filter(Boolean).join(' · '),
+      movie: root.movie,
+      textures,
+      library,
+      unresolved,
+      origins,
+    };
   }
 
   /** Applies an edit; duplicating a shape also copies its geometry file */
@@ -698,6 +896,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     );
 
     const sentTextures = new Set<string>();
+    const sentMovies = new Map<string, string>();
     const post = (message: ToPage) => panel.webview.postMessage(message);
     const report = (error: unknown) =>
       post({
@@ -706,7 +905,13 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       });
 
     this.redraws.set(document, async () => {
-      await post(await document.buildMessage(sentTextures));
+      const message = await this.message(document, sentTextures, sentMovies);
+
+      this.shownImports.set(document, {
+        unresolved: message.unresolved,
+        origins: message.origins,
+      });
+      await post(message);
     });
     this.open.set(document.uri.toString(), document);
 
@@ -751,6 +956,17 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             block,
             previous: Number(message.block),
           });
+        } else if (message?.kind === 'openMovie') {
+          const location = await this.library.locate(String(message.name));
+
+          if (!location) {
+            throw new Error(`No install holds ${String(message.name)}.apt`);
+          }
+          await vscode.commands.executeCommand(
+            'vscode.openWith',
+            location.uri,
+            APT_VIEW_TYPE,
+          );
         } else if (message?.kind === 'openGeometry') {
           const relative = `${document.name}_geometry/${Number(message.geometry)}.ru`;
 
@@ -776,6 +992,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       this.redraws.delete(document);
       this.open.delete(document.uri.toString());
       this.pagesReady.delete(document);
+      this.shownImports.delete(document);
     });
   }
 }

@@ -3,6 +3,8 @@ import type { PageMovie } from './protocol';
 /** What the page shows: the movie, the selection and what was decoded for it */
 export interface PageState {
   movie?: PageMovie;
+  /** Movies the shown one imports from, by lowercased name */
+  library: Map<string, PageMovie>;
   selected: number;
   frame: number;
   /** Texture path to the canvas holding its pixels */
@@ -14,6 +16,7 @@ export interface PageState {
 }
 
 export const state: PageState = {
+  library: new Map(),
   selected: 0,
   frame: 0,
   textures: new Map(),

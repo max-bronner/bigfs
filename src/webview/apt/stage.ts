@@ -2,10 +2,14 @@ import type { Rect } from '../../formats/apt/aptMovie';
 import { byId } from './dom';
 import type { PageMovie } from './protocol';
 import { movie, state } from './state';
+import { resolve } from './resolve';
 import { displayList, framesOf } from './timeline';
 
 /** Nesting deeper than this is a loop in the data, not a real movie */
 const MAX_DEPTH = 12;
+
+/** The box an import that does not resolve draws */
+const UNRESOLVED: Rect = [0, 0, 64, 24];
 
 type Affine = [number, number, number, number, number, number];
 
@@ -163,15 +167,29 @@ export const draw = (
       }
       break;
     case 'placeholder': {
+      const resolved = resolve(source, id);
+
+      // An import draws as what it imports, in the movie that exports it,
+      // at the import's own level: resolve has followed every hop already
+      if (resolved) {
+        draw(ctx, resolved.movie, resolved.id, depth, frame);
+        break;
+      }
+
       const imported = source.imports.find((each) => each.character === id);
 
       ctx.save();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = 'rgba(255,180,0,0.8)';
+      ctx.strokeStyle = 'rgba(255,80,0,0.9)';
       ctx.strokeRect(0, 0, 64, 24);
-      ctx.fillStyle = 'rgba(255,180,0,0.9)';
+      ctx.fillStyle = 'rgba(255,80,0,0.95)';
       ctx.font = '10px sans-serif';
-      ctx.fillText(imported ? imported.name : 'import', 4, 14, 56);
+      ctx.fillText(
+        imported ? `${imported.movie}:${imported.name}` : 'import',
+        4,
+        14,
+        56,
+      );
       ctx.restore();
       break;
     }
@@ -184,28 +202,29 @@ export const boundsOf = (
   id: number,
   frame: number,
 ): Rect => {
-  const character = source.characters[id];
+  const shown = resolve(source, id);
 
-  if (character.type === 'movie') {
-    return [0, 0, source.record.screenWidth, source.record.screenHeight];
+  if (!shown) {
+    return UNRESOLVED;
   }
-  if ('bounds' in character) {
-    return character.bounds;
-  }
-  if (character.type === 'image') {
-    const texture = state.textures.get(source.imageTextures[id]);
-
-    return [0, 0, texture?.width ?? 64, texture?.height ?? 64];
+  if (shown.character.type === 'movie') {
+    return [
+      0,
+      0,
+      shown.movie.record.screenWidth,
+      shown.movie.record.screenHeight,
+    ];
   }
 
   const box: Rect = [Infinity, Infinity, -Infinity, -Infinity];
-  const visit = (cid: number, m: Affine, depth: number, at: number) => {
-    const c = source.characters[cid];
-
-    if (!c || depth > MAX_DEPTH) {
-      return;
-    }
-
+  const visit = (
+    from: PageMovie,
+    cid: number,
+    m: Affine,
+    depth: number,
+    at: number,
+  ) => {
+    const found = depth <= MAX_DEPTH ? resolve(from, cid) : undefined;
     const corner = (x: number, y: number) => {
       const px = m[0] * x + m[2] * y + m[4];
       const py = m[1] * x + m[3] * y + m[5];
@@ -215,18 +234,36 @@ export const boundsOf = (
       box[2] = Math.max(box[2], px);
       box[3] = Math.max(box[3], py);
     };
+    const corners = (rect: Rect) => {
+      corner(rect[0], rect[1]);
+      corner(rect[2], rect[3]);
+      corner(rect[0], rect[3]);
+      corner(rect[2], rect[1]);
+    };
+
+    if (!found) {
+      if (from.characters[cid]?.type === 'placeholder') {
+        corners(UNRESOLVED);
+      }
+      return;
+    }
+
+    const { movie: owner, id: own, character: c } = found;
 
     if ('bounds' in c) {
-      corner(c.bounds[0], c.bounds[1]);
-      corner(c.bounds[2], c.bounds[3]);
-      corner(c.bounds[0], c.bounds[3]);
-      corner(c.bounds[2], c.bounds[1]);
+      corners(c.bounds);
+      return;
+    }
+    if (c.type === 'image') {
+      const texture = state.textures.get(owner.imageTextures[own]);
+
+      corners([0, 0, texture?.width ?? 64, texture?.height ?? 64]);
       return;
     }
 
     const children =
       c.type === 'sprite' || c.type === 'movie'
-        ? displayList(framesOf(source, c), depth === 0 ? at : 0)
+        ? displayList(framesOf(owner, c), depth === 0 ? at : 0)
         : [];
 
     for (const child of children) {
@@ -234,6 +271,7 @@ export const boundsOf = (
       const [tx, ty] = child.translate;
 
       visit(
+        owner,
         child.character,
         [
           m[0] * a + m[2] * b,
@@ -249,7 +287,7 @@ export const boundsOf = (
     }
   };
 
-  visit(id, [1, 0, 0, 1, 0, 0], 0, frame);
+  visit(source, id, [1, 0, 0, 1, 0, 0], 0, frame);
   return Number.isFinite(box[0]) ? box : [0, 0, 64, 64];
 };
 

@@ -72,7 +72,12 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     locator,
     PreviewEditorProvider.register(tools, locator),
-    AptEditorProvider.register(tools, locator, context.extensionUri),
+    AptEditorProvider.register(
+      tools,
+      locator,
+      archiveModel,
+      context.extensionUri,
+    ),
     MapEditorProvider.register(),
   );
 
