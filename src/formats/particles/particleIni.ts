@@ -109,6 +109,8 @@ export interface ParticleDef {
 
 export interface FxNugget {
   system: string;
+  /** Which of the FX list's modules it is */
+  module: number;
   count: number;
   offset: Vec3;
   radius: Range;
@@ -690,6 +692,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
     return [
       {
         system,
+        module: index,
         count: Math.max(1, Math.round(numberOf(fields.get('count') ?? [], 1))),
         offset: coordOf(fields.get('offset') ?? []),
         radius: rangeOf(fields.get('radius') ?? []) ?? { ...RANGE_ZERO },
@@ -734,6 +737,8 @@ export interface NumericField {
   line: number;
   token: number;
   module: string;
+  /** Which of the definition's modules it sits in, -1 for none */
+  moduleIndex: number;
   keyword: string;
   /** What the token is, like `max`, `G` or `frame` */
   part: string;
@@ -786,6 +791,7 @@ export const numericFields = (definition: IniDefinition): NumericField[] =>
               ? line.module
               : `${line.module} = ${line.moduleType}`
             : '',
+          moduleIndex: line.moduleIndex,
           keyword: line.keyword.text,
           part,
           value: number,

@@ -8,6 +8,7 @@ import {
 import { renderCurves } from './curves';
 import { renderFields } from './fields';
 import { attachHandles, drawHandles } from './handles';
+import { drawTimeline, renderTimeline } from './timeline';
 import {
   beginFrame,
   canvas,
@@ -125,6 +126,7 @@ const frame = (now: number) => {
     draw();
     drawHandles();
   }
+  drawTimeline();
   hud.textContent = [
     ...(hasGraphics ? [] : ['WebGL is not available; nothing is drawn.']),
     `frame ${world.frame}  ${(world.frame / STEP_HZ).toFixed(1)} s`,
@@ -233,6 +235,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   );
   renderFields(data);
   renderCurves();
+  renderTimeline(start);
   if (first) {
     const def = library.systems.get(data.root.name.toLowerCase());
 
