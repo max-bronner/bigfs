@@ -1,7 +1,7 @@
 import { byId, escapeHtml } from './dom';
 import { describe, showDetails, showScript, vscode } from './details';
 import type { ToPage } from './protocol';
-import { render } from './stage';
+import { play, remeasure, render, setTick, showMode, view } from './stage';
 import { movie, state } from './state';
 
 /**
@@ -17,7 +17,8 @@ const zoomSelect = byId<HTMLSelectElement>('zoom');
 
 const select = (id: number) => {
   state.selected = id;
-  state.frame = 0;
+  setTick(0);
+  remeasure();
   list
     .querySelectorAll<HTMLElement>('.row')
     .forEach((each) =>
@@ -49,14 +50,72 @@ const showList = () => {
   );
 };
 
-filter.oninput = showList;
-zoomSelect.onchange = render;
-frameInput.oninput = () => {
-  state.frame = Number(frameInput.value);
+/** Moves to a frame of the shown timeline, which restarts the clocks of nested ones */
+const goTo = (frame: number) => {
+  setTick(Math.max(0, frame));
   showDetails();
   render();
 };
+
+const step = (by: number) => {
+  play(false);
+  goTo(state.frame + by);
+};
+
+const toggle = (key: 'origin' | 'boxes' | 'honourStops', id: string) => {
+  view[key] = !view[key];
+  byId<HTMLInputElement>(id).checked = view[key];
+  if (key === 'honourStops') {
+    remeasure();
+  }
+  showMode();
+  render();
+};
+
+filter.oninput = showList;
+zoomSelect.onchange = render;
+frameInput.oninput = () => goTo(Number(frameInput.value));
+byId('play').onclick = () => play(!view.playing);
+byId('back').onclick = () => step(-1);
+byId('forward').onclick = () => step(1);
+byId<HTMLSelectElement>('fps').onchange = (event) => {
+  view.fps = Number((event.target as HTMLSelectElement).value);
+  showMode();
+};
+byId('show-origin').onchange = () => toggle('origin', 'show-origin');
+byId('show-boxes').onchange = () => toggle('boxes', 'show-boxes');
+byId('honour-stops').onchange = () => toggle('honourStops', 'honour-stops');
 window.addEventListener('resize', () => state.movie && render());
+
+// Hotkeys, except while typing into a field
+document.addEventListener('keydown', (event) => {
+  const target = event.target as HTMLElement;
+
+  if (
+    !state.movie ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+  ) {
+    return;
+  }
+
+  const actions: Record<string, () => void> = {
+    ' ': () => play(!view.playing),
+    ArrowLeft: () => step(-1),
+    ArrowRight: () => step(1),
+    o: () => toggle('origin', 'show-origin'),
+    b: () => toggle('boxes', 'show-boxes'),
+    s: () => toggle('honourStops', 'honour-stops'),
+  };
+  const action = actions[event.key];
+
+  if (action) {
+    event.preventDefault();
+    action();
+  }
+});
 
 window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   switch (data.kind) {
@@ -88,7 +147,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       byId('summary').textContent = data.summary;
       if (isFirst || !data.movie.characters[state.selected]) {
         state.selected = 0;
+        setTick(0);
       }
+      remeasure();
       showList();
       showDetails();
       render();
@@ -132,4 +193,5 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   }
 });
 
+showMode();
 vscode.postMessage({ kind: 'ready' });

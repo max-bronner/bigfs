@@ -17,6 +17,7 @@ import {
   replaceBlock,
 } from '../formats/apt/aptScript';
 import { getTexturePath, parseDat, parseRu } from '../formats/apt/aptGeometry';
+import { stopsTimeline } from '../formats/apt/aptBytecode';
 import type { RuRun } from '../formats/apt/aptGeometry';
 import type { PageMovie, ToPage } from '../webview/apt/protocol';
 import { AptLibrary, movieKey } from './aptLibrary';
@@ -51,6 +52,20 @@ interface BuiltMovie {
 /** How far imports are followed, and how many movies at most, against loops */
 const MAX_IMPORT_DEPTH = 8;
 const MAX_IMPORTED_MOVIES = 64;
+
+/** The frames of a timeline whose script always stops it */
+const stopFrames = (apt: Uint8Array, frames: Frame[]): number[] =>
+  frames.flatMap((frame, index) =>
+    frame.items.some((item) => {
+      try {
+        return item.type === 'action' && stopsTimeline(apt, item.block);
+      } catch {
+        return false; // a block that does not decode is not known to stop
+      }
+    })
+      ? [index]
+      : [],
+  );
 
 /** Reads a file, or nothing when it is not there */
 const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
@@ -305,6 +320,7 @@ export class AptDocument implements vscode.CustomDocument {
     const datBytes = await this.read(`${this.name}.dat`);
     const dat = datBytes ? parseDat(latin1(datBytes)) : new Map();
     const spriteFrames: Record<number, Frame[]> = {};
+    const stops: Record<number, number[]> = {};
     const shapes: Record<number, RuRun[]> = {};
     const imageTextures: Record<number, string> = {};
     const problems: string[] = [];
@@ -314,6 +330,9 @@ export class AptDocument implements vscode.CustomDocument {
         try {
           if (character.type === 'sprite') {
             spriteFrames[character.id] = parseSpriteFrames(apt, character);
+            stops[character.id] = stopFrames(apt, spriteFrames[character.id]);
+          } else if (character.type === 'movie') {
+            stops[character.id] = stopFrames(apt, movie.frames);
           } else if (character.type === 'shape') {
             const ru = await this.read(
               `${this.name}_geometry/${character.geometry}.ru`,
@@ -381,6 +400,7 @@ export class AptDocument implements vscode.CustomDocument {
         ...movie,
         name: this.name,
         spriteFrames,
+        stops,
         shapes,
         imageTextures,
       },
@@ -464,7 +484,18 @@ export const renderHtml = (
 <main>
   <div class="toolbar">
     <select id="zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select>
-    <input id="frame" type="range" min="0" max="0" value="0"> <span id="frame-label"></span>
+    <button id="play" title="Play or pause (Space)">▶</button>
+    <button id="back" title="Previous frame (←)">‹</button>
+    <input id="frame" type="range" min="0" max="0" value="0">
+    <button id="forward" title="Next frame (→)">›</button>
+    <select id="fps" title="Frames per second"><option>15</option><option selected>30</option><option>60</option></select>
+    <span id="frame-label"></span>
+  </div>
+  <div class="toolbar">
+    <label title="O"><input type="checkbox" id="show-origin" checked> Origin</label>
+    <label title="B"><input type="checkbox" id="show-boxes" checked> Boxes</label>
+    <label title="S: hold nested timelines on a frame whose script calls stop()"><input type="checkbox" id="honour-stops" checked> stop()</label>
+    <span id="mode" class="muted"></span>
   </div>
   <canvas id="stage"></canvas>
   <p id="summary"></p>

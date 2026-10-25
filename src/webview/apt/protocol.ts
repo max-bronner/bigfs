@@ -14,6 +14,8 @@ export type PageMovie = AptMovie & {
   /** Where it was loaded from, for a movie another one imports */
   origin?: string;
   spriteFrames: Record<number, Frame[]>;
+  /** Frames whose script always stops the timeline, by timeline character id */
+  stops: Record<number, number[]>;
   shapes: Record<number, RuRun[]>;
   /** Image character id to the texture path its pixels are in */
   imageTextures: Record<number, string>;
