@@ -277,6 +277,34 @@ class ParticlePreview {
       });
   }
 
+  /**
+   * The particle count each detail level allows, from the mod's own
+   * `StaticGameLOD` blocks (`MaxParticleCount`), smallest first
+   */
+  private async particleBudgets(): Promise<{ lod: string; max: number }[]> {
+    const budgets: { lod: string; max: number }[] = [];
+
+    for (const name of this.index.getNames('StaticGameLOD')) {
+      const [place] = this.index.findDefinitions('StaticGameLOD', name);
+
+      if (!place) {
+        continue;
+      }
+
+      const lines = (await readWorkspaceText(place.uri))
+        .split(/\r?\n/)
+        .slice(place.line + 1, place.endLine);
+      const max = lines
+        .map((line) => /^\s*MaxParticleCount\s*=\s*(\d+)/i.exec(line))
+        .find(Boolean)?.[1];
+
+      if (max !== undefined) {
+        budgets.push({ lod: name, max: Number(max) });
+      }
+    }
+    return budgets.sort((a, b) => a.max - b.max);
+  }
+
   /** Finds a referenced definition: this file first, then everything indexed */
   private async lookUp(
     name: string,
@@ -460,6 +488,7 @@ class ParticlePreview {
       notes: [...notes],
       fields: numericFields(root.definition),
       values: Object.fromEntries(this.values),
+      budgets: await this.particleBudgets(),
     };
     await this.panel.webview.postMessage(this.lastScene);
     this.restartNext = false;
@@ -490,6 +519,13 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 .field input[type=range] { width: 100%; }
 #handles { position: absolute; inset: 0; pointer-events: none; cursor: default; }
 #notes div { opacity: 0.8; margin: 2px 0; }
+.stats-lines { white-space: pre; font: 11px var(--vscode-editor-font-family); }
+.stats-table { border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+.stats-table td { padding: 1px 6px 1px 0; }
+.stats-table thead td { opacity: 0.7; }
+#stats .over { color: var(--vscode-errorForeground, #f66); }
+#stats .within { color: var(--vscode-testing-iconPassed, #73c991); }
+#stats .row span { margin-left: 4px; }
 .curve { display: block; margin: 2px 0 4px; cursor: crosshair; touch-action: none; }
 .curve-heading { margin: 8px 0 2px; font-weight: 600; }
 .curve-heading .muted { font-weight: normal; font-size: 11px; }
@@ -535,6 +571,8 @@ kbd { font-size: 10px; opacity: 0.7; }
   <div id="notes"></div>
   <div id="timeline"></div>
   <div id="curves"></div>
+  <h3>Load</h3>
+  <div id="stats"></div>
   <h3>Values <span class="muted">preview only until applied</span></h3>
   <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
   <div id="fields"></div>

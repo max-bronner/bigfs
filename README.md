@@ -96,6 +96,9 @@ your mod's archives.
   `InitialDelay` for as long as it emits and its particles live, lit while
   it runs, with the playhead. Click a name to mute it, shift-click to play
   it alone, drag a bar to move its delay.
+- **Load**: live particles and systems now, at peak and on average, per
+  system, how much of the view the billboards cover, and the peak against
+  each `MaxParticleCount` the mod's `StaticGameLOD` blocks allow.
 - Slave systems, per-particle attached systems, terrain-collision events and
   an FX list's `ParticleSystem` nuggets (offset, count, delay) play along.
 - The simulation follows the Generals engine's rules as BFME keeps them, at
