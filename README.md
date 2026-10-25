@@ -70,6 +70,11 @@ your mod's archives.
   field (`ActiveBody/MaxHealth`) and a formula of `x` and the block's own
   fields (`round(x * 1.1)`). Every change opens in the refactor preview as a
   diff to review and untick before applying. Loose INI files only.
+- **Effective definition** lens on every `ChildObject` and `ObjectReskin`:
+  the object as the game composes it from its parents, each line marked
+  with where it comes from and what it replaced (fields override, modules
+  by tag, `RemoveModule`/`ReplaceModule`, a new `WeaponSet` or `ArmorSet`
+  clearing the inherited ones). It follows edits to the files involved.
 - **Show Call Hierarchy** (Shift+Alt+H) on a definition shows what it uses,
   down through weapons, FX lists and particle systems, and what uses it.
   **Show Type Hierarchy** follows ChildObject and ObjectReskin parents and

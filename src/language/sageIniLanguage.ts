@@ -9,6 +9,7 @@ import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
 import { createCommandSetPreview } from './commandSetPreview';
 import { registerBulkEdit } from './bulkEditCommand';
+import { registerEffectiveObjects } from './effectiveObjectView';
 import { registerParticleTemplates } from './particleTemplates';
 import { registerParticlePreview } from './particlePreview';
 import { registerUnusedDefinitions } from './unusedDefinitions';
@@ -84,6 +85,7 @@ export const registerSageIniLanguage = (
     ...registerParticlePreview(context, selector, index, locator),
     registerParticleTemplates(),
     registerBulkEdit(context, documents),
+    ...registerEffectiveObjects(selector, documents, index),
     ...registerUnusedDefinitions(index),
     watchHotkeyClashes(documents, index),
     languages.registerCallHierarchyProvider(
