@@ -7,7 +7,7 @@ import {
   parseConst,
   parseSpriteFrames,
 } from '../formats/apt/aptMovie';
-import type { AptMovie, ConstFile, Frame } from '../formats/apt/aptMovie';
+import type { ConstFile, Frame } from '../formats/apt/aptMovie';
 import { AptImage, applyAptEdit } from '../formats/apt/aptWriter';
 import type { AptEdit, EditResult } from '../formats/apt/aptWriter';
 import {
@@ -17,7 +17,7 @@ import {
 } from '../formats/apt/aptScript';
 import { getTexturePath, parseDat, parseRu } from '../formats/apt/aptGeometry';
 import type { RuRun } from '../formats/apt/aptGeometry';
-import { APT_VIEW_SCRIPT } from './aptViewScript';
+import type { ToPage } from '../webview/apt/protocol';
 import { createNonce } from './webviewNonce';
 import { decodeWindows1252 } from '../common/windows1252';
 
@@ -36,21 +36,7 @@ import { decodeWindows1252 } from '../common/windows1252';
 /** View type `package.json` registers the editor under */
 export const APT_VIEW_TYPE = 'bigfs.aptEditor';
 
-/** What the page is sent: the movie, the geometry and textures it draws with */
-interface MovieMessage {
-  kind: 'movie';
-  summary: string;
-  movie: AptMovie & {
-    spriteFrames: Record<number, Frame[]>;
-    shapes: Record<number, RuRun[]>;
-    /** Image character id to the texture path its pixels are in */
-    imageTextures: Record<number, string>;
-  };
-  textures: Record<
-    string,
-    { width: number; height: number; pixels: Uint8Array }
-  >;
-}
+type MovieMessage = Extract<ToPage, { kind: 'movie' }>;
 
 /** Reads a file, or nothing when it is not there */
 const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
@@ -405,15 +391,18 @@ export class AptDocument implements vscode.CustomDocument {
   }
 }
 
-/** The page: character list, stage and details, around the page script */
-export const renderHtml = (webview: vscode.Webview): string => {
+/** The page: character list, stage and details, around the page bundle */
+export const renderHtml = (
+  webview: vscode.Webview,
+  script: vscode.Uri,
+): string => {
   const nonce = createNonce();
 
   return /* html */ `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src blob: data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}; img-src blob: data:;">
 <style>
   body { margin: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); display: grid; grid-template-columns: 240px 1fr minmax(360px, 42%); height: 100vh; }
   aside, section { overflow: auto; }
@@ -455,7 +444,7 @@ export const renderHtml = (webview: vscode.Webview): string => {
 </main>
 <section id="details"></section>
 <div id="notice" hidden></div>
-<script nonce="${nonce}">${APT_VIEW_SCRIPT}</script>
+<script nonce="${nonce}" src="${script}"></script>
 </body>
 </html>`;
 };
@@ -478,17 +467,24 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
   /** Whether each open document's page has loaded and asked for its data */
   private readonly pagesReady = new Set<AptDocument>();
 
+  /** Where the page bundle is built */
+  private readonly scripts: vscode.Uri;
+
   public constructor(
     private readonly tools: ToolBox,
     private readonly locator: EntryLocator,
-  ) {}
+    extensionUri: vscode.Uri,
+  ) {
+    this.scripts = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
+  }
 
   /** Registers the provider under `APT_VIEW_TYPE` */
   public static register(
     tools: ToolBox,
     locator: EntryLocator,
+    extensionUri: vscode.Uri,
   ): vscode.Disposable {
-    const provider = new AptEditorProvider(tools, locator);
+    const provider = new AptEditorProvider(tools, locator, extensionUri);
 
     return vscode.Disposable.from(
       vscode.window.registerCustomEditorProvider(APT_VIEW_TYPE, provider, {
@@ -692,11 +688,17 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     document: AptDocument,
     panel: vscode.WebviewPanel,
   ): Promise<void> {
-    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
-    panel.webview.html = renderHtml(panel.webview);
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this.scripts],
+    };
+    panel.webview.html = renderHtml(
+      panel.webview,
+      panel.webview.asWebviewUri(vscode.Uri.joinPath(this.scripts, 'apt.js')),
+    );
 
     const sentTextures = new Set<string>();
-    const post = (message: unknown) => panel.webview.postMessage(message);
+    const post = (message: ToPage) => panel.webview.postMessage(message);
     const report = (error: unknown) =>
       post({
         kind: 'error',
@@ -726,7 +728,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
           } catch (error) {
             script = {
               text: `Cannot decode: ${error instanceof Error ? error.message : error}`,
-              mode: 'listing',
+              mode: 'listing' as const,
             };
           }
 

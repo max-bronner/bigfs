@@ -783,7 +783,7 @@
     "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && node esbuild.mjs",
     "package": "npm run check-types && npm run lint && node esbuild.mjs --production",
-    "check-types": "tsc --noEmit",
+    "check-types": "tsc --noEmit && tsc --noEmit -p src/webview",
     "watch:esbuild": "node esbuild.mjs --watch",
     "watch:tsc": "tsc --noEmit --watch --preserveWatchOutput --project tsconfig.json",
     "compile-tests": "tsc -p ./ --outDir out",

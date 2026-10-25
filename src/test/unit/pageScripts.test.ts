@@ -1,5 +1,4 @@
 import * as assert from 'assert';
-import { APT_VIEW_SCRIPT } from '../../providers/aptViewScript';
 import { MAP_VIEW_SCRIPT } from '../../providers/mapViewScript';
 import { MODEL_SCRIPT } from '../../providers/previewModelScript';
 import { PARTICLE_VIEW_SCRIPT } from '../../language/particleViewScript';
@@ -12,7 +11,6 @@ suite('Page scripts', () => {
   test('every webview script parses', () => {
     for (const script of [
       BALANCE_SHEET_SCRIPT,
-      APT_VIEW_SCRIPT,
       MAP_VIEW_SCRIPT,
       MODEL_SCRIPT,
       PARTICLE_VIEW_SCRIPT,

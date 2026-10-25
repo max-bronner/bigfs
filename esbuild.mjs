@@ -66,7 +66,21 @@ async function main() {
     plugins: [esbuildProblemMatcherPlugin],
   });
 
-  for (const each of [context, webview]) {
+  // The APT editor's page
+  const aptPage = await esbuild.context({
+    entryPoints: ['src/webview/apt/main.ts'],
+    bundle: true,
+    format: 'iife',
+    minify: production,
+    sourcemap: !production,
+    sourcesContent: false,
+    platform: 'browser',
+    outfile: 'dist/webview/apt.js',
+    logLevel: 'silent',
+    plugins: [esbuildProblemMatcherPlugin],
+  });
+
+  for (const each of [context, webview, aptPage]) {
     if (watch) {
       await each.watch();
     } else {
