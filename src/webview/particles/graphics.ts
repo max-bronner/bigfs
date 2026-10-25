@@ -225,6 +225,12 @@ export const drawLines = (
   gl.disableVertexAttribArray(color);
 };
 
+/**
+ * What the last frame drew: billboards, and their summed screen area as a
+ * multiple of the view's (fill, the overdraw a GPU pays for at this view)
+ */
+export const drawStats = { drawn: 0, fill: 0 };
+
 /** Sets a shader's blend state; returns whether it alpha-tests */
 const BLENDS: Record<string, (gl: WebGLRenderingContext) => number> = {
   ADDITIVE: (gl) => {
@@ -292,6 +298,8 @@ export const drawSystems = (
     return;
   }
 
+  let covered = 0;
+  let drawn = 0;
   const { gl, spriteProgram, spriteBuffer, spriteData, indexBuffer } = graphics;
   const order = world.systems
     .map((system) => {
@@ -367,6 +375,7 @@ export const drawSystems = (
       world.options.batchLimit ? 512 : undefined,
     );
 
+    drawn += particles.length;
     for (let first = 0; first < particles.length; first += CHUNK) {
       const batch = particles.slice(first, first + CHUNK);
 
@@ -378,6 +387,19 @@ export const drawSystems = (
           ? 6
           : p.previousSize + (p.size - p.previousSize) * blend;
         const angle = p.previousAngle + (p.angle - p.previousAngle) * blend;
+        // Depth from the clip w: the screen size of a billboard falls off with it
+        const depth =
+          matrix[3] * position[0] +
+          matrix[7] * position[1] +
+          matrix[11] * position[2] +
+          matrix[15];
+
+        if (depth > 0.001) {
+          const pixels =
+            (Math.max(0, size) * matrix[5] * canvas.height) / 2 / depth;
+
+          covered += pixels * pixels;
+        }
         const color = colourKeys
           ? p.previousColor.map((v, k) => v + (p.color[k] - v) * blend)
           : [1, 1, 1];
@@ -417,6 +439,8 @@ export const drawSystems = (
   }
   attributes.forEach((location) => gl.disableVertexAttribArray(location));
   gl.depthMask(true);
+  drawStats.drawn = drawn;
+  drawStats.fill = covered / Math.max(1, canvas.width * canvas.height);
 };
 
 /** Sizes the canvas to its box and clears it to the sky */

@@ -8,6 +8,7 @@ import {
 import { renderCurves } from './curves';
 import { renderFields } from './fields';
 import { attachHandles, drawHandles } from './handles';
+import { resetStats, sampleStats, showStats } from './stats';
 import { drawTimeline, renderTimeline } from './timeline';
 import {
   beginFrame,
@@ -43,6 +44,7 @@ const start = () => {
   state.time = 0;
   state.accumulator = 0;
   state.idle = 0;
+  resetStats();
 
   const scene = state.scene;
 
@@ -67,6 +69,7 @@ const stepOnce = () => {
     world.setOrigin(id, origin);
   }
   world.step();
+  sampleStats();
   state.time += 1 / STEP_HZ;
 };
 
@@ -127,6 +130,7 @@ const frame = (now: number) => {
     drawHandles();
   }
   drawTimeline();
+  showStats(now);
   hud.textContent = [
     ...(hasGraphics ? [] : ['WebGL is not available; nothing is drawn.']),
     `frame ${world.frame}  ${(world.frame / STEP_HZ).toFixed(1)} s`,

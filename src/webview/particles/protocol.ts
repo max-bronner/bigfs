@@ -21,6 +21,8 @@ export interface SceneMessage {
   fields: NumericField[];
   /** Slider values not yet applied, by field id */
   values: Record<string, number>;
+  /** Particles each detail level allows, from the mod's StaticGameLOD blocks */
+  budgets: { lod: string; max: number }[];
 }
 
 export type ToPage = SceneMessage | { kind: 'notice'; message: string };
