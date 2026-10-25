@@ -43,7 +43,7 @@ const editCell = (td, row, column, cell) => {
     done = true;
     if (save && input.value.trim() && input.value.trim() !== cell.value) {
       td.textContent = input.value.trim() + ' …';
-      vscode.postMessage({ kind: 'edit', uri: cell.uri, line: cell.line, start: cell.start, end: cell.end, old: cell.value, value: input.value.trim() });
+      vscode.postMessage({ kind: 'edit', row: row.name, column, old: cell.value, value: input.value.trim() });
     } else {
       td.textContent = cell.value;
     }
@@ -77,7 +77,7 @@ const render = () => {
     name.className = 'name';
     name.textContent = row.name;
     name.title = row.keyword + (row.parent ? ' of ' + row.parent : '') + '. Click to open.';
-    name.onclick = () => vscode.postMessage({ kind: 'open', uri: row.uri, line: row.line });
+    name.onclick = () => vscode.postMessage({ kind: 'open', row: row.name });
     tr.append(name);
     for (const column of state.columns) {
       const td = document.createElement('td');

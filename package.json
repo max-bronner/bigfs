@@ -9,6 +9,12 @@
     "type": "git",
     "url": "https://github.com/max-bronner/bigfs.git"
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "bigFS writes archives, runs the game and FFmpeg, and reads settings that name executables, so it only runs in trusted folders."
+    }
+  },
   "engines": {
     "vscode": "^1.125.0",
     "node": ">=22"
@@ -805,5 +811,10 @@
   },
   "dependencies": {
     "luaparse": "^0.3.1"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.1.4",
+    "diff": "^8.0.4",
+    "@azure/msal-node": "^7.1.1"
   }
 }

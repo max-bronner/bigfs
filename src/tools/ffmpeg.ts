@@ -22,12 +22,15 @@ export const run = (
     child.once('close', (code) => resolve({ code, stdout, stderr }));
   });
 
+/** Inputs read local files only, so a playlist inside one cannot fetch URLs */
+const INPUT = ['-protocol_whitelist', 'file,pipe'];
+
 /** Size and frame rate as FFmpeg reports them for the first video stream */
 export const probe = async (
   ffmpeg: string,
   file: string,
 ): Promise<{ width: number; height: number; fps: number }> => {
-  const { stderr } = await run(ffmpeg, ['-hide_banner', '-i', file]);
+  const { stderr } = await run(ffmpeg, ['-hide_banner', ...INPUT, '-i', file]);
   const stream = /Stream #[^\n]*Video:[^\n]*/.exec(stderr)?.[0] ?? '';
   const size = /\b(\d{2,5})x(\d{2,5})\b/.exec(stream);
   const fps = /([\d.]+) (?:fps|tbr)/.exec(stream);
@@ -54,6 +57,7 @@ export const ffmpegSource = (
   const child = spawn(ffmpeg, [
     '-v',
     'error',
+    ...INPUT,
     '-i',
     file,
     '-vf',

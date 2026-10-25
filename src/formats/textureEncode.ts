@@ -150,7 +150,10 @@ export const decodePng = (bytes: Uint8Array): RgbaImage => {
 
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colourType] as number;
   const stride = width * channels;
-  const raw = inflateSync(concat(data));
+  // A filter byte per row; anything larger is a compression bomb, not an image
+  const raw = inflateSync(concat(data), {
+    maxOutputLength: height * (stride + 1),
+  });
   const pixels = new Uint8Array(width * height * 4);
   let previous = new Uint8Array(stride);
 

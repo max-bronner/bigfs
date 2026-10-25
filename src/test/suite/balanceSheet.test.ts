@@ -100,14 +100,10 @@ suite('Balance sheet', () => {
     assert.ok(captain.selectable, 'a child inherits being selectable');
     assert.strictEqual(captain.cells.damage.value, '45');
 
-    const health = soldier.cells.health;
-
     await sheet.receive({
       kind: 'edit',
-      uri: health.uri,
-      line: health.line,
-      start: health.start,
-      end: health.end,
+      row: 'BalSoldier',
+      column: 'health',
       old: '200',
       value: '250',
     });

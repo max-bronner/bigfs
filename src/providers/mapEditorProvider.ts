@@ -196,7 +196,7 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     document: MapDocument,
     panel: vscode.WebviewPanel,
   ): void {
-    panel.webview.options = { enableScripts: true };
+    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
     panel.webview.html = renderHtml();
 
     let heightsSent = false;
