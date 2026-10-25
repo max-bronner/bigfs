@@ -533,6 +533,7 @@ kbd { font-size: 10px; opacity: 0.7; }
   <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · drag the yellow handles to size the emission volume · drag to orbit, right-drag to pan, wheel to zoom</div>
   <div id="notice"></div>
   <div id="notes"></div>
+  <div id="timeline"></div>
   <div id="curves"></div>
   <h3>Values <span class="muted">preview only until applied</span></h3>
   <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>

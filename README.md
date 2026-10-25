@@ -92,6 +92,10 @@ your mod's archives.
 - **New Particle System from Template…** (editor context menu) inserts a
   working system to start from: fire, smoke, sparks, dust cloud, magic glow
   or flash, with its name and texture as tab stops.
+- An FX list's preview has a **Timeline**: a bar per nugget from its
+  `InitialDelay` for as long as it emits and its particles live, lit while
+  it runs, with the playhead. Click a name to mute it, shift-click to play
+  it alone, drag a bar to move its delay.
 - Slave systems, per-particle attached systems, terrain-collision events and
   an FX list's `ParticleSystem` nuggets (offset, count, delay) play along.
 - The simulation follows the Generals engine's rules as BFME keeps them, at

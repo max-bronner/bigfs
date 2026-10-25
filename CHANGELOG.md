@@ -22,6 +22,7 @@
   with draggable, addable and removable keys.
 - Particle preview: handles on the emission volume to size it in the view.
 - Particle system templates: fire, smoke, sparks, dust cloud, magic glow, flash.
+- FX list timeline in the particle preview: nugget bars, mute and solo, drag to delay.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start
