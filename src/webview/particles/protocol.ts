@@ -3,6 +3,7 @@ import type {
   NumericField,
   ParticleDef,
 } from '../../formats/particles/particleIni';
+import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 
 /** Messages between the particle preview and its page */
 
@@ -30,4 +31,6 @@ export type FromPage =
   | { kind: 'set'; id: string; value: number }
   | { kind: 'reset' }
   | { kind: 'apply' }
+  /** Rewrites every colour or alpha key at once, with the values pending */
+  | { kind: 'keys'; keyKind: KeyKind; keys: KeyValue[] }
   | { kind: 'reveal'; line: number };

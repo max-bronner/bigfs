@@ -5,6 +5,7 @@ import {
   rootOrigin,
   viewProjection,
 } from './camera';
+import { renderCurves } from './curves';
 import { renderFields } from './fields';
 import {
   beginFrame,
@@ -228,6 +229,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     }),
   );
   renderFields(data);
+  renderCurves();
   if (first) {
     const def = library.systems.get(data.root.name.toLowerCase());
 

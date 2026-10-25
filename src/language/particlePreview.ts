@@ -16,6 +16,8 @@ import type {
   ParticleDef,
 } from '../formats/particles/particleIni';
 import { encodePng } from '../formats/textureEncode';
+import { keyEdits } from '../formats/particles/particleKeys';
+import type { KeyKind, KeyValue } from '../formats/particles/particleKeys';
 import { webviewPage } from '../providers/webviewPage';
 import { decodeDds, decodeTga } from '../tools/textureTools';
 import type { SageIniIndex } from './sageIniIndex';
@@ -152,6 +154,8 @@ class ParticlePreview {
     frame?: number;
     systems?: number;
     particles?: number;
+    keyKind?: KeyKind;
+    keys?: KeyValue[];
   }): Promise<void> {
     switch (message?.kind) {
       case 'status':
@@ -176,6 +180,14 @@ class ParticlePreview {
         break;
       case 'apply':
         await this.apply();
+        break;
+      case 'keys':
+        if (
+          (message.keyKind === 'Color' || message.keyKind === 'Alpha') &&
+          Array.isArray(message.keys)
+        ) {
+          await this.apply({ kind: message.keyKind, keys: message.keys });
+        }
         break;
       case 'reveal': {
         const editor = await vscode.window.showTextDocument(this.uri, {
@@ -202,16 +214,41 @@ class ParticlePreview {
     return definition && { definition, text };
   }
 
-  private async apply(): Promise<void> {
+  /**
+   * Writes the slider values; with `keys`, also rewrites that kind's key
+   * lines, which renumbers them, so the values are written in the same edit
+   */
+  private async apply(keys?: {
+    kind: KeyKind;
+    keys: KeyValue[];
+  }): Promise<void> {
     const root = await this.rootDefinition();
 
-    if (!root || !this.values.size) {
+    if (!root || (!this.values.size && !keys)) {
       return;
     }
 
     const edit = new vscode.WorkspaceEdit();
+    const newline = /\r\n/.test(root.text) ? '\r\n' : '\n';
+    const rewritten = keys
+      ? keyEdits(root.text, root.definition, keys.kind, keys.keys)
+      : [];
+    const replaced = new Set(
+      rewritten.flatMap((change) =>
+        Array.from({ length: change.remove }, (_, at) => change.line + at),
+      ),
+    );
 
-    for (const change of valueEdits(root.definition, this.values)) {
+    for (const change of rewritten) {
+      edit.replace(
+        this.uri,
+        new vscode.Range(change.line, 0, change.line + change.remove, 0),
+        change.insert.map((line) => line + newline).join(''),
+      );
+    }
+    for (const change of valueEdits(root.definition, this.values).filter(
+      (each) => !replaced.has(each.line),
+    )) {
       edit.replace(
         this.uri,
         new vscode.Range(change.line, change.start, change.line, change.end),
@@ -452,6 +489,11 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 .field input[type=number] { width: 60px; }
 .field input[type=range] { width: 100%; }
 #notes div { opacity: 0.8; margin: 2px 0; }
+.curve { display: block; margin: 2px 0 4px; cursor: crosshair; touch-action: none; }
+.curve-heading { margin: 8px 0 2px; font-weight: 600; }
+.curve-heading .muted { font-weight: normal; font-size: 11px; }
+#curves input[type=number] { width: 52px; }
+#curves input[type=color] { width: 36px; height: 20px; padding: 0; }
 #notice { color: var(--vscode-errorForeground); }
 .muted { opacity: 0.7; }
 kbd { font-size: 10px; opacity: 0.7; }
@@ -490,6 +532,7 @@ kbd { font-size: 10px; opacity: 0.7; }
   <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · drag to orbit, right-drag to pan, wheel to zoom</div>
   <div id="notice"></div>
   <div id="notes"></div>
+  <div id="curves"></div>
   <h3>Values <span class="muted">preview only until applied</span></h3>
   <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
   <div id="fields"></div>

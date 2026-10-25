@@ -18,6 +18,8 @@
 - APT timeline panel: tweens with easings, per-property formulas, fading,
   removing and showing for a range, and inserting, deleting, duplicating,
   reversing and retiming frames; onion skin.
+- Particle preview: colour, alpha and size curves over a particle's life,
+  with draggable, addable and removable keys.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start
