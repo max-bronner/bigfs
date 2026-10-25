@@ -66,6 +66,17 @@ export type FromPage =
   | { kind: 'scriptEdit'; block: number; text: string }
   | { kind: 'openGeometry'; geometry: number }
   | { kind: 'openMovie'; name: string }
+  /** Opens a block in its own editor tab */
+  | { kind: 'openScript'; block: number; label: string }
+  /** Attaches a new, empty script and opens it */
+  | {
+      kind: 'addScript';
+      label: string;
+      to:
+        | { kind: 'frame'; timeline: number; frame: number }
+        | { kind: 'button'; id: number; condition: number }
+        | { kind: 'clip'; offset: number; events: number };
+    }
   /** A shape's runs, all of them, to write as its geometry */
   | { kind: 'geometry'; shape: number; runs: RuRun[] }
   /** An image to add as a new texture, laid over a shape's run when given */

@@ -745,6 +745,16 @@
           ".wnd"
         ],
         "configuration": "./wnd-language-configuration.json"
+      },
+      {
+        "id": "apt-script",
+        "aliases": [
+          "APT Script"
+        ],
+        "extensions": [
+          ".aptscript"
+        ],
+        "configuration": "./apt-script-language-configuration.json"
       }
     ],
     "grammars": [
@@ -765,6 +775,11 @@
         "language": "sage-wnd",
         "scopeName": "source.sage-wnd",
         "path": "./syntaxes/sageWnd.tmLanguage.json"
+      },
+      {
+        "language": "apt-script",
+        "scopeName": "source.apt-script",
+        "path": "./syntaxes/aptScript.tmLanguage.json"
       }
     ],
     "configurationDefaults": {

@@ -12,10 +12,12 @@ import type { AptMovie, ConstFile, Frame } from '../formats/apt/aptMovie';
 import { AptImage, applyAptEdit } from '../formats/apt/aptWriter';
 import type { AptEdit, EditResult } from '../formats/apt/aptWriter';
 import {
+  addBlock,
   appendConstItems,
   decompileBlock,
   replaceBlock,
 } from '../formats/apt/aptScript';
+import { AptScripts } from './aptScripts';
 import {
   checkRuns,
   fitRunTo,
@@ -27,7 +29,7 @@ import { addTexture, setShapeGeometry } from '../formats/apt/aptAssets';
 import type { DatLocation, RuRun } from '../formats/apt/aptGeometry';
 import { behaviourOf } from '../formats/apt/aptBehaviour';
 import type { Behaviour } from '../formats/apt/aptBehaviour';
-import type { PageMovie, ToPage } from '../webview/apt/protocol';
+import type { FromPage, PageMovie, ToPage } from '../webview/apt/protocol';
 import { AptLibrary, movieKey } from './aptLibrary';
 import type { MovieLocation } from './aptLibrary';
 import { createNonce } from './webviewNonce';
@@ -49,6 +51,7 @@ import { decodeWindows1252 } from '../common/windows1252';
 export const APT_VIEW_TYPE = 'bigfs.aptEditor';
 
 type MovieMessage = Extract<ToPage, { kind: 'movie' }>;
+type ScriptSite = Extract<FromPage, { kind: 'addScript' }>['to'];
 
 /** A movie as the page draws it, with the textures it needs sent */
 interface BuiltMovie {
@@ -630,6 +633,9 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
   /** Goes up whenever the library forgets, so every movie is read afresh */
   private generation = 0;
 
+  /** Action blocks opened as tabs */
+  private scriptTabs?: AptScripts;
+
   public constructor(
     private readonly tools: ToolBox,
     private readonly locator: EntryLocator,
@@ -660,7 +666,41 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       extensionUri,
     );
 
+    provider.scriptTabs = new AptScripts({
+      document: (movie) => provider.open.get(movie),
+      save: (document, block, text) =>
+        provider.editScript(document, block, text),
+    });
+
+    const opened = (uri: vscode.Uri) => {
+      const document = provider.open.get(uri.toString());
+
+      if (!document) {
+        throw new Error(`${uri.toString()} is not open in the APT editor`);
+      }
+      return document;
+    };
+
     return vscode.Disposable.from(
+      provider.scriptTabs,
+      // The page's ways into script tabs, for automation and tests
+      vscode.commands.registerCommand(
+        'bigfs.aptOpenScript',
+        async (uri: vscode.Uri, block: number, label = `block ${block}`) =>
+          provider.scriptTabs!.open(opened(uri), block, label),
+      ),
+      vscode.commands.registerCommand(
+        'bigfs.aptAddScript',
+        async (uri: vscode.Uri, site: ScriptSite, label = 'new script') => {
+          const document = opened(uri);
+
+          return provider.scriptTabs!.open(
+            document,
+            await provider.addScript(document, site),
+            label,
+          );
+        },
+      ),
       provider.library,
       vscode.window.registerCustomEditorProvider(APT_VIEW_TYPE, provider, {
         webviewOptions: { retainContextWhenHidden: true },
@@ -779,6 +819,45 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     });
   }
 
+  /**
+   * Compiles an empty script and attaches it where the page asked: a frame
+   * of a timeline, a button condition or clip events of a placement
+   */
+  private addScript(document: AptDocument, site: ScriptSite): Promise<number> {
+    return this.record(document, 'add script', async () => {
+      const { start, added } = addBlock(
+        document.image,
+        '',
+        document.constFile.items,
+      );
+      const edit: AptEdit =
+        site.kind === 'frame'
+          ? {
+              kind: 'addFrameScript',
+              timeline: site.timeline,
+              frame: site.frame,
+              block: start,
+            }
+          : site.kind === 'button'
+            ? {
+                kind: 'addButtonAction',
+                id: site.id,
+                condition: site.condition,
+                block: start,
+              }
+            : {
+                kind: 'addClipAction',
+                offset: site.offset,
+                events: site.events,
+                block: start,
+              };
+
+      applyAptEdit(document.image, document.constFile.movieOffset, edit);
+      document.addConstItems(added);
+      return start;
+    });
+  }
+
   /** Runs a change, records how to undo it, and redraws */
   private async record<T>(
     document: AptDocument,
@@ -796,8 +875,12 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     }
 
     const after = document.snapshot();
-    // Another open movie can import this one, so every page draws again
-    const redraw = () => this.redrawAll();
+    // Another open movie can import this one, so every page draws again,
+    // and a script tab of this one reads its block again
+    const redraw = async () => {
+      await this.redrawAll();
+      this.scriptTabs?.changed(document);
+    };
 
     this.onDidChangeEmitter.fire({
       document,
@@ -1068,6 +1151,19 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             block,
             previous: Number(message.block),
           });
+        } else if (message?.kind === 'openScript') {
+          await this.scriptTabs?.open(
+            document,
+            Number(message.block),
+            String(message.label),
+          );
+        } else if (message?.kind === 'addScript') {
+          const block = await this.addScript(
+            document,
+            message.to as ScriptSite,
+          );
+
+          await this.scriptTabs?.open(document, block, String(message.label));
         } else if (message?.kind === 'geometry') {
           if (!checkRuns(message.runs)) {
             throw new Error('The geometry is not well formed');

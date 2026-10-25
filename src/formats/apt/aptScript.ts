@@ -198,3 +198,34 @@ export const appendConstItems = (
 
   return image.bytes;
 };
+
+/** Compiles `text` as a new block at the end of the movie, for a new script to run */
+export const addBlock = (
+  image: AptImage,
+  text: string,
+  constants: readonly ConstItem[],
+): { start: number; added: ConstItem[] } => {
+  const items = [...constants];
+  const start = compileScript(parseScript(text), image, items);
+
+  return { start, added: items.slice(constants.length) };
+};
+
+/** Where a script fails to compile, if it does; `line` and `column` from 1 */
+export const checkScript = (
+  text: string,
+  constants: readonly ConstItem[],
+): { message: string; line?: number; column?: number } | undefined => {
+  try {
+    recompile(text, constants);
+    return undefined;
+  } catch (error) {
+    return error instanceof ScriptError
+      ? {
+          message: error.message.replace(/^\d+:\d+: /, ''),
+          line: error.line,
+          column: error.column,
+        }
+      : { message: describe(error) };
+  }
+};
