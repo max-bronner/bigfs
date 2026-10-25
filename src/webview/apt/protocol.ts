@@ -69,6 +69,9 @@ export type FromPage =
   | { kind: 'scriptEdit'; block: number; text: string }
   | { kind: 'openGeometry'; geometry: number }
   | { kind: 'openMovie'; name: string }
+  /** Removes a character nothing refers to, with its own files */
+  | { kind: 'removeCharacter'; id: number }
+  | { kind: 'manageMovie'; action: 'rename' | 'delete' }
   /** Opens a block in its own editor tab */
   | { kind: 'openScript'; block: number; label: string }
   /** Attaches a new, empty script and opens it */

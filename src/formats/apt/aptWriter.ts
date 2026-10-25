@@ -83,6 +83,8 @@ export type AptEdit =
       translate?: [number, number];
     }
   | { kind: 'removeButtonRecord'; id: number; index: number }
+  /** Empties a character's slot, as an import slot is; ids after it keep theirs */
+  | { kind: 'removeCharacter'; id: number }
   | {
       kind: 'placeObject';
       timeline: number;
@@ -845,6 +847,22 @@ export const applyAptEdit = (
       }
 
       image.setU32(frameAt, count - 1);
+      return {};
+    }
+    case 'removeCharacter': {
+      if (
+        !Number.isInteger(edit.id) ||
+        edit.id < 1 ||
+        edit.id >= record.characterCount
+      ) {
+        throw new Error(`There is no character #${edit.id} to remove`);
+      }
+      // Copied first: the table may be shared
+      image.setU32(
+        image.growArray(record.offset + 24, record.characterCount, 0) +
+          edit.id * 4,
+        0,
+      );
       return {};
     }
     case 'addButtonRecord':

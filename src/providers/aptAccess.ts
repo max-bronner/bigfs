@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
 import type { MovieAccess } from '../formats/apt/aptIntegrity';
+import type { ArchiveModel } from '../model/archiveModel';
+import { getNodeUri } from '../model/nodeAddress';
+import { getFileNodes } from '../model/virtualNode';
 
 /**
  * The files beside a movie as the game finds them: by path relative to the
@@ -69,8 +72,9 @@ export const movieAccess = (
     async read(relative) {
       const pending = addedByLower.get(relative.toLowerCase());
 
+      // An empty one was removed by an edit
       if (pending) {
-        return pending;
+        return pending.length ? pending : undefined;
       }
 
       const uri = await findBelow(folder, relative, vscode.FileType.File);
@@ -84,6 +88,14 @@ export const movieAccess = (
     async list(relative) {
       const uri = await findBelow(folder, relative, vscode.FileType.Directory);
       const prefix = relative.toLowerCase() + '/';
+      const removed = new Set(
+        [...added]
+          .filter(
+            ([path, bytes]) =>
+              !bytes.length && path.toLowerCase().startsWith(prefix),
+          )
+          .map(([path]) => path.slice(prefix.length).toLowerCase()),
+      );
       const names = new Set([
         ...(uri ? await listFolder(uri) : [])
           .filter(([, kind]) => kind & vscode.FileType.File)
@@ -94,7 +106,57 @@ export const movieAccess = (
           .filter((each) => !each.includes('/')),
       ]);
 
-      return uri || names.size ? [...names] : undefined;
+      const left = [...names].filter(
+        (each) => !removed.has(each.toLowerCase()),
+      );
+
+      return uri || left.length ? left : undefined;
     },
   };
+};
+
+/** Every `.apt` of the workspace, loose and inside archives */
+export const workspaceMovies = async (
+  archiveModel: ArchiveModel,
+): Promise<vscode.Uri[]> => {
+  await archiveModel.whenReady();
+
+  const movies = await vscode.workspace.findFiles(
+    '**/*.{apt,APT}',
+    '**/node_modules/**',
+  );
+
+  for (const archive of archiveModel.getArchiveRoots()) {
+    try {
+      await archiveModel.loadArchiveOf(archive);
+    } catch {
+      continue; // an archive that does not read holds no movie
+    }
+    movies.push(
+      ...getFileNodes(archive)
+        .filter((node) => /\.apt$/i.test(node.name))
+        .map(getNodeUri),
+    );
+  }
+  return movies;
+};
+
+/** A file or folder beside a movie, matched without casing */
+export const findBeside = (
+  aptUri: vscode.Uri,
+  relative: string,
+  type: vscode.FileType,
+): Promise<vscode.Uri | undefined> => {
+  listings.clear();
+  return findBelow(vscode.Uri.joinPath(aptUri, '..'), relative, type);
+};
+
+/** The names in a folder beside a movie, matched without casing */
+export const listBeside = async (
+  aptUri: vscode.Uri,
+  relative: string,
+): Promise<[string, vscode.FileType][]> => {
+  const folder = await findBeside(aptUri, relative, vscode.FileType.Directory);
+
+  return folder ? listFolder(folder) : [];
 };
