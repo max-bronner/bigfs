@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
+import { openDocument } from './workspaceText';
 import { parseWnd, toBoxes } from './model/wndLayout';
 import type { WndWindow } from './model/wndLayout';
 import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
-import { createNonce } from '../providers/webviewNonce';
+import { webviewPage } from '../providers/webviewPage';
 
 /**
  * Language support for `.wnd` window layouts: problems, an outline of the
@@ -213,21 +214,17 @@ class WndPreview {
 
 /** The preview page: the windows drawn at their creation resolution */
 export const renderPreviewHtml = (): string => {
-  const nonce = createNonce();
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">
+  return webviewPage({
+    style: `
   body { margin: 0; padding: 8px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   #bar { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
   canvas { background: #1b1c1f; max-width: 100%; cursor: pointer; }
   .muted { opacity: 0.7; }
-</style></head><body>
-<div id="bar"><label><input type="checkbox" id="hidden"> Show hidden</label><span id="status" class="muted"></span></div>
-<canvas id="screen" width="800" height="600"></canvas>
-<script nonce="${nonce}">${WND_PREVIEW_SCRIPT}</script>
-</body></html>`;
+`,
+    body: `<div id="bar"><label><input type="checkbox" id="hidden"> Show hidden</label><span id="status" class="muted"></span></div>
+<canvas id="screen" width="800" height="600"></canvas>`,
+    script: WND_PREVIEW_SCRIPT,
+  });
 };
 
 export const registerSageWndLanguage = (
@@ -339,9 +336,7 @@ export const registerSageWndLanguage = (
       'bigfs.showWndPreview',
       (uri?: vscode.Uri) => {
         const document = uri
-          ? vscode.workspace.textDocuments.find(
-              (candidate) => candidate.uri.toString() === uri.toString(),
-            )
+          ? openDocument(uri)
           : vscode.window.activeTextEditor?.document;
 
         if (document) {

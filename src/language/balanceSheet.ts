@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { decodeWindows1252 } from '../common/windows1252';
-import { createNonce } from '../providers/webviewNonce';
+import { webviewPage } from '../providers/webviewPage';
 import { BALANCE_SHEET_SCRIPT } from './balanceSheetScript';
 import {
   STAT_COLUMNS,
@@ -8,14 +7,12 @@ import {
   readWeaponStats,
 } from './model/objectStats';
 import type { ObjectStats, StatColumn, StatValue } from './model/objectStats';
-import {
-  forEachBlock,
-  parseSageIni,
-  isFragmentPath,
-} from './model/sageIniParser';
+import { forEachBlock } from './model/sageIniParser';
 import type { SageBlock, SageDocument } from './model/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
+import { createParseCache } from './workspaceText';
+import type { ParseCache } from './workspaceText';
 
 /**
  * The balance sheet: every unit and building with its cost, build time,
@@ -64,7 +61,7 @@ const cellOf = (uri: string, value: StatValue, from?: string): SheetCell => ({
 class BalanceSheet {
   private static current?: BalanceSheet;
   private readonly panel: vscode.WebviewPanel;
-  private readonly parses = new Map<string, Promise<SageDocument>>();
+  private readonly parses: ParseCache;
   private readonly disposables: vscode.Disposable[] = [];
   public rows: SheetRow[] = [];
 
@@ -84,6 +81,7 @@ class BalanceSheet {
     private readonly documents: SageIniDocuments,
     private readonly index: SageIniIndex,
   ) {
+    this.parses = createParseCache(documents);
     this.panel = vscode.window.createWebviewPanel(
       'bigfs.balanceSheet',
       'Balance Sheet',
@@ -105,7 +103,7 @@ class BalanceSheet {
         ),
       ),
       vscode.workspace.onDidChangeTextDocument(({ document }) =>
-        this.parses.delete(document.uri.toString()),
+        this.parses.delete(document.uri),
       ),
     );
     this.panel.onDidDispose(() => {
@@ -195,7 +193,7 @@ class BalanceSheet {
     );
 
     if (document.getText(range) !== change.old) {
-      this.parses.delete(uri.toString());
+      this.parses.delete(uri);
       await this.refresh();
       throw new Error(
         'The file changed since the table was built; it has been refreshed',
@@ -210,34 +208,8 @@ class BalanceSheet {
     if (!wasDirty) {
       await document.save();
     }
-    this.parses.delete(uri.toString());
+    this.parses.delete(uri);
     await this.refresh();
-  }
-
-  private parse(uri: vscode.Uri): Promise<SageDocument> {
-    const key = uri.toString();
-    let parse = this.parses.get(key);
-
-    if (!parse) {
-      parse = (async () => {
-        const open = vscode.workspace.textDocuments.find(
-          (document) => document.uri.toString() === key,
-        );
-        const text =
-          open?.getText() ??
-          decodeWindows1252(await vscode.workspace.fs.readFile(uri));
-
-        return parseSageIni(
-          text.split(/\r?\n/),
-          await this.documents.getSchema(),
-          {
-            isFragment: isFragmentPath(uri.path),
-          },
-        );
-      })();
-      this.parses.set(key, parse);
-    }
-    return parse;
   }
 
   /** The top-level block a definition opens */
@@ -245,13 +217,10 @@ class BalanceSheet {
     uri: vscode.Uri,
     line: number,
   ): Promise<{ parsed: SageDocument; block: SageBlock } | undefined> {
-    let parsed: SageDocument;
-
     // The index can still list a file deleted a moment ago
-    try {
-      parsed = await this.parse(uri);
-    } catch {
-      this.parses.delete(uri.toString());
+    const parsed = await this.parses.get(uri);
+
+    if (!parsed) {
       return undefined;
     }
     let found: SageBlock | undefined;
@@ -382,12 +351,8 @@ class BalanceSheet {
 }
 
 const renderHtml = (): string => {
-  const nonce = createNonce();
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">
+  return webviewPage({
+    style: `
   body { margin: 0; padding: 8px 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   #bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; position: sticky; top: 0; background: var(--vscode-editor-background); padding: 4px 0; z-index: 2; }
   input, select, button { font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
@@ -403,8 +368,8 @@ const renderHtml = (): string => {
   td input { width: 6em; }
   #notice { color: var(--vscode-errorForeground); }
   .muted { opacity: 0.7; }
-</style></head><body>
-<div id="bar">
+`,
+    body: `<div id="bar">
   <input id="filter" placeholder="Filter by name, weapon or armor" size="30">
   <select id="side"><option value="">All sides</option></select>
   <label><input type="checkbox" id="selectable" checked> Units and buildings only</label>
@@ -414,9 +379,9 @@ const renderHtml = (): string => {
   <span id="notice"></span>
 </div>
 <table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table>
-<div id="more" class="muted"></div>
-<script nonce="${nonce}">${BALANCE_SHEET_SCRIPT}</script>
-</body></html>`;
+<div id="more" class="muted"></div>`,
+    script: BALANCE_SHEET_SCRIPT,
+  });
 };
 
 export const registerBalanceSheet = (

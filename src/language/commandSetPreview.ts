@@ -1,5 +1,4 @@
-import * as vscode from 'vscode';
-import { decodeWindows1252 } from '../common/windows1252';
+import { readWorkspaceText } from './workspaceText';
 import type { SageDefinition, SageIniIndex } from './sageIniIndex';
 import { hotkeyClashes, hotkeyOf } from './model/hotkeys';
 
@@ -56,12 +55,7 @@ export const createLineReader = () => {
     let text = texts.get(key);
 
     if (!text) {
-      text = Promise.resolve(
-        vscode.workspace.textDocuments
-          .find((document) => document.uri.toString() === key)
-          ?.getText() ??
-          vscode.workspace.fs.readFile(place.uri).then(decodeWindows1252),
-      )
+      text = readWorkspaceText(place.uri)
         .then((content) => content.split(/\r?\n/))
         // A file deleted since it was indexed reads as empty
         .catch(() => []);

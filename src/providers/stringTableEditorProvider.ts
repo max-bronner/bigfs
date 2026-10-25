@@ -5,7 +5,7 @@ import {
   quoteStringText,
 } from '../language/model/sageStringRecords';
 import { STRING_TABLE_SCRIPT } from './stringTableViewScript';
-import { createNonce } from './webviewNonce';
+import { webviewPage } from './webviewPage';
 
 /**
  * Table editors for string tables: `.str` as an alternative view of the text
@@ -45,12 +45,8 @@ interface PageMessage {
 }
 
 export const renderHtml = (): string => {
-  const nonce = createNonce();
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
-<style nonce="${nonce}">
+  return webviewPage({
+    style: `
   body { margin: 0; padding: 8px 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
   input, textarea { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 3px 5px; font: inherit; }
@@ -69,15 +65,14 @@ export const renderHtml = (): string => {
   th.label { width: 30%; } th.speech { width: 20%; } th.actions { width: 64px; }
   .muted { opacity: 0.7; }
   #notice { position: fixed; bottom: 8px; left: 12px; right: 12px; padding: 6px 10px; background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
-</style></head>
-<body>
-<header><input id="filter" placeholder="Filter labels and text"><span id="count" class="muted"></span><span id="summary" class="muted"></span></header>
+`,
+    body: `<header><input id="filter" placeholder="Filter labels and text"><span id="count" class="muted"></span><span id="summary" class="muted"></span></header>
 <form id="add"><input id="newLabel" placeholder="NEW:Label"><input id="newText" placeholder="Text"><button type="submit">Add</button></form>
 <table><thead><tr><th class="label">Label</th><th>Text <span class="muted">(double-click to edit; Ctrl+Enter saves)</span></th><th class="speech" id="speechHead">Speech</th><th class="actions"></th></tr></thead><tbody id="rows"></tbody></table>
 <p><button id="more" hidden>Show more</button></p>
-<div id="notice" hidden></div>
-<script nonce="${nonce}">${STRING_TABLE_SCRIPT}</script>
-</body></html>`;
+<div id="notice" hidden></div>`,
+    script: STRING_TABLE_SCRIPT,
+  });
 };
 
 /** Wires a page to a source of rows and a handler for its messages */

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { decodeWindows1252 } from '../common/windows1252';
+import { readWorkspaceText } from './workspaceText';
 import type { EntryLocator } from '../formats/entryLocator';
 import {
   applyValueEdits,
@@ -16,7 +16,7 @@ import type {
   ParticleDef,
 } from '../formats/particles/particleIni';
 import { encodePng } from '../formats/textureEncode';
-import { createNonce } from '../providers/webviewNonce';
+import { webviewPage } from '../providers/webviewPage';
 import { decodeDds, decodeTga } from '../tools/textureTools';
 import { PARTICLE_VIEW_SCRIPT } from './particleViewScript';
 import type { SageIniIndex } from './sageIniIndex';
@@ -38,17 +38,6 @@ const findDefinitionAt = (
   definitions.find(
     (definition) => definition.startLine <= line && line <= definition.endLine,
   );
-
-/** The text of a file, from its editor when it is open there */
-const readText = async (uri: vscode.Uri): Promise<string> => {
-  const open = vscode.workspace.textDocuments.find(
-    (document) => document.uri.toString() === uri.toString(),
-  );
-
-  return open
-    ? open.getText()
-    : decodeWindows1252(await vscode.workspace.fs.readFile(uri));
-};
 
 class ParticlePreview {
   private static readonly panels = new Map<string, ParticlePreview>();
@@ -205,7 +194,7 @@ class ParticlePreview {
   private async rootDefinition(): Promise<
     { definition: IniDefinition; text: string } | undefined
   > {
-    const text = await readText(this.uri);
+    const text = await readWorkspaceText(this.uri);
     const definition = findParticleDefinitions(text).find(
       (candidate) => candidate.name.toLowerCase() === this.name.toLowerCase(),
     );
@@ -268,7 +257,9 @@ class ParticlePreview {
     }
     for (const keyword of keywords) {
       for (const place of this.index.findDefinitions(keyword, name)) {
-        const found = findParticleDefinitions(await readText(place.uri)).find(
+        const found = findParticleDefinitions(
+          await readWorkspaceText(place.uri),
+        ).find(
           (definition) =>
             definition.keyword === keyword &&
             definition.name.toLowerCase() === name.toLowerCase(),
@@ -438,13 +429,12 @@ class ParticlePreview {
   }
 
   private renderHtml(script: vscode.Uri): string {
-    const nonce = createNonce();
     const source = this.panel.webview.cspSource;
 
-    return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}' ${source};">
-<style nonce="${nonce}">
+    return webviewPage({
+      allow: { img: 'data:', script: source },
+      scriptFiles: [script.toString()],
+      style: `
   html, body { height: 100%; margin: 0; overflow: hidden; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   #layout { display: flex; height: 100%; }
   #view { flex: 1; position: relative; min-width: 0; }
@@ -465,8 +455,8 @@ class ParticlePreview {
   #notice { color: var(--vscode-errorForeground); }
   .muted { opacity: 0.7; }
   kbd { font-size: 10px; opacity: 0.7; }
-</style></head><body>
-<div id="layout">
+`,
+      body: `<div id="layout">
   <div id="view"><canvas id="canvas"></canvas><div id="hud"></div></div>
   <div id="side">
     <div class="row"><strong id="title"></strong></div>
@@ -504,10 +494,9 @@ class ParticlePreview {
     <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
     <div id="fields"></div>
   </div>
-</div>
-<script nonce="${nonce}" src="${script}"></script>
-<script nonce="${nonce}">${PARTICLE_VIEW_SCRIPT}</script>
-</body></html>`;
+</div>`,
+      script: PARTICLE_VIEW_SCRIPT,
+    });
   }
 }
 
