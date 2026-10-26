@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
-import { mkdir, readFile, rm, writeFile } from 'fs/promises';
+import { mkdir, rm, writeFile } from 'fs/promises';
 
 /**
  * A new unit from an existing one: the object, a button that builds it in
@@ -79,10 +79,12 @@ suite('New unit wizard', () => {
     }
     assert.deepStrictEqual(result?.left, []);
 
-    await vscode.workspace.saveAll();
-
-    const units = await readFile(path.join(folder, 'units.ini'), 'utf8');
-    const strings = await readFile(path.join(folder, 'strings.str'), 'utf8');
+    const text = async (name: string) =>
+      (await vscode.workspace.openTextDocument(path.join(folder, name)))
+        .getText()
+        .replace(/\r\n/g, '\n');
+    const units = await text('units.ini');
+    const strings = await text('strings.str');
 
     assert.match(
       units,
