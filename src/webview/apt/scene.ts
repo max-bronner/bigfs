@@ -63,6 +63,12 @@ export interface Leaf {
   instance: Instance;
   /** The depth of the root's child it is drawn inside, if any */
   top?: number;
+  /**
+   * The masks it is drawn through, outermost first: it shows only where
+   * every one of them draws. Each mask is the leaves of one masking
+   * instance, whose shapes together are its area.
+   */
+  masks?: Leaf[][];
 }
 
 /** Where a button can be pointed at: one of its hit-test records' leaves */
@@ -84,6 +90,7 @@ export const collect = (
     alpha: number,
     top: number | undefined,
     out: Leaf[],
+    masks: Leaf[][] = [],
   ): void => {
     const { character } = instance;
 
@@ -100,6 +107,7 @@ export const collect = (
         alpha,
         instance,
         top,
+        ...(masks.length ? { masks } : {}),
       });
       return;
     }
@@ -107,14 +115,27 @@ export const collect = (
     const place = (child: Instance) =>
       multiply(matrix, [...child.matrix, ...child.translate] as Affine);
 
+    // A child with a clip depth is a mask: not drawn, it bounds the
+    // children above it up to that depth (SWF's PlaceObject ClipDepth)
+    const open: { until: number; leaves: Leaf[] }[] = [];
+
     for (const [key, child] of instance.children) {
-      visit(
-        child,
-        place(child),
-        alpha * child.alpha,
-        top ?? (instance === player.root ? Number(key) : undefined),
-        out,
-      );
+      const depth = Number(key);
+      const childTop = top ?? (instance === player.root ? depth : undefined);
+
+      if (child.clipDepth !== undefined) {
+        const area: Leaf[] = [];
+
+        visit(child, place(child), 1, childTop, area, masks);
+        open.push({ until: child.clipDepth, leaves: area });
+        continue;
+      }
+      visit(child, place(child), alpha * child.alpha, childTop, out, [
+        ...masks,
+        ...open
+          .filter((mask) => Number.isNaN(depth) || depth <= mask.until)
+          .map((mask) => mask.leaves),
+      ]);
     }
     if (character.type === 'button') {
       for (const hit of instance.hits) {
@@ -169,6 +190,39 @@ export const union = (boxes: Rect[]): Rect | undefined =>
       ]
     : undefined;
 
-/** The box around everything the leaves draw */
-export const boundsOf = (leaves: Leaf[]): Rect | undefined =>
-  union(leaves.map((leaf) => transformRect(leaf.matrix, localBounds(leaf))));
+/** Where two boxes overlap, or nothing */
+const intersect = (a: Rect, b: Rect): Rect | undefined => {
+  const box: Rect = [
+    Math.max(a[0], b[0]),
+    Math.max(a[1], b[1]),
+    Math.min(a[2], b[2]),
+    Math.min(a[3], b[3]),
+  ];
+
+  return box[0] < box[2] && box[1] < box[3] ? box : undefined;
+};
+
+/** The box a leaf covers, cut to its masks unless they are not applied */
+const leafBounds = (leaf: Leaf, masked: boolean): Rect | undefined => {
+  let box: Rect | undefined = transformRect(leaf.matrix, localBounds(leaf));
+
+  for (const mask of masked ? (leaf.masks ?? []) : []) {
+    const area = boundsOf(mask, true);
+
+    box = box && area && intersect(box, area);
+  }
+  return box;
+};
+
+/**
+ * The box around everything the leaves draw; with `masked`, only what
+ * their masks let show
+ */
+export const boundsOf = (leaves: Leaf[], masked = false): Rect | undefined =>
+  union(
+    leaves.flatMap((leaf) => {
+      const box = leafBounds(leaf, masked);
+
+      return box ? [box] : [];
+    }),
+  );

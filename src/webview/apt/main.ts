@@ -19,6 +19,7 @@ import {
   goToFrame,
   play,
   pointAt,
+  remeasure,
   render,
   restart,
   setInspectorView,
@@ -102,11 +103,16 @@ const step = (by: number) => {
 };
 
 const toggle = (
-  key: 'origin' | 'boxes' | 'scripts' | 'interact' | 'wireframe',
+  key: 'origin' | 'boxes' | 'masks' | 'scripts' | 'interact' | 'wireframe',
   id: string,
 ) => {
   view[key] = !view[key];
-  byId<HTMLInputElement>(id).checked = view[key];
+  byId<HTMLInputElement>(id).checked =
+    key === 'masks' ? !view.masks : view[key];
+  // Applied masks size the canvas to what they let show; shown, to it all
+  if (key === 'masks') {
+    remeasure();
+  }
   // Scripts and interaction change what plays, so it starts over
   if (key === 'scripts' || key === 'interact') {
     const inspected = state.inspected;
@@ -178,6 +184,7 @@ const stepSpeed = (by: number) => {
 };
 byId('show-origin').onchange = () => toggle('origin', 'show-origin');
 byId('show-boxes').onchange = () => toggle('boxes', 'show-boxes');
+byId('show-masks').onchange = () => toggle('masks', 'show-masks');
 byId('scripts').onchange = () => toggle('scripts', 'scripts');
 byId('interact').onchange = () => toggle('interact', 'interact');
 byId('wireframe').onchange = () => toggle('wireframe', 'wireframe');
@@ -217,6 +224,7 @@ document.addEventListener('keydown', (event) => {
     '.': () => step(1),
     o: () => toggle('origin', 'show-origin'),
     b: () => toggle('boxes', 'show-boxes'),
+    m: () => toggle('masks', 'show-masks'),
     s: () => toggle('scripts', 'scripts'),
     i: () => toggle('interact', 'interact'),
     w: () => toggle('wireframe', 'wireframe'),

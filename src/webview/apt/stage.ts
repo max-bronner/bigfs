@@ -1,6 +1,6 @@
 import type { Rect } from '../../formats/apt/aptMovie';
 import { byId } from './dom';
-import { paintLeaf } from './paint';
+import { maskArea, paintLeaf } from './paint';
 import { Player } from './player';
 import type { Instance } from './player';
 import { resolve } from './resolve';
@@ -35,6 +35,11 @@ export const view = {
   /** Frames either side of the shown one, drawn faintly behind it */
   onion: 0,
   boxes: true,
+  /**
+   * Whether clip masks cut what they cover, as the game draws it; off shows
+   * everything, faint outside its mask, with the masks outlined
+   */
+  masks: true,
   scripts: true,
   interact: false,
   playing: false,
@@ -148,6 +153,11 @@ export const restart = (): void => {
   state.inspected = undefined;
 };
 
+/** Sizes the canvas again from what is drawn, after a mode changes what that is */
+export const remeasure = (): void => {
+  extent = undefined;
+};
+
 /** The frames of the shown character's own timeline */
 export const rootFrames = (): number => currentPlayer().root.frames.length;
 
@@ -193,7 +203,7 @@ const measure = (): Rect => {
   const boxes: Rect[] = [];
 
   for (let tick = 0; tick < samples; tick++) {
-    const box = boundsOf(collect(sample).leaves);
+    const box = boundsOf(collect(sample).leaves, view.masks);
 
     if (box) {
       boxes.push(box);
@@ -216,6 +226,7 @@ export const showMode = (): void => {
       : `paused at ${view.speed}×`,
     `origin ${view.origin ? 'on' : 'off'}`,
     `boxes ${view.boxes ? 'on' : 'off'}`,
+    `masks ${view.masks ? 'applied' : 'shown'}`,
     `scripts ${view.scripts ? 'on' : 'off'}`,
     `wireframe ${view.wireframe ? 'on' : 'off'}`,
     `onion ${view.onion ? `±${view.onion}` : 'off'}`,
@@ -266,13 +277,35 @@ export const instanceBox = (instance: Instance): Rect | undefined =>
     }),
   );
 
+/** How strongly what a mask hides shows when the masks are shown */
+const HIDDEN_ALPHA = 0.25;
+
+/** Every mask drawn now, once each, outlined over the stage */
+const outlineMasks = (ctx: CanvasRenderingContext2D) => {
+  const masks = new Set(scene.leaves.flatMap((leaf) => leaf.masks ?? []));
+
+  ctx.save();
+  ctx.setTransform(...base);
+  ctx.lineWidth = 2 / base[0];
+  ctx.setLineDash([6 / base[0], 4 / base[0]]);
+  ctx.strokeStyle = 'rgba(0, 220, 255, 0.95)';
+  ctx.fillStyle = 'rgba(0, 220, 255, 0.08)';
+  for (const mask of masks) {
+    const area = maskArea(mask);
+
+    ctx.fill(area);
+    ctx.stroke(area);
+  }
+  ctx.restore();
+};
+
 /** Draws the shown character as the player has it now */
 export const render = (): void => {
   const current = currentPlayer();
 
   scene = collect(current);
 
-  const frameBox = boundsOf(scene.leaves);
+  const frameBox = boundsOf(scene.leaves, view.masks);
 
   extent ??= measure();
   if (frameBox) {
@@ -334,12 +367,27 @@ export const render = (): void => {
     }
   }
   for (const leaf of scene.leaves) {
+    // With the masks shown, what a mask hides is drawn faintly too
+    if (!view.masks && leaf.masks) {
+      ctx.save();
+      ctx.setTransform(...base);
+      ctx.transform(...leaf.matrix);
+      ctx.globalAlpha = leaf.alpha * HIDDEN_ALPHA;
+      paintLeaf(ctx, leaf);
+      ctx.restore();
+    }
     ctx.save();
     ctx.setTransform(...base);
+    for (const mask of leaf.masks ?? []) {
+      ctx.clip(maskArea(mask));
+    }
     ctx.transform(...leaf.matrix);
     ctx.globalAlpha = leaf.alpha;
     paintLeaf(ctx, leaf);
     ctx.restore();
+  }
+  if (!view.masks) {
+    outlineMasks(ctx);
   }
 
   ctx.setTransform(...base);
