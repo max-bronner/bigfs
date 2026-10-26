@@ -250,6 +250,39 @@ export class ArchiveModel {
     });
   }
 
+  /**
+   * Looks on disk for the archive a uri points into, when the model has not
+   * heard of it. A file written into a folder created a moment before can
+   * reach disk before the watcher watches that folder, so no event ever
+   * reports it; asking for it by name finds it all the same.
+   */
+  private async discover(uri: Uri): Promise<void> {
+    const [sourceId, ...segments] = uri.path.split('/').filter(Boolean);
+    const source = this.sources.find((each) => each.id === sourceId);
+
+    if (!source) {
+      return;
+    }
+    for (let count = 1; count <= segments.length; count++) {
+      if (!/\.big$/i.test(segments[count - 1])) {
+        continue;
+      }
+
+      const candidate = Uri.joinPath(
+        source.baseUri,
+        ...segments.slice(0, count),
+      );
+
+      if (
+        !this.getArchiveByPath(candidate.fsPath) &&
+        (await isFile(candidate))
+      ) {
+        await this.reloadArchive(candidate);
+      }
+      return;
+    }
+  }
+
   /** Drops an archive whose file is gone, which changes the set of roots */
   private forgetArchive(uri: Uri): void {
     const archive = this.getArchiveByPath(uri.fsPath);
@@ -456,6 +489,9 @@ export class ArchiveModel {
   public async resolveNode(uri: Uri): Promise<VirtualNode | undefined> {
     if (!this.resolveUri(uri)) {
       await this.whenReady();
+    }
+    if (!this.resolveUri(uri)) {
+      await this.discover(uri);
     }
 
     const resolved = this.resolveUri(uri);
