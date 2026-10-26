@@ -21,6 +21,7 @@ import {
 } from './sageIniHierarchy';
 import { registerDuplicateDefinition } from './duplicateDefinition';
 import { describeSound, registerSoundPlayer } from './soundPlayer';
+import { registerArmorTable } from './armorTable';
 import { registerBalanceSheet } from './balanceSheet';
 import type { EntryLocator } from '../formats/entryLocator';
 import { createMappedImagePreview } from './mappedImagePreview';
@@ -101,6 +102,7 @@ export const registerSageIniLanguage = (
     ...registerDuplicateDefinition(selector, documents, index),
     ...registerSoundPlayer(selector, index, locator),
     registerBalanceSheet(documents, index),
+    registerArmorTable(context, documents, index),
     watchSageIniDialect(),
     watchSageIniDiagnostics(documents, index, locator),
     ...registerSageIniValidation(documents, archiveModel, locator),
