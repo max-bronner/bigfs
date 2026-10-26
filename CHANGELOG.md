@@ -40,6 +40,7 @@
 - CommandSet editor: drag buttons between slots, clear and add.
 - Balance sheet: damage-a-second column.
 - Compare with Base Game lists INI changes definition by definition and value by value.
+- Links between formats: model, animation and texture names in INI open the file in its viewer; the W3D viewer lists the INI lines using the file, and an animation plays on the model its object's INI names.
 - Object preview: "Preview object" and "Preview state" lenses, and "Preview on the object" on animation, FX and ParticleSysBone lines. Shows the composed object's model, plays its animations, and runs its FX and bone particle systems on it, each with a toggle.
 - One model renderer for the W3D viewer and the particle preview: the particle preview now shows the model textured and lit. Bones toggle with B.
 - W3D viewer: an animation file plays on the model drawn on its skeleton, found by name; bones stay a toggle.

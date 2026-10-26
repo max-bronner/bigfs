@@ -10,6 +10,10 @@ import type { ModelScene } from '../formats/w3dScene';
 import type { EntryLocator } from '../formats/entryLocator';
 import { createNonce } from './webviewNonce';
 
+/** The file's name, as the INI files write it */
+const basename = (uri: vscode.Uri) =>
+  uri.path.slice(uri.path.lastIndexOf('/') + 1).toLowerCase();
+
 /**
  * Read-only editor that previews the binary entries a text editor cannot
  * show: TGA and DDS textures, drawn on a canvas with zoom, channel and mip
@@ -103,17 +107,29 @@ const buildMessage = async (
         const loadFile = (fileName: string) => locator.read(fileName, uri);
         const scene = await buildW3dScene(bytes, loadFile, tools);
 
-        // An animation alone is bones: play it on the model drawn on them
+        // An animation alone is bones: play it on the model drawn on them,
+        // the one an object's INI plays it on, else found by the skeleton
         if (!scene.meshes.length && scene.animation && scene.skeleton) {
-          const model = await findModelForSkeleton(
-            scene.skeleton.name,
-            await locator.findNames(
-              (name) => name.endsWith('.w3d'),
-              '**/*.{w3d,W3D}',
-            ),
-            loadFile,
-            tools,
-          );
+          const fromIni = await vscode.commands
+            .executeCommand<string | undefined>(
+              'bigfs.findModelForAnimation',
+              basename(uri),
+            )
+            .then(
+              (found) => found,
+              () => undefined,
+            );
+          const model =
+            (fromIni && `${fromIni.replace(/\.w3d$/i, '')}.w3d`) ??
+            (await findModelForSkeleton(
+              scene.skeleton.name,
+              await locator.findNames(
+                (name) => name.endsWith('.w3d'),
+                '**/*.{w3d,W3D}',
+              ),
+              loadFile,
+              tools,
+            ));
           const bytesOfModel = model && (await loadFile(model));
 
           if (bytesOfModel) {
@@ -397,6 +413,8 @@ export const renderHtml = (
       error.className = 'error';
       error.textContent = 'Cannot decode this frame: ' + data.message;
       main.append(error);
+    } else if (data.kind === 'uses') {
+      modelControl?.setUses(data.uses);
     } else if (data.kind === 'animations') {
       modelControl?.setAnimations(data.names);
     } else if (data.kind === 'animation') {
@@ -501,6 +519,29 @@ export class PreviewEditorProvider
             names: await this.findAnimations(built.skeleton.name),
           });
         }
+        if (built.kind === 'model') {
+          await panel.webview.postMessage({
+            kind: 'uses',
+            uses: await vscode.commands
+              .executeCommand<unknown[]>(
+                'bigfs.findFileUses',
+                basename(document.uri),
+              )
+              .then(
+                (uses) => uses ?? [],
+                () => [],
+              ),
+          });
+        }
+      } else if (received?.kind === 'reveal') {
+        const position = new vscode.Position(Number(received.line) || 0, 0);
+
+        await vscode.window.showTextDocument(
+          vscode.Uri.parse(String(received.uri)),
+          {
+            selection: new vscode.Range(position, position),
+          },
+        );
       } else if (received?.kind === 'videoFrame' && movie) {
         const index = Number(received.index);
 

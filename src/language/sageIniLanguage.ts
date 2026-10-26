@@ -14,6 +14,8 @@ import { registerNewObjectWizard } from './newObjectWizard';
 import { registerParticleTemplates } from './particleTemplates';
 import { registerParticlePreview } from './particlePreview';
 import { registerObjectPreview } from './objectPreview';
+import { registerAssetLinks } from './assetLinks';
+import { registerFileUses } from './fileUses';
 import { registerUnusedDefinitions } from './unusedDefinitions';
 import { watchHotkeyClashes } from './hotkeyDiagnostics';
 import {
@@ -91,6 +93,8 @@ export const registerSageIniLanguage = (
     registerBulkEdit(context, documents),
     ...registerEffectiveObjects(selector, documents, index),
     ...registerObjectPreview(context, selector, documents, index, locator),
+    ...(locator ? registerAssetLinks(selector, documents, locator) : []),
+    ...registerFileUses(documents, index),
     registerNewObjectWizard(documents, index),
     ...registerUnusedDefinitions(index),
     watchHotkeyClashes(documents, index),

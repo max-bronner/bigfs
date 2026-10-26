@@ -20,13 +20,27 @@ export interface ModelMessage extends ModelScene {
 
 interface Host {
   main: HTMLElement;
-  post: (message: { kind: 'animation'; file: string }) => void;
+  post: (
+    message:
+      | { kind: 'animation'; file: string }
+      | { kind: 'reveal'; uri: string; line: number },
+  ) => void;
+}
+
+/** A line of an INI file that names the shown file */
+interface FileUse {
+  uri: string;
+  line: number;
+  field: string;
+  owner?: string;
 }
 
 export interface ModelControl {
   setAnimations(names: string[]): void;
   play(message: { file: string; animation: W3dAnimation }): void;
   notice(text: string): void;
+  /** Where the INI files use the file, each a link to the line */
+  setUses(uses: FileUse[]): void;
 }
 
 const element = <K extends keyof HTMLElementTagNameMap>(
@@ -44,6 +58,7 @@ const showModel = (
   const { meshes, missing, hierarchy, bounds, skeleton } = message;
   const canvas = element('canvas', { className: 'model' });
   const info = element('p');
+  const usedIn = element('p');
   const controls = element('div', { className: 'controls' });
   const triangles = meshes.reduce(
     (total, mesh) => total + mesh.indices.length / 3,
@@ -62,7 +77,7 @@ const showModel = (
     ...(missing.length ? [`textures not found: ${missing.join(', ')}`] : []),
     'drag to orbit, scroll to zoom, double-click to reset, B for bones',
   ].join(' · ');
-  main.replaceChildren(controls, canvas, info);
+  main.replaceChildren(controls, canvas, info, usedIn);
 
   const gl = canvas.getContext('webgl', { antialias: true });
 
@@ -237,6 +252,25 @@ const showModel = (
     },
     notice: (text) => {
       label.textContent = text;
+    },
+    setUses: (uses) => {
+      usedIn.replaceChildren(
+        uses.length
+          ? 'Used in: '
+          : 'No INI file the index holds uses this file',
+        ...uses.flatMap((use, at) => {
+          const link = element('a', {
+            href: '#',
+            textContent: `${use.owner ?? use.uri.slice(use.uri.lastIndexOf('/') + 1)} (${use.field}, line ${use.line + 1})`,
+          });
+
+          link.onclick = (event) => {
+            event.preventDefault();
+            post({ kind: 'reveal', uri: use.uri, line: use.line });
+          };
+          return at ? [' · ', link] : [link];
+        }),
+      );
     },
   };
 
