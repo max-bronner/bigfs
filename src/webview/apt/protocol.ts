@@ -2,6 +2,7 @@ import type { AptMovie, Frame } from '../../formats/apt/aptMovie';
 import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
 import type { AptEdit } from '../../formats/apt/aptWriter';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
+import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import type { Problem } from '../../formats/apt/aptIntegrity';
 
 /**
@@ -23,6 +24,10 @@ export type PageMovie = AptMovie & {
   imageTextures: Record<number, string>;
   /** Image character id to where the `.dat` puts it */
   imageLocations: Record<number, DatLocation>;
+  /** Every action block decoded, by block offset, for the preview to run */
+  code?: Record<number, AptInstruction[]>;
+  /** The `.const` file's items, which `PushData` and pools read */
+  consts?: (string | number)[];
 };
 
 export interface TexturePixels {

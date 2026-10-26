@@ -69,6 +69,8 @@ export interface Leaf {
    * instance, whose shapes together are its area.
    */
   masks?: Leaf[][];
+  /** A text field's text as scripts left it, when they did */
+  text?: string;
 }
 
 /** Where a button can be pointed at: one of its hit-test records' leaves */
@@ -94,6 +96,9 @@ export const collect = (
   ): void => {
     const { character } = instance;
 
+    if (instance.visible === false) {
+      return;
+    }
     if (
       !character ||
       ['shape', 'image', 'editText', 'text'].includes(character.type)
@@ -108,6 +113,9 @@ export const collect = (
         instance,
         top,
         ...(masks.length ? { masks } : {}),
+        ...(character?.type === 'editText'
+          ? { text: player.textOf(instance) }
+          : {}),
       });
       return;
     }

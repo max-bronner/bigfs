@@ -188,9 +188,29 @@ Open an `.apt` (with its `.const` beside it).
 - [ ] **new** Clip masks are applied, and the canvas is sized to what they
   show. **Show masks** (M) draws everything, what a mask hides faintly, the
   masks outlined in cyan, the canvas sized to the whole animation (#91).
-- Known gap: scripts run as their timeline commands only; variables and
-  engine calls are not executed, and a branching script runs up to its
-  first branch.
+- [ ] **new** Scripts run in full on an ActionScript machine (ported from
+  mint2): variables, conditions, loops, functions, `attachMovie`, text set
+  by scripts, `_visible`/`_x`/`_alpha` and the rest. Check a menu or the
+  palantir behaves as in the game once the engine values below are set
+  (#94).
+- [ ] **new** **Engine** panel (top of the right side) lists what the movie
+  asks of the game, found while it runs, nothing hard-coded:
+  - *Called by the engine*: functions the movie stores but never calls
+    itself (the palantir's `SetPlayerFaction`, `SetPalantirFrameState`).
+    Type the arguments (`evil`, `2`, `true`, `"text"`) and press **Call**.
+  - *Values the engine provides*: names the movie reads but never sets, and
+    `GetExtern`/`extern.` keys. Type a value; **Restart with these values**
+    runs the movie again with them. Values are kept per movie.
+  - *Calls to the engine*: `GameCode`, `FSCommand:` and functions nothing
+    defines, with a count and the last arguments; each can be given a
+    value to return. They are also written to the log under the stage.
+- [ ] Palantir check: open `palantir.apt`, call `SetPlayerFaction` with the
+  faction name the movie's labels use, and see the matching art; play with
+  the values it lists.
+- Known gaps: pointer events on plain clips (`onPress` on a sprite) are not
+  delivered, only on buttons; `Color`, drag, `hitTest` and `localToGlobal`
+  do nothing; the imported library movies' code runs, but nothing loads a
+  movie a script asks for by URL.
 
 ## String tables, layouts, maps
 

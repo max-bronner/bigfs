@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- APT preview runs ActionScript in full (ported from mint2's AVM), and an Engine panel lists what the movie asks of the game: functions only the engine calls, with a Call button; values it reads but never sets, and extern keys, each settable; calls into the engine with their arguments and a settable return.
+
 - BIG archive explorer with editing, extraction and import; saves keep the
   archive as shipped (names, duplicates, header, trailer).
 - Safety: entry names that would escape an extraction folder are refused.

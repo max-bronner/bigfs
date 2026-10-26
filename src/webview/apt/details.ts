@@ -13,7 +13,11 @@ import { movie, state } from './state';
 import { movieNamed, resolve } from './resolve';
 import { framesOf } from './timeline';
 
-declare const acquireVsCodeApi: () => { postMessage(message: FromPage): void };
+declare const acquireVsCodeApi: () => {
+  postMessage(message: FromPage): void;
+  getState(): unknown;
+  setState(state: unknown): void;
+};
 
 export const vscode = acquireVsCodeApi();
 

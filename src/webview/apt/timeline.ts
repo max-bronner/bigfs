@@ -17,6 +17,8 @@ export interface Placement {
   matrixItem: number;
   /** For a mask: the deepest depth above it that it clips */
   clipDepth?: number;
+  /** Its clip event handlers: `onClipEvent` blocks by event bits */
+  clipActions?: { events: number; block: number }[];
 }
 
 /** Frames of a timeline: the movie's own, or a sprite's */
@@ -83,6 +85,9 @@ export const displayList = (frames: Frame[], frame: number): Placement[] => {
         }
         if (item.clipDepth !== undefined) {
           next.clipDepth = item.clipDepth;
+        }
+        if (item.clipActions) {
+          next.clipActions = item.clipActions;
         }
         if (next.character !== undefined) {
           list.set(item.depth, next);

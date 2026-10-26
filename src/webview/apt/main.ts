@@ -1,3 +1,4 @@
+import { onEngineRestart, showEngine } from './enginePanel';
 import { byId, escapeHtml } from './dom';
 import {
   describe,
@@ -56,6 +57,15 @@ playFromSelect.onchange = () => {
   }
   playFromSelect.value = '';
 };
+
+// The engine panel's Restart: the movie again from its start, with the answers given
+onEngineRestart(() => {
+  restart();
+  goToFrame(0);
+  showPanels();
+  showDetails();
+  render();
+});
 
 const select = (id: number) => {
   state.selected = id;
@@ -359,4 +369,5 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
 });
 
 showMode();
+showEngine();
 vscode.postMessage({ kind: 'ready' });
