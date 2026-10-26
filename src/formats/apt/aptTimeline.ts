@@ -674,6 +674,104 @@ export const retimeFrames = (
   return next;
 };
 
+/** How a pose changes over frames, from its first: added, scales multiplied */
+export type Motion = Pose[];
+
+/** The motion of a depth over frames `from`..`to`, relative to its first frame */
+export const motionOf = (
+  states: FrameState[],
+  depth: number,
+  from: number,
+  to: number,
+): Motion => {
+  checkRange(states, from, to);
+
+  const start = states[from].display.get(depth);
+
+  if (!start) {
+    throw new Error(`Nothing is placed at depth ${depth} in frame ${from}`);
+  }
+
+  const base = poseOf(start);
+
+  return states.slice(from, to + 1).map((state) => {
+    const slot = state.display.get(depth);
+    const pose = slot && slot.token === start.token ? poseOf(slot) : base;
+
+    return {
+      x: pose.x - base.x,
+      y: pose.y - base.y,
+      scaleX: base.scaleX ? pose.scaleX / base.scaleX : 1,
+      scaleY: base.scaleY ? pose.scaleY / base.scaleY : 1,
+      rotation: pose.rotation - base.rotation,
+      skew: pose.skew - base.skew,
+      alpha: pose.alpha - base.alpha,
+    };
+  });
+};
+
+/**
+ * Plays a motion on a depth from frame `at`, relative to its pose there;
+ * mirrored across the vertical axis (`x`) or the horizontal one (`y`).
+ * Frames past the timeline's end are left out.
+ */
+export const applyMotion = (
+  states: FrameState[],
+  depth: number,
+  at: number,
+  motion: Motion,
+  mirror?: 'x' | 'y',
+): FrameState[] => {
+  const start = states[at]?.display.get(depth);
+
+  if (!start) {
+    throw new Error(`Nothing is placed at depth ${depth} in frame ${at}`);
+  }
+
+  const base = poseOf(start);
+  const next = cloneStates(states);
+  const flipX = mirror === 'x' ? -1 : 1;
+  const flipY = mirror === 'y' ? -1 : 1;
+  const turn = mirror ? -1 : 1;
+
+  motion.forEach((change, offset) => {
+    const frame = at + offset;
+
+    if (frame >= next.length) {
+      return;
+    }
+    next[frame].display.set(
+      depth,
+      withPose(
+        { ...start },
+        {
+          x: base.x + change.x * flipX,
+          y: base.y + change.y * flipY,
+          scaleX: base.scaleX * change.scaleX,
+          scaleY: base.scaleY * change.scaleY,
+          rotation: base.rotation + change.rotation * turn,
+          skew: base.skew + change.skew * turn,
+          alpha: base.alpha + change.alpha,
+        },
+      ),
+    );
+  });
+  // Frames after it that only held the old last pose hold the new one
+  const last = Math.min(next.length - 1, at + motion.length - 1);
+  const held = states[last].display.get(depth);
+
+  for (
+    let frame = last + 1;
+    frame < states.length &&
+    held &&
+    sameSlot(states[frame].display.get(depth), held);
+    frame++
+  ) {
+    next[frame].display.set(depth, { ...next[last].display.get(depth)! });
+  }
+  return next;
+};
+
 /** One of the operations above, as a value the editor page can send */
 export type TimelineOperation =
   | {
@@ -704,7 +802,14 @@ export type TimelineOperation =
   | { op: 'delete'; from: number; to: number }
   | { op: 'duplicate'; from: number; to: number }
   | { op: 'reverse'; from: number; to: number }
-  | { op: 'retime'; from: number; to: number; length: number };
+  | { op: 'retime'; from: number; to: number; length: number }
+  | {
+      op: 'motion';
+      depth: number;
+      at: number;
+      motion: Motion;
+      mirror?: 'x' | 'y';
+    };
 
 export const applyOperation = (
   states: FrameState[],
@@ -753,6 +858,14 @@ export const applyOperation = (
       return duplicateFrames(states, operation.from, operation.to);
     case 'reverse':
       return reverseFrames(states, operation.from, operation.to);
+    case 'motion':
+      return applyMotion(
+        states,
+        operation.depth,
+        operation.at,
+        operation.motion,
+        operation.mirror,
+      );
     case 'retime':
       return retimeFrames(
         states,

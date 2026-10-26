@@ -3,12 +3,15 @@ import { compileExpression, ExpressionError } from '../../common/expression';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
 import {
   animate,
+  applyMotion,
   applyOperation,
   decodeTimeline,
   deleteFrames,
   detectTweens,
   encodeTimeline,
   hide,
+  motionOf,
+  poseOf,
   retimeFrames,
   reverseFrames,
   tween,
@@ -228,6 +231,21 @@ suite('APT motion scripts', () => {
     assert.throws(
       () => parseMotionScript('frames 0-4: x 0 -> 1'),
       /Line 1: a tween needs a depth/,
+    );
+  });
+});
+
+suite('APT motion copy', () => {
+  test('a motion plays again from another pose, mirrored if asked', () => {
+    const { states, write } = fiveFrames();
+    const moved = write(tween(states(), 2, 0, 2, { x: 100, rotation: 30 }));
+    const motion = motionOf(moved, 2, 0, 2);
+    const mirrored = write(applyMotion(moved, 2, 2, motion, 'x'));
+
+    assert.deepStrictEqual(xs(mirrored, 2), [0, 50, 100, 50, 0]);
+    assert.strictEqual(
+      Math.round(poseOf(mirrored[4].display.get(2)!).rotation),
+      0,
     );
   });
 });
