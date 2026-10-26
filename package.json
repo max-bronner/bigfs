@@ -211,6 +211,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.editCommandSet",
+        "title": "Edit CommandSet Slots",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.showArmorTable",
         "title": "Armor Table",
         "category": "BIG"
@@ -428,6 +433,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "bigfs.editCommandSet",
+          "when": "false"
+        },
         {
           "command": "bigfs.newParticleSystem",
           "when": "editorLangId == sage-ini"

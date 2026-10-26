@@ -80,6 +80,11 @@ your mod's archives.
   button that builds the original, added to the next free slot of that
   command set. The new game text goes into the string table the original's
   comes from; what lives inside an archive is listed to do by hand.
+- **Edit slots** lens on every `CommandSet`: its buttons in their slots as
+  the player sees them, with icon, game text and hotkey, clashes marked.
+  Drag a button to another slot (it swaps with what is there), clear a
+  slot, or add a button to an empty one; the set's slot lines are written
+  again in order.
 - **Armor Table** shows every armor against every damage type any of them
   names, in one grid: resists tinted green, weaknesses red, a type an armor
   does not write shown greyed from its `DEFAULT`. Typing in a cell writes
