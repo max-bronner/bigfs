@@ -63,6 +63,8 @@ export interface Instance {
   matrix: Matrix2;
   translate: [number, number];
   alpha: number;
+  /** For a mask: the deepest depth above it that it clips */
+  clipDepth?: number;
   /** The frame its parent placed it in, which tells a move from a new instance */
   born: number;
   /** The character id it was placed with, before any import resolved it */
@@ -244,7 +246,10 @@ export class Player {
     id: number,
     path: string,
     parent: Instance | undefined,
-    place: Pick<Instance, 'matrix' | 'translate' | 'alpha' | 'born'> & {
+    place: Pick<
+      Instance,
+      'matrix' | 'translate' | 'alpha' | 'born' | 'clipDepth'
+    > & {
       name?: string;
       placedItem?: number;
       matrixItem?: number;
@@ -269,6 +274,7 @@ export class Player {
       matrix: place.matrix,
       translate: place.translate,
       alpha: place.alpha,
+      clipDepth: place.clipDepth,
       born: place.born,
       placed: id,
       placedItem: place.placedItem,
@@ -328,6 +334,7 @@ export class Player {
           matrix: placement.matrix,
           translate: placement.translate,
           alpha: placement.alpha,
+          clipDepth: placement.clipDepth,
           name: placement.name,
           matrixItem: placement.matrixItem,
         });

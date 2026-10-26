@@ -626,6 +626,7 @@ export const renderHtml = (
   <div class="toolbar">
     <label title="O"><input type="checkbox" id="show-origin" checked> Origin</label>
     <label title="B"><input type="checkbox" id="show-boxes" checked> Boxes</label>
+    <label title="M: draw everything, what a clip mask hides faintly, with the masks outlined; off draws the masks applied, as the game does"><input type="checkbox" id="show-masks"> Show masks</label>
     <label title="S: run what frame scripts do to timelines (stop, play, goto) in nested timelines"><input type="checkbox" id="scripts" checked> Scripts</label>
     <label title="I: run everything as the game does and let the pointer drive buttons"><input type="checkbox" id="interact"> Interact</label>
     <label title="W: draw the triangles of what is picked; a shape's vertices can then be dragged"><input type="checkbox" id="wireframe"> Wireframe</label>

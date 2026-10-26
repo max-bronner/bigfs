@@ -1,8 +1,51 @@
-import { UNRESOLVED } from './scene';
+import { UNRESOLVED, localBounds } from './scene';
 import type { Leaf } from './scene';
 import { state } from './state';
 
 const rgba = ([r, g, b, a]: number[]) => `rgba(${r},${g},${b},${a / 255})`;
+
+/** The area one leaf covers, in its own space: its triangles, else its box */
+const leafArea = (leaf: Leaf): Path2D => {
+  const path = new Path2D();
+  const runs =
+    leaf.character?.type === 'shape' ? (leaf.movie.shapes[leaf.id] ?? []) : [];
+
+  for (const run of runs) {
+    for (let i = 0; i < run.triangles.length; i += 6) {
+      path.moveTo(run.triangles[i], run.triangles[i + 1]);
+      path.lineTo(run.triangles[i + 2], run.triangles[i + 3]);
+      path.lineTo(run.triangles[i + 4], run.triangles[i + 5]);
+      path.closePath();
+    }
+  }
+  if (!runs.length) {
+    const [left, top, right, bottom] = localBounds(leaf);
+
+    path.rect(left, top, right - left, bottom - top);
+  }
+  return path;
+};
+
+const areas = new WeakMap<Leaf[], Path2D>();
+
+/**
+ * A mask's area in stage space, the union of what its leaves draw: a
+ * mask's shapes count by where they are, not their colour or alpha
+ */
+export const maskArea = (mask: Leaf[]): Path2D => {
+  let area = areas.get(mask);
+
+  if (!area) {
+    area = new Path2D();
+    for (const leaf of mask) {
+      const [a, b, c, d, e, f] = leaf.matrix;
+
+      area.addPath(leafArea(leaf), new DOMMatrix([a, b, c, d, e, f]));
+    }
+    areas.set(mask, area);
+  }
+  return area;
+};
 
 /** Paints one leaf in its own space; the caller has set its transform and alpha */
 export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
