@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
-import { mkdir, readFile, rm, writeFile } from 'fs/promises';
+import { mkdir, rm, writeFile } from 'fs/promises';
 
 /**
  * Two languages' tables in the workspace: the check finds what German
@@ -47,10 +47,10 @@ suite('Translations check', () => {
     assert.ok(
       german?.missing.some((entry) => entry.label === 'OBJECT:TransRanger'),
     );
-    await vscode.workspace.saveAll();
-    assert.match(
-      await readFile(path.join(folder, 'german', 'mod.str'), 'utf8'),
-      /OBJECT:TransRanger\n"Ranger"\nEND/,
+    const table = await vscode.workspace.openTextDocument(
+      path.join(folder, 'german', 'mod.str'),
     );
+
+    assert.match(table.getText(), /OBJECT:TransRanger\r?\n"Ranger"\r?\nEND/);
   });
 });
