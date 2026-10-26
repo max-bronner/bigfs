@@ -94,7 +94,21 @@ async function main() {
     plugins: [esbuildProblemMatcherPlugin],
   });
 
-  for (const each of [context, webview, aptPage, armorPage]) {
+  // The CommandSet editor's page
+  const commandSetPage = await esbuild.context({
+    entryPoints: ['src/webview/commandset/main.ts'],
+    bundle: true,
+    format: 'iife',
+    minify: production,
+    sourcemap: !production,
+    sourcesContent: false,
+    platform: 'browser',
+    outfile: 'dist/webview/commandset.js',
+    logLevel: 'silent',
+    plugins: [esbuildProblemMatcherPlugin],
+  });
+
+  for (const each of [context, webview, aptPage, armorPage, commandSetPage]) {
     if (watch) {
       await each.watch();
     } else {
