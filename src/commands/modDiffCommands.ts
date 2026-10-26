@@ -12,6 +12,10 @@ import {
 import { webviewPage } from '../providers/webviewPage';
 import { registerPackageMod } from './packageModCommand';
 import { decodeWindows1252 } from '../common/windows1252';
+import { diffDefinitions } from '../language/model/definitionDiff';
+import type { DefinitionDiff } from '../language/model/definitionDiff';
+import { parseSageIni } from '../language/model/sageIniParser';
+import { SageIniDocuments } from '../language/sageIniDocuments';
 
 /**
  * **Compare with Base Game**: what the workspace's mod adds and changes
@@ -28,11 +32,33 @@ const TEXT_FILES = /\.(ini|inc|bhav|str|wnd|txt|lua|xml|cfg|scb|csv)$/i;
 const escape = (text: string) =>
   text.replace(/[&<>"]/g, (char) => `&#${char.charCodeAt(0)};`);
 
+/** A changed INI file's definition changes, as lines of the report */
+const definitionLines = (diff: DefinitionDiff): string[] => {
+  const shown = (value?: string) => (value === undefined ? '∅' : value);
+
+  return [
+    ...diff.added.map((name) => `<span class="add">+ ${escape(name)}</span>`),
+    ...diff.removed.map((name) => `<span class="del">− ${escape(name)}</span>`),
+    ...diff.changed.map(
+      ({ name, changes }) =>
+        `<b>${escape(name)}</b>: ${changes
+          .map(
+            (change) =>
+              `<code>${escape(change.path)}</code> ${escape(shown(change.before))} → ${escape(shown(change.after))}`,
+          )
+          .join('; ')}`,
+    ),
+  ];
+};
+
+const MAX_DEFINITIONS = 60;
+
 const renderReport = (
   results: ComparedFile[],
   folder: string,
   archives: number,
   unreadable: string[],
+  definitions: ReadonlyMap<string, DefinitionDiff> = new Map(),
 ): string => {
   const groups: [string, string, ComparedFile[]][] = [
     ['changed', 'Changed', results.filter((file) => file.change === 'changed')],
@@ -51,7 +77,18 @@ const renderReport = (
             file.change === 'changed' && TEXT_FILES.test(file.entryPath)
               ? '<button data-action="diff">Diff</button>'
               : ''
-          }<button data-action="open">Open</button></td></tr>`,
+          }<button data-action="open">Open</button></td></tr>${(() => {
+            const diff = definitions.get(file.entryPath);
+            const lines = diff ? definitionLines(diff) : [];
+
+            return lines.length
+              ? `<tr class="defs" data-path="${escape(file.entryPath)}"><td colspan="3">${lines
+                  .slice(0, MAX_DEFINITIONS)
+                  .join(
+                    '<br>',
+                  )}${lines.length > MAX_DEFINITIONS ? `<br><span class="muted">and ${lines.length - MAX_DEFINITIONS} more: use Diff</span>` : ''}</td></tr>`
+              : '';
+          })()}`,
       )
       .join('');
 
@@ -63,6 +100,8 @@ const renderReport = (
   td.path { font-family: var(--vscode-editor-font-family, monospace); word-break: break-all; } td.actions { white-space: nowrap; text-align: right; }
   button { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: none; padding: 2px 8px; margin-left: 4px; cursor: pointer; }
   summary { cursor: pointer; font-weight: bold; margin: 10px 0 4px; } .muted { opacity: 0.7; }
+  tr.defs td { padding: 2px 6px 8px 24px; font-size: 12px; } tr.defs code { opacity: 0.85; }
+  .add { color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b); } .del { color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39); }
 `,
     body: `<h2>Mod against the base game</h2>
 <p class="muted">Base: ${escape(folder)} (${archives} archives${unreadable.length ? `, ${unreadable.length} unreadable: ${escape(unreadable.join(', '))}` : ''})</p>
@@ -92,6 +131,9 @@ export const registerModDiffCommands = (
   gameView: GameViewModel,
 ): void => {
   let base: { folder: string; index: BaseIndex } | undefined;
+  const documents = new SageIniDocuments(context.extensionUri);
+
+  context.subscriptions.push(documents);
 
   const baseFolder = async (): Promise<string | undefined> => {
     const configured = vscode.workspace
@@ -186,11 +228,50 @@ export const registerModDiffCommands = (
             { enableScripts: true, localResourceRoots: [] },
           );
 
+          progress.report({ message: 'comparing definitions' });
+
+          // What each changed INI file changes, definition by definition
+          const schema = await documents.getSchema();
+          const definitions = new Map<string, DefinitionDiff>();
+
+          for (const file of results) {
+            const entry = indexed.index.get(file.entryPath.toLowerCase());
+            const modUri = byPath.get(file.entryPath);
+
+            if (
+              file.change !== 'changed' ||
+              !entry ||
+              !modUri ||
+              !/\.ini$/i.test(file.entryPath)
+            ) {
+              continue;
+            }
+
+            const read = (bytes: Uint8Array) => {
+              const lines = decodeWindows1252(bytes).split(/\r?\n/);
+
+              return { document: parseSageIni(lines, schema), lines };
+            };
+
+            try {
+              definitions.set(
+                file.entryPath,
+                diffDefinitions(
+                  read(await readBaseEntry(entry)),
+                  read(await vscode.workspace.fs.readFile(modUri)),
+                ),
+              );
+            } catch {
+              // A file that does not read keeps its plain Diff button
+            }
+          }
+
           panel.webview.html = renderReport(
             results,
             folder,
             indexed.archives,
             indexed.unreadable,
+            definitions,
           );
           panel.webview.onDidReceiveMessage(
             async (message: { action: string; path: string }) => {

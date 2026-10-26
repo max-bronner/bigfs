@@ -29,7 +29,10 @@ your mod's archives.
 - **Search in BIG Archives** finds text inside every archive.
 - **Compare with Base Game** lists what the workspace adds and changes
   against an untouched install (`bigfs.baseGameFolder`), each side after
-  the game's load order, with a diff for every changed text file.
+  the game's load order, with a diff for every changed text file, and
+  for a changed INI file what it changes definition by definition: those
+  it adds and drops, and in each the values it changes, named by where
+  they sit (`Body[ModuleTag_Body]/MaxHealth 200 → 220`).
 - **Package Mod…** packs the mod folder into one archive after a report:
   against the base game, which files it overrides, which are new, and which
   a base archive would keep because it sorts before the archive's name (in
