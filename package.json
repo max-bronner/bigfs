@@ -272,6 +272,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.editW3dAnimation",
+        "title": "Edit W3D Animation…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.deleteAptMovie",
         "title": "Delete APT Movie…",
         "category": "BIG"
@@ -405,6 +410,11 @@
           "command": "bigfs.renameAptMovie",
           "group": "7_modification@15",
           "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i"
+        },
+        {
+          "command": "bigfs.editW3dAnimation",
+          "group": "7_modification@15",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.w3d$/i"
         },
         {
           "command": "bigfs.deleteAptMovie",
@@ -543,6 +553,11 @@
           "command": "bigfs.renameAptMovie",
           "group": "7_modification@15",
           "when": "resourceExtname =~ /^\\.apt$/i"
+        },
+        {
+          "command": "bigfs.editW3dAnimation",
+          "group": "7_modification@15",
+          "when": "resourceExtname =~ /^\\.w3d$/i"
         },
         {
           "command": "bigfs.deleteAptMovie",

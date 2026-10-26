@@ -99,6 +99,14 @@ your mod's archives.
   nearest existing names as quick fixes, in the editor and in **Validate INI
   Files** (`bigfs.ini.checkAssets`).
 
+**Bone animations**
+
+- **Edit W3D Animation…** on a `.w3d` file, in an archive or a folder:
+  retime it to another number of frames, reverse it, play it along an
+  easing curve, keep a range of its frames, or change its rate. The result
+  is written beside it as a new animation file, named as the game finds it,
+  for an INI line to switch to by name.
+
 **Particle preview**
 
 - A **Preview** lens on every `FXParticleSystem`, `ParticleSystem` and
