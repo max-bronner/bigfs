@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { parseCsf, writeCsf } from '../formats/csf';
 import { parseStringRecords, quoteStringText } from './model/sageStringRecords';
 import { decodeWindows1252, encodeWindows1252 } from '../common/windows1252';
+import { registerTranslationCheck } from './translationCheck';
 
 /**
  * Language support for `.str` string tables: problems, an outline of labels,
@@ -247,5 +248,6 @@ export const registerSageStrLanguage = (
         }),
     }),
     vscode.commands.registerCommand('bigfs.convertStringTable', convert),
+    registerTranslationCheck(),
   );
 };

@@ -36,6 +36,10 @@ your mod's archives.
   the game folder the first archive by name wins; with `-mod` the mod always
   does), plus the INI errors open for the folder. Hidden files and archives
   are left out.
+- **Check Translations** compares the workspace's string tables language by
+  language (from `lang/german/…`-style paths, else a `.csf` header) and
+  lists the labels each lacks; for a `.str` table it can add them with
+  another language's text standing in until they are translated.
 - **Game view** (`bigfs.explorer.view`): one merged tree of only the files the
   game loads, after its own priority rules, beside the default per-archive
   view.
