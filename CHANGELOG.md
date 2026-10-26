@@ -45,6 +45,7 @@
 - One model renderer for the W3D viewer and the particle preview: the particle preview now shows the model textured and lit. Bones toggle with B.
 - W3D viewer: an animation file plays on the model drawn on its skeleton, found by name; bones stay a toggle.
 - Fix: W3D models are textured as the game draws them: V measured from the bottom, the texture and coordinates of the first material pass (also for shader-material meshes), cutouts only where the material alpha-tests, additive and alpha-blended meshes blended.
+- APT playback respects action scripts by default: stop() stops, gotoAndPlay jumps, and "Play from…" starts at frame 0 or any label. "Ignore action scripts" (S) plays every frame in order instead.
 - APT clip masks are applied as the game draws them, and the canvas is sized to what they let show. "Show masks" (M) draws everything instead: what a mask hides faintly, the masks outlined, and the canvas sized to the whole animation.
 - APT timeline: a row of frame labels, each listing who jumps to it, and a row showing what each frame script does (stop, play, jumps); hovering a jump lights its target, clicking goes there. A frame's script in the details lists its jumps, each a button to the frame it lands on.
 - Fix: an FX list's ParticleSystem and Sound nuggets' Name goes to its definition, finds references and is checked.

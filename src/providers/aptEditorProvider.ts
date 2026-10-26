@@ -627,7 +627,8 @@ export const renderHtml = (
     <label title="O"><input type="checkbox" id="show-origin" checked> Origin</label>
     <label title="B"><input type="checkbox" id="show-boxes" checked> Boxes</label>
     <label title="M: draw everything, what a clip mask hides faintly, with the masks outlined; off draws the masks applied, as the game does"><input type="checkbox" id="show-masks"> Show masks</label>
-    <label title="S: run what frame scripts do to timelines (stop, play, goto) in nested timelines"><input type="checkbox" id="scripts" checked> Scripts</label>
+    <select id="play-from" title="Play from a labelled frame, with its scripts run from there"></select>
+    <label title="S: play every frame in order, as if no frame script stopped or jumped; off, stop() stops and gotoAndPlay jumps, as in the game"><input type="checkbox" id="scripts"> Ignore action scripts</label>
     <label title="I: run everything as the game does and let the pointer drive buttons"><input type="checkbox" id="interact"> Interact</label>
     <label title="W: draw the triangles of what is picked; a shape's vertices can then be dragged"><input type="checkbox" id="wireframe"> Wireframe</label>
     <span id="mode" class="muted"></span>
