@@ -4,7 +4,7 @@ import type {
   ParticleDef,
 } from '../../formats/particles/particleIni';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
-import type { AttachedModel } from '../../formats/particles/modelAttachment';
+import type { ModelScene } from '../../formats/w3dScene';
 
 /** Messages between the particle preview and its page */
 
@@ -32,7 +32,7 @@ export type ToPage =
   | SceneMessage
   | { kind: 'notice'; message: string }
   /** A model to show the effect on, or none */
-  | { kind: 'model'; model?: AttachedModel };
+  | { kind: 'model'; model?: { name: string; scene: ModelScene } };
 
 export type FromPage =
   | { kind: 'ready' }

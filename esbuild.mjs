@@ -108,7 +108,28 @@ async function main() {
     plugins: [esbuildProblemMatcherPlugin],
   });
 
-  for (const each of [context, webview, aptPage, armorPage, commandSetPage]) {
+  // The W3D viewer's model view
+  const modelPage = await esbuild.context({
+    entryPoints: ['src/webview/model/main.ts'],
+    bundle: true,
+    format: 'iife',
+    minify: production,
+    sourcemap: !production,
+    sourcesContent: false,
+    platform: 'browser',
+    outfile: 'dist/webview/model.js',
+    logLevel: 'silent',
+    plugins: [esbuildProblemMatcherPlugin],
+  });
+
+  for (const each of [
+    context,
+    webview,
+    aptPage,
+    armorPage,
+    commandSetPage,
+    modelPage,
+  ]) {
     if (watch) {
       await each.watch();
     } else {

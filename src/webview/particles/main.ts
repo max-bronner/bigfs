@@ -17,13 +17,14 @@ import {
   beginFrame,
   canvas,
   drawLines,
-  drawMesh,
   drawSystems,
-  setMesh,
   hasGraphics,
   loadTextures,
+  model,
 } from './graphics';
 import { $, library, post, state, world } from './page';
+import { poseAt } from '../../formats/w3dPose';
+import type { Pose, Vec3 } from '../../formats/w3dPose';
 import type { ToPage } from './protocol';
 import { GRID, reach, volumeLines } from './volume';
 
@@ -87,7 +88,11 @@ const draw = () => {
   if (checked('showGrid')) {
     drawLines(GRID, matrix, true);
   }
-  drawMesh(matrix, modelOrigin());
+  model?.draw(matrix, {
+    offset: modelOrigin(),
+    light: basis.forward.map((value) => -value) as Vec3,
+    showBones: false,
+  });
   drawSystems(
     matrix,
     basis,
@@ -274,12 +279,14 @@ window.addEventListener('keydown', (event) => {
 });
 
 const bones = $<HTMLSelectElement>('bone');
-let modelBones: [number, number, number][] = [];
+let pose: Pose | undefined;
 
 bones.onchange = () => {
   const bone = Number(bones.value);
 
-  attachment.bone = (bones.value !== '' && modelBones[bone]) || [0, 0, 0];
+  const at = bones.value === '' ? undefined : pose?.world[bone];
+
+  attachment.bone = at ? [...at.t] : [0, 0, 0];
   // Looks at where the effect now starts
   state.target = [...attachment.bone];
   start();
@@ -292,20 +299,21 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     return;
   }
   if (data.kind === 'model') {
-    const model = data.model;
+    const shown = data.model;
+    const skeleton = shown?.scene.skeleton;
 
-    setMesh(model?.triangles);
-    modelBones = model?.bones.map((bone) => bone.position) ?? [];
+    model?.setModel(shown?.scene);
+    pose = skeleton && poseAt(skeleton);
     bones.replaceChildren(
       new Option('origin', ''),
-      ...(model?.bones ?? []).map(
-        (bone, at) => new Option(bone.name, String(at)),
+      ...(skeleton?.names ?? []).map(
+        (bone, at) => new Option(bone, String(at)),
       ),
     );
-    bones.hidden = !model;
+    bones.hidden = !shown;
     attachment.bone = [0, 0, 0];
-    attachment.hasModel = !!model;
-    $('pickModel').textContent = model ? model.name : 'On a model…';
+    attachment.hasModel = !!shown;
+    $('pickModel').textContent = shown ? shown.name : 'On a model…';
     start();
     return;
   }
