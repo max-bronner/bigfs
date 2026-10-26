@@ -40,6 +40,16 @@ void main() { gl_Position = uViewProj * vec4(aPos, 1.0); vColor = aColor; }`;
 const LINE_FRAGMENT = `
 precision mediump float; varying vec4 vColor; void main() { gl_FragColor = vColor; }`;
 
+/** A model's triangles, flat shaded from a light over the camera's shoulder */
+const MESH_VERTEX = `
+attribute vec3 aPos; attribute vec3 aNormal; uniform mat4 uViewProj; uniform vec3 uOffset; varying float vLight;
+void main() {
+  gl_Position = uViewProj * vec4(aPos + uOffset, 1.0);
+  vLight = 0.35 + 0.65 * abs(dot(normalize(aNormal), normalize(vec3(0.4, -0.5, 0.8))));
+}`;
+const MESH_FRAGMENT = `
+precision mediump float; varying float vLight; void main() { gl_FragColor = vec4(vec3(0.62, 0.6, 0.56) * vLight, 1.0); }`;
+
 export const canvas = $<HTMLCanvasElement>('canvas');
 
 const gl = canvas.getContext('webgl', {
@@ -118,6 +128,8 @@ const setUp = (gl: WebGLRenderingContext) => {
   return {
     spriteProgram: compile(SPRITE_VERTEX, SPRITE_FRAGMENT),
     lineProgram: compile(LINE_VERTEX, LINE_FRAGMENT),
+    meshProgram: compile(MESH_VERTEX, MESH_FRAGMENT),
+    meshBuffer: gl.createBuffer()!,
     spriteBuffer,
     spriteData,
     indexBuffer,
@@ -183,6 +195,75 @@ export const loadTextures = (sources: Record<string, string | null>): void => {
     image.onload = () => textures.set(name, graphics.makeTexture(image));
     image.src = uri;
   }
+};
+
+let meshVertices = 0;
+
+/** Uploads a model's triangles, with a normal per face, or clears them */
+export const setMesh = (triangles: number[] | undefined): void => {
+  if (!graphics) {
+    return;
+  }
+
+  const data = new Float32Array(((triangles?.length ?? 0) / 9) * 18);
+
+  for (let face = 0; triangles && face * 9 < triangles.length; face++) {
+    const p = triangles.slice(face * 9, face * 9 + 9);
+    const u = [p[3] - p[0], p[4] - p[1], p[5] - p[2]];
+    const v = [p[6] - p[0], p[7] - p[1], p[8] - p[2]];
+    const n = [
+      u[1] * v[2] - u[2] * v[1],
+      u[2] * v[0] - u[0] * v[2],
+      u[0] * v[1] - u[1] * v[0],
+    ];
+
+    for (let corner = 0; corner < 3; corner++) {
+      data.set(
+        [p[corner * 3], p[corner * 3 + 1], p[corner * 3 + 2], ...n],
+        (face * 3 + corner) * 6,
+      );
+    }
+  }
+  graphics.gl.bindBuffer(graphics.gl.ARRAY_BUFFER, graphics.meshBuffer);
+  graphics.gl.bufferData(
+    graphics.gl.ARRAY_BUFFER,
+    data,
+    graphics.gl.STATIC_DRAW,
+  );
+  meshVertices = data.length / 6;
+};
+
+/** Draws the model, if one is set, at `offset` */
+export const drawMesh = (
+  matrix: Float32Array,
+  offset: [number, number, number],
+): void => {
+  if (!graphics || !meshVertices) {
+    return;
+  }
+
+  const { gl, meshProgram, meshBuffer } = graphics;
+  const position = gl.getAttribLocation(meshProgram, 'aPos');
+  const normal = gl.getAttribLocation(meshProgram, 'aNormal');
+
+  gl.useProgram(meshProgram);
+  gl.bindBuffer(gl.ARRAY_BUFFER, meshBuffer);
+  gl.enableVertexAttribArray(position);
+  gl.enableVertexAttribArray(normal);
+  gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 24, 0);
+  gl.vertexAttribPointer(normal, 3, gl.FLOAT, false, 24, 12);
+  gl.uniformMatrix4fv(
+    gl.getUniformLocation(meshProgram, 'uViewProj'),
+    false,
+    matrix,
+  );
+  gl.uniform3fv(gl.getUniformLocation(meshProgram, 'uOffset'), offset);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+  gl.drawArrays(gl.TRIANGLES, 0, meshVertices);
+  gl.disableVertexAttribArray(position);
+  gl.disableVertexAttribArray(normal);
 };
 
 export const drawLines = (

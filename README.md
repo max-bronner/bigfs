@@ -113,6 +113,9 @@ your mod's archives.
   effect: size × scales every length and speed, time × stretches every
   duration and key and slows the rates to match (speeds ÷ k, gravity ÷ k²,
   damping d^(1/k)). Previewed like the sliders until applied.
+- **On a model…** shows the effect on any W3D model of the workspace or
+  its archives, drawn shaded, started at a bone you pick in its bind pose,
+  the way a unit carries an effect on a bone.
 - **A/B** (`B`) flips the preview between the block as written and with the
   values being tried; **Vary ±** nudges every value by up to a percentage
   to try variations; **Save as variant…** writes the values as a new system
