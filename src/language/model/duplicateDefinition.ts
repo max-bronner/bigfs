@@ -35,12 +35,25 @@ export const duplicateDefinition = (
     throw new Error('The block has no name to replace');
   }
 
-  const oldName = name.text;
   const header =
     block[0].slice(0, name.start) + newName + block[0].slice(name.end);
+  const renamed = renameLabels(block.slice(1), name.text, newName);
+
+  return { lines: [header, ...renamed.lines], labels: renamed.labels };
+};
+
+/**
+ * Renames, in game-text labels only, every occurrence of a name: the
+ * copy of something gets its own text instead of sharing the original's
+ */
+export const renameLabels = (
+  lines: string[],
+  oldName: string,
+  newName: string,
+): Duplicate => {
   const pattern = new RegExp(escapeRegExp(oldName), 'gi');
   const labels = new Map<string, string>();
-  const body = block.slice(1).map((line) => {
+  const body = lines.map((line) => {
     let out = line;
 
     // Right to left, so earlier columns stay valid
@@ -58,9 +71,8 @@ export const duplicateDefinition = (
   });
 
   return {
-    lines: [header, ...body],
+    lines: body,
     labels: [...labels].map(([from, to]) => ({ from, to })),
   };
 };
-
 export { strRecord } from './sageStringRecords';
