@@ -26,6 +26,7 @@
 - Particle preview load stats: peaks, averages, per system, fill, detail-level budgets.
 - Bulk Edit INI Values: formula changes across matching blocks, reviewed as a diff.
 - Effective definition view for ChildObject and ObjectReskin lineages.
+- Package Mod: pack with a load-order override report against the base game.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start

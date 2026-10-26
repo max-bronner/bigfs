@@ -211,6 +211,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.packageMod",
+        "title": "Package Mod…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.launchGame",
         "title": "Launch Game with Mod",
         "category": "BIG",

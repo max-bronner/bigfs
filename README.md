@@ -30,6 +30,12 @@ your mod's archives.
 - **Compare with Base Game** lists what the workspace adds and changes
   against an untouched install (`bigfs.baseGameFolder`), each side after
   the game's load order, with a diff for every changed text file.
+- **Package Mod…** packs the mod folder into one archive after a report:
+  against the base game, which files it overrides, which are new, and which
+  a base archive would keep because it sorts before the archive's name (in
+  the game folder the first archive by name wins; with `-mod` the mod always
+  does), plus the INI errors open for the folder. Hidden files and archives
+  are left out.
 - **Game view** (`bigfs.explorer.view`): one merged tree of only the files the
   game loads, after its own priority rules, beside the default per-archive
   view.

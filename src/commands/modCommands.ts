@@ -40,7 +40,7 @@ const TEXT_ENTRY_PATTERN =
 const SEARCH_RESULT_LIMIT = 2000;
 
 /** Every file below a folder on disk, as paths relative to it with '/' */
-const listFiles = async (
+export const listFiles = async (
   folder: Uri,
   relative = '',
 ): Promise<{ uri: Uri; relativePath: string; size: number }[]> => {
@@ -103,14 +103,18 @@ const packFolder = async (folder: Uri): Promise<void> => {
 };
 
 /**
- * Writes every file below a folder into a BIG4 archive at `target`, and
- * returns how many it packed. Nothing is written for an empty folder.
+ * Writes every file below a folder, less those `skip` names, into a BIG4
+ * archive at `target`, and returns how many it packed. Nothing is written
+ * when there is nothing to pack.
  */
 export const packFolderInto = async (
   folder: Uri,
   target: Uri,
+  skip: (relativePath: string) => boolean = () => false,
 ): Promise<number> => {
-  const files = await listFiles(folder);
+  const files = (await listFiles(folder)).filter(
+    (file) => !skip(file.relativePath),
+  );
 
   if (files.length) {
     const entries = new Map<string, BigFileEntry>(
