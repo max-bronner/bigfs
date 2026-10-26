@@ -157,7 +157,8 @@ const showModel = (message) => {
   const controls = document.createElement('div');
   controls.className = 'controls';
   const triangles = meshes.reduce((total, mesh) => total + mesh.indices.length / 3, 0);
-  info.textContent = meshes.length + ' meshes · ' + triangles + ' triangles' +
+  info.textContent = (message.shownOn ? 'Shown on ' + message.shownOn + ', the model drawn on its skeleton · ' : '') +
+    meshes.length + ' meshes · ' + triangles + ' triangles' +
     (hierarchy ? ' · skeleton ' + hierarchy + ' (' + skeleton.parents.length + ' bones)' : '') +
     (missing.length ? ' · textures not found: ' + missing.join(', ') : '') +
     ' · drag to orbit, scroll to zoom, double-click to reset';

@@ -40,6 +40,7 @@
 - CommandSet editor: drag buttons between slots, clear and add.
 - Balance sheet: damage-a-second column.
 - Compare with Base Game lists INI changes definition by definition and value by value.
+- W3D viewer: an animation file plays on the model drawn on its skeleton, found by name; bones stay a toggle.
 - Fix: an FX list's ParticleSystem and Sound nuggets' Name goes to its definition, finds references and is checked.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.

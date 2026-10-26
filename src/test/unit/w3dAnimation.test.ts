@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import { modelCandidates } from '../../formats/w3dModelFinder';
 import { parseW3dAnimations } from '../../formats/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3dScene';
 import { createToolRegistry } from '../../tools/toolRegistry';
@@ -141,5 +142,26 @@ suite('W3D animations', () => {
 
     assert.strictEqual(scene.animation?.name, 'UNIT_RUN');
     assert.strictEqual(scene.skeleton?.name, 'UNIT_SKL');
+  });
+});
+
+suite('W3D model for a skeleton', () => {
+  test("the unit's skinned model is tried first, never the skeleton itself", () => {
+    assert.deepStrictEqual(
+      modelCandidates('GUArcher_SKL', [
+        'guarcher_atka.w3d',
+        'GUArcher_SKL.w3d',
+        'guarcher.w3d',
+        'guarcher_skn.w3d',
+        'guarcher_hat_skn.w3d',
+        'gufighter_skn.w3d',
+      ]),
+      [
+        'guarcher_skn.w3d',
+        'guarcher.w3d',
+        'guarcher_hat_skn.w3d',
+        'guarcher_atka.w3d',
+      ],
+    );
   });
 });

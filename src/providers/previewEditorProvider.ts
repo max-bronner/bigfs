@@ -4,6 +4,7 @@ import { decodeDdsTool, decodeTgaTool } from '../tools/textureTools';
 import { playableAudioTool } from '../tools/audioTools';
 import { buildW3dScene } from '../formats/w3dScene';
 import { parseW3dAnimations } from '../formats/w3dAnimation';
+import { findModelForSkeleton } from '../formats/w3dModelFinder';
 import { Vp6Movie } from '../formats/vp6/container';
 import type { ModelScene } from '../formats/w3dScene';
 import type { EntryLocator } from '../formats/entryLocator';
@@ -50,7 +51,11 @@ type PreviewMessage =
       framesPerSecond: number;
       hasAlpha: boolean;
     }
-  | ({ kind: 'model' } & ModelScene)
+  | ({
+      kind: 'model';
+      /** The model an animation file is shown on, found by its skeleton */
+      shownOn?: string;
+    } & ModelScene)
   | { kind: 'error'; message: string };
 
 /** Decodes an entry into what its preview shows, by its extension */
@@ -95,15 +100,34 @@ const buildMessage = async (
           hasAlpha: movie.hasAlpha,
         };
       }
-      case '.w3d':
-        return {
-          kind: 'model',
-          ...(await buildW3dScene(
-            bytes,
-            (fileName) => locator.read(fileName, uri),
+      case '.w3d': {
+        const loadFile = (fileName: string) => locator.read(fileName, uri);
+        const scene = await buildW3dScene(bytes, loadFile, tools);
+
+        // An animation alone is bones: play it on the model drawn on them
+        if (!scene.meshes.length && scene.animation && scene.skeleton) {
+          const model = await findModelForSkeleton(
+            scene.skeleton.name,
+            await locator.findNames(
+              (name) => name.endsWith('.w3d'),
+              '**/*.{w3d,W3D}',
+            ),
+            loadFile,
             tools,
-          )),
-        };
+          );
+          const bytesOfModel = model && (await loadFile(model));
+
+          if (bytesOfModel) {
+            return {
+              kind: 'model',
+              ...(await buildW3dScene(bytesOfModel, loadFile, tools)),
+              animation: scene.animation,
+              shownOn: model,
+            };
+          }
+        }
+        return { kind: 'model', ...scene };
+      }
       default:
         return { kind: 'error', message: `No preview for ${extension} files` };
     }
