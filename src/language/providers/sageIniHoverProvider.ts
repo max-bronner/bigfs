@@ -115,7 +115,10 @@ const describeValue = (
   schema: SageIniSchema,
   value: string,
 ): MarkdownString | undefined => {
-  const namespaces = schema.getReferenceNamespaces(statement.keyword.text);
+  const namespaces = schema.getReferenceNamespaces(
+    statement.keyword.text,
+    statement.context,
+  );
 
   if (!namespaces.length) {
     return undefined;

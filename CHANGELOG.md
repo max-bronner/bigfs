@@ -40,6 +40,7 @@
 - CommandSet editor: drag buttons between slots, clear and add.
 - Balance sheet: damage-a-second column.
 - Compare with Base Game lists INI changes definition by definition and value by value.
+- Fix: an FX list's ParticleSystem and Sound nuggets' Name goes to its definition, finds references and is checked.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start

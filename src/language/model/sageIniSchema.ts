@@ -21,6 +21,19 @@
 export type KeywordKind = 'block' | 'field';
 
 /** File scope of a `.ini` file, where only the engine's root blocks are legal */
+/**
+ * Fields whose value names a definition only in one block, by the block's
+ * context name and the field. The schema's reference table is keyed by
+ * field name alone, which a field as general as `Name` cannot be: these
+ * are the FX list nuggets that name what they play (EA's FXList.cpp parses
+ * a ParticleSystem nugget's Name as a particle system template and a Sound
+ * nugget's as an audio event).
+ */
+const SCOPED_REFERENCES: Record<string, string[]> = {
+  'fxlist > particlesystem/name': ['FXParticleSystem', 'ParticleSystem'],
+  'fxlist > sound/name': ['AudioEvent'],
+};
+
 export const ROOT_CONTEXT = '<root>';
 
 /**
@@ -137,7 +150,13 @@ export interface SageIniSchema {
    * are polymorphic - `Sound` takes an `AudioEvent` or a `Multisound` - so a
    * caller tries each and only complains when none match.
    */
-  getReferenceNamespaces(field: string): readonly string[];
+  /**
+   * The namespaces a field's value names. With the context the field sits
+   * in, a field whose meaning depends on its block is resolved too: `Name`
+   * names a particle system in an FX list's `ParticleSystem` nugget and a
+   * sound in its `Sound` one.
+   */
+  getReferenceNamespaces(field: string, context?: string): readonly string[];
 
   /** The keywords legal in a context, with what each one is */
   getContextKeywords(
@@ -306,8 +325,14 @@ export const createSageIniSchema = (
 
       return entry && { type: entry.t, used: entry.u === 1 };
     },
-    getReferenceNamespaces: (field) =>
-      references.get(field.toLowerCase()) ?? [],
+    getReferenceNamespaces: (field, context) =>
+      (context === undefined
+        ? undefined
+        : SCOPED_REFERENCES[
+            `${(contextOf(context)?.name ?? context).toLowerCase()}/${field.toLowerCase()}`
+          ]) ??
+      references.get(field.toLowerCase()) ??
+      [],
     getContextKeywords: (context) => {
       if (context === ROOT_CONTEXT) {
         return Object.keys(file.fileScope).map((name) => ({
