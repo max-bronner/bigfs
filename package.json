@@ -201,6 +201,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.newObject",
+        "title": "New Unit, Hero or Building…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.newAptMovie",
         "title": "New APT Movie…",
         "category": "BIG"
@@ -571,6 +576,11 @@
         {
           "command": "bigfs.showEffectiveObject",
           "group": "navigation@21",
+          "when": "editorLangId == sage-ini"
+        },
+        {
+          "command": "bigfs.newObject",
+          "group": "1_modification@4",
           "when": "editorLangId == sage-ini"
         },
         {

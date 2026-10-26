@@ -71,6 +71,11 @@ your mod's archives.
   upgrade, FX list, command button and other definition in the workspace that
   no INI file references (objects and images, which maps and UI name, are
   left out).
+- **New Unit, Hero or Building…** makes a new object from an existing one:
+  inherit (`ChildObject`) or copy, its own display name, and a copy of the
+  button that builds the original, added to the next free slot of that
+  command set. The new game text goes into the string table the original's
+  comes from; what lives inside an archive is listed to do by hand.
 - **Bulk Edit INI Values…** changes many values by one formula: pick blocks
   (`Object *Archer*`), conditions (`Side = Rohan; KindOf ~ INFANTRY`), a
   field (`ActiveBody/MaxHealth`) and a formula of `x` and the block's own
