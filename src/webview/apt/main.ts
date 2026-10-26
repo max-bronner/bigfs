@@ -1,5 +1,12 @@
 import { byId, escapeHtml } from './dom';
-import { describe, send, showDetails, showScript, vscode } from './details';
+import {
+  describe,
+  GO_TO_FRAME,
+  send,
+  showDetails,
+  showScript,
+  vscode,
+} from './details';
 import type { ToPage } from './protocol';
 import { showAtlas } from './atlas';
 import { showIntegrity } from './integrity';
@@ -179,6 +186,11 @@ setInspectorView(showPanels, () => {
   markPlayhead();
 });
 window.addEventListener('resize', () => state.movie && render());
+window.addEventListener(GO_TO_FRAME, (event) => {
+  play(false);
+  goTo((event as CustomEvent<number>).detail);
+  showTimeline();
+});
 
 // Hotkeys, except while typing into a field
 document.addEventListener('keydown', (event) => {

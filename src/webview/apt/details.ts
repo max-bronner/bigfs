@@ -1,4 +1,5 @@
-import type { Character, Matrix2 } from '../../formats/apt/aptMovie';
+import type { Character, Frame, Matrix2 } from '../../formats/apt/aptMovie';
+import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptEdit } from '../../formats/apt/aptWriter';
 import { button, byId, heading, input, row } from './dom';
 import type { FromPage, ToPage } from './protocol';
@@ -496,6 +497,50 @@ const text = (value: string): HTMLSpanElement => {
   return element;
 };
 
+/** Asks the page to show a frame of the timeline on the stage */
+export const GO_TO_FRAME = 'apt-go-to-frame';
+
+/**
+ * What a frame script does to timelines, each jump on its own timeline a
+ * button to the frame it lands on
+ */
+const flowOf = (frames: Frame[], behaviour: Behaviour | undefined) => {
+  if (!behaviour?.commands.length) {
+    return [
+      text(
+        behaviour?.conditional
+          ? 'branches; see the script'
+          : 'no timeline commands',
+      ),
+    ];
+  }
+  return behaviour.commands.map((command) => {
+    const on = command.target.length ? ` on ${command.target.join('.')}` : '';
+
+    if (command.op !== 'goto') {
+      return text(`${command.op}()${on}`);
+    }
+
+    const name = `${command.play ? 'gotoAndPlay' : 'gotoAndStop'}(${command.label !== undefined ? `"${command.label}"` : command.frame})${on}`;
+    const to =
+      command.target.length || command.label === undefined
+        ? command.frame
+        : frames.findIndex((frame) =>
+            frame.items.some(
+              (item) =>
+                item.type === 'frameLabel' &&
+                item.label.toLowerCase() === command.label!.toLowerCase(),
+            ),
+          );
+
+    return command.target.length || to === undefined || to < 0
+      ? text(name)
+      : button(`${name} → ${to}`, () =>
+          window.dispatchEvent(new CustomEvent(GO_TO_FRAME, { detail: to })),
+        );
+  });
+};
+
 /** The items of the shown frame of a timeline, each editable, and ways to add more */
 const frameFields = (character: Character): HTMLElement[] => {
   const frames = framesOf(movie(), character);
@@ -556,6 +601,14 @@ const frameFields = (character: Character): HTMLElement[] => {
               send({ kind: 'frameLabel', offset: item.offset, label: value }),
             'line',
           ),
+          remove,
+        ),
+      );
+    } else if (item.type === 'action') {
+      fields.push(
+        row(
+          'Script',
+          ...flowOf(frames, movie().behaviours[item.block]),
           remove,
         ),
       );

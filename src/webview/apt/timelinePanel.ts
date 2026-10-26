@@ -20,6 +20,8 @@ import { send, showDetails } from './details';
 import { button, byId } from './dom';
 import { currentPlayer, goToFrame, render, showMode, view } from './stage';
 import { state } from './state';
+import { timelineFlow } from '../../formats/apt/aptFlow';
+import type { Jump, TimelineFlow } from '../../formats/apt/aptFlow';
 import { displayList } from './timeline';
 
 /**
@@ -505,6 +507,114 @@ const select = (frame: number, depth: number | undefined, extend: boolean) => {
   showTimeline();
 };
 
+/** How a jump reads, from where it is made */
+const describeJump = (jump: Jump): string =>
+  `${jump.from.kind === 'button' ? `button ${jump.from.character} at depth ${jump.from.depth}` : `frame ${jump.from.frame}`}: ` +
+  `${jump.play ? 'gotoAndPlay' : 'gotoAndStop'} ${jump.label !== undefined ? `"${jump.label}"` : `frame ${jump.to}`}` +
+  (jump.to === undefined ? ' (no such label here)' : ` → frame ${jump.to}`);
+
+/** Marks the columns a script cell jumps to while the pointer is on it */
+const pointTo = (cell: HTMLElement, frames: number[]) => {
+  const mark = (on: boolean) =>
+    frames.forEach((frame) =>
+      panel
+        .querySelectorAll(
+          `.frame[data-frame="${frame}"], .label[data-frame="${frame}"]`,
+        )
+        .forEach((each) => each.classList.toggle('jump-target', on)),
+    );
+
+  cell.onmouseenter = () => mark(true);
+  cell.onmouseleave = () => mark(false);
+};
+
+/** A row naming each label over the frames up to the next, with who jumps there */
+const labelRow = (
+  table: HTMLTableElement,
+  flow: TimelineFlow,
+  frameCount: number,
+) => {
+  const row = table.insertRow();
+  let next = 0;
+
+  row.insertCell().textContent = 'labels';
+  flow.labels.forEach((label, at) => {
+    if (label.frame < next) {
+      return; // a second label on one frame shares the first's cell
+    }
+    if (label.frame > next) {
+      row.insertCell().colSpan = label.frame - next;
+    }
+
+    const end =
+      flow.labels.find((each) => each.frame > label.frame)?.frame ?? frameCount;
+    const cell = row.insertCell();
+    const names = flow.labels
+      .slice(at)
+      .filter((each) => each.frame === label.frame)
+      .map((each) => each.label);
+    const incoming = flow.jumps.filter((jump) => jump.to === label.frame);
+
+    cell.colSpan = end - label.frame;
+    cell.className = 'label';
+    cell.dataset.frame = String(label.frame);
+    cell.textContent = `⚑ ${names.join(', ')}`;
+    cell.title =
+      `Frame ${label.frame}: "${names.join('", "')}"` +
+      (incoming.length
+        ? `\nJumped to from:\n${incoming.map(describeJump).join('\n')}`
+        : '');
+    cell.onclick = () => select(label.frame, undefined, false);
+    next = end;
+  });
+  if (next < frameCount) {
+    row.insertCell().colSpan = frameCount - next;
+  }
+};
+
+/** A row with what each frame's script does to the timeline: stop, play, jumps */
+const scriptRow = (
+  table: HTMLTableElement,
+  flow: TimelineFlow,
+  frameCount: number,
+) => {
+  const row = table.insertRow();
+
+  row.insertCell().textContent = 'script';
+  for (let frame = 0; frame < frameCount; frame++) {
+    const cell = row.insertCell();
+    const jumps = flow.jumps.filter((jump) => jump.from.frame === frame);
+    const lines = [
+      ...(flow.stops.includes(frame) ? ['stop()'] : []),
+      ...(flow.plays.includes(frame) ? ['play()'] : []),
+      ...jumps.map(describeJump),
+      ...(flow.conditional.includes(frame)
+        ? ['the script branches; it may do more than this']
+        : []),
+    ];
+
+    cell.className = 'flow';
+    cell.dataset.frame = String(frame);
+    cell.textContent =
+      (flow.stops.includes(frame) ? '■' : '') +
+      (flow.plays.includes(frame) ? '▶' : '') +
+      (jumps.length ? '↷' : '') +
+      (flow.conditional.includes(frame) ? '?' : '');
+    if (!lines.length) {
+      continue;
+    }
+    cell.title = lines.join('\n');
+
+    const targets = jumps.flatMap((jump) =>
+      jump.to === undefined ? [] : [jump.to],
+    );
+
+    pointTo(cell, targets);
+    // A jump's cell goes where it jumps; any other, to its own frame
+    cell.onclick = () => select(targets[0] ?? frame, undefined, false);
+  }
+};
+
 /** Builds the panel for the timeline on the stage, or empties it */
 export const showTimeline = (): void => {
   const timeline = shownTimeline();
@@ -522,33 +632,33 @@ export const showTimeline = (): void => {
   const { depths, cells } = cellsOf(timeline);
   const tweens = detectTweens(decodeTimeline(undefined, timeline.frames));
   const table = document.createElement('table');
+
+  const flow = timelineFlow(
+    timeline.frames,
+    timeline.movie.behaviours,
+    timeline.movie.characters,
+  );
+
+  labelRow(table, flow, frameCount);
+
   const head = table.insertRow();
 
-  head.insertCell().textContent = 'depth';
+  head.insertCell().textContent = 'frame';
   timeline.frames.forEach((frame, index) => {
     const cell = head.insertCell();
-    const labels = frame.items.flatMap((item) =>
-      item.type === 'frameLabel' ? [item.label] : [],
-    );
     const scripts = frame.items.filter(
       (item) => item.type === 'action' || item.type === 'initAction',
     ).length;
 
     cell.className = 'frame';
     cell.dataset.frame = String(index);
-    cell.textContent = labels.length
-      ? '◆'
-      : scripts
-        ? 'a'
-        : index % 5
-          ? ''
-          : String(index);
+    cell.textContent = index % 5 ? '' : String(index);
     cell.title =
       `Frame ${index}` +
-      (labels.length ? `, labelled "${labels.join('", "')}"` : '') +
       (scripts ? `, ${scripts} script${scripts > 1 ? 's' : ''}` : '');
     cell.onclick = (event) => select(index, undefined, event.shiftKey);
   });
+  scriptRow(table, flow, frameCount);
 
   for (const depth of depths) {
     const line = table.insertRow();
