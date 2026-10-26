@@ -52,7 +52,10 @@ const addValues = (
   schema: SageIniSchema,
 ): void => {
   const engineField = schema.getEngineField(statement.keyword.text);
-  const references = schema.getReferenceNamespaces(statement.keyword.text);
+  const references = schema.getReferenceNamespaces(
+    statement.keyword.text,
+    statement.context,
+  );
   const hasComponents =
     engineField !== undefined && COMPONENT_TYPES.has(engineField.type);
 
@@ -75,7 +78,11 @@ const addValues = (
     if (hasComponents && component) {
       // Mark only the key; the grammar already colours the number after it
       mark(
-        { text: component[1], start: token.start, end: token.start + component[1].length },
+        {
+          text: component[1],
+          start: token.start,
+          end: token.start + component[1].length,
+        },
         'parameter',
       );
 

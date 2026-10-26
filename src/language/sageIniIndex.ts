@@ -542,7 +542,7 @@ export class SageIniIndex implements Disposable {
       // A reference field's values name definitions elsewhere. A
       // polymorphic field is recorded under each namespace it could mean,
       // since which one holds the name is not known until it is looked up.
-      const namespaces = schema.getReferenceNamespaces(keyword.text);
+      const namespaces = schema.getReferenceNamespaces(keyword.text, context);
 
       if (!namespaces.length) {
         return;

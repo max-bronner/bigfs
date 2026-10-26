@@ -91,11 +91,11 @@ const getReferenceDiagnostics = async (
 
   const diagnostics: Diagnostic[] = [];
 
-  for (const { block, keyword, values, line } of parsed.statements) {
+  for (const { block, context, keyword, values, line } of parsed.statements) {
     const namespaces = block
       ? []
       : schema
-          .getReferenceNamespaces(keyword.text)
+          .getReferenceNamespaces(keyword.text, context)
           .filter(
             (namespace) =>
               mode === 'on' ||

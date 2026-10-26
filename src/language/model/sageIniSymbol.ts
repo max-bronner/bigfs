@@ -92,7 +92,10 @@ export const resolveSageSymbol = (
     token,
     line,
     name: token.text,
-    namespaces: schema.getReferenceNamespaces(statement.keyword.text),
+    namespaces: schema.getReferenceNamespaces(
+      statement.keyword.text,
+      statement.context,
+    ),
     isDeclaration: false,
   };
 };

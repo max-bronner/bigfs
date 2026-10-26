@@ -131,7 +131,7 @@ export const createSageIniCompletionProvider = (
     }
 
     // A reference field's values are names defined elsewhere
-    const namespaces = schema.getReferenceNamespaces(keyword);
+    const namespaces = schema.getReferenceNamespaces(keyword, context);
 
     if (namespaces.length) {
       await index.whenReady();

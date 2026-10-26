@@ -337,6 +337,23 @@ suite('SAGE INI engine data', () => {
     assert.ok(schema.getReferenceNamespaces('DeathFX').includes('FXList'));
     // Armor = DEFAULT 100% is a damage multiplier, so it resolves nowhere
     assert.deepStrictEqual(schema.getReferenceNamespaces('MaxHealth'), []);
+
+    // `Name` names what an FX list nugget plays, by the nugget it is in
+    const nugget = (slot: string) =>
+      parseSageIni(
+        ['FXList FX_Test', `  ${slot}`, '    Name = Something', '  End', 'End'],
+        schema,
+      ).statements.find((statement) => statement.keyword.text === 'Name')!;
+
+    assert.deepStrictEqual(
+      schema.getReferenceNamespaces('Name', nugget('ParticleSystem').context),
+      ['FXParticleSystem', 'ParticleSystem'],
+    );
+    assert.deepStrictEqual(
+      schema.getReferenceNamespaces('Name', nugget('Sound').context),
+      ['AudioEvent'],
+    );
+    assert.deepStrictEqual(schema.getReferenceNamespaces('Name'), []);
   });
 });
 
