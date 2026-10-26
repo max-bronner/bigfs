@@ -214,6 +214,10 @@ your mod's archives.
   remove or show, and insert, delete, duplicate, reverse or retime frames.
   Frames the change leaves alone keep their records as shipped. Onion skin
   (**N**) draws the frames either side faintly.
+- Tweens already baked into a movie are recognised: a run of frames in
+  which an instance follows one easing curve shows as a purple bar, its
+  tooltip saying what moves from where to where, and a double-click opens
+  it in the tween form with its easing, to change it as one tween.
 
 ## Development
 
