@@ -2,6 +2,7 @@ import { open, readdir } from 'fs/promises';
 import * as path from 'path';
 import { readArchiveIndexTable } from '../binary/archiveFile';
 import { archiveOrderKey } from './gameView';
+import type { BaseArchive } from './modPackage';
 
 /**
  * The base game a mod is compared against: every file its archives give the
@@ -82,6 +83,32 @@ export const indexBaseGame = async (
   }
 
   return { index, archives: archives.length, unreadable };
+};
+
+/** Every archive of an install with the files it holds, by path below it */
+export const listBaseArchives = async (
+  folder: string,
+): Promise<{ archives: BaseArchive[]; unreadable: string[] }> => {
+  const archives: BaseArchive[] = [];
+  const unreadable: string[] = [];
+
+  for (const archive of await findArchives(folder)) {
+    const relative = path.relative(folder, archive);
+
+    try {
+      const { entries } = await readArchiveIndexTable(archive);
+
+      archives.push({
+        path: relative.replace(/\\/g, '/'),
+        entries: new Set(
+          entries.map((entry) => entry.name.replace(/\\/g, '/').toLowerCase()),
+        ),
+      });
+    } catch {
+      unreadable.push(relative);
+    }
+  }
+  return { archives, unreadable };
 };
 
 /** Reads a base game file */

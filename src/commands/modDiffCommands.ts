@@ -10,6 +10,7 @@ import {
   readBaseEntry,
 } from '../model/modDiff';
 import { webviewPage } from '../providers/webviewPage';
+import { registerPackageMod } from './packageModCommand';
 import { decodeWindows1252 } from '../common/windows1252';
 
 /**
@@ -119,6 +120,7 @@ export const registerModDiffCommands = (
   };
 
   context.subscriptions.push(
+    registerPackageMod(baseFolder),
     vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, {
       provideTextDocumentContent: async (uri) => {
         const entry = base?.index.get(
