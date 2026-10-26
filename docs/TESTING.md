@@ -191,16 +191,26 @@ Open an `.apt` (with its `.const` beside it).
 - [ ] **new** Scripts run in full on an ActionScript machine (ported from
   mint2): variables, conditions, loops, functions, `attachMovie`, text set
   by scripts, `_visible`/`_x`/`_alpha` and the rest. Check a menu or the
-  palantir behaves as in the game once the engine values below are set
+  palantir behaves as in the game once the values below are overridden
   (#94).
+- [ ] **new** Selecting characters, scrubbing and playing stay as quick
+  with scripts respected as with them ignored, and nothing a script does
+  breaks the editor: a script that fails or runs away is stopped and
+  reported in the log under the stage, and frames whose scripts goto each
+  other take turns instead of overflowing (#95).
 - [ ] **new** **Engine** panel (top of the right side) lists what the movie
   asks of the game, found while it runs, nothing hard-coded:
   - *Called by the engine*: functions the movie stores but never calls
     itself (the palantir's `SetPlayerFaction`, `SetPalantirFrameState`).
     Type the arguments (`evil`, `2`, `true`, `"text"`) and press **Call**.
-  - *Values the engine provides*: names the movie reads but never sets, and
-    `GetExtern`/`extern.` keys. Type a value; **Restart with these values**
-    runs the movie again with them. Values are kept per movie.
+  - *Values*: every variable the movie read, with what it held, and its
+    `GetExtern`/`extern.` keys; those it never sets are marked. Typing in
+    a value's field overrides it: the override wins over what the movie
+    holds from the next read, and matches the whole path or its last name
+    (`side` also covers `_root.side`). **Override** adds one for a name not
+    read yet. **Restart with these overrides** runs the movie again with
+    them; **Clear overrides** drops them. Overrides are kept per movie; the
+    filter narrows long lists.
   - *Calls to the engine*: `GameCode`, `FSCommand:` and functions nothing
     defines, with a count and the last arguments; each can be given a
     value to return. They are also written to the log under the stage.

@@ -1,28 +1,33 @@
-import type { FunctionEntry, Seen } from './avm/engine';
+import type { FunctionEntry, ReadValue, Seen } from './avm/engine';
+import { AsObject } from './avm/value';
+import type { Value } from './avm/value';
 import { button, byId, heading, input, row } from './dom';
 import { engine, onEngineChange, saveAnswers } from './engineState';
 import { render } from './stage';
 
 /**
- * The engine panel: the game's side of the shown movie, to play by hand.
- * It lists what the movie's code reached for while it ran, as the engine
- * module found it, and lets each be answered:
+ * The engine panel: the game's side of the shown movie, played by hand,
+ * from what the movie's own code reached for while it ran.
  *
- * - functions only the engine calls, each with a field per parameter and
- *   a Call button, and the rest of the movie's functions folded away
- * - values it reads that it never sets, and `GetExtern`/`extern.` keys,
- *   each with a value field
- * - calls it makes into the engine, with how often and the last
- *   arguments, each with the value the call returns
+ * - **Called by the engine**: functions it stores but never names again,
+ *   each with a field per parameter and a Call button
+ * - **Values**: every variable it read, with what it held; any can be
+ *   overridden, and an override wins over the movie's own value from the
+ *   next read. A name not read yet can be added. An override matches the
+ *   whole path or its last name, so `side` also covers `_root.side`.
+ * - **Calls to the engine**: with how often and the last arguments, each
+ *   with the value it returns
  *
  * Values are typed as written: `12`, `true`, `"text"`, or bare text.
- * They hold from the next read; Restart runs the movie again with them.
  */
 
 const panel = byId('engine');
 let restart = () => {};
+let filter = '';
+/** Rows listed per section before the filter has to narrow them */
+const MAX_ROWS = 150;
 
-/** What runs the movie again from its start, with the answers given */
+/** What runs the movie again from its start, with the overrides set */
 export const onEngineRestart = (run: () => void): void => {
   restart = run;
 };
@@ -33,6 +38,30 @@ const text = (value: string, className = '') => {
   element.textContent = value;
   element.className = className;
   return element;
+};
+
+/** A short look at a value, without running anything */
+const preview = (value: Value): string => {
+  if (value instanceof AsObject) {
+    return value.kind.type === 'clip'
+      ? `clip ${value.kind.instance.name ?? value.kind.instance.path}`
+      : value.kind.type === 'array'
+        ? 'array'
+        : value.kind.type === 'plain'
+          ? 'object'
+          : 'function';
+  }
+
+  const shown =
+    typeof value === 'string' ? JSON.stringify(value) : String(value);
+
+  return shown.length > 40 ? `${shown.slice(0, 40)}…` : shown;
+};
+
+const changed = (apply: () => void) => {
+  apply();
+  saveAnswers();
+  render();
 };
 
 const callRow = (entry: FunctionEntry) => {
@@ -54,124 +83,208 @@ const callRow = (entry: FunctionEntry) => {
       );
 
       render();
-      if (result !== undefined) {
-        panel
-          .querySelector('.engine-result')
-          ?.replaceChildren(`${entry.name} returned ${JSON.stringify(result)}`);
+      panel
+        .querySelector('.engine-result')
+        ?.replaceChildren(
+          result === undefined
+            ? ''
+            : `${entry.name} returned ${preview(result)}`,
+        );
+    }),
+  );
+};
+
+const overrideField = (name: string, current: string, placeholder: string) => {
+  const field = input(
+    current,
+    (value) => changed(() => engine.override(name, value)),
+    'line',
+  );
+
+  field.placeholder = placeholder;
+  return field;
+};
+
+const valueRow = (read: ReadValue) =>
+  row(
+    read.name,
+    overrideField(
+      read.name,
+      engine.overrides.get(read.name.toLowerCase()) ?? '',
+      preview(read.value),
+    ),
+    text(
+      read.found ? `read ${read.count}×` : `read ${read.count}×, never set`,
+      'muted',
+    ),
+  );
+
+const externRow = (seen: Seen) =>
+  row(
+    seen.name,
+    overrideField(
+      seen.name,
+      engine.overrides.get(seen.name.toLowerCase()) ?? '',
+      'not set',
+    ),
+    text(`extern · read ${seen.count}×`, 'muted'),
+  );
+
+const callReturnRow = (seen: Seen) => {
+  const field = input(
+    engine.returns.get(seen.name.toLowerCase()) ?? '',
+    (value) =>
+      changed(() =>
+        value.trim()
+          ? engine.returns.set(seen.name.toLowerCase(), value)
+          : engine.returns.delete(seen.name.toLowerCase()),
+      ),
+    'line',
+  );
+
+  field.placeholder = 'returns';
+  return row(
+    seen.name,
+    field,
+    text(
+      `${seen.count}× · last (${(seen.last ?? []).map((arg) => JSON.stringify(arg)).join(', ')})`,
+      'muted',
+    ),
+  );
+};
+
+/** An override for a name the movie has not read yet */
+const addRow = () => {
+  const name = input('', () => {}, 'line');
+  const value = input('', () => {}, 'line');
+
+  name.placeholder = 'name or path';
+  value.placeholder = 'value';
+  return row(
+    'Override',
+    name,
+    value,
+    button('Set', () => {
+      if (name.value.trim()) {
+        changed(() => engine.override(name.value.trim(), value.value));
       }
     }),
   );
 };
 
-const answerRow = (
-  seen: Seen,
-  answers: Map<string, string>,
-  note: string,
-  placeholder: string,
-) => {
-  const field = input(
-    answers.get(seen.name.toLowerCase()) ?? '',
-    (value) => {
-      if (value.trim()) {
-        answers.set(seen.name.toLowerCase(), value);
-      } else {
-        answers.delete(seen.name.toLowerCase());
-      }
-      saveAnswers();
-    },
-    'line',
-  );
+const matches = (name: string) =>
+  !filter || name.toLowerCase().includes(filter);
 
-  field.placeholder = placeholder;
-  return row(seen.name, field, text(note, 'muted'));
-};
-
-const section = (title: string, rows: HTMLElement[], empty: string) => [
-  heading(title),
-  ...(rows.length ? rows : [text(empty, 'muted')]),
+const limited = <T>(items: T[], make: (item: T) => HTMLElement) => [
+  ...items.slice(0, MAX_ROWS).map(make),
+  ...(items.length > MAX_ROWS
+    ? [
+        text(
+          `… and ${items.length - MAX_ROWS} more; narrow them with the filter`,
+          'muted',
+        ),
+      ]
+    : []),
 ];
 
 /** Draws the panel again, unless a field in it is being typed into */
 export const showEngine = (): void => {
+  const active = document.activeElement;
+
+  // Typing is not interrupted; the panel catches up when the field is left
   if (
-    panel.contains(document.activeElement) &&
-    document.activeElement !== document.body
+    (active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement) &&
+    panel.contains(active)
   ) {
     return;
   }
 
-  const functions = [...engine.functions.values()];
+  const functions = [...engine.functions.values()].filter((each) =>
+    matches(each.path),
+  );
   const entries = functions.filter((each) => each.engineOnly);
   const others = functions.filter((each) => !each.engineOnly);
-  const read = [...engine.read.values()];
-  const externs = [...engine.externs.values()];
-  const calls = [...engine.calls.values()];
+  const overridden = (name: string) => engine.overrides.has(name.toLowerCase());
+  // Overridden first, then what nothing sets, then the rest, by name
+  const reads = [...engine.reads.values()]
+    .filter((each) => matches(each.name))
+    .sort(
+      (a, b) =>
+        Number(overridden(b.name)) - Number(overridden(a.name)) ||
+        Number(a.found) - Number(b.found) ||
+        a.name.localeCompare(b.name),
+    );
+  const externs = [...engine.externs.values()].filter((each) =>
+    matches(each.name),
+  );
+  const calls = [...engine.calls.values()].filter((each) => matches(each.name));
+  const unseen = [...engine.overrides.keys()].filter(
+    (key) => !engine.reads.has(key) && !engine.externs.has(key) && matches(key),
+  );
   const more = document.createElement('details');
   const summary = document.createElement('summary');
 
   summary.textContent = `Other functions the movie defines (${others.length})`;
-  more.append(summary, ...others.map(callRow));
+  more.append(summary, ...limited(others, callRow));
+
+  const search = input(filter, () => {}, 'line');
+
+  search.placeholder = 'filter by name';
+  search.oninput = () => {
+    filter = search.value.trim().toLowerCase();
+  };
+  search.onchange = () => {
+    search.blur();
+    showEngine();
+  };
 
   const wrapper = document.createElement('details');
   const title = document.createElement('summary');
 
-  wrapper.open = panel.querySelector('details')?.hasAttribute('open') ?? true;
-  title.textContent = `Engine: ${entries.length} entry points · ${read.length + externs.length} values · ${calls.length} calls`;
+  wrapper.open = panel.querySelector('details')?.open ?? true;
+  title.textContent = `Engine: ${engine.overrides.size} overrides · ${entries.length} entry points · ${engine.reads.size} values read · ${engine.calls.size} calls`;
   wrapper.append(
     title,
-    ...section(
-      'Called by the engine',
-      entries.map(callRow),
-      'No function only the engine calls has been defined yet.',
-    ),
+    row('', search),
+    heading('Called by the engine'),
+    ...(entries.length
+      ? limited(entries, callRow)
+      : [
+          text(
+            'No function only the engine calls has been defined yet.',
+            'muted',
+          ),
+        ]),
     ...(others.length ? [more] : []),
     text('', 'engine-result muted'),
-    ...section(
-      'Values the engine provides',
-      [
-        ...externs.map((seen) =>
-          answerRow(
-            seen,
-            engine.values,
-            `extern · read ${seen.count}×`,
-            'not set',
-          ),
-        ),
-        ...read.map((seen) =>
-          answerRow(
-            seen,
-            engine.values,
-            `read ${seen.count}×, never set`,
-            'not set',
-          ),
-        ),
-      ],
-      'Nothing read yet that the movie does not set itself.',
+    heading('Values'),
+    text(
+      'An override wins over what the movie holds, from the next read.',
+      'muted',
     ),
-    ...section(
-      'Calls to the engine',
-      calls.map((seen) =>
-        answerRow(
-          seen,
-          engine.returns,
-          `${seen.count}× · last (${(seen.last ?? []).map((arg) => JSON.stringify(arg)).join(', ')})`,
-          'returns',
-        ),
+    addRow(),
+    ...unseen.map((key) =>
+      row(
+        key,
+        overrideField(key, engine.overrides.get(key) ?? '', ''),
+        text('not read yet', 'muted'),
       ),
-      'No call to the engine yet.',
     ),
+    ...limited(externs, externRow),
+    ...limited(reads, valueRow),
+    heading('Calls to the engine'),
+    ...(calls.length
+      ? limited(calls, callReturnRow)
+      : [text('No call to the engine yet.', 'muted')]),
     row(
       '',
-      button('Restart with these values', () => restart()),
-      button('Clear values', () => {
-        engine.values.clear();
-        engine.returns.clear();
-        saveAnswers();
-        restart();
-      }),
+      button('Restart with these overrides', () => restart()),
+      button('Clear overrides', () => changed(() => engine.clear())),
     ),
   );
   panel.replaceChildren(wrapper);
 };
 
 onEngineChange(showEngine);
+panel.addEventListener('focusout', () => setTimeout(showEngine, 0));

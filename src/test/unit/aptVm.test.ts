@@ -93,7 +93,7 @@ const build = () => {
   } as unknown as PageMovie;
 };
 
-const run = (values: Record<string, string> = {}) => {
+const run = (overrides: Record<string, string> = {}) => {
   const movie = build();
   const lines: string[] = [];
   const engine = new Engine(
@@ -101,7 +101,7 @@ const run = (values: Record<string, string> = {}) => {
     (line) => lines.push(line),
   );
 
-  engine.load({ values, returns: {} });
+  engine.load({ overrides, returns: {} });
   engine.reset(movie);
 
   const player = new Player(movie, 0, {
@@ -132,8 +132,11 @@ suite('APT ActionScript machine', () => {
       [['_level0.SetPlayerFaction', ['faction'], true]],
     );
     assert.deepStrictEqual(
-      [...engine.read.values()].map((each) => each.name),
+      [...engine.reads.values()]
+        .filter((each) => !each.found)
+        .map((each) => each.name),
       ['side'],
+      'side is read but nothing sets it',
     );
     assert.deepStrictEqual(
       [...engine.externs.values()].map((each) => each.name),
@@ -150,11 +153,9 @@ suite('APT ActionScript machine', () => {
     assert.strictEqual(player.root.frame, 0);
   });
 
-  test("the engine's answers change what plays, and calling in moves the clips", () => {
-    const { player, engine } = run({
-      side: '"evil"',
-      'game::showring': 'true',
-    });
+  test("overrides win over the movie's values, and calling in moves the clips", () => {
+    // `shown` is set by the movie from an extern that answers nothing
+    const { player, engine } = run({ side: '"evil"', shown: 'true' });
     const ring = player.find('/1')!;
 
     assert.strictEqual(

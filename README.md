@@ -263,10 +263,10 @@ your mod's archives.
 - The **Engine** panel is the game's side of the movie: what its code
   reaches for while it runs, found as it runs. Functions only the engine
   calls (the palantir's `SetPlayerFaction`) get a field per argument and a
-  **Call** button; names the movie reads but never sets, and `GetExtern`
-  keys, get a value; calls into the engine (`GameCode`, `FSCommand:`) are
-  counted with their arguments and can be given a return value. Values are
-  kept per movie.
+  **Call** button; every variable it reads, and its `GetExtern` keys, can
+  be overridden, winning over what the movie holds; calls into the engine
+  (`GameCode`, `FSCommand:`) are counted with their arguments and can be
+  given a return value. Overrides are kept per movie.
 - Tweens already baked into a movie are recognised: a run of frames in
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens

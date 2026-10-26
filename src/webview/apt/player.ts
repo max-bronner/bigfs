@@ -43,6 +43,8 @@ export const CONDITION = {
 /** Gotos that run frame scripts that goto again stop here */
 const MAX_CHAIN = 16;
 const MAX_DEPTH = 12;
+/** Scripts one frame, event or call may start between them */
+const MAX_ACTIONS = 1000;
 
 export interface Resolved {
   movie: PageMovie;
@@ -143,6 +145,9 @@ export class Player implements StageHost {
   /** The ActionScript machine, when an engine answers for the game */
   public readonly vm?: Vm;
   private chain = 0;
+  /** Scripts waiting for the one running to finish */
+  private readonly waiting: (() => void)[] = [];
+  private draining = false;
 
   public constructor(
     movie: PageMovie,
@@ -189,12 +194,18 @@ export class Player implements StageHost {
     if (vm && this.scriptsRun(this.root)) {
       vm.ticks = this.ticks;
       for (const instance of this.all()) {
-        this.clipEvent(instance, CLIP_EVENT.enterFrame);
+        if (instance.clipActions) {
+          this.clipEvent(instance, CLIP_EVENT.enterFrame);
+        }
 
-        const handler = vm.member(vm.objectOf(instance), 'onEnterFrame');
+        // Only a clip a script has touched can carry an onEnterFrame
+        const object = vm.peekObject(instance);
+        const handler = object?.has('onEnterFrame')
+          ? object.get('onEnterFrame')
+          : undefined;
 
-        if (handler !== undefined) {
-          vm.callFromEngine(handler, vm.objectOf(instance), []);
+        if (handler !== undefined && object) {
+          vm.callFromEngine(handler, object, []);
         }
       }
       vm.runIntervals();
@@ -202,6 +213,37 @@ export class Player implements StageHost {
   }
 
   // ---- StageHost, what scripts do to clips
+
+  /**
+   * Runs the scripts waiting their turn. A frame a script's goto enters
+   * queues its script to run after the one that went, as Flash queues
+   * them (Ruffle's action queue, mint's drain_actions), so scripts that
+   * goto each other take turns instead of nesting without end.
+   */
+  public idle(): void {
+    if (!this.vm || this.draining || this.vm.busy) {
+      return;
+    }
+    this.draining = true;
+    try {
+      for (let ran = 0; this.waiting.length; ran++) {
+        if (ran >= MAX_ACTIONS) {
+          this.options.log?.(
+            `stopped after ${MAX_ACTIONS} scripts in one go: scripts keep starting each other`,
+          );
+          this.waiting.length = 0;
+          break;
+        }
+        this.waiting.shift()!();
+      }
+    } finally {
+      this.draining = false;
+    }
+  }
+
+  private later(run: () => void): void {
+    this.waiting.push(run);
+  }
 
   public setPlaying(clip: Instance, playing: boolean): void {
     clip.playing = playing;
@@ -317,11 +359,15 @@ export class Player implements StageHost {
     if (!this.vm || !instance.parent) {
       return;
     }
+    const vm = this.vm;
+    const parent = instance.parent;
+
     for (const action of instance.clipActions ?? []) {
       if (action.events & event) {
-        this.vm.runBlock(instance, action.block, instance.parent);
+        this.later(() => vm.runBlock(instance, action.block, parent));
       }
     }
+    this.idle();
   }
 
   /** Moves a timeline to a frame, running that frame's scripts */
@@ -509,18 +555,20 @@ export class Player implements StageHost {
 
         if (item.type === 'initAction' && !vm.initialised.has(key)) {
           vm.initialised.add(key);
-          vm.runBlock(timeline, item.block);
+          this.later(() => vm.runBlock(timeline, item.block));
         }
       }
       for (const item of items) {
-        if (
-          item.type === 'action' &&
-          timeline.frame === frame &&
-          !timeline.removed
-        ) {
-          vm.runBlock(timeline, item.block);
+        if (item.type === 'action') {
+          // A frame left before its turn came does not run its script
+          this.later(() => {
+            if (timeline.frame === frame && !timeline.removed) {
+              vm.runBlock(timeline, item.block);
+            }
+          });
         }
       }
+      this.idle();
       return;
     }
     for (const item of items) {

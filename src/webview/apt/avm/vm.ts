@@ -53,10 +53,12 @@ export interface EngineHooks {
   call(name: string, args: string[]): Value;
   /** `getURL("FSCommand:...")` */
   command(command: string, args: string): void;
-  /** A plain name no scope holds: the engine may provide it */
-  missing(name: string): Value;
-  /** A name the movie sets, so it is not the engine's to provide */
-  wrote(name: string): void;
+  /**
+   * Every variable read, with what the movie holds (`found` says whether it
+   * holds anything): the engine may override it. `counted` is false for
+   * reads the preview makes itself, such as a text field's bound variable.
+   */
+  read(path: string, value: Value, found: boolean, counted: boolean): Value;
   /** A function the movie stores where the engine can call it */
   defined(owner: AsObject, name: string, fn: AsObject): void;
   log(line: string): void;
@@ -67,6 +69,8 @@ const MAX_STEPS = 100_000;
 const MAX_STACK = 1024;
 const MAX_CALL_DEPTH = 64;
 const MAX_STRING = 65_536;
+/** Scripts started inside other scripts, by gotos and calls, at most */
+const MAX_NESTING = 32;
 
 /** Display properties in `GetProperty`/`SetProperty` index order */
 export const DISPLAY_PROPERTIES = [
@@ -154,6 +158,8 @@ export class Vm implements NativeHost {
   private readonly clips = new WeakMap<Instance, AsObject>();
   private readonly registers: Value[] = [];
   private budget = MAX_STEPS;
+  /** Entries into the machine in progress: a goto's frame script runs inside the script that went */
+  private nesting = 0;
   private seed = 0x2545f491;
   private nextInterval = 1;
   /** Ticks of the player, which `getTimer` counts at 30 a second */
@@ -199,8 +205,7 @@ export class Vm implements NativeHost {
     if (!code) {
       return;
     }
-    this.budget = MAX_STEPS;
-    this.guard(() =>
+    this.guard(`block ${block}`, () =>
       this.exec(code, {
         movie: owner.movie,
         scope: this.targetScope(clip),
@@ -216,13 +221,15 @@ export class Vm implements NativeHost {
 
   /** Calls a function value from outside, as the engine calls into a movie */
   public callFromEngine(callee: Value, self: Value, args: Value[]): Value {
-    this.budget = MAX_STEPS;
-    return this.guard(() => this.call(callee, self, args, 'engine')) as Value;
+    return this.guard('a call', () =>
+      this.call(callee, self, args, 'engine'),
+    ) as Value;
   }
 
   /** Reads a variable a text field is bound to, from the clip it sits in */
   public readBound(clip: Instance, name: string): Value {
     return this.guard(
+      'a text field',
       () =>
         this.getVariable(
           {
@@ -236,7 +243,7 @@ export class Vm implements NativeHost {
             depth: 0,
           },
           name,
-          true,
+          false,
         ).value,
     ) as Value;
   }
@@ -259,6 +266,16 @@ export class Vm implements NativeHost {
       this.clips.set(instance, object);
     }
     return object;
+  }
+
+  /** Whether a script is running, so a frame entered now waits its turn */
+  public get busy(): boolean {
+    return this.nesting > 0;
+  }
+
+  /** A clip's script object if a script has touched it, without making one */
+  public peekObject(instance: Instance): AsObject | undefined {
+    return this.clips.get(instance);
   }
 
   public clipOf(value: Value): Instance | undefined {
@@ -444,7 +461,6 @@ export class Vm implements NativeHost {
         object.define('length', Number(name) + 1);
       }
     }
-    this.engine.wrote(name);
     if (value instanceof AsObject && value.kind.type === 'function') {
       this.engine.defined(object, name, value);
     }
@@ -723,11 +739,31 @@ export class Vm implements NativeHost {
     return false;
   }
 
-  /** `GetVariable`: `a.b:c` paths through the clips, else a plain name */
+  /** `GetVariable`, as the engine may override it */
   private getVariable(
     frame: Frame,
     path: string,
-    quiet = false,
+    counted = true,
+  ): { value: Value; on?: AsObject } {
+    const found = this.lookupVariable(frame, path);
+
+    return path.toLowerCase() === 'this'
+      ? found
+      : {
+          value: this.engine.read(
+            path,
+            found.value,
+            found.on !== undefined,
+            counted,
+          ),
+          on: found.on,
+        };
+  }
+
+  /** A variable: `a.b:c` paths through the clips, else a plain name */
+  private lookupVariable(
+    frame: Frame,
+    path: string,
   ): { value: Value; on?: AsObject } {
     const separator = Math.max(path.lastIndexOf(':'), path.lastIndexOf('.'));
 
@@ -760,17 +796,12 @@ export class Vm implements NativeHost {
         const object = this.resolvePath(frame, scope.values, path);
 
         if (object) {
-          return { value: object };
+          return { value: object, on: object };
         }
       }
     }
 
-    const found = this.resolve(frame, path);
-
-    if (!found.on && !quiet && path.toLowerCase() !== 'this') {
-      return { value: this.engine.missing(path) };
-    }
-    return found;
+    return this.resolve(frame, path);
   }
 
   private setVariable(frame: Frame, path: string, value: Value): void {
@@ -1027,7 +1058,7 @@ export class Vm implements NativeHost {
   }
 
   private callNamed(frame: Frame, name: string, args: Value[]): Value {
-    const found = this.getVariable(frame, name, true);
+    const found = this.lookupVariable(frame, name);
     const self =
       found.on ?? (frame.target ? this.objectOf(frame.target) : undefined);
 
@@ -1074,15 +1105,38 @@ export class Vm implements NativeHost {
 
   // ---- execution
 
-  private guard(run: () => unknown): unknown {
+  /**
+   * Runs one entry into the machine. Nothing a movie does may break the
+   * page: a limit stops the script, and anything unexpected is reported
+   * as the script's fault rather than thrown into the editor. The step
+   * budget is the outermost entry's, so a frame script that gotos into
+   * another cannot reset it, and entries nest only so deep.
+   */
+  private guard(what: string, run: () => unknown): unknown {
+    if (this.nesting >= MAX_NESTING) {
+      this.engine.log(
+        `script skipped: ${what} nests ${MAX_NESTING} deep in other scripts`,
+      );
+      return undefined;
+    }
+    if (this.nesting === 0) {
+      this.budget = MAX_STEPS;
+    }
+    this.nesting++;
     try {
       return run();
     } catch (error) {
-      if (error instanceof Halt) {
-        this.engine.log(`script stopped: ${error.message}`);
-        return undefined;
+      this.engine.log(
+        error instanceof Halt
+          ? `script stopped in ${what}: ${error.message}`
+          : `script failed in ${what}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return undefined;
+    } finally {
+      this.nesting--;
+      if (this.nesting === 0) {
+        this.stage.idle();
       }
-      throw error;
     }
   }
 
@@ -1091,6 +1145,9 @@ export class Vm implements NativeHost {
     frame: Frame,
   ): { returned: boolean; value?: Value } {
     const index = indexOf(code);
+    // An unload handler runs on a clip already taken off; only a removal
+    // during this code stops it
+    const wasRemoved = frame.base?.removed;
 
     for (let pc = 0; pc < code.length;) {
       if (--this.budget < 0) {
@@ -1119,7 +1176,7 @@ export class Vm implements NativeHost {
         }
       }
       // Code of a clip that was removed stops (Ruffle continue_if_base_clip_exists)
-      if (frame.base?.removed) {
+      if (frame.base?.removed && !wasRemoved) {
         return { returned: false };
       }
     }
