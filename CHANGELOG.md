@@ -43,6 +43,7 @@
 - Object preview: "Preview object" and "Preview state" lenses, and "Preview on the object" on animation, FX and ParticleSysBone lines. Shows the composed object's model, plays its animations, and runs its FX and bone particle systems on it, each with a toggle.
 - One model renderer for the W3D viewer and the particle preview: the particle preview now shows the model textured and lit. Bones toggle with B.
 - W3D viewer: an animation file plays on the model drawn on its skeleton, found by name; bones stay a toggle.
+- APT timeline: a row of frame labels, each listing who jumps to it, and a row showing what each frame script does (stop, play, jumps); hovering a jump lights its target, clicking goes there. A frame's script in the details lists its jumps, each a button to the frame it lands on.
 - Fix: an FX list's ParticleSystem and Sound nuggets' Name goes to its definition, finds references and is checked.
 - APT playback speed from 0.05× to 8× of the game's 30 frames a second, `[` and `]` to change it.
 - String tables: `.str` language support and table editor, `.csf` editor,
