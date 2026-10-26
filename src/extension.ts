@@ -20,6 +20,7 @@ import { registerSageStrLanguage } from './language/sageStrLanguage';
 import { registerSageWndLanguage } from './language/sageWndLanguage';
 import { registerTextureCommands } from './commands/textureCommands';
 import { registerAptCommands } from './commands/aptCommands';
+import { registerW3dAnimationCommands } from './commands/w3dAnimationCommands';
 import { registerVideoCommands } from './commands/videoCommands';
 import { registerLaunchCommands } from './commands/launchCommands';
 import { registerModDiffCommands } from './commands/modDiffCommands';
@@ -86,6 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerSageWndLanguage(context);
   registerTextureCommands(context);
   registerAptCommands(context);
+  context.subscriptions.push(registerW3dAnimationCommands());
   registerVideoCommands(context);
   registerLaunchCommands(context);
 

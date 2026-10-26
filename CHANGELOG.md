@@ -35,6 +35,7 @@
 - Particle preview: scale a whole effect in size and time.
 - Particle preview: A/B against the written values, random variations, save as a variant.
 - Particle preview on a model, started at one of its bones.
+- Edit W3D Animation: retime, reverse, ease, trim and rate, written as a new animation.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start

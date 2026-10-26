@@ -17,6 +17,8 @@ export type ChannelKind = 'x' | 'y' | 'z' | 'rotation' | 'visibility' | 'other';
 export interface SampledChannel {
   pivot: number;
   kind: ChannelKind;
+  /** The channel type as stored (0-2 x y z, 6 a rotation), -1 for visibility */
+  type: number;
   /** One value a frame, four for a rotation (x, y, z, w) */
   values: Float32Array;
   /** Frames with a value; others leave the bind pose alone */
@@ -151,9 +153,11 @@ const channel = (
   pivot: number,
   kind: ChannelKind,
   frames: number,
+  type = -1,
 ): SampledChannel => ({
   pivot,
   kind,
+  type,
   values: new Float32Array(frames * widthOf(kind)),
   present: new Uint8Array(frames),
 });
@@ -301,12 +305,13 @@ const readChannel = (
 
       reader.u16();
 
-      const kind = kindOf(reader.u16());
+      const type = reader.u16();
+      const kind = kindOf(type);
       const pivot = reader.u16();
 
       reader.u16();
 
-      const target = channel(pivot, kind, frames);
+      const target = channel(pivot, kind, frames, type);
 
       for (let frame = first; frame <= last; frame++) {
         set(target, frame, reader.floats(widthOf(kind)));
@@ -335,9 +340,10 @@ const readChannel = (
 
       reader.u8();
 
-      const kind = kindOf(reader.u8());
+      const type = reader.u8();
+      const kind = kindOf(type);
       const width = widthOf(kind);
-      const target = channel(pivot, kind, frames);
+      const target = channel(pivot, kind, frames, type);
 
       if (flavor === 1) {
         holdLast(
@@ -397,11 +403,12 @@ const readChannel = (
 
       reader.u8();
 
-      const kind = kindOf(reader.u8());
+      const type = reader.u8();
+      const kind = kindOf(type);
       const width = widthOf(kind);
       const count = reader.u16();
       const pivot = reader.u16();
-      const target = channel(pivot, kind, frames);
+      const target = channel(pivot, kind, frames, type);
 
       if (deltaType === 0) {
         const times = Array.from({ length: count }, () => reader.u16());
