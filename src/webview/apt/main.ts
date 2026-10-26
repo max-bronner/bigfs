@@ -18,6 +18,7 @@ import {
   currentPlayer,
   goToFrame,
   play,
+  playFrom,
   pointAt,
   remeasure,
   render,
@@ -46,11 +47,21 @@ const list = byId('list');
 const filter = byId<HTMLInputElement>('filter');
 const frameInput = byId<HTMLInputElement>('frame');
 const zoomSelect = byId<HTMLSelectElement>('zoom');
+const playFromSelect = byId<HTMLSelectElement>('play-from');
+
+playFromSelect.onchange = () => {
+  if (playFromSelect.value !== '') {
+    playFrom(Number(playFromSelect.value));
+    showPanels();
+  }
+  playFromSelect.value = '';
+};
 
 const select = (id: number) => {
   state.selected = id;
   state.frame = 0;
   restart();
+  showPlayFrom();
   showPanels();
   list
     .querySelectorAll<HTMLElement>('.row')
@@ -59,6 +70,22 @@ const select = (id: number) => {
     );
   showDetails();
   render();
+};
+
+/** The frames to play from: the start, and every label of the shown timeline */
+const showPlayFrom = () => {
+  const root = currentPlayer().root;
+
+  playFromSelect.replaceChildren(
+    new Option('Play from…', ''),
+    new Option('frame 0', '0'),
+    ...currentPlayer()
+      .labels(root)
+      .map(
+        ({ label, frame }) =>
+          new Option(`${label} (frame ${frame})`, String(frame)),
+      ),
+  );
 };
 
 const showList = () => {
@@ -107,8 +134,9 @@ const toggle = (
   id: string,
 ) => {
   view[key] = !view[key];
+  // These two checkboxes say the opposite of the mode: shown, ignored
   byId<HTMLInputElement>(id).checked =
-    key === 'masks' ? !view.masks : view[key];
+    key === 'masks' || key === 'scripts' ? !view[key] : view[key];
   // Applied masks size the canvas to what they let show; shown, to it all
   if (key === 'masks') {
     remeasure();
@@ -279,6 +307,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       restart();
       state.inspected = inspected;
       goToFrame(state.frame);
+      showPlayFrom();
       showPanels();
       showList();
       showDetails();

@@ -40,6 +40,7 @@ export const view = {
    * everything, faint outside its mask, with the masks outlined
    */
   masks: true,
+  /** Whether frame scripts stop and jump timelines, as in the game */
   scripts: true,
   interact: false,
   playing: false,
@@ -137,9 +138,15 @@ const addLog = (line: string) => {
   );
 };
 
+/**
+ * Whether the shown timeline's own frame scripts run: a stop stops it and
+ * a goto jumps, as in the game, unless scripts are ignored
+ */
+const rootScriptsRun = () => view.interact || view.scripts;
+
 /** The player of the shown character, built on first use */
 export const currentPlayer = (): Player => {
-  player ??= newPlayer(view.interact, true);
+  player ??= newPlayer(rootScriptsRun(), true);
   return player;
 };
 
@@ -162,14 +169,15 @@ export const remeasure = (): void => {
 export const rootFrames = (): number => currentPlayer().root.frames.length;
 
 /**
- * Shows a frame of the shown timeline. Inspecting replays from the start,
- * so nested timelines are where they would be; interacting jumps there.
+ * Shows a frame of the shown timeline. With scripts running it jumps there
+ * and runs that frame's script, as a goto does; with them ignored it
+ * replays from the start, so nested timelines are where they would be.
  */
 export const goToFrame = (frame: number): void => {
   const count = rootFrames();
   const target = count ? Math.max(0, Math.min(count - 1, frame)) : 0;
 
-  if (view.interact) {
+  if (rootScriptsRun()) {
     currentPlayer().goTo(currentPlayer().root, target, view.playing);
   } else {
     if (target < currentPlayer().root.frame || currentPlayer().ticks > target) {
@@ -227,7 +235,7 @@ export const showMode = (): void => {
     `origin ${view.origin ? 'on' : 'off'}`,
     `boxes ${view.boxes ? 'on' : 'off'}`,
     `masks ${view.masks ? 'applied' : 'shown'}`,
-    `scripts ${view.scripts ? 'on' : 'off'}`,
+    `action scripts ${view.scripts ? 'respected' : 'ignored'}`,
     `wireframe ${view.wireframe ? 'on' : 'off'}`,
     `onion ${view.onion ? `±${view.onion}` : 'off'}`,
   ].join(' · ');
@@ -688,6 +696,21 @@ const loop = (time: number) => {
     render();
   }
   requestAnimationFrame(loop);
+};
+
+/**
+ * Plays the shown timeline from a frame, freshly started there and with
+ * that frame's script run: where its scripts stop it, it stops, while
+ * what plays inside it goes on
+ */
+export const playFrom = (frame: number): void => {
+  player = undefined;
+  if (frame) {
+    currentPlayer().goTo(currentPlayer().root, frame, true);
+  }
+  state.frame = currentPlayer().root.frame;
+  play(true);
+  render();
 };
 
 export const play = (playing: boolean): void => {
