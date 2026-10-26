@@ -399,7 +399,10 @@ export const animate = (
       i,
       n: count,
     };
-    const pose = { ...base };
+    // What the formulas leave alone keeps its own frame's value
+    const here = states[frame].display.get(depth);
+    const pose =
+      here && here.token === start.token ? poseOf(here) : { ...base };
 
     for (const [key, formula] of compiled) {
       pose[key as keyof Pose] = formula(variables);

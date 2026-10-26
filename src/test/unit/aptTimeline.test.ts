@@ -3,6 +3,7 @@ import { compileExpression, ExpressionError } from '../../common/expression';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
 import {
   animate,
+  applyOperation,
   decodeTimeline,
   deleteFrames,
   detectTweens,
@@ -14,6 +15,10 @@ import {
 } from '../../formats/apt/aptTimeline';
 import type { FrameState } from '../../formats/apt/aptTimeline';
 import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import {
+  parseMotionScript,
+  tweensAsScript,
+} from '../../formats/apt/motionScript';
 import { buildMovie } from './apt.test';
 
 /** The synthetic movie with its root timeline stretched to five frames */
@@ -178,5 +183,51 @@ suite('APT tween detection', () => {
       { depth: 2, from: 0, to: 2, easing: 'linear', changes: ['x'] },
       { depth: 2, from: 2, to: 4, easing: 'easeIn', changes: ['alpha'] },
     ]);
+  });
+});
+
+suite('APT motion scripts', () => {
+  test('a script bakes its lines in order, each on the last', () => {
+    const { states, write } = fiveFrames();
+    const after = write(
+      parseMotionScript(
+        [
+          '// a comment',
+          'depth 2, frames 0-4: x 0 -> 100; alpha 1 -> 0 easeIn',
+          'depth 2, frames 4: y = 7',
+        ].join('\n'),
+      ).reduce(applyOperation, states()),
+    );
+
+    assert.deepStrictEqual(xs(after, 2), [0, 25, 50, 75, 100]);
+    assert.strictEqual(after[4].display.get(2)!.translate[1], 7);
+    // Alpha eased in: still mostly opaque half way
+    assert.strictEqual(after[2].display.get(2)!.colorTransform! >>> 24, 191);
+  });
+
+  test("a timeline's tweens read back as a script that remakes them", () => {
+    const { states, write } = fiveFrames();
+    const baked = write(tween(states(), 2, 0, 4, { x: 100 }, 'easeOut'));
+    const script = tweensAsScript(detectTweens(baked));
+
+    assert.strictEqual(script, 'depth 2, frames 0-4: x 0 -> 100 easeOut');
+
+    const remade = write(
+      parseMotionScript(script).reduce(applyOperation, states()),
+    );
+
+    assert.deepStrictEqual(xs(remade, 2), xs(baked, 2));
+  });
+
+  test('a wrong line is named', () => {
+    assert.throws(
+      () =>
+        parseMotionScript('depth 2, frames 0-4: x 0 -> 1\nframes 2: wobble'),
+      /Line 2: "wobble" is not something a script does/,
+    );
+    assert.throws(
+      () => parseMotionScript('frames 0-4: x 0 -> 1'),
+      /Line 1: a tween needs a depth/,
+    );
   });
 });

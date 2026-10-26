@@ -214,6 +214,11 @@ your mod's archives.
   remove or show, and insert, delete, duplicate, reverse or retime frames.
   Frames the change leaves alone keep their records as shipped. Onion skin
   (**N**) draws the frames either side faintly.
+- **Script…** writes the timeline as a few lines, like a CSS animation, and
+  bakes them into frames: `depth 3, frames 0-20: x 0 -> 120 easeOut;
+  alpha 1 -> 0`, `y = y0 - 40 * sin(t * pi)`, `fade`, `hide`, `show`,
+  `retime 20`. It starts as the tweens found in the movie, runs as one
+  undoable edit, and names the line that is wrong.
 - Tweens already baked into a movie are recognised: a run of frames in
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens

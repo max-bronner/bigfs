@@ -30,6 +30,7 @@
 - New Unit, Hero or Building wizard: object, build button, command set slot and text in one go.
 - Check Translations: labels each language lacks, filled with stand-in text on request.
 - APT timeline recognises baked tweens and edits them as one.
+- APT motion scripts: a timeline as a few CSS-like lines, baked into frames.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start

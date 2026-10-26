@@ -9,6 +9,11 @@ import type {
   Pose,
   TimelineOperation,
 } from '../../formats/apt/aptTimeline';
+import {
+  MotionScriptError,
+  parseMotionScript,
+  tweensAsScript,
+} from '../../formats/apt/motionScript';
 import { send, showDetails } from './details';
 import { button, byId } from './dom';
 import { currentPlayer, goToFrame, render, showMode, view } from './stage';
@@ -31,7 +36,9 @@ const panel = byId('timeline');
 /** The range the tools act on: frames `from`..`to`, at `depth` or every depth */
 const selection: { from: number; to: number; anchor: number; depth?: number } =
   { from: 0, to: 0, anchor: 0 };
-let form: 'tween' | 'formula' | undefined;
+let form: 'tween' | 'formula' | 'script' | undefined;
+/** The motion script being written, kept while the panel redraws */
+let scriptText: string | undefined;
 /** The easing a tween form starts on: a detected tween's own */
 let formEasing = 'linear';
 
@@ -232,6 +239,57 @@ const formulaForm = (depth: number): HTMLElement => {
   return element;
 };
 
+const SCRIPT_HELP = [
+  '// depth 3, frames 0-20: x 0 -> 120 easeOut; alpha 1 -> 0',
+  '// depth 3, frames 21-30: y = y0 - 40 * sin(t * pi)',
+  '// depth 5, frames 10-15: fade   (or hide, show)',
+  '// frames 30-40: retime 20      (or insert N, delete, duplicate, reverse)',
+].join('\n');
+
+/**
+ * The motion script: starts as the tweens found in the timeline, runs as
+ * one edit, and says which line is wrong before anything is sent
+ */
+const scriptForm = (tweens: DetectedTween[]): HTMLElement => {
+  const element = document.createElement('div');
+  const area = document.createElement('textarea');
+  const error = document.createElement('div');
+
+  area.className = 'code';
+  area.rows = 8;
+  area.spellcheck = false;
+  area.value =
+    scriptText ?? `${SCRIPT_HELP}\n${tweensAsScript(tweens)}`.trimEnd();
+  area.oninput = () => (scriptText = area.value);
+  error.className = 'error-text';
+  element.append(
+    area,
+    button('Run', () => {
+      const timeline = shownTimeline();
+
+      try {
+        const operations = parseMotionScript(area.value);
+
+        if (timeline && operations.length) {
+          send({ kind: 'timelineScript', timeline: timeline.id, operations });
+        }
+        error.textContent = '';
+      } catch (problem) {
+        error.textContent =
+          problem instanceof MotionScriptError
+            ? problem.message
+            : String(problem);
+      }
+    }),
+    button('From the timeline', () => {
+      scriptText = undefined;
+      showTimeline();
+    }),
+    error,
+  );
+  return element;
+};
+
 /** The tools for the selection; those needing one depth are off without it */
 const toolbar = (frameCount: number): HTMLElement => {
   const { from, to, depth } = selection;
@@ -287,6 +345,15 @@ const toolbar = (frameCount: number): HTMLElement => {
       form = form === 'formula' ? undefined : 'formula';
       showTimeline();
     }),
+    tool(
+      'Script…',
+      'The whole timeline as a few lines, like a CSS animation: edit and run it',
+      true,
+      () => {
+        form = form === 'script' ? undefined : 'script';
+        showTimeline();
+      },
+    ),
     tool(
       'Fade out',
       'Alpha 0 for the range; the instance stays, so its own animation goes on',
@@ -478,15 +545,17 @@ export const showTimeline = (): void => {
   scroller.append(table);
 
   const forms =
-    form &&
-    selection.depth !== undefined &&
-    poseAt(selection.from, selection.depth)
-      ? [
-          form === 'tween'
-            ? tweenForm(selection.depth)
-            : formulaForm(selection.depth),
-        ]
-      : [];
+    form === 'script'
+      ? [scriptForm(tweens)]
+      : form &&
+          selection.depth !== undefined &&
+          poseAt(selection.from, selection.depth)
+        ? [
+            form === 'tween'
+              ? tweenForm(selection.depth)
+              : formulaForm(selection.depth),
+          ]
+        : [];
   const onion = document.createElement('select');
 
   onion.title = 'Onion skin: frames either side drawn faintly (N)';

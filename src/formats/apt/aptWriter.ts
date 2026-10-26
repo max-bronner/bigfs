@@ -116,7 +116,13 @@ export type AptEdit =
   /** Rewrites a timeline's frames, as `encodeTimeline` gives them */
   | { kind: 'setTimeline'; timeline: number; frames: FrameSpec[] }
   /** Runs a timeline operation (a tween, hiding for a range, retiming) and writes the result */
-  | { kind: 'timeline'; timeline: number; operation: TimelineOperation };
+  | { kind: 'timeline'; timeline: number; operation: TimelineOperation }
+  /** Runs several, each on what the one before made, as one edit */
+  | {
+      kind: 'timelineScript';
+      timeline: number;
+      operations: TimelineOperation[];
+    };
 
 /** What an edit made, for the inspector to select */
 export interface EditResult {
@@ -1032,7 +1038,8 @@ export const applyAptEdit = (
       }
       return {};
     }
-    case 'timeline': {
+    case 'timeline':
+    case 'timelineScript': {
       const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
       const states = decodeTimeline(
         image.bytes,
@@ -1046,7 +1053,13 @@ export const applyAptEdit = (
       return applyAptEdit(image, movieOffset, {
         kind: 'setTimeline',
         timeline: edit.timeline,
-        frames: encodeTimeline(states, applyOperation(states, edit.operation)),
+        frames: encodeTimeline(
+          states,
+          (edit.kind === 'timeline'
+            ? [edit.operation]
+            : edit.operations
+          ).reduce(applyOperation, states),
+        ),
       });
     }
     case 'setTimeline': {
