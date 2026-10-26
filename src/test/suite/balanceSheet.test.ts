@@ -57,6 +57,7 @@ suite('Balance sheet', () => {
         'End',
         'Weapon BalSword',
         '  AttackRange = 30',
+        '  DelayBetweenShots = 1500',
         '  DamageNugget',
         '    Damage = 45',
         '  End',
@@ -96,6 +97,8 @@ suite('Balance sheet', () => {
 
     assert.strictEqual(soldier.cells.health.value, '200');
     assert.strictEqual(captain.cells.cost.value, '500');
+    // 45 damage every 1.5 s
+    assert.strictEqual(soldier.cells.dps.value, '30');
     assert.strictEqual(captain.cells.health.from, 'BalSoldier');
     assert.ok(captain.selectable, 'a child inherits being selectable');
     assert.strictEqual(captain.cells.damage.value, '45');

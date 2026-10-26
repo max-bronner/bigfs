@@ -168,6 +168,8 @@ your mod's archives.
 - Double-click a value to change it where it is written; a child's
   inherited value is shown in italics and edited at its parent, and a
   weapon value notes how many templates share it.
+- A **Damage/s** column works out the primary weapon's damage a second
+  (`Damage × 1000 / DelayBetweenShots`), to sort units by it.
 
 **String tables**
 

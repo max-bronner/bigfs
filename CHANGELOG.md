@@ -38,6 +38,7 @@
 - Edit W3D Animation: retime, reverse, ease, trim and rate, written as a new animation.
 - Armor Table: every armor against every damage type, edited in place.
 - CommandSet editor: drag buttons between slots, clear and add.
+- Balance sheet: damage-a-second column.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start

@@ -37,6 +37,8 @@ export interface SheetCell {
   from?: string;
   /** How many rows read this same weapon value */
   shared?: number;
+  /** How a computed value is worked out; it is not written anywhere */
+  derived?: string;
 }
 
 export interface SheetRow {
@@ -46,7 +48,7 @@ export interface SheetRow {
   uri: string;
   line: number;
   selectable: boolean;
-  cells: Partial<Record<StatColumn, SheetCell>>;
+  cells: Partial<Record<StatColumn | 'dps', SheetCell>>;
 }
 
 const cellOf = (uri: string, value: StatValue, from?: string): SheetCell => ({
@@ -336,6 +338,18 @@ class BalanceSheet {
         }
       }
     }
+    // Damage a second, from the weapon's damage and its delay in milliseconds
+    for (const row of rows) {
+      const damage = Number(row.cells.damage?.value);
+      const delay = Number(row.cells.delay?.value);
+
+      if (damage > 0 && delay > 0) {
+        row.cells.dps = {
+          value: String(Math.round((damage * 10000) / delay) / 10),
+          derived: 'Damage × 1000 / Delay: one shot every Delay milliseconds',
+        };
+      }
+    }
     return rows;
   }
 
@@ -344,7 +358,7 @@ class BalanceSheet {
     this.rows = await this.build();
     await this.panel.webview.postMessage({
       kind: 'rows',
-      columns: STAT_COLUMNS,
+      columns: [...STAT_COLUMNS, 'dps'],
       rows: this.rows,
     });
   }
@@ -364,6 +378,7 @@ const renderHtml = (): string => {
   td.editable { cursor: text; }
   td.editable:hover { outline: 1px dashed var(--vscode-focusBorder); }
   td.inherited { opacity: 0.6; font-style: italic; }
+  td.derived { color: var(--vscode-charts-blue, #3794ff); }
   td.name { cursor: pointer; color: var(--vscode-textLink-foreground); }
   td input { width: 6em; }
   #notice { color: var(--vscode-errorForeground); }
