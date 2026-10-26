@@ -17,6 +17,10 @@ import type {
 } from '../formats/particles/particleIni';
 import { encodePng } from '../formats/textureEncode';
 import { keyEdits } from '../formats/particles/particleKeys';
+import { attachedModel } from '../formats/particles/modelAttachment';
+import type { AttachedModel } from '../formats/particles/modelAttachment';
+import { buildW3dScene } from '../formats/w3dScene';
+import { createToolRegistry } from '../tools/toolRegistry';
 import { duplicateDefinition } from './model/duplicateDefinition';
 import type { KeyKind, KeyValue } from '../formats/particles/particleKeys';
 import { webviewPage } from '../providers/webviewPage';
@@ -193,6 +197,9 @@ class ParticlePreview {
         this.restartNext = true;
         this.update();
         break;
+      case 'pickModel':
+        await this.pickModel();
+        break;
       case 'variant':
         await this.saveVariant(message.name);
         break;
@@ -279,6 +286,45 @@ class ParticlePreview {
     }
     this.values.clear();
     await vscode.workspace.applyEdit(edit);
+  }
+
+  /** Asks for a model to show the effect on, and sends it to the page */
+  private async pickModel(): Promise<void> {
+    if (!this.locator) {
+      return;
+    }
+
+    const names = await this.locator.findNames(
+      (name) => name.endsWith('.w3d') && !name.endsWith('_skl.w3d'),
+      '**/*.w3d',
+    );
+    const picked = await vscode.window.showQuickPick(
+      [{ label: 'No model', name: undefined }, ...names.map((name) => ({ label: name, name }))],
+      { placeHolder: 'A model to show the effect on, at one of its bones' },
+    );
+
+    if (!picked) {
+      return;
+    }
+
+    let model: AttachedModel | undefined;
+
+    if (picked.name) {
+      const bytes = await this.locator.read(picked.name, this.uri);
+
+      if (!bytes) {
+        throw new Error(`${picked.name} could not be read`);
+      }
+      model = attachedModel(
+        picked.name,
+        await buildW3dScene(
+          bytes,
+          (fileName) => this.locator!.read(fileName, this.uri),
+          createToolRegistry(),
+        ),
+      );
+    }
+    await this.panel.webview.postMessage({ kind: 'model', model });
   }
 
   /**
@@ -633,6 +679,7 @@ kbd { font-size: 10px; opacity: 0.7; }
   </div>
   <div class="row">
     Emitter <select id="motion"><option value="still">still</option><option value="circle">circling</option><option value="line">back and forth</option></select>
+    <button id="pickModel" title="Show the effect on a model, started at one of its bones">On a model…</button> <select id="bone" hidden></select>
     Sky <select id="sky"><option value="#1b1c1f">dark</option><option value="#7a8ea6">day</option><option value="#000000">black</option><option value="#c8c8c8">light</option></select>
   </div>
   <h3>Readings <span class="muted">where the game's rule is open</span></h3>

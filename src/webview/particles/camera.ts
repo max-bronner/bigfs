@@ -146,8 +146,15 @@ export const attachCamera = (canvas: HTMLCanvasElement): void => {
   );
 };
 
-/** Where the previewed effect sits: still, circling or going back and forth */
-export const rootOrigin = (): Vec3 => {
+/** Where the model stands and which bone the effect starts on */
+export const attachment = {
+  /** The model's own place, which the emitter motion moves */
+  bone: [0, 0, 0] as Vec3,
+  hasModel: false,
+};
+
+/** Where the model stands: still, circling or going back and forth */
+export const modelOrigin = (): Vec3 => {
   const motion = $<HTMLSelectElement>('motion').value;
   const t = state.time;
 
@@ -159,3 +166,7 @@ export const rootOrigin = (): Vec3 => {
   }
   return [0, 0, 0];
 };
+
+/** Where the previewed effect starts: the model's bone, wherever it stands */
+export const rootOrigin = (): Vec3 =>
+  modelOrigin().map((value, axis) => value + attachment.bone[axis]) as Vec3;

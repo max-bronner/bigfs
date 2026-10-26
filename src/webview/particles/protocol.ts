@@ -4,6 +4,7 @@ import type {
   ParticleDef,
 } from '../../formats/particles/particleIni';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
+import type { AttachedModel } from '../../formats/particles/modelAttachment';
 
 /** Messages between the particle preview and its page */
 
@@ -27,7 +28,11 @@ export interface SceneMessage {
   budgets: { lod: string; max: number }[];
 }
 
-export type ToPage = SceneMessage | { kind: 'notice'; message: string };
+export type ToPage =
+  | SceneMessage
+  | { kind: 'notice'; message: string }
+  /** A model to show the effect on, or none */
+  | { kind: 'model'; model?: AttachedModel };
 
 export type FromPage =
   | { kind: 'ready' }
@@ -37,6 +42,7 @@ export type FromPage =
   /** Shows the block as written (on) or with the values (off) */
   | { kind: 'compare'; on: boolean }
   | { kind: 'variant'; name?: string }
+  | { kind: 'pickModel' }
   | { kind: 'reset' }
   | { kind: 'apply' }
   /** Rewrites every colour or alpha key at once, with the values pending */

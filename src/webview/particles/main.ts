@@ -2,7 +2,9 @@ import { scaleEffect } from '../../formats/particles/particleScale';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
 import {
   attachCamera,
+  attachment,
   cameraBasis,
+  modelOrigin,
   rootOrigin,
   viewProjection,
 } from './camera';
@@ -15,7 +17,9 @@ import {
   beginFrame,
   canvas,
   drawLines,
+  drawMesh,
   drawSystems,
+  setMesh,
   hasGraphics,
   loadTextures,
 } from './graphics';
@@ -83,6 +87,7 @@ const draw = () => {
   if (checked('showGrid')) {
     drawLines(GRID, matrix, true);
   }
+  drawMesh(matrix, modelOrigin());
   drawSystems(
     matrix,
     basis,
@@ -268,9 +273,40 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+const bones = $<HTMLSelectElement>('bone');
+let modelBones: [number, number, number][] = [];
+
+bones.onchange = () => {
+  const bone = Number(bones.value);
+
+  attachment.bone = (bones.value !== '' && modelBones[bone]) || [0, 0, 0];
+  // Looks at where the effect now starts
+  state.target = [...attachment.bone];
+  start();
+};
+$('pickModel').onclick = () => post({ kind: 'pickModel' });
+
 window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   if (data.kind === 'notice') {
     $('notice').textContent = data.message;
+    return;
+  }
+  if (data.kind === 'model') {
+    const model = data.model;
+
+    setMesh(model?.triangles);
+    modelBones = model?.bones.map((bone) => bone.position) ?? [];
+    bones.replaceChildren(
+      new Option('origin', ''),
+      ...(model?.bones ?? []).map(
+        (bone, at) => new Option(bone.name, String(at)),
+      ),
+    );
+    bones.hidden = !model;
+    attachment.bone = [0, 0, 0];
+    attachment.hasModel = !!model;
+    $('pickModel').textContent = model ? model.name : 'On a model…';
+    start();
     return;
   }
 

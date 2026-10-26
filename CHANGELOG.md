@@ -34,6 +34,7 @@
 - APT copy and paste motion, mirrored on request.
 - Particle preview: scale a whole effect in size and time.
 - Particle preview: A/B against the written values, random variations, save as a variant.
+- Particle preview on a model, started at one of its bones.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start
