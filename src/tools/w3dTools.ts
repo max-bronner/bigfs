@@ -21,14 +21,24 @@ export interface W3dMesh {
   isSkin: boolean;
   positions: Float32Array;
   normals?: Float32Array;
-  /** Two per vertex, from the first texture stage */
+  /**
+   * Two per vertex, as stored: V measured from the bottom. The first
+   * pass's first stage, else the first pass's own
+   */
   uvs?: Float32Array;
   indices: Uint32Array;
   /** The bone each vertex follows, for a skin */
   bones?: Uint16Array;
   /** Texture of the first stage, when the mesh has one */
   texture?: string;
+  /** Whether the drawn material cuts out where the texture's alpha is low */
+  alphaTest: boolean;
+  /** How the drawn material meets what is behind it */
+  blend: W3dBlend;
 }
+
+/** The framebuffer operations the shipped meshes use */
+export type W3dBlend = 'opaque' | 'alpha' | 'additive' | 'multiply';
 
 /** One bone, relative to its parent */
 export interface W3dPivot {
@@ -78,7 +88,10 @@ const CHUNK = {
   TEXTURES: 0x030,
   TEXTURE: 0x031,
   TEXTURE_NAME: 0x032,
+  SHADERS: 0x029,
   MATERIAL_PASS: 0x038,
+  SHADER_IDS: 0x03a,
+  TEXTURE_IDS: 0x049,
   TEXTURE_STAGE: 0x048,
   STAGE_TEXCOORDS: 0x04a,
   SHADER_MATERIALS: 0x050,
@@ -151,26 +164,39 @@ const readFloats = (bytes: Uint8Array): Float32Array => {
   return floats;
 };
 
-/** The texture a shader material binds to its first stage */
-const readShaderTexture = (material: Uint8Array): string | undefined => {
+/**
+ * What a shader material says: the texture it binds by name, never by
+ * position (a material is a list of named parameters, and the diffuse map
+ * is not always first), and whether it alpha-tests
+ */
+const readShaderMaterial = (
+  material: Uint8Array,
+): { texture?: string; alphaTest: boolean } => {
+  let texture: string | undefined;
   let fallback: string | undefined;
+  let alphaTest = false;
 
   for (const property of readChunks(material)) {
-    if (property.type !== CHUNK.SHADER_MATERIAL_PROPERTY) {
+    if (
+      property.type !== CHUNK.SHADER_MATERIAL_PROPERTY ||
+      property.payload.length < 12
+    ) {
       continue;
     }
 
     const view = viewOf(property.payload);
-
-    if (property.payload.length < 12 || view.getUint32(0, true) !== 1) {
-      continue;
-    }
-
+    const type = view.getUint32(0, true);
     const nameLength = view.getUint32(4, true);
     const name = readName(property.payload, 8, nameLength);
     const valueAt = 8 + nameLength;
 
-    if (valueAt + 4 > property.payload.length) {
+    if (type === 7 && valueAt < property.payload.length) {
+      if (name === 'AlphaTestEnable') {
+        alphaTest = property.payload[valueAt] !== 0;
+      }
+      continue;
+    }
+    if (type !== 1 || valueAt + 4 > property.payload.length) {
       continue;
     }
 
@@ -181,26 +207,92 @@ const readShaderTexture = (material: Uint8Array): string | undefined => {
     );
 
     if (name === 'DiffuseTexture') {
-      return value;
-    }
-
-    if (name === 'Texture_0') {
+      texture = value;
+    } else if (name === 'Texture_0') {
       fallback = value;
     }
   }
 
-  return fallback;
+  return { texture: texture ?? fallback, alphaTest };
+};
+
+/** The little-endian 32-bit values of a payload */
+const readIds = (bytes: Uint8Array): number[] => {
+  const view = viewOf(bytes);
+
+  return Array.from({ length: Math.floor(bytes.length / 4) }, (_, index) =>
+    view.getUint32(index * 4, true),
+  );
+};
+
+/** A `SHADERS` entry's blend, from its source and destination factors */
+const blendOf = (shader: Uint8Array): W3dBlend => {
+  const [, depthMask, , destBlend, , , , srcBlend, , , , , alphaTest] = shader;
+
+  // Alpha-blended but writing depth and alpha-testing is a cutout
+  if (alphaTest && depthMask && destBlend === 5) {
+    return 'opaque';
+  }
+  if (destBlend === 1) {
+    return 'additive';
+  }
+  if (destBlend === 4 || destBlend === 5) {
+    return 'alpha';
+  }
+  if (destBlend === 2 && srcBlend === 0) {
+    return 'multiply';
+  }
+  return 'opaque';
+};
+
+/** Additive wins over alpha over the rest, as a glow must never turn solid */
+const BLEND_RANK: W3dBlend[] = ['opaque', 'multiply', 'alpha', 'additive'];
+
+/**
+ * The first material pass, the one a single-pass renderer draws (mint's
+ * `Mesh::texcoords`, `texture_name` and `drawn_shaders`): its first stage's
+ * texture and coordinates, or the coordinates a shader-material mesh keeps
+ * on the pass itself, and the shaders it names
+ */
+const readFirstPass = (payload: Uint8Array) => {
+  let uvs: Float32Array | undefined;
+  let stageUvs: Float32Array | undefined;
+  let textureId: number | undefined;
+  let shaderIds: number[] = [];
+  let stages = 0;
+
+  for (const part of readChunks(payload)) {
+    if (part.type === CHUNK.SHADER_IDS) {
+      shaderIds = readIds(part.payload);
+    } else if (part.type === CHUNK.STAGE_TEXCOORDS) {
+      uvs = readFloats(part.payload);
+    } else if (part.type === CHUNK.TEXTURE_STAGE && stages++ === 0) {
+      for (const stagePart of readChunks(part.payload)) {
+        if (stagePart.type === CHUNK.TEXTURE_IDS) {
+          textureId = readIds(stagePart.payload)[0];
+        } else if (stagePart.type === CHUNK.STAGE_TEXCOORDS) {
+          stageUvs = readFloats(stagePart.payload);
+        }
+      }
+    }
+  }
+  return {
+    uvs: stageUvs?.length ? stageUvs : uvs,
+    textureId,
+    shaderIds,
+  };
 };
 
 const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   let header: Uint8Array | undefined;
   let positions: Float32Array | undefined;
   let normals: Float32Array | undefined;
-  let uvs: Float32Array | undefined;
   let indices: Uint32Array | undefined;
   let bones: Uint16Array | undefined;
   const textures: string[] = [];
-  let shaderTexture: string | undefined;
+  let pass: ReturnType<typeof readFirstPass> | undefined;
+  let shaders: Uint8Array[] = [];
+  const materials: { texture?: string; alphaTest: boolean }[] = [];
 
   for (const chunk of readChunks(payload)) {
     const view = viewOf(chunk.payload);
@@ -252,25 +344,20 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
         }
         break;
       case CHUNK.MATERIAL_PASS:
-        // The first pass's first stage carries the coordinates drawn with
-        for (const stage of readChunks(chunk.payload)) {
-          const coordinates =
-            stage.type === CHUNK.TEXTURE_STAGE
-              ? readChunks(stage.payload).find(
-                  (part) => part.type === CHUNK.STAGE_TEXCOORDS,
-                )
-              : undefined;
-
-          if (coordinates && !uvs) {
-            uvs = readFloats(coordinates.payload);
-          }
-        }
+        pass ??= readFirstPass(chunk.payload);
+        break;
+      case CHUNK.SHADERS:
+        shaders = Array.from(
+          { length: Math.floor(chunk.payload.length / 16) },
+          (_, index) => chunk.payload.subarray(index * 16, index * 16 + 16),
+        );
         break;
       case CHUNK.SHADER_MATERIALS:
-        shaderTexture ??= readChunks(chunk.payload)
-          .filter((material) => material.type === CHUNK.SHADER_MATERIAL)
-          .map((material) => readShaderTexture(material.payload))
-          .find(Boolean);
+        for (const material of readChunks(chunk.payload)) {
+          if (material.type === CHUNK.SHADER_MATERIAL) {
+            materials.push(readShaderMaterial(material.payload));
+          }
+        }
         break;
     }
   }
@@ -280,6 +367,10 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   }
 
   const vertexCount = positions.length / 3;
+  // Only the drawn pass's shaders: the table is shared by every pass
+  const drawn = (pass?.shaderIds ?? []).flatMap((id) =>
+    shaders[id] ? [shaders[id]] : [],
+  );
 
   // An index past the vertices would draw from memory that is not the mesh
   if (indices.some((index) => index >= vertexCount)) {
@@ -296,10 +387,25 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
       GEOMETRY_TYPE_SKIN,
     positions,
     normals: normals?.length === positions.length ? normals : undefined,
-    uvs: uvs?.length === vertexCount * 2 ? uvs : undefined,
+    uvs: pass?.uvs?.length === vertexCount * 2 ? pass.uvs : undefined,
     indices,
     bones: bones?.length === vertexCount ? bones : undefined,
-    texture: shaderTexture ?? textures[0],
+    // The stage's own texture first, then a shader material's (mint's
+    // `Mesh::texture_name`); the first texture of the table is not
+    // necessarily the one the pass draws with
+    texture:
+      (pass?.textureId !== undefined ? textures[pass.textureId] : undefined) ??
+      materials.find((material) => material.texture)?.texture,
+    alphaTest:
+      drawn.some((shader) => shader[12] !== 0) ||
+      materials.some((material) => material.alphaTest),
+    blend: drawn
+      .map(blendOf)
+      .reduce<W3dBlend>(
+        (best, each) =>
+          BLEND_RANK.indexOf(each) > BLEND_RANK.indexOf(best) ? each : best,
+        'opaque',
+      ),
   };
 };
 

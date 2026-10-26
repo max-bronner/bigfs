@@ -76,7 +76,15 @@ const mesh = (meshName: string) =>
       chunk(0x030, chunk(0x031, chunk(0x032, name('Unit.tga', 9)), true), true),
       chunk(
         0x038,
-        chunk(0x048, chunk(0x04a, floats(0, 0, 1, 0, 0, 1)), true),
+        chunk(
+          0x048,
+          // The stage names its texture by index into the table
+          concat(
+            chunk(0x049, uints(0)),
+            chunk(0x04a, floats(0, 0, 1, 0, 0, 1)),
+          ),
+          true,
+        ),
         true,
       ),
     ),
@@ -169,6 +177,11 @@ suite('W3D models', () => {
     // A texture is looked for as DDS first, then as the TGA it names
     assert.ok(loaded.indexOf('Unit.dds') < loaded.indexOf('Unit.tga'));
     assert.deepStrictEqual(scene.bounds, { min: [0, 0, 10], max: [1, 1, 10] });
+    // W3D measures V from the bottom; the scene is drawn with V from the top
+    assert.deepStrictEqual(
+      Array.from(scene.meshes[0].uvs!),
+      [0, 1, 1, 1, 0, 0],
+    );
   });
 
   test('a skeleton on its own is shown as its bones', async () => {
