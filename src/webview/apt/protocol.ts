@@ -93,3 +93,6 @@ export type FromPage =
       pixels: Uint8Array;
       assign?: { shape: number; run: number; runs: RuRun[] };
     };
+
+/** Playback speeds offered, as multiples of the game's 30 frames a second */
+export const SPEEDS = [0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 8];

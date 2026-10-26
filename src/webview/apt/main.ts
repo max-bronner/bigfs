@@ -18,6 +18,7 @@ import {
   showMode,
   view,
 } from './stage';
+import { SPEEDS } from './protocol';
 import { movie, state } from './state';
 
 /**
@@ -154,9 +155,19 @@ frameInput.oninput = () => goTo(Number(frameInput.value));
 byId('play').onclick = () => play(!view.playing);
 byId('back').onclick = () => step(-1);
 byId('forward').onclick = () => step(1);
-byId<HTMLSelectElement>('fps').onchange = (event) => {
-  view.fps = Number((event.target as HTMLSelectElement).value);
+const speedSelect = byId<HTMLSelectElement>('speed');
+const setSpeed = (speed: number) => {
+  view.speed = speed;
+  speedSelect.value = String(speed);
   showMode();
+};
+
+speedSelect.onchange = () => setSpeed(Number(speedSelect.value));
+/** One step slower or faster through the speeds offered */
+const stepSpeed = (by: number) => {
+  const at = SPEEDS.indexOf(view.speed);
+
+  setSpeed(SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, at + by))]);
 };
 byId('show-origin').onchange = () => toggle('origin', 'show-origin');
 byId('show-boxes').onchange = () => toggle('boxes', 'show-boxes');
@@ -197,6 +208,8 @@ document.addEventListener('keydown', (event) => {
     s: () => toggle('scripts', 'scripts'),
     i: () => toggle('interact', 'interact'),
     w: () => toggle('wireframe', 'wireframe'),
+    '[': () => stepSpeed(-1),
+    ']': () => stepSpeed(1),
     n: () => setOnion((view.onion + 1) % 4),
   };
   const action = actions[event.key];

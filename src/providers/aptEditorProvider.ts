@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { SPEEDS } from '../webview/apt/protocol';
 import type { ToolBox } from '../tools/toolRegistry';
 import { decodeTgaTool } from '../tools/textureTools';
 import type { EntryLocator } from '../formats/entryLocator';
@@ -616,7 +617,7 @@ export const renderHtml = (
     <button id="back" title="Previous frame (, or ← with nothing selected)">‹</button>
     <input id="frame" type="range" min="0" max="0" value="0">
     <button id="forward" title="Next frame (. or → with nothing selected)">›</button>
-    <select id="fps" title="Frames per second"><option>15</option><option selected>30</option><option>60</option></select>
+    <select id="speed" title="Playback speed; 1× is the game's 30 frames a second ([ and ] to change)">${SPEEDS.map((speed) => `<option value="${speed}"${speed === 1 ? ' selected' : ''}>${speed}×</option>`).join('')}</select>
     <span id="frame-label"></span>
   </div>
   <div class="toolbar">
