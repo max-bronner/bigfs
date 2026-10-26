@@ -219,6 +219,9 @@ your mod's archives.
   alpha 1 -> 0`, `y = y0 - 40 * sin(t * pi)`, `fade`, `hide`, `show`,
   `retime 20`. It starts as the tweens found in the movie, runs as one
   undoable edit, and names the line that is wrong.
+- **Copy motion** remembers how a depth moves over a range, relative to its
+  first frame; **Paste motion** plays it on another depth or range from
+  that one's own pose, and **Paste ↔ / ↕** mirrors it.
 - Tweens already baked into a movie are recognised: a run of frames in
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens

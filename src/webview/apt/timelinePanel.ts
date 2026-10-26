@@ -2,10 +2,12 @@ import { EASINGS, compileExpression } from '../../common/expression';
 import {
   decodeTimeline,
   detectTweens,
+  motionOf,
   poseOf,
 } from '../../formats/apt/aptTimeline';
 import type {
   DetectedTween,
+  Motion,
   Pose,
   TimelineOperation,
 } from '../../formats/apt/aptTimeline';
@@ -37,6 +39,8 @@ const panel = byId('timeline');
 const selection: { from: number; to: number; anchor: number; depth?: number } =
   { from: 0, to: 0, anchor: 0 };
 let form: 'tween' | 'formula' | 'script' | undefined;
+/** A motion copied from one range, to play on another */
+let copied: { motion: Motion; from: string } | undefined;
 /** The motion script being written, kept while the panel redraws */
 let scriptText: string | undefined;
 /** The easing a tween form starts on: a detected tween's own */
@@ -345,6 +349,48 @@ const toolbar = (frameCount: number): HTMLElement => {
       form = form === 'formula' ? undefined : 'formula';
       showTimeline();
     }),
+    tool(
+      'Copy motion',
+      'Remember how this depth moves over the range, relative to its first frame',
+      atDepth && to > from,
+      () => {
+        const timeline = shownTimeline()!;
+
+        copied = {
+          motion: motionOf(
+            decodeTimeline(undefined, timeline.frames),
+            depth!,
+            from,
+            to,
+          ),
+          from: `depth ${depth}, frames ${from}–${to}`,
+        };
+        showTimeline();
+      },
+    ),
+    ...(
+      [
+        ['Paste motion', undefined, ''],
+        ['Paste ↔', 'x', ', mirrored left to right'],
+        ['Paste ↕', 'y', ', mirrored top to bottom'],
+      ] as const
+    ).map(([name, mirror, how]) =>
+      tool(
+        name,
+        copied
+          ? `Play the motion of ${copied.from} here from frame ${from}${how}`
+          : 'Copy a motion first',
+        atDepth && !!copied,
+        () =>
+          run({
+            op: 'motion',
+            depth: depth!,
+            at: from,
+            motion: copied!.motion,
+            mirror,
+          }),
+      ),
+    ),
     tool(
       'Script…',
       'The whole timeline as a few lines, like a CSS animation: edit and run it',
