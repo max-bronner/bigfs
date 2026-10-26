@@ -25,6 +25,15 @@ export interface Seen {
   last?: string[];
 }
 
+/** A variable the movie read: what it held when last read */
+export interface ReadValue {
+  name: string;
+  count: number;
+  value: Value;
+  /** Whether the movie holds it at all, or only an override could */
+  found: boolean;
+}
+
 export interface FunctionEntry {
   /** Where it is stored, as a path: `_level0.SetPlayerFaction` */
   path: string;
@@ -36,10 +45,14 @@ export interface FunctionEntry {
   engineOnly: boolean;
 }
 
-/** What the user typed, kept per movie between sessions */
+/** What the user set, kept per movie between sessions */
 export interface EngineValues {
-  values: Record<string, string>;
+  /** Values that win over what the movie holds, by name or path */
+  overrides?: Record<string, string>;
+  /** What calls into the engine return, by function name */
   returns: Record<string, string>;
+  /** Before overrides: values only for names nothing set */
+  values?: Record<string, string>;
 }
 
 /** Reads typed text as a value: number, boolean, quoted or bare string */
@@ -69,7 +82,15 @@ export const parseTyped = (text: string): Value => {
  * a constant pool. A function its code stores under a name it never names
  * again is one only the engine can call.
  */
+const usesByMovie = new WeakMap<PageMovie, Map<string, number>>();
+
 export const stringUses = (movie: PageMovie): Map<string, number> => {
+  const known = usesByMovie.get(movie);
+
+  if (known) {
+    return known;
+  }
+
   const uses = new Map<string, number>();
   const count = (value: unknown) => {
     if (typeof value === 'string') {
@@ -116,18 +137,55 @@ export const stringUses = (movie: PageMovie): Map<string, number> => {
   for (const code of Object.values(movie.code ?? {})) {
     walk(code, []);
   }
+  usesByMovie.set(movie, uses);
   return uses;
 };
 
+/** Handlers the player calls on events; the engine never calls them */
+const EVENT_HANDLERS = new Set(
+  [
+    'onEnterFrame',
+    'onLoad',
+    'onUnload',
+    'onPress',
+    'onRelease',
+    'onReleaseOutside',
+    'onRollOver',
+    'onRollOut',
+    'onDragOver',
+    'onDragOut',
+    'onKeyDown',
+    'onKeyUp',
+    'onMouseDown',
+    'onMouseUp',
+    'onMouseMove',
+    'onSetFocus',
+    'onKillFocus',
+    'onChanged',
+    'onData',
+    'onScroller',
+    'onConstruct',
+    'onInitialize',
+  ].map((name) => name.toLowerCase()),
+);
+
+/** Variables listed at most, so a movie reading thousands stays quick */
+const MAX_READS = 2000;
+
+/** The last part of a path: `_root.menu.side` is `side` */
+const lastName = (path: string) =>
+  path.slice(Math.max(path.lastIndexOf('.'), path.lastIndexOf(':')) + 1);
+
 export class Engine implements EngineHooks {
-  public readonly values = new Map<string, string>();
+  /** Values that win over the movie's, typed as written, by lowercased name or path */
+  public readonly overrides = new Map<string, string>();
   public readonly returns = new Map<string, string>();
-  public readonly read = new Map<string, Seen>();
+  public readonly reads = new Map<string, ReadValue>();
   public readonly externs = new Map<string, Seen>();
   public readonly calls = new Map<string, Seen>();
   public readonly functions = new Map<string, FunctionEntry>();
-  /** Names the movie set itself, so they are not asked of the engine */
-  private readonly written = new Set<string>();
+  /** Overrides read back as values, made once per change */
+  private parsed = new Map<string, Value>();
   private vm?: Vm;
   private uses = new Map<string, number>();
   private pending = false;
@@ -142,33 +200,72 @@ export class Engine implements EngineHooks {
     this.vm = vm;
   }
 
-  /** A fresh run of a movie: what was seen goes, what the user typed stays */
+  /** A fresh run of a movie: what was seen goes, what the user set stays */
   public reset(movie: PageMovie): void {
     this.uses = stringUses(movie);
-    this.read.clear();
+    this.reads.clear();
     this.externs.clear();
     this.calls.clear();
     this.functions.clear();
-    this.written.clear();
     this.changed();
   }
 
   public load(saved: EngineValues | undefined): void {
-    this.values.clear();
+    this.overrides.clear();
     this.returns.clear();
-    Object.entries(saved?.values ?? {}).forEach(([k, v]) =>
-      this.values.set(k, v),
+    Object.entries({ ...saved?.values, ...saved?.overrides }).forEach(
+      ([k, v]) => this.overrides.set(k.toLowerCase(), v),
     );
     Object.entries(saved?.returns ?? {}).forEach(([k, v]) =>
-      this.returns.set(k, v),
+      this.returns.set(k.toLowerCase(), v),
     );
+    this.reparse();
   }
 
   public save(): EngineValues {
     return {
-      values: Object.fromEntries(this.values),
+      overrides: Object.fromEntries(this.overrides),
       returns: Object.fromEntries(this.returns),
     };
+  }
+
+  /** Drops every override and return value */
+  public clear(): void {
+    this.overrides.clear();
+    this.returns.clear();
+    this.reparse();
+  }
+
+  /** Sets or clears (empty text) an override */
+  public override(name: string, text: string): void {
+    if (text.trim()) {
+      this.overrides.set(name.toLowerCase(), text);
+    } else {
+      this.overrides.delete(name.toLowerCase());
+    }
+    this.reparse();
+  }
+
+  private reparse(): void {
+    this.parsed = new Map(
+      [...this.overrides].map(([key, text]) => [key, parseTyped(text)]),
+    );
+  }
+
+  /** The override for a name or path, by the whole path or its last name */
+  private overridden(path: string): { value: Value } | undefined {
+    if (!this.parsed.size) {
+      return undefined;
+    }
+
+    const key = path.toLowerCase();
+
+    for (const each of [key, lastName(key)]) {
+      if (this.parsed.has(each)) {
+        return { value: this.parsed.get(each) };
+      }
+    }
+    return undefined;
   }
 
   private changed(): void {
@@ -179,7 +276,7 @@ export class Engine implements EngineHooks {
     setTimeout(() => {
       this.pending = false;
       this.onChange();
-    }, 150);
+    }, 250);
   }
 
   private note(table: Map<string, Seen>, name: string, args?: string[]): void {
@@ -195,26 +292,44 @@ export class Engine implements EngineHooks {
     }
   }
 
-  /** The value the user gave a name, typed */
-  private given(name: string): Value {
-    const text = this.values.get(name.toLowerCase());
-
-    return text === undefined ? undefined : parseTyped(text);
-  }
-
   // ---- EngineHooks
+
+  public read(
+    path: string,
+    value: Value,
+    found: boolean,
+    counted: boolean,
+  ): Value {
+    const key = path.toLowerCase();
+    let seen = this.reads.get(key);
+
+    if (!seen && this.reads.size < MAX_READS) {
+      seen = { name: path, count: 0, value, found };
+      this.reads.set(key, seen);
+      this.changed();
+    }
+    if (seen) {
+      seen.value = value;
+      seen.found ||= found;
+      if (counted) {
+        seen.count++;
+      }
+    }
+    const override = this.overridden(path);
+
+    return override ? override.value : value;
+  }
 
   public extern(name: string): Value {
     this.note(this.externs, name);
-    return this.given(name);
+    return this.overridden(name)?.value;
   }
 
   public setExtern(name: string, value: Value): void {
-    this.values.set(
-      name.toLowerCase(),
-      this.vm ? this.vm.string(value) : String(value),
-    );
-    this.changed();
+    if (!this.overridden(name)) {
+      this.override(name, this.vm ? this.vm.string(value) : String(value));
+      this.changed();
+    }
   }
 
   public call(name: string, args: string[]): Value {
@@ -232,24 +347,6 @@ export class Engine implements EngineHooks {
     this.call(`FSCommand:${command}`, args ? [args] : []);
   }
 
-  public wrote(name: string): void {
-    const key = name.toLowerCase();
-
-    if (!this.written.has(key)) {
-      this.written.add(key);
-      if (this.read.delete(key)) {
-        this.changed();
-      }
-    }
-  }
-
-  public missing(name: string): Value {
-    if (!this.written.has(name.toLowerCase())) {
-      this.note(this.read, name);
-    }
-    return this.given(name);
-  }
-
   public defined(owner: AsObject, name: string, fn: AsObject): void {
     if (fn.kind.type !== 'function') {
       return;
@@ -263,6 +360,9 @@ export class Engine implements EngineHooks {
         : 'object';
     const path = `${where}.${name}`;
 
+    if (!this.functions.has(path.toLowerCase())) {
+      this.changed();
+    }
     this.functions.set(path.toLowerCase(), {
       path,
       name,
@@ -270,9 +370,10 @@ export class Engine implements EngineHooks {
       owner,
       fn,
       // Named once, where it is stored: nothing in the movie calls it
-      engineOnly: (this.uses.get(name.toLowerCase()) ?? 0) <= 1,
+      engineOnly:
+        !EVENT_HANDLERS.has(name.toLowerCase()) &&
+        (this.uses.get(name.toLowerCase()) ?? 0) <= 1,
     });
-    this.changed();
   }
 
   public log(line: string): void {

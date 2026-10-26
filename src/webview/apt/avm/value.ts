@@ -62,6 +62,8 @@ export interface StageHost {
     depth: number,
   ): Instance | undefined;
   remove(clip: Instance): void;
+  /** The machine finished its outermost script: what it queued may run */
+  idle(): void;
   readonly root: Instance;
 }
 
