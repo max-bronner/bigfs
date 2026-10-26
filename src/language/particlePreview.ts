@@ -155,6 +155,7 @@ class ParticlePreview {
     systems?: number;
     particles?: number;
     keyKind?: KeyKind;
+    values?: Record<string, number>;
     keys?: KeyValue[];
   }): Promise<void> {
     switch (message?.kind) {
@@ -173,6 +174,14 @@ class ParticlePreview {
           this.values.set(message.id, Number(message.value));
           this.update();
         }
+        break;
+      case 'setMany':
+        for (const [id, value] of Object.entries(message.values ?? {})) {
+          if (Number.isFinite(value)) {
+            this.values.set(id, Number(value));
+          }
+        }
+        this.update();
         break;
       case 'reset':
         this.values.clear();
@@ -516,6 +525,7 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 .field label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .field.changed label { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); font-weight: 600; }
 .field input[type=number] { width: 60px; }
+#scaleSpace, #scaleTime { width: 52px; }
 .field input[type=range] { width: 100%; }
 #handles { position: absolute; inset: 0; pointer-events: none; cursor: default; }
 #notes div { opacity: 0.8; margin: 2px 0; }
@@ -575,6 +585,7 @@ kbd { font-size: 10px; opacity: 0.7; }
   <div id="stats"></div>
   <h3>Values <span class="muted">preview only until applied</span></h3>
   <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
+  <div class="row" title="Scales every length, speed and duration together, so the effect stays the same effect: previewed until applied">Scale: size × <input id="scaleSpace" type="number" value="1" step="0.1" min="0.05"> time × <input id="scaleTime" type="number" value="1" step="0.1" min="0.05"> <button id="scale">Scale</button></div>
   <div id="fields"></div>
 </div>
 </div>`,

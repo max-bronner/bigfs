@@ -31,6 +31,7 @@ export type FromPage =
   | { kind: 'ready' }
   | { kind: 'status'; frame: number; systems: number; particles: number }
   | { kind: 'set'; id: string; value: number }
+  | { kind: 'setMany'; values: Record<string, number> }
   | { kind: 'reset' }
   | { kind: 'apply' }
   /** Rewrites every colour or alpha key at once, with the values pending */

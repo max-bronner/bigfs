@@ -1,3 +1,4 @@
+import { scaleEffect } from '../../formats/particles/particleScale';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
 import {
   attachCamera,
@@ -187,6 +188,28 @@ for (const id of ['wind', 'hollowBox', 'compound', 'batchLimit']) {
   };
 }
 $('apply').onclick = () => post({ kind: 'apply' });
+$('scale').onclick = () => {
+  const scene = state.scene;
+
+  if (!scene) {
+    return;
+  }
+  try {
+    post({
+      kind: 'setMany',
+      values: Object.fromEntries(
+        scaleEffect(
+          scene.fields,
+          new Map(Object.entries(scene.values)),
+          Number($<HTMLInputElement>('scaleSpace').value),
+          Number($<HTMLInputElement>('scaleTime').value),
+        ),
+      ),
+    });
+  } catch (error) {
+    $('notice').textContent = (error as Error).message;
+  }
+};
 $('reset').onclick = () => post({ kind: 'reset' });
 
 window.addEventListener('keydown', (event) => {
