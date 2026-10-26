@@ -1,6 +1,14 @@
 import { EASINGS, compileExpression } from '../../common/expression';
-import { poseOf } from '../../formats/apt/aptTimeline';
-import type { Pose, TimelineOperation } from '../../formats/apt/aptTimeline';
+import {
+  decodeTimeline,
+  detectTweens,
+  poseOf,
+} from '../../formats/apt/aptTimeline';
+import type {
+  DetectedTween,
+  Pose,
+  TimelineOperation,
+} from '../../formats/apt/aptTimeline';
 import { send, showDetails } from './details';
 import { button, byId } from './dom';
 import { currentPlayer, goToFrame, render, showMode, view } from './stage';
@@ -24,6 +32,8 @@ const panel = byId('timeline');
 const selection: { from: number; to: number; anchor: number; depth?: number } =
   { from: 0, to: 0, anchor: 0 };
 let form: 'tween' | 'formula' | undefined;
+/** The easing a tween form starts on: a detected tween's own */
+let formEasing = 'linear';
 
 const POSE_KEYS: (keyof Pose)[] = [
   'x',
@@ -107,10 +117,11 @@ const poseAt = (frame: number, depth: number): Pose | undefined => {
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-const easingSelect = (): HTMLSelectElement => {
+const easingSelect = (value = 'linear'): HTMLSelectElement => {
   const element = document.createElement('select');
 
   element.append(...Object.keys(EASINGS).map((name) => new Option(name, name)));
+  element.value = value;
   return element;
 };
 
@@ -137,7 +148,7 @@ const tweenForm = (depth: number): HTMLElement => {
   const inputs = POSE_KEYS.map(
     (key) => [key, textInput(String(round(end[key])))] as const,
   );
-  const easing = easingSelect();
+  const easing = easingSelect(formEasing);
   const element = document.createElement('div');
 
   element.className = 'field';
@@ -268,6 +279,7 @@ const toolbar = (frameCount: number): HTMLElement => {
       atDepth,
       () => {
         form = form === 'tween' ? undefined : 'tween';
+        formEasing = 'linear';
         showTimeline();
       },
     ),
@@ -341,6 +353,27 @@ const toolbar = (frameCount: number): HTMLElement => {
   return element;
 };
 
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/** What a baked tween does, for its cells' tooltip */
+const describeTween = (tween: DetectedTween): string =>
+  `Tween, frames ${tween.from}–${tween.to}, ${tween.easing}: ` +
+  tween.changes
+    .map(
+      (key) => `${key} ${round2(tween.start[key])}→${round2(tween.end[key])}`,
+    )
+    .join(', ') +
+  '. Double-click to edit it as one tween.';
+
+/** Selects a baked tween's frames and opens it in the tween form */
+const editTween = (tween: DetectedTween) => {
+  select(tween.from, tween.depth, false);
+  select(tween.to, tween.depth, true);
+  form = 'tween';
+  formEasing = tween.easing;
+  showTimeline();
+};
+
 const select = (frame: number, depth: number | undefined, extend: boolean) => {
   if (extend) {
     selection.from = Math.min(selection.anchor, frame);
@@ -374,6 +407,7 @@ export const showTimeline = (): void => {
   selection.from = Math.min(selection.from, selection.to);
 
   const { depths, cells } = cellsOf(timeline);
+  const tweens = detectTweens(decodeTimeline(undefined, timeline.frames));
   const table = document.createElement('table');
   const head = table.insertRow();
 
@@ -412,8 +446,20 @@ export const showTimeline = (): void => {
     cells.forEach((marks, frame) => {
       const cell = line.insertCell();
       const mark = marks.get(depth);
+      const tween = tweens.find(
+        (each) =>
+          each.depth === depth && each.from <= frame && frame <= each.to,
+      );
 
       cell.className = `cell ${mark ?? 'empty'}`;
+      if (tween) {
+        cell.classList.add('tween');
+        if (frame === tween.from) {
+          cell.classList.add('tween-start');
+        }
+        cell.title = describeTween(tween);
+        cell.ondblclick = () => editTween(tween);
+      }
       cell.dataset.frame = String(frame);
       if (
         frame >= selection.from &&

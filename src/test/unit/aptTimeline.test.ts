@@ -1,13 +1,11 @@
 import * as assert from 'assert';
-import {
-  compileExpression,
-  ExpressionError,
-} from '../../common/expression';
+import { compileExpression, ExpressionError } from '../../common/expression';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
 import {
   animate,
   decodeTimeline,
   deleteFrames,
+  detectTweens,
   encodeTimeline,
   hide,
   retimeFrames,
@@ -156,5 +154,29 @@ suite('APT expressions', () => {
     ]) {
       assert.throws(() => compileExpression(source)({ x: 1 }), ExpressionError);
     }
+  });
+});
+
+suite('APT tween detection', () => {
+  test('baked tweens are found with their easing, and still frames are not', () => {
+    const { states, write } = fiveFrames();
+
+    write(tween(states(), 2, 0, 2, { x: 100 }, 'linear'));
+
+    const eased = write(tween(states(), 2, 2, 4, { alpha: 0 }, 'easeIn'));
+    const found = detectTweens(eased).map(
+      ({ depth, from, to, easing, changes }) => ({
+        depth,
+        from,
+        to,
+        easing,
+        changes,
+      }),
+    );
+
+    assert.deepStrictEqual(found, [
+      { depth: 2, from: 0, to: 2, easing: 'linear', changes: ['x'] },
+      { depth: 2, from: 2, to: 4, easing: 'easeIn', changes: ['alpha'] },
+    ]);
   });
 });

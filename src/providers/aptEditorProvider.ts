@@ -581,6 +581,8 @@ export const renderHtml = (
   #timeline td.key { background: color-mix(in srgb, var(--vscode-charts-blue, #3794ff) 65%, transparent); }
   #timeline td.born { background: var(--vscode-charts-blue, #3794ff); }
   #timeline td.removed { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 50%, transparent); }
+  #timeline td.tween { background-image: linear-gradient(to bottom, transparent 40%, var(--vscode-charts-purple, #b180d7) 40%, var(--vscode-charts-purple, #b180d7) 60%, transparent 60%); }
+  #timeline td.tween-start { border-left: 2px solid var(--vscode-charts-purple, #b180d7); }
   #timeline td.picked { outline: 1px solid var(--vscode-focusBorder, #007fd4); outline-offset: -1px; }
   #timeline td.now { box-shadow: inset 0 0 0 1px var(--vscode-charts-orange, #d18616); }
   #timeline .field label { min-width: 0; }

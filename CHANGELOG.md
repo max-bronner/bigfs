@@ -29,6 +29,7 @@
 - Package Mod: pack with a load-order override report against the base game.
 - New Unit, Hero or Building wizard: object, build button, command set slot and text in one go.
 - Check Translations: labels each language lacks, filled with stand-in text on request.
+- APT timeline recognises baked tweens and edits them as one.
 - String tables: `.str` language support and table editor, `.csf` editor,
   and conversion between the two.
 - Map editor for `.map` and `.bse`: terrain relief with objects and start
