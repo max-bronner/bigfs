@@ -138,6 +138,7 @@ const frame = (now: number) => {
     `${world.systems.length} systems  ${world.liveParticles} particles` +
       (world.dropped ? `  dropped ${world.dropped}` : ''),
     `wind ${world.options.wind}  hollow box ${world.options.hollowBox}`,
+    ...(state.scene?.comparing ? ['showing the block as written (B)'] : []),
   ].join('\n');
   if (now - lastStatus > 1000) {
     lastStatus = now;
@@ -188,6 +189,34 @@ for (const id of ['wind', 'hollowBox', 'compound', 'batchLimit']) {
   };
 }
 $('apply').onclick = () => post({ kind: 'apply' });
+const compare = () => post({ kind: 'compare', on: !state.scene?.comparing });
+$('compare').onclick = compare;
+$('variant').onclick = () => post({ kind: 'variant' });
+$('vary').onclick = () => {
+  const scene = state.scene;
+  const amount = Number($<HTMLInputElement>('varyAmount').value) / 100;
+
+  if (!scene || !(amount > 0)) {
+    return;
+  }
+  post({
+    kind: 'setMany',
+    values: Object.fromEntries(
+      scene.fields
+        // Key frames keep their order; everything else may move
+        .filter((field) => field.part !== 'frame')
+        .map((field) => {
+          const current = scene.values[field.id] ?? field.value;
+          const next = current * (1 + (Math.random() * 2 - 1) * amount);
+
+          return [
+            field.id,
+            field.integer ? Math.round(next) : Number(next.toFixed(4)),
+          ];
+        }),
+    ),
+  });
+};
 $('scale').onclick = () => {
   const scene = state.scene;
 
@@ -234,6 +263,8 @@ window.addEventListener('keydown', (event) => {
     cycle('wind');
   } else if (key === 'h') {
     cycle('hollowBox');
+  } else if (key === 'b') {
+    compare();
   }
 });
 
@@ -261,6 +292,10 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     }),
   );
   renderFields(data);
+  $('compare').classList.toggle('on', data.comparing);
+  $('compare').textContent = data.comparing
+    ? 'A/B: as written (B)'
+    : 'A/B: with changes (B)';
   renderCurves();
   renderTimeline(start);
   if (first) {

@@ -113,6 +113,10 @@ your mod's archives.
   effect: size × scales every length and speed, time × stretches every
   duration and key and slows the rates to match (speeds ÷ k, gravity ÷ k²,
   damping d^(1/k)). Previewed like the sliders until applied.
+- **A/B** (`B`) flips the preview between the block as written and with the
+  values being tried; **Vary ±** nudges every value by up to a percentage
+  to try variations; **Save as variant…** writes the values as a new system
+  after this one, which keeps its own.
 - **Over lifetime** curves for a system: colour keys as a gradient, alpha
   keys as a min-max band, size as the game grows it. Drag keys along and up
   or down, pick a key's colour, add and remove keys (written at once,

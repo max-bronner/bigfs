@@ -348,6 +348,37 @@ suite('Modding flows: particle preview', () => {
     await waitFor(() => assert.strictEqual(document.getText(), original));
   });
 
+  test('A/B holds the values back, and a variant keeps them under a new name', async function () {
+    this.timeout(30_000);
+
+    const original = document.getText();
+    const size = preview.lastScene!.fields.find(
+      (field) => field.keyword === 'Size' && field.part === 'max',
+    )!;
+
+    await preview.receive({ kind: 'set', id: size.id, value: 8 });
+    await preview.receive({ kind: 'compare', on: true });
+    await preview.settled();
+    assert.strictEqual(preview.lastScene!.systems.flowsparks.size.high, 5);
+
+    await preview.receive({ kind: 'compare', on: false });
+    await preview.settled();
+    assert.strictEqual(preview.lastScene!.systems.flowsparks.size.high, 8);
+
+    await preview.receive({ kind: 'variant', name: 'FlowSparksBig' });
+    await waitFor(() =>
+      assert.match(
+        document.getText(),
+        /\nEnd\r?\n\r?\nFXParticleSystem FlowSparksBig\r?\n[\s\S]*?Size = 3 8\r?\n/,
+      ),
+    );
+    assert.match(document.getText(), /FlowSparks\r?\n[\s\S]*?Size = 3 5\r?\n/);
+
+    await vscode.window.showTextDocument(document);
+    await vscode.commands.executeCommand('undo');
+    await waitFor(() => assert.strictEqual(document.getText(), original));
+  });
+
   test('a template is inserted after the definition the cursor is in', async function () {
     this.timeout(30_000);
 

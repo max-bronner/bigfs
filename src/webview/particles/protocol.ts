@@ -21,6 +21,8 @@ export interface SceneMessage {
   fields: NumericField[];
   /** Slider values not yet applied, by field id */
   values: Record<string, number>;
+  /** Whether the preview shows the block as written, values held back */
+  comparing: boolean;
   /** Particles each detail level allows, from the mod's StaticGameLOD blocks */
   budgets: { lod: string; max: number }[];
 }
@@ -32,6 +34,9 @@ export type FromPage =
   | { kind: 'status'; frame: number; systems: number; particles: number }
   | { kind: 'set'; id: string; value: number }
   | { kind: 'setMany'; values: Record<string, number> }
+  /** Shows the block as written (on) or with the values (off) */
+  | { kind: 'compare'; on: boolean }
+  | { kind: 'variant'; name?: string }
   | { kind: 'reset' }
   | { kind: 'apply' }
   /** Rewrites every colour or alpha key at once, with the values pending */
