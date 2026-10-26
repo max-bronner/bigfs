@@ -1,3 +1,4 @@
+import { findAssetReferences } from './model/sageIniAssets';
 import { FileType, ProgressLocation, Uri, window, workspace } from 'vscode';
 import type { Disposable, LogOutputChannel } from 'vscode';
 import type { ArchiveModel } from '../model/archiveModel';
@@ -83,6 +84,12 @@ export interface SageReference {
   /** The field the value sat on, for the peek header */
   field: string;
 }
+
+/**
+ * The namespace models and animations are recorded under, by lowercased
+ * file name: not a definition keyword, so nothing else looks it up
+ */
+export const FILE_USES = '#file';
 
 const ENTRY_PATTERN = /\.(ini|inc|bhav|str)$/i;
 
@@ -560,5 +567,19 @@ export class SageIniIndex implements Disposable {
         ),
       );
     });
+    // Models and animations by file name, so a W3D file finds its users
+    for (const asset of findAssetReferences(parsed)) {
+      if (asset.kind === 'model' || asset.kind === 'animation') {
+        for (const candidate of asset.candidates) {
+          record(this.references, FILE_USES, candidate, {
+            uri,
+            line: asset.line,
+            start: asset.start,
+            end: asset.end,
+            field: asset.kind,
+          });
+        }
+      }
+    }
   }
 }

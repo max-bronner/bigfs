@@ -2,6 +2,7 @@ import { FileType, Uri, workspace } from 'vscode';
 import type { Disposable } from 'vscode';
 import type { ArchiveModel } from '../model/archiveModel';
 import { getFileNodes } from '../model/virtualNode';
+import { getNodeUri } from '../model/nodeAddress';
 import type { VirtualNode } from '../model/virtualNode';
 
 /**
@@ -103,21 +104,45 @@ export class EntryLocator implements Disposable {
     fileName: string,
     nearUri: Uri,
   ): Promise<Uint8Array | undefined> {
-    const beside = await this.readBeside(fileName, nearUri);
+    const found = await this.locate(fileName, nearUri);
+
+    if (!found) {
+      return undefined;
+    }
+    return 'node' in found
+      ? this.archiveModel.getFileContent(found.node)
+      : workspace.fs.readFile(found.uri);
+  }
+
+  /** Where the file `read` would read lives, to open it */
+  public async findUri(
+    fileName: string,
+    nearUri: Uri,
+  ): Promise<Uri | undefined> {
+    const found = await this.locate(fileName, nearUri);
+
+    return found && ('node' in found ? getNodeUri(found.node) : found.uri);
+  }
+
+  private async locate(
+    fileName: string,
+    nearUri: Uri,
+  ): Promise<{ uri: Uri } | { node: VirtualNode } | undefined> {
+    const beside = await this.findBeside(fileName, nearUri);
 
     if (beside) {
-      return beside;
+      return { uri: beside };
     }
 
     const node = (await this.getNames()).get(fileName.toLowerCase());
 
     if (node) {
-      return this.archiveModel.getFileContent(node);
+      return { node };
     }
 
     const [loose] = await workspace.findFiles(`**/${fileName}`, undefined, 1);
 
-    return loose ? workspace.fs.readFile(loose) : undefined;
+    return loose && { uri: loose };
   }
 
   /**
@@ -147,24 +172,21 @@ export class EntryLocator implements Disposable {
     return [...names].sort();
   }
 
-  /** Reads a file of this name in the same directory, whatever its casing */
-  private async readBeside(
+  /** A file of this name in the same directory, whatever its casing */
+  private async findBeside(
     fileName: string,
     nearUri: Uri,
-  ): Promise<Uint8Array | undefined> {
+  ): Promise<Uri | undefined> {
     const directory = Uri.joinPath(nearUri, '..');
 
     try {
-      const entries = await workspace.fs.readDirectory(directory);
-      const match = entries.find(
+      const match = (await workspace.fs.readDirectory(directory)).find(
         ([name, type]) =>
           type === FileType.File &&
           name.toLowerCase() === fileName.toLowerCase(),
       );
 
-      return match
-        ? await workspace.fs.readFile(Uri.joinPath(directory, match[0]))
-        : undefined;
+      return match && Uri.joinPath(directory, match[0]);
     } catch {
       return undefined;
     }
