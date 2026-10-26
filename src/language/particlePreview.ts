@@ -17,8 +17,7 @@ import type {
 } from '../formats/particles/particleIni';
 import { encodePng } from '../formats/textureEncode';
 import { keyEdits } from '../formats/particles/particleKeys';
-import { attachedModel } from '../formats/particles/modelAttachment';
-import type { AttachedModel } from '../formats/particles/modelAttachment';
+import type { ModelScene } from '../formats/w3dScene';
 import { buildW3dScene } from '../formats/w3dScene';
 import { createToolRegistry } from '../tools/toolRegistry';
 import { duplicateDefinition } from './model/duplicateDefinition';
@@ -299,7 +298,10 @@ class ParticlePreview {
       '**/*.w3d',
     );
     const picked = await vscode.window.showQuickPick(
-      [{ label: 'No model', name: undefined }, ...names.map((name) => ({ label: name, name }))],
+      [
+        { label: 'No model', name: undefined },
+        ...names.map((name) => ({ label: name, name })),
+      ],
       { placeHolder: 'A model to show the effect on, at one of its bones' },
     );
 
@@ -307,7 +309,7 @@ class ParticlePreview {
       return;
     }
 
-    let model: AttachedModel | undefined;
+    let model: { name: string; scene: ModelScene } | undefined;
 
     if (picked.name) {
       const bytes = await this.locator.read(picked.name, this.uri);
@@ -315,14 +317,14 @@ class ParticlePreview {
       if (!bytes) {
         throw new Error(`${picked.name} could not be read`);
       }
-      model = attachedModel(
-        picked.name,
-        await buildW3dScene(
+      model = {
+        name: picked.name,
+        scene: await buildW3dScene(
           bytes,
           (fileName) => this.locator!.read(fileName, this.uri),
           createToolRegistry(),
         ),
-      );
+      };
     }
     await this.panel.webview.postMessage({ kind: 'model', model });
   }

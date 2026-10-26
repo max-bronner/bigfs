@@ -8,7 +8,6 @@ import { findModelForSkeleton } from '../formats/w3dModelFinder';
 import { Vp6Movie } from '../formats/vp6/container';
 import type { ModelScene } from '../formats/w3dScene';
 import type { EntryLocator } from '../formats/entryLocator';
-import { MODEL_SCRIPT } from './previewModelScript';
 import { createNonce } from './webviewNonce';
 
 /**
@@ -140,14 +139,17 @@ const buildMessage = async (
 };
 
 /** The page: a toolbar, a canvas or an audio element, and a status line */
-export const renderHtml = (webview: vscode.Webview): string => {
+export const renderHtml = (
+  webview: vscode.Webview,
+  modelScript: vscode.Uri,
+): string => {
   const nonce = createNonce();
 
   return /* html */ `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; media-src blob:; img-src blob: data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}; media-src blob:; img-src blob: data:;">
 <style>
   body { margin: 0; padding: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   header { position: sticky; top: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 12px; background: var(--vscode-editor-background); border-bottom: 1px solid var(--vscode-panel-border); z-index: 1; }
@@ -192,6 +194,7 @@ export const renderHtml = (webview: vscode.Webview): string => {
   <span class="status" id="status"></span>
 </header>
 <main id="main"></main>
+<script nonce="${nonce}" src="${webview.asWebviewUri(modelScript)}"></script>
 <script nonce="${nonce}">
   const vscode = acquireVsCodeApi();
   const main = document.getElementById('main');
@@ -304,8 +307,6 @@ export const renderHtml = (webview: vscode.Webview): string => {
     main.replaceChildren(list, audio);
   };
 
-  ${MODEL_SCRIPT}
-
   const showCompressedAudio = ({ bytes, mime, format }) => {
     const list = document.createElement('dl');
     const audio = document.createElement('audio');
@@ -383,7 +384,7 @@ export const renderHtml = (webview: vscode.Webview): string => {
 
   window.addEventListener('message', ({ data }) => {
     if (data.kind === 'model') {
-      modelControl = showModel(data);
+      modelControl = showModel(data, { main, post: (message) => vscode.postMessage(message) });
     } else if (data.kind === 'compressedAudio') {
       showCompressedAudio(data);
     } else if (data.kind === 'video') {
@@ -427,16 +428,18 @@ export class PreviewEditorProvider
   public constructor(
     private readonly tools: ToolBox,
     private readonly locator: EntryLocator,
+    private readonly extensionUri: vscode.Uri,
   ) {}
 
   /** Registers the provider under `PREVIEW_VIEW_TYPE` */
   public static register(
     tools: ToolBox,
     locator: EntryLocator,
+    extensionUri: vscode.Uri,
   ): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       PREVIEW_VIEW_TYPE,
-      new PreviewEditorProvider(tools, locator),
+      new PreviewEditorProvider(tools, locator, extensionUri),
       { supportsMultipleEditorsPerDocument: true },
     );
   }
@@ -464,8 +467,16 @@ export class PreviewEditorProvider
     document: vscode.CustomDocument,
     panel: vscode.WebviewPanel,
   ): Promise<void> {
-    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
-    panel.webview.html = renderHtml(panel.webview);
+    const scripts = vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview');
+
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [scripts],
+    };
+    panel.webview.html = renderHtml(
+      panel.webview,
+      vscode.Uri.joinPath(scripts, 'model.js'),
+    );
 
     // Decoding starts at once; the page asks for the result when its script
     // has loaded, so the message cannot arrive before anything listens
