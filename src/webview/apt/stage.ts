@@ -1,3 +1,4 @@
+import { engine, onEngineLog, watchMovie } from './engineState';
 import type { Rect } from '../../formats/apt/aptMovie';
 import { byId } from './dom';
 import { maskArea, paintLeaf } from './paint';
@@ -117,15 +118,26 @@ const ghostOf = (frame: number): Leaf[] => {
   return leaves;
 };
 
-const newPlayer = (rootScripts: boolean, logged: boolean) =>
-  new Player(movie(), state.selected, {
+/**
+ * A player of the shown character. The logged one is the one on the stage:
+ * its scripts run on the AVM and ask the engine panel what the game would
+ * answer. Others (onion skin, measuring) only play what scripts do to
+ * timelines, so they neither log nor ask.
+ */
+const newPlayer = (rootScripts: boolean, logged: boolean) => {
+  if (logged) {
+    watchMovie(movie());
+  }
+  return new Player(movie(), state.selected, {
     resolve,
     scripts: view.scripts,
     rootScripts,
     log: logged ? addLog : undefined,
+    engine: logged ? engine : undefined,
   });
+};
 
-const addLog = (line: string) => {
+const addLog = (line: string): void => {
   log.push(line);
   log.splice(0, Math.max(0, log.length - LOG_LINES));
   logList.replaceChildren(
@@ -143,6 +155,8 @@ const addLog = (line: string) => {
  * a goto jumps, as in the game, unless scripts are ignored
  */
 const rootScriptsRun = () => view.interact || view.scripts;
+
+onEngineLog((line) => addLog(line));
 
 /** The player of the shown character, built on first use */
 export const currentPlayer = (): Player => {

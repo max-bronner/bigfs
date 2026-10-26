@@ -1,3 +1,6 @@
+import { Vm } from './avm/vm';
+import type { EngineHooks } from './avm/vm';
+import type { StageHost } from './avm/value';
 import type {
   Behaviour,
   TimelineCommand,
@@ -65,6 +68,18 @@ export interface Instance {
   alpha: number;
   /** For a mask: the deepest depth above it that it clips */
   clipDepth?: number;
+  /** `onClipEvent` handlers its placement carries */
+  clipActions?: { events: number; block: number }[];
+  /** False once a script hides it */
+  visible?: boolean;
+  /** A text field's text, once a script sets it */
+  text?: string;
+  /** Moved by a script, so its timeline no longer moves it */
+  scripted?: boolean;
+  /** Made by a script (`attachMovie`, ...) rather than placed by the timeline */
+  dynamic?: boolean;
+  /** Taken off the stage; its running code stops */
+  removed?: boolean;
   /** The frame its parent placed it in, which tells a move from a new instance */
   born: number;
   /** The character id it was placed with, before any import resolved it */
@@ -93,14 +108,40 @@ export interface PlayerOptions {
   /** Whether the root does too; off to step through its frames */
   rootScripts: boolean;
   log?: (line: string) => void;
+  /**
+   * The engine's side: given, scripts run as bytecode on the AVM and ask
+   * it what the game would answer; without, only what they do to
+   * timelines is played
+   */
+  engine?: EngineHooks;
 }
+
+/** Clip event bits, as `scriptSites.ts` names them */
+const CLIP_EVENT = {
+  load: 1 << 0,
+  enterFrame: 1 << 1,
+  unload: 1 << 2,
+  initialize: 1 << 9,
+  construct: 1 << 18,
+};
+
+/** Script handlers a button or clip object can carry, by pointer event */
+const HANDLERS: Record<number, string> = {
+  [CONDITION.rollOver]: 'onRollOver',
+  [CONDITION.rollOut]: 'onRollOut',
+  [CONDITION.press]: 'onPress',
+  [CONDITION.release]: 'onRelease',
+  [CONDITION.releaseOutside]: 'onReleaseOutside',
+};
 
 const isTimeline = (instance: Instance) =>
   instance.character?.type === 'sprite' || instance.character?.type === 'movie';
 
-export class Player {
+export class Player implements StageHost {
   public readonly root: Instance;
   public ticks = 0;
+  /** The ActionScript machine, when an engine answers for the game */
+  public readonly vm?: Vm;
   private chain = 0;
 
   public constructor(
@@ -108,6 +149,9 @@ export class Player {
     id: number,
     private readonly options: PlayerOptions,
   ) {
+    if (options.engine) {
+      this.vm = new Vm(this, options.engine);
+    }
     this.root = this.create(movie, id, '', undefined, {
       matrix: [1, 0, 0, 1],
       translate: [0, 0],
@@ -137,6 +181,145 @@ export class Player {
         timeline.frames.length > 1
       ) {
         this.enter(timeline, (timeline.frame + 1) % timeline.frames.length);
+      }
+    }
+
+    const vm = this.vm;
+
+    if (vm && this.scriptsRun(this.root)) {
+      vm.ticks = this.ticks;
+      for (const instance of this.all()) {
+        this.clipEvent(instance, CLIP_EVENT.enterFrame);
+
+        const handler = vm.member(vm.objectOf(instance), 'onEnterFrame');
+
+        if (handler !== undefined) {
+          vm.callFromEngine(handler, vm.objectOf(instance), []);
+        }
+      }
+      vm.runIntervals();
+    }
+  }
+
+  // ---- StageHost, what scripts do to clips
+
+  public setPlaying(clip: Instance, playing: boolean): void {
+    clip.playing = playing;
+  }
+
+  /**
+   * Places a copy of an exported symbol (`linkage`) or of a clip (`#id`)
+   * on a clip, at a depth, under a name
+   */
+  public attach(
+    parent: Instance,
+    linkage: string,
+    name: string,
+    depth: number,
+  ): Instance | undefined {
+    const byId = /^#(\d+)$/.exec(linkage);
+    const id = byId
+      ? Number(byId[1])
+      : parent.movie.exports.find(
+          (each) => each.name.toLowerCase() === linkage.toLowerCase(),
+        )?.character;
+
+    if (id === undefined) {
+      this.options.log?.(`attachMovie: nothing is exported as "${linkage}"`);
+      return undefined;
+    }
+    return this.place(
+      parent,
+      depth,
+      this.create(parent.movie, id, `${parent.path}/${depth}`, parent, {
+        matrix: [1, 0, 0, 1],
+        translate: [0, 0],
+        alpha: 1,
+        born: parent.frame,
+        name,
+      }),
+    );
+  }
+
+  public createEmpty(parent: Instance, name: string, depth: number): Instance {
+    const instance = this.create(
+      parent.movie,
+      -1,
+      `${parent.path}/${depth}`,
+      parent,
+      {
+        matrix: [1, 0, 0, 1],
+        translate: [0, 0],
+        alpha: 1,
+        born: parent.frame,
+        name,
+      },
+    );
+
+    instance.character = {
+      type: 'sprite',
+      id: -1,
+      offset: 0,
+      frameCount: 0,
+      framesOffset: 0,
+    };
+    instance.missing = undefined;
+    return this.place(parent, depth, instance);
+  }
+
+  public remove(clip: Instance): void {
+    const parent = clip.parent;
+
+    if (!parent) {
+      return;
+    }
+    for (const [key, child] of parent.children) {
+      if (child === clip) {
+        parent.children.delete(key);
+      }
+    }
+    this.retire(clip);
+  }
+
+  /** Puts a script-made clip at a depth, in depth order with the rest */
+  private place(parent: Instance, depth: number, instance: Instance): Instance {
+    const old = parent.children.get(String(depth));
+
+    if (old) {
+      this.retire(old);
+    }
+    instance.dynamic = true;
+    parent.children.set(String(depth), instance);
+    parent.children = new Map(
+      [...parent.children].sort(([a], [b]) => Number(a) - Number(b)),
+    );
+    return instance;
+  }
+
+  /** Marks a clip gone, with what it holds, running its unload handler */
+  private retire(instance: Instance): void {
+    if (instance.removed) {
+      return;
+    }
+    this.clipEvent(instance, CLIP_EVENT.unload);
+    instance.removed = true;
+    instance.children.forEach((child) => this.retire(child));
+  }
+
+  private scriptsRun(timeline: Instance): boolean {
+    return timeline === this.root
+      ? this.options.rootScripts
+      : this.options.scripts;
+  }
+
+  /** Runs a clip's `onClipEvent` blocks for an event, on its parent's code */
+  private clipEvent(instance: Instance, event: number): void {
+    if (!this.vm || !instance.parent) {
+      return;
+    }
+    for (const action of instance.clipActions ?? []) {
+      if (action.events & event) {
+        this.vm.runBlock(instance, action.block, instance.parent);
       }
     }
   }
@@ -248,7 +431,7 @@ export class Player {
     parent: Instance | undefined,
     place: Pick<
       Instance,
-      'matrix' | 'translate' | 'alpha' | 'born' | 'clipDepth'
+      'matrix' | 'translate' | 'alpha' | 'born' | 'clipDepth' | 'clipActions'
     > & {
       name?: string;
       placedItem?: number;
@@ -261,6 +444,7 @@ export class Player {
       : from.imports.find((each) => each.character === id);
     const instance: Instance = {
       path,
+      clipActions: place.clipActions,
       movie: found?.movie ?? from,
       id: found?.id ?? id,
       character: found?.character,
@@ -297,6 +481,12 @@ export class Player {
     } else if (instance.character?.type === 'button') {
       this.syncButton(instance);
     }
+    if (parent && this.vm && this.scriptsRun(parent)) {
+      this.clipEvent(
+        instance,
+        CLIP_EVENT.initialize | CLIP_EVENT.construct | CLIP_EVENT.load,
+      );
+    }
     return instance;
   }
 
@@ -305,13 +495,35 @@ export class Player {
     timeline.frame = frame;
     this.syncTimeline(timeline);
 
-    const runs =
-      timeline === this.root ? this.options.rootScripts : this.options.scripts;
-
-    if (!runs) {
+    if (!this.scriptsRun(timeline)) {
       return;
     }
-    for (const item of timeline.frames[frame]?.items ?? []) {
+
+    const items = timeline.frames[frame]?.items ?? [];
+    const vm = this.vm;
+
+    if (vm) {
+      // A sprite's init actions run once, before any frame script
+      for (const item of items) {
+        const key = `${timeline.movie.name}#${item.type === 'initAction' ? item.sprite : ''}`;
+
+        if (item.type === 'initAction' && !vm.initialised.has(key)) {
+          vm.initialised.add(key);
+          vm.runBlock(timeline, item.block);
+        }
+      }
+      for (const item of items) {
+        if (
+          item.type === 'action' &&
+          timeline.frame === frame &&
+          !timeline.removed
+        ) {
+          vm.runBlock(timeline, item.block);
+        }
+      }
+      return;
+    }
+    for (const item of items) {
       if (item.type === 'action') {
         this.run(timeline, timeline.movie.behaviours[item.block], 'frame');
       }
@@ -327,17 +539,25 @@ export class Player {
       const existing = timeline.children.get(key);
       if (
         existing &&
+        !existing.dynamic &&
         existing.born === placement.born &&
         existing.placed === placement.character
       ) {
-        Object.assign(existing, {
-          matrix: placement.matrix,
-          translate: placement.translate,
-          alpha: placement.alpha,
-          clipDepth: placement.clipDepth,
-          name: placement.name,
-          matrixItem: placement.matrixItem,
-        });
+        Object.assign(
+          existing,
+          existing.scripted
+            ? {}
+            : {
+                matrix: placement.matrix,
+                translate: placement.translate,
+                alpha: placement.alpha,
+              },
+          {
+            clipDepth: placement.clipDepth,
+            name: existing.scripted ? existing.name : placement.name,
+            matrixItem: placement.matrixItem,
+          },
+        );
         kept.set(key, existing);
       } else {
         kept.set(
@@ -352,7 +572,17 @@ export class Player {
         );
       }
     }
-    timeline.children = kept;
+    // What scripts made stays until a script removes it
+    for (const [key, child] of timeline.children) {
+      if (child.dynamic && !kept.has(key)) {
+        kept.set(key, child);
+      } else if (kept.get(key) !== child) {
+        this.retire(child);
+      }
+    }
+    timeline.children = new Map(
+      [...kept].sort(([a], [b]) => Number(a) - Number(b)),
+    );
   }
 
   /** Shows the records of a button's state, keeping those still shown */
@@ -410,15 +640,56 @@ export class Player {
       Object.entries(CONDITION).find(([, bit]) => bit === condition)?.[0] ??
       'event';
 
+    const vm = this.vm;
+
     for (const action of button.character.actions) {
       if (action.condition & condition) {
-        this.run(
-          owner,
-          button.movie.behaviours[action.block],
-          `${name} on ${describe(button)}`,
-        );
+        if (vm) {
+          this.options.log?.(`${name} on ${describe(button)}`);
+          vm.runBlock(owner, action.block, button);
+        } else {
+          this.run(
+            owner,
+            button.movie.behaviours[action.block],
+            `${name} on ${describe(button)}`,
+          );
+        }
       }
     }
+
+    // A handler a script gave the button (`btn.onRelease = function () {}`)
+    const handler = vm && HANDLERS[condition];
+
+    if (vm && handler) {
+      const self = vm.objectOf(button);
+      const fn = vm.member(self, handler);
+
+      if (fn !== undefined) {
+        vm.callFromEngine(fn, self, []);
+      }
+    }
+  }
+
+  /** A text field's text: set by a script, else its bound variable's value */
+  public textOf(instance: Instance): string | undefined {
+    if (instance.text !== undefined) {
+      return instance.text;
+    }
+
+    const character = instance.character;
+
+    if (
+      !this.vm ||
+      character?.type !== 'editText' ||
+      !character.variable ||
+      !instance.parent
+    ) {
+      return undefined;
+    }
+
+    const value = this.vm.readBound(instance.parent, character.variable);
+
+    return value === undefined ? undefined : this.vm.string(value);
   }
 
   /** Runs what a block does to timelines, from the timeline it runs on */

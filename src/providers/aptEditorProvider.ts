@@ -1,3 +1,5 @@
+import { decodeBlock } from '../formats/apt/aptBytecode';
+import type { AptInstruction } from '../formats/apt/aptBytecode';
 import * as vscode from 'vscode';
 import { SPEEDS } from '../webview/apt/protocol';
 import type { ToolBox } from '../tools/toolRegistry';
@@ -443,12 +445,31 @@ export class AptDocument implements vscode.CustomDocument {
         name: this.name,
         spriteFrames,
         behaviours: this.behaviours(movie, spriteFrames),
+        code: this.code(movie, spriteFrames),
+        consts: this.constFile.items.map((item) => item.value),
         shapes,
         imageTextures,
         imageLocations,
       },
       textures,
     };
+  }
+
+  /** Every action block decoded, for the preview to run; one that fails is left out */
+  private code(
+    movie: AptMovie,
+    spriteFrames: Record<number, Frame[]>,
+  ): Record<number, AptInstruction[]> {
+    const code: Record<number, AptInstruction[]> = {};
+
+    for (const block of actionBlocks(movie, spriteFrames)) {
+      try {
+        code[block] = decodeBlock(this.image.bytes, block);
+      } catch {
+        // The script tab says why; the preview runs the rest
+      }
+    }
+    return code;
   }
 
   /** What each action block does to timelines, for the preview to play */
@@ -599,6 +620,8 @@ export const renderHtml = (
   .muted, #summary { opacity: 0.75; }
   .error { color: var(--vscode-errorForeground); padding: 12px; }
   #notice { position: fixed; bottom: 8px; left: 250px; right: 12px; z-index: 2; padding: 6px 10px; color: var(--vscode-inputValidation-errorForeground, inherit); background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
+  #engine summary { cursor: pointer; font-weight: 600; margin: 6px 0; }
+  #engine .field label { min-width: 0; margin-right: 4px; font-family: var(--vscode-editor-font-family, monospace); }
   .field { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 3px 0; }
   .field label { min-width: 84px; opacity: 0.8; }
   .field input, .field textarea { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 2px 4px; width: 90px; font: inherit; }
@@ -639,7 +662,7 @@ export const renderHtml = (
   <div id="integrity"></div>
   <div id="log"></div>
 </main>
-<section id="side"><div id="inspector"></div><div id="atlas"></div><div id="details"></div></section>
+<section id="side"><div id="engine"></div><div id="inspector"></div><div id="atlas"></div><div id="details"></div></section>
 <div id="notice" hidden></div>
 <script nonce="${nonce}" src="${script}"></script>
 </body>

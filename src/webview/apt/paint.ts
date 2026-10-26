@@ -135,6 +135,7 @@ export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
             ? (left + right) / 2
             : left;
       const text =
+        leaf.text ??
         character.text ??
         (character.variable ? '{' + character.variable + '}' : '');
 

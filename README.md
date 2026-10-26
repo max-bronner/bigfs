@@ -255,6 +255,18 @@ your mod's archives.
 - **Copy motion** remembers how a depth moves over a range, relative to its
   first frame; **Paste motion** plays it on another depth or range from
   that one's own pose, and **Paste ↔ / ↕** mirrors it.
+- The preview runs the movie's ActionScript on a small AVM (ported from
+  mint's player): frame, button and clip-event scripts with variables,
+  conditions, functions and the MovieClip methods. **Ignore action
+  scripts** (S) plays every frame in order instead; **Play from…** starts
+  at a label.
+- The **Engine** panel is the game's side of the movie: what its code
+  reaches for while it runs, found as it runs. Functions only the engine
+  calls (the palantir's `SetPlayerFaction`) get a field per argument and a
+  **Call** button; names the movie reads but never sets, and `GetExtern`
+  keys, get a value; calls into the engine (`GameCode`, `FSCommand:`) are
+  counted with their arguments and can be given a return value. Values are
+  kept per movie.
 - Tweens already baked into a movie are recognised: a run of frames in
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens
