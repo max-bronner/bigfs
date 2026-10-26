@@ -19,8 +19,7 @@ import { includeExists, resolveIncludeUri } from './sageIniInclude';
 import type { EntryLocator } from '../formats/entryLocator';
 import {
   CHECK_ASSETS_SETTING,
-  assetNamesToCheck,
-  getAssetDiagnostics,
+  checkedAssetDiagnostics,
 } from './sageIniAssetCheck';
 
 /**
@@ -218,10 +217,9 @@ export const watchSageIniDiagnostics = (
     }
 
     const version = document.version;
-    const [parsed, schema, assetNames] = await Promise.all([
+    const [parsed, schema] = await Promise.all([
       documents.parse(document),
       documents.getSchema(),
-      assetNamesToCheck(locator).catch(() => undefined),
     ]);
     const diagnostics = [
       ...findSageIniProblems(parsed, schema).map((problem) =>
@@ -230,7 +228,9 @@ export const watchSageIniDiagnostics = (
       ...(await getIncludeDiagnostics(document, parsed)),
       ...(await getReferenceDiagnostics(parsed, schema, index)),
       ...(await getStringDiagnostics(parsed, index)),
-      ...(assetNames ? getAssetDiagnostics(parsed, assetNames, SOURCE) : []),
+      ...(await checkedAssetDiagnostics(parsed, locator, SOURCE).catch(
+        () => [],
+      )),
       ...findScriptProblems(
         Array.from(
           { length: document.lineCount },
