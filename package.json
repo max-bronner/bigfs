@@ -196,6 +196,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.showEffectiveObject",
+        "title": "Show Effective Definition",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.newAptMovie",
         "title": "New APT Movie…",
         "category": "BIG"
@@ -556,6 +561,11 @@
         {
           "command": "bigfs.bulkEditIni",
           "group": "1_modification@6",
+          "when": "editorLangId == sage-ini"
+        },
+        {
+          "command": "bigfs.showEffectiveObject",
+          "group": "navigation@21",
           "when": "editorLangId == sage-ini"
         },
         {
