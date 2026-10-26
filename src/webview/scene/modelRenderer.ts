@@ -1,6 +1,7 @@
 import { boneLines, poseAt, skin } from '../../formats/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3dPose';
 import type { ModelScene } from '../../formats/w3dScene';
+import type { W3dBlend } from '../../tools/w3dTools';
 
 /**
  * Draws a W3D model with WebGL: every mesh textured and lit from the
@@ -32,14 +33,15 @@ uniform sampler2D tex;
 uniform bool hasTexture;
 uniform bool hasNormals;
 uniform vec3 lightDirection;
+uniform float alphaCutoff;
 uniform bool useSolid;
 uniform vec4 solid;
 void main() {
   if (useSolid) { gl_FragColor = solid; return; }
   vec4 base = hasTexture ? texture2D(tex, vUv) : vec4(0.7, 0.7, 0.7, 1.0);
-  if (base.a < 0.3) discard;
+  if (base.a < alphaCutoff) discard;
   float light = hasNormals ? abs(dot(normalize(vNormal), lightDirection)) : 1.0;
-  gl_FragColor = vec4(base.rgb * (0.35 + 0.65 * light), 1.0);
+  gl_FragColor = vec4(base.rgb * (0.35 + 0.65 * light), base.a);
 }`;
 
 const BONE_COLOUR = [1, 0.75, 0.2, 1];
@@ -62,8 +64,13 @@ export interface ModelRenderer {
   draw(viewProjection: Float32Array | number[], options: DrawOptions): void;
 }
 
+/** Where a cutout material drops a texel: mint's `ALPHA_CUTOFF` */
+const ALPHA_CUTOFF = 96 / 255;
+
 interface Drawable {
   count: number;
+  alphaTest: boolean;
+  blend: W3dBlend;
   indexType: number;
   texture?: WebGLTexture;
   hasNormals: boolean;
@@ -221,6 +228,8 @@ export const createModelRenderer = (
               ? textures[mesh.texture]
               : undefined,
           hasNormals: !!mesh.normals,
+          alphaTest: mesh.alphaTest,
+          blend: mesh.blend,
           position: buffer(gl.ARRAY_BUFFER, mesh.positions, usage),
           normal: mesh.normals && buffer(gl.ARRAY_BUFFER, mesh.normals, usage),
           uv: mesh.uvs && buffer(gl.ARRAY_BUFFER, mesh.uvs),
@@ -282,6 +291,23 @@ export const createModelRenderer = (
     gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
   };
 
+  /** The framebuffer operation a material asks for; blended ones keep the depth buffer */
+  const applyBlend = (blend: W3dBlend) => {
+    gl.depthMask(blend === 'opaque');
+    if (blend === 'opaque') {
+      gl.disable(gl.BLEND);
+      return;
+    }
+    gl.enable(gl.BLEND);
+    if (blend === 'additive') {
+      gl.blendFunc(gl.ONE, gl.ONE);
+    } else if (blend === 'multiply') {
+      gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+    } else {
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    }
+  };
+
   const draw = (
     viewProjection: Float32Array | number[],
     { offset = [0, 0, 0], light, showBones, showMeshes = true }: DrawOptions,
@@ -298,7 +324,20 @@ export const createModelRenderer = (
     gl.depthMask(true);
     gl.disable(gl.BLEND);
 
-    for (const drawable of showMeshes ? drawables : []) {
+    // Opaque first, so what blends over it finds it in the depth buffer
+    const ordered = showMeshes
+      ? [
+          ...drawables.filter((each) => each.blend === 'opaque'),
+          ...drawables.filter((each) => each.blend !== 'opaque'),
+        ]
+      : [];
+
+    for (const drawable of ordered) {
+      applyBlend(drawable.blend);
+      gl.uniform1f(
+        uniform('alphaCutoff'),
+        drawable.alphaTest ? ALPHA_CUTOFF : -1,
+      );
       gl.uniform1i(uniform('hasTexture'), drawable.texture ? 1 : 0);
       gl.uniform1i(uniform('hasNormals'), drawable.hasNormals ? 1 : 0);
       if (drawable.texture) {
@@ -312,6 +351,8 @@ export const createModelRenderer = (
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, drawable.index);
       gl.drawElements(gl.TRIANGLES, drawable.count, drawable.indexType, 0);
     }
+
+    applyBlend('opaque');
 
     const skeleton = scene.skeleton;
     const lines =

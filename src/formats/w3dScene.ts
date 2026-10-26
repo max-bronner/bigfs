@@ -2,7 +2,12 @@ import type { ToolBox } from '../tools/toolRegistry';
 import { decodeDdsTool, decodeTgaTool } from '../tools/textureTools';
 import type { RgbaImage } from '../tools/textureTools';
 import { parseW3dTool } from '../tools/w3dTools';
-import type { W3dFile, W3dHierarchy, W3dMesh } from '../tools/w3dTools';
+import type {
+  W3dBlend,
+  W3dFile,
+  W3dHierarchy,
+  W3dMesh,
+} from '../tools/w3dTools';
 import { parseW3dAnimations } from './w3dAnimation';
 import type { W3dAnimation } from './w3dAnimation';
 
@@ -26,6 +31,9 @@ export interface SceneMesh {
   indices: Uint32Array;
   /** Index into `ModelScene.textures`, when the texture was found */
   texture?: number;
+  /** Whether texels of low alpha are cut out */
+  alphaTest: boolean;
+  blend: W3dBlend;
   /**
    * The mesh as stored, in the space of the bones its vertices follow, so a
    * player can pose it: absent when no vertex follows a bone
@@ -154,6 +162,16 @@ const transform = (
 
   return out;
 };
+
+/**
+ * Texture coordinates with V from the top, as WebGL samples an image
+ * uploaded top row first. W3D measures V from the bottom (mint's
+ * `convert::flip_v`, `w3d-format.md` "Texture coordinate origin"); the
+ * textures are atlases, so without it each face samples another part of
+ * the atlas rather than a mirrored picture.
+ */
+const flipV = (uvs: Float32Array): Float32Array =>
+  uvs.map((value, index) => (index % 2 ? 1 - value : value));
 
 /** The file name without its extension */
 const stem = (fileName: string): string => fileName.replace(/\.[^.]*$/, '');
@@ -286,9 +304,11 @@ export const buildW3dScene = async (
       name: mesh.name,
       positions,
       normals: mesh.normals && transform(mesh.normals, matrixOf, false),
-      uvs: mesh.uvs,
+      uvs: mesh.uvs && flipV(mesh.uvs),
       indices: mesh.indices,
       texture: mesh.texture ? textureIndex.get(mesh.texture) : undefined,
+      alphaTest: mesh.alphaTest,
+      blend: mesh.blend,
       local: isBound
         ? { positions: mesh.positions, normals: mesh.normals, bones }
         : undefined,
