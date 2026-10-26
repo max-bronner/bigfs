@@ -109,6 +109,10 @@ your mod's archives.
 - Every number in the block gets a slider. Sliders change the preview only;
   **Apply to INI** writes them back as one undoable edit, **Reset** drops
   them. Typing in the block updates the preview as well.
+- **Scale** makes a whole effect bigger or longer and keeps it the same
+  effect: size × scales every length and speed, time × stretches every
+  duration and key and slows the rates to match (speeds ÷ k, gravity ÷ k²,
+  damping d^(1/k)). Previewed like the sliders until applied.
 - **Over lifetime** curves for a system: colour keys as a gradient, alpha
   keys as a min-max band, size as the game grows it. Drag keys along and up
   or down, pick a key's colour, add and remove keys (written at once,
