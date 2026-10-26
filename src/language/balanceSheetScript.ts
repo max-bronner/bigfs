@@ -7,7 +7,7 @@
 export const BALANCE_SHEET_SCRIPT = /* js */ `
 const vscode = acquireVsCodeApi();
 const $ = (id) => document.getElementById(id);
-const LABELS = { side: 'Side', cost: 'Cost', time: 'Build time', commandPoints: 'Command points', health: 'Health', vision: 'Vision', speed: 'Speed', armor: 'Armor', weapon: 'Weapon', damage: 'Damage', range: 'Range', delay: 'Delay' };
+const LABELS = { side: 'Side', cost: 'Cost', time: 'Build time', commandPoints: 'Command points', health: 'Health', vision: 'Vision', speed: 'Speed', armor: 'Armor', weapon: 'Weapon', damage: 'Damage', range: 'Range', delay: 'Delay', dps: 'Damage/s' };
 const PAGE = 400;
 const state = { rows: [], columns: [], sort: 'name', descending: false, shown: PAGE };
 
@@ -85,7 +85,10 @@ const render = () => {
       if (cell) {
         td.textContent = cell.value;
         if (number(cell.value) !== undefined) td.classList.add('number');
-        if (cell.from) {
+        if (cell.derived) {
+          td.classList.add('derived');
+          td.title = cell.derived;
+        } else if (cell.from) {
           td.classList.add('inherited');
           td.title = 'From ' + cell.from + '; double-click to edit it there';
         } else if (cell.shared && cell.shared > 1) {
