@@ -309,6 +309,9 @@ export const registerNewObjectWizard = (
         (tokens) => tokens[0]?.text.toLowerCase() === 'displayname',
       )?.[1]?.text;
 
+    // One insert per table: several at one position are refused as overlapping
+    const records = new Map<string, { uri: vscode.Uri; text: string[] }>();
+
     for (const entry of texts) {
       const table = index.findString(entry.from ?? sourceLabel ?? '');
 
@@ -317,17 +320,20 @@ export const registerNewObjectWizard = (
         table.uri.scheme === 'file' &&
         /\.str$/i.test(table.uri.path)
       ) {
-        const document = await vscode.workspace.openTextDocument(table.uri);
-        const end = document.lineAt(document.lineCount - 1);
+        const key = table.uri.toString();
+        const record = records.get(key) ?? { uri: table.uri, text: [] };
 
-        edit.insert(
-          table.uri,
-          end.range.end,
-          (end.text ? '\n' : '') + strRecord(entry.to, entry.text, '\n'),
-        );
+        record.text.push(strRecord(entry.to, entry.text, '\n'));
+        records.set(key, record);
       } else {
         left.push(`add ${entry.to} ("${entry.text}") to your string table`);
       }
+    }
+    for (const { uri, text } of records.values()) {
+      const document = await vscode.workspace.openTextDocument(uri);
+      const end = document.lineAt(document.lineCount - 1);
+
+      edit.insert(uri, end.range.end, (end.text ? '\n' : '') + text.join(''));
     }
 
     const target = targetFor(original);
@@ -357,7 +363,9 @@ export const registerNewObjectWizard = (
       edit.insert(file, new vscode.Position(0, 0), `${text}\n`);
     }
 
-    await vscode.workspace.applyEdit(edit);
+    if (!(await vscode.workspace.applyEdit(edit))) {
+      throw new Error(`${request.name} could not be written`);
+    }
     if (left.length) {
       void vscode.window.showWarningMessage(
         `${request.name} created. Left to do: ${left.join('; ')}.`,
