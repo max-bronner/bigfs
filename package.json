@@ -211,6 +211,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.showArmorTable",
+        "title": "Armor Table",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.compareWithBaseGame",
         "title": "Compare with Base Game",
         "category": "BIG"

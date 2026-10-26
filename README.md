@@ -80,6 +80,10 @@ your mod's archives.
   button that builds the original, added to the next free slot of that
   command set. The new game text goes into the string table the original's
   comes from; what lives inside an archive is listed to do by hand.
+- **Armor Table** shows every armor against every damage type any of them
+  names, in one grid: resists tinted green, weaknesses red, a type an armor
+  does not write shown greyed from its `DEFAULT`. Typing in a cell writes
+  that armor's line, or adds it.
 - **Bulk Edit INI Values…** changes many values by one formula: pick blocks
   (`Object *Archer*`), conditions (`Side = Rohan; KindOf ~ INFANTRY`), a
   field (`ActiveBody/MaxHealth`) and a formula of `x` and the block's own
