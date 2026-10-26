@@ -50,6 +50,8 @@ export interface DrawOptions {
   /** Unit vector towards the light, usually towards the camera */
   light: Vec3;
   showBones: boolean;
+  /** False draws the bones alone */
+  showMeshes?: boolean;
 }
 
 export interface ModelRenderer {
@@ -282,7 +284,7 @@ export const createModelRenderer = (
 
   const draw = (
     viewProjection: Float32Array | number[],
-    { offset = [0, 0, 0], light, showBones }: DrawOptions,
+    { offset = [0, 0, 0], light, showBones, showMeshes = true }: DrawOptions,
   ) => {
     if (!scene) {
       return;
@@ -296,7 +298,7 @@ export const createModelRenderer = (
     gl.depthMask(true);
     gl.disable(gl.BLEND);
 
-    for (const drawable of drawables) {
+    for (const drawable of showMeshes ? drawables : []) {
       gl.uniform1i(uniform('hasTexture'), drawable.texture ? 1 : 0);
       gl.uniform1i(uniform('hasNormals'), drawable.hasNormals ? 1 : 0);
       if (drawable.texture) {

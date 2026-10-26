@@ -153,7 +153,8 @@ const handlesOf = (def: ParticleDef): Handle[] => {
 
 /** The previewed system's live instance and definition, if it is one */
 const target = () => {
-  const name = state.scene?.root.kind === 'system' ? state.scene.root.name : '';
+  const name =
+    state.scene?.root?.kind === 'system' ? state.scene.root.name : '';
   const def = library.systems.get(name.toLowerCase());
   const system = world.systems.find(
     (each) => state.roots.includes(each.id) && each.name === def?.name,

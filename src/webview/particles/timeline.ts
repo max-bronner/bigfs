@@ -30,7 +30,7 @@ let drag:
   { nugget: number; startX: number; delays: [string, number][] } | undefined;
 
 const rootList = () =>
-  state.scene?.root.kind === 'fxList'
+  state.scene?.root?.kind === 'fxList'
     ? state.scene.fxLists[state.scene.root.name.toLowerCase()]
     : undefined;
 
@@ -71,8 +71,8 @@ export const applyMuting = (): void => {
   const list = rootList();
 
   original = list;
-  if (list && state.scene) {
-    library.fxLists.set(state.scene.root.name.toLowerCase(), playedList(list));
+  if (list) {
+    library.fxLists.set(list.name.toLowerCase(), playedList(list));
   }
 };
 

@@ -82,7 +82,7 @@ export const renderFields = (scene: SceneMessage): void => {
   $<HTMLButtonElement>('apply').disabled = !changed;
   $<HTMLButtonElement>('reset').disabled = !changed;
   for (const field of scene.fields) {
-    const group = field.module || scene.root.name;
+    const group = field.module || scene.root?.name || '';
 
     groups.set(group, [...(groups.get(group) ?? []), field]);
   }

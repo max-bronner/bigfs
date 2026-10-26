@@ -5,6 +5,8 @@ import type {
 } from '../../formats/particles/particleIni';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 import type { ModelScene } from '../../formats/w3dScene';
+import type { W3dAnimation } from '../../formats/w3dAnimation';
+import type { ObjectScene, SceneFocus } from '../../language/model/objectScene';
 
 /** Messages between the particle preview and its page */
 
@@ -12,7 +14,8 @@ export interface SceneMessage {
   kind: 'scene';
   /** Whether the page starts the effect over */
   restart: boolean;
-  root: { kind: 'fxList' | 'system'; name: string; line: number };
+  /** The block the sliders edit; none when an object is previewed */
+  root?: { kind: 'fxList' | 'system'; name: string; line: number };
   /** By lowercased name */
   systems: Record<string, ParticleDef>;
   fxLists: Record<string, FxListDef>;
@@ -32,7 +35,10 @@ export type ToPage =
   | SceneMessage
   | { kind: 'notice'; message: string }
   /** A model to show the effect on, or none */
-  | { kind: 'model'; model?: { name: string; scene: ModelScene } };
+  | { kind: 'model'; model?: { name: string; scene: ModelScene } }
+  /** An object to preview, opened on what the preview was asked from */
+  | { kind: 'object'; object: ObjectScene; focus: SceneFocus }
+  | { kind: 'animation'; name: string; animation?: W3dAnimation };
 
 export type FromPage =
   | { kind: 'ready' }
@@ -43,6 +49,9 @@ export type FromPage =
   | { kind: 'compare'; on: boolean }
   | { kind: 'variant'; name?: string }
   | { kind: 'pickModel' }
+  /** By the name an object's INI writes */
+  | { kind: 'loadModel'; name: string }
+  | { kind: 'loadAnimation'; name: string }
   | { kind: 'reset' }
   | { kind: 'apply' }
   /** Rewrites every colour or alpha key at once, with the values pending */
