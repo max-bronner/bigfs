@@ -70,6 +70,32 @@ export class EntryLocator implements Disposable {
   }
 
   /**
+   * Looks on disk again for names the table says are missing, and drops
+   * the table when any is there after all. A file written into a folder
+   * created a moment before can reach disk before the watcher watches the
+   * folder, and then no event ever says it arrived. True when the table
+   * was stale.
+   */
+  public async recheck(fileNames: string[]): Promise<boolean> {
+    const names = [...new Set(fileNames)].slice(0, 20);
+
+    if (!names.length) {
+      return false;
+    }
+
+    const [found] = await workspace.findFiles(
+      names.length === 1 ? `**/${names[0]}` : `**/{${names.join(',')}}`,
+      '**/node_modules/**',
+      1,
+    );
+
+    if (found) {
+      this.allNames = undefined;
+    }
+    return !!found;
+  }
+
+  /**
    * Reads the file of this name, matched without casing, looking beside
    * `nearUri` first. Nothing when no archive or folder holds one.
    */

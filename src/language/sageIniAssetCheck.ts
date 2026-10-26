@@ -123,3 +123,33 @@ export const assetNamesToCheck = async (
 
   return shouldCheckAssets(names) ? names : undefined;
 };
+
+/**
+ * The asset warnings for one open document, looking on disk again before
+ * reporting a name missing, in case the locator never heard of the file
+ */
+export const checkedAssetDiagnostics = async (
+  parsed: SageDocument,
+  locator: EntryLocator | undefined,
+  source: string,
+): Promise<Diagnostic[]> => {
+  let names = await assetNamesToCheck(locator);
+
+  if (!names) {
+    return [];
+  }
+
+  const missing = () =>
+    findAssetReferences(parsed).filter((reference) =>
+      reference.candidates.every((candidate) => !names!.has(candidate)),
+    );
+  const first = missing();
+
+  if (
+    first.length &&
+    (await locator!.recheck(first.flatMap((reference) => reference.candidates)))
+  ) {
+    names = await locator!.fileNames();
+  }
+  return getAssetDiagnostics(parsed, names, source);
+};
