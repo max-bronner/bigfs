@@ -31,6 +31,91 @@ const headerOf = (line: string) => {
   };
 };
 
+/**
+ * Composes the template written at a line of a file with every parent it
+ * inherits from, as the game builds it. Notes say where a parent was
+ * missing or the chain stopped.
+ */
+export const composeEffective = async (
+  documents: SageIniDocuments,
+  index: SageIniIndex,
+  source: vscode.Uri,
+  line: number,
+): Promise<string | undefined> => {
+  const step = async (
+    uri: vscode.Uri,
+    at: number,
+  ): Promise<
+    (LineageStep & { parent?: string; header: string }) | undefined
+  > => {
+    const lines = (await readWorkspaceText(uri)).split(/\r?\n/);
+    const parsed = parseSageIni(lines, await documents.getSchema());
+    const block = parsed.blocks.find((each) => each.startLine === at);
+
+    if (!block) {
+      return undefined;
+    }
+
+    const header = headerOf(lines[at]);
+
+    return {
+      name: header.name,
+      lines,
+      block,
+      statements: parsed.statements,
+      parent: header.parent,
+      header: lines[at].trim(),
+    };
+  };
+  const find = async (name: string) => {
+    await index.whenReady();
+    for (const keyword of TEMPLATES) {
+      const [place] = index.findDefinitions(keyword, name);
+
+      if (place) {
+        return place;
+      }
+    }
+    return undefined;
+  };
+  const first = await step(source, line);
+
+  if (!first) {
+    return undefined;
+  }
+
+  const lineage = [first];
+  const notes: string[] = [];
+
+  for (let parent = first.parent, depth = 0; parent; depth++) {
+    if (depth >= MAX_DEPTH) {
+      notes.push(`; Stopped after ${MAX_DEPTH} parents`);
+      break;
+    }
+
+    const place = await find(parent);
+    const next = place && (await step(place.uri, place.line));
+
+    if (!next) {
+      notes.push(
+        `; ${parent} is not defined anywhere indexed: shown without it`,
+      );
+      break;
+    }
+    if (
+      lineage.some(
+        (each) => each.name.toLowerCase() === next.name.toLowerCase(),
+      )
+    ) {
+      notes.push(`; ${next.name} inherits from itself: stopped there`);
+      break;
+    }
+    lineage.unshift(next);
+    parent = next.parent;
+  }
+  return [...notes, composeLineage(lineage, first.header)].join('\n');
+};
+
 class EffectiveObjects implements vscode.TextDocumentContentProvider {
   private readonly changed = new vscode.EventEmitter<vscode.Uri>();
   public readonly onDidChange = this.changed.event;
@@ -54,82 +139,17 @@ class EffectiveObjects implements vscode.TextDocumentContentProvider {
     }
   }
 
-  /** One definition of the lineage, by where it is written */
-  private async step(
-    uri: vscode.Uri,
-    line: number,
-  ): Promise<(LineageStep & { parent?: string; header: string }) | undefined> {
-    const lines = (await readWorkspaceText(uri)).split(/\r?\n/);
-    const parsed = parseSageIni(lines, await this.documents.getSchema());
-    const block = parsed.blocks.find((each) => each.startLine === line);
-
-    if (!block) {
-      return undefined;
-    }
-
-    const header = headerOf(lines[line]);
-
-    return {
-      name: header.name,
-      lines,
-      block,
-      statements: parsed.statements,
-      parent: header.parent,
-      header: lines[line].trim(),
-    };
-  }
-
-  private async find(name: string) {
-    await this.index.whenReady();
-    for (const keyword of TEMPLATES) {
-      const [place] = this.index.findDefinitions(keyword, name);
-
-      if (place) {
-        return place;
-      }
-    }
-    return undefined;
-  }
-
   public async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
     const query = new URLSearchParams(uri.query);
-    const source = vscode.Uri.parse(query.get('uri') ?? '');
-    const first = await this.step(source, Number(query.get('line')));
 
-    if (!first) {
-      return `; ${uri.path.slice(1)} is no longer where it was`;
-    }
-
-    const lineage = [first];
-    const notes: string[] = [];
-
-    for (let parent = first.parent, depth = 0; parent; depth++) {
-      if (depth >= MAX_DEPTH) {
-        notes.push(`; Stopped after ${MAX_DEPTH} parents`);
-        break;
-      }
-
-      const place = await this.find(parent);
-      const step = place && (await this.step(place.uri, place.line));
-
-      if (!step) {
-        notes.push(
-          `; ${parent} is not defined anywhere indexed: shown without it`,
-        );
-        break;
-      }
-      if (
-        lineage.some(
-          (each) => each.name.toLowerCase() === step.name.toLowerCase(),
-        )
-      ) {
-        notes.push(`; ${step.name} inherits from itself: stopped there`);
-        break;
-      }
-      lineage.unshift(step);
-      parent = step.parent;
-    }
-    return [...notes, composeLineage(lineage, first.header)].join('\n');
+    return (
+      (await composeEffective(
+        this.documents,
+        this.index,
+        vscode.Uri.parse(query.get('uri') ?? ''),
+        Number(query.get('line')),
+      )) ?? `; ${uri.path.slice(1)} is no longer where it was`
+    );
   }
 }
 

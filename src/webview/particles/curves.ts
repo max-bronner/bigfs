@@ -105,7 +105,7 @@ const writeKeys = (kind: KeyKind, keys: Key[]) =>
   });
 
 const rootDef = () =>
-  state.scene?.root.kind === 'system'
+  state.scene?.root?.kind === 'system'
     ? library.systems.get(state.scene.root.name.toLowerCase())
     : undefined;
 

@@ -40,6 +40,7 @@
 - CommandSet editor: drag buttons between slots, clear and add.
 - Balance sheet: damage-a-second column.
 - Compare with Base Game lists INI changes definition by definition and value by value.
+- Object preview: "Preview object" and "Preview state" lenses, and "Preview on the object" on animation, FX and ParticleSysBone lines. Shows the composed object's model, plays its animations, and runs its FX and bone particle systems on it, each with a toggle.
 - One model renderer for the W3D viewer and the particle preview: the particle preview now shows the model textured and lit. Bones toggle with B.
 - W3D viewer: an animation file plays on the model drawn on its skeleton, found by name; bones stay a toggle.
 - Fix: an FX list's ParticleSystem and Sound nuggets' Name goes to its definition, finds references and is checked.

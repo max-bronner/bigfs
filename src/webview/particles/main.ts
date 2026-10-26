@@ -23,6 +23,16 @@ import {
   model,
 } from './graphics';
 import { $, library, post, state, world } from './page';
+import {
+  advanceAnimation,
+  animationLoaded,
+  attachObjectPanel,
+  bonePosition,
+  enabledEffects,
+  modelShown,
+  objectView,
+  showObject,
+} from './objectPanel';
 import { poseAt } from '../../formats/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3dPose';
 import type { ToPage } from './protocol';
@@ -44,6 +54,11 @@ if (!hasGraphics) {
     'WebGL is not available here, so nothing is drawn; the simulation still runs.';
 }
 
+/** The systems an object's effects started, with the bone each follows */
+let attached: { id: number; bone?: string }[] = [];
+
+const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+
 /** Starts the previewed block over */
 const start = () => {
   world.clear();
@@ -55,6 +70,25 @@ const start = () => {
   const scene = state.scene;
 
   if (!scene) {
+    return;
+  }
+
+  if (objectView.scene) {
+    attached = enabledEffects().flatMap((effect) => {
+      const origin = add(modelOrigin(), bonePosition(effect.bone));
+      const ids =
+        effect.kind === 'fxList'
+          ? world.fire(effect.name, origin)
+          : [world.spawn(effect.name, origin)];
+
+      return ids
+        .filter((id): id is number => id !== undefined)
+        .map((id) => ({ id, bone: effect.bone }));
+    });
+    state.roots = attached.map((each) => each.id);
+    return;
+  }
+  if (!scene.root) {
     return;
   }
 
@@ -71,8 +105,15 @@ const start = () => {
 const stepOnce = () => {
   const origin = rootOrigin();
 
-  for (const id of state.roots) {
-    world.setOrigin(id, origin);
+  if (objectView.scene) {
+    // Each effect follows the bone it is on, as the model moves and animates
+    for (const { id, bone } of attached) {
+      world.setOrigin(id, add(modelOrigin(), bonePosition(bone)));
+    }
+  } else {
+    for (const id of state.roots) {
+      world.setOrigin(id, origin);
+    }
   }
   world.step();
   sampleStats();
@@ -91,7 +132,8 @@ const draw = () => {
   model?.draw(matrix, {
     offset: modelOrigin(),
     light: basis.forward.map((value) => -value) as Vec3,
-    showBones: false,
+    showBones: !!objectView.scene && objectView.showBones,
+    showMeshes: !objectView.scene || objectView.showModel,
   });
   drawSystems(
     matrix,
@@ -122,6 +164,7 @@ const frame = (now: number) => {
   last = now;
   if (state.playing && state.scene) {
     state.accumulator += seconds * state.speed;
+    advanceAnimation(seconds * state.speed);
 
     let steps = 0;
 
@@ -184,6 +227,10 @@ const cycle = (id: string) => {
 };
 
 attachHandles();
+attachObjectPanel(
+  () => start(),
+  (pose) => model?.setPose(pose),
+);
 attachCamera(canvas);
 $('play').onclick = () => setPlaying(!state.playing);
 $('restart').onclick = () => start();
@@ -298,6 +345,14 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     $('notice').textContent = data.message;
     return;
   }
+  if (data.kind === 'object') {
+    showObject(data.object, data.focus);
+    return;
+  }
+  if (data.kind === 'animation') {
+    animationLoaded(data.name, data.animation);
+    return;
+  }
   if (data.kind === 'model') {
     const shown = data.model;
     const skeleton = shown?.scene.skeleton;
@@ -310,10 +365,14 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
         (bone, at) => new Option(bone, String(at)),
       ),
     );
-    bones.hidden = !shown;
+    bones.hidden = !shown || !!objectView.scene;
     attachment.bone = [0, 0, 0];
     attachment.hasModel = !!shown;
     $('pickModel').textContent = shown ? shown.name : 'On a model…';
+    if (objectView.scene) {
+      modelShown(skeleton);
+      return;
+    }
     start();
     return;
   }
@@ -324,8 +383,10 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   library.systems = new Map(Object.entries(data.systems));
   library.fxLists = new Map(Object.entries(data.fxLists));
   loadTextures(data.textures);
-  $('title').textContent =
-    (data.root.kind === 'fxList' ? 'FX list ' : '') + data.root.name;
+  if (data.root) {
+    $('title').textContent =
+      (data.root.kind === 'fxList' ? 'FX list ' : '') + data.root.name;
+  }
   $('notice').textContent = '';
   $('notes').replaceChildren(
     ...data.notes.map((note) => {
@@ -343,7 +404,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   renderCurves();
   renderTimeline(start);
   if (first) {
-    const def = library.systems.get(data.root.name.toLowerCase());
+    const def = data.root && library.systems.get(data.root.name.toLowerCase());
 
     state.distance = def ? reach(def) * 2.2 : 260;
     state.target = [0, 0, def ? Math.min(80, reach(def) / 3) : 20];

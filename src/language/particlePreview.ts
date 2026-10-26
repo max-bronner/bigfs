@@ -7,7 +7,6 @@ import {
   numericFields,
   readFxList,
   readParticleDef,
-  referencedNames,
   valueEdits,
 } from '../formats/particles/particleIni';
 import type {
@@ -15,7 +14,6 @@ import type {
   IniDefinition,
   ParticleDef,
 } from '../formats/particles/particleIni';
-import { encodePng } from '../formats/textureEncode';
 import { keyEdits } from '../formats/particles/particleKeys';
 import type { ModelScene } from '../formats/w3dScene';
 import { buildW3dScene } from '../formats/w3dScene';
@@ -23,8 +21,8 @@ import { createToolRegistry } from '../tools/toolRegistry';
 import { duplicateDefinition } from './model/duplicateDefinition';
 import type { KeyKind, KeyValue } from '../formats/particles/particleKeys';
 import { webviewPage } from '../providers/webviewPage';
-import { decodeDds, decodeTga } from '../tools/textureTools';
 import type { SageIniIndex } from './sageIniIndex';
+import { EffectLibrary } from './effectLibrary';
 
 /**
  * The particle preview: a "Preview" lens on every `FXParticleSystem`,
@@ -33,8 +31,6 @@ import type { SageIniIndex } from './sageIniIndex';
  * one changes the running preview only, until "Apply to INI" writes the
  * values back as one edit. Typing in the block updates the preview too.
  */
-
-const MAX_REFERENCES = 64;
 
 const findDefinitionAt = (
   definitions: IniDefinition[],
@@ -49,7 +45,7 @@ class ParticlePreview {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly values = new Map<string, number>();
-  private readonly textures = new Map<string, Promise<string | null>>();
+  private readonly library: EffectLibrary;
   private readonly disposables: vscode.Disposable[] = [];
   private restartNext = true;
   /** Showing the block as written, slider values held back, to compare */
@@ -108,6 +104,7 @@ class ParticlePreview {
     private readonly name: string,
     key: string,
   ) {
+    this.library = new EffectLibrary(index, locator, uri);
     const scripts = vscode.Uri.joinPath(
       context.extensionUri,
       'dist',
@@ -427,66 +424,6 @@ class ParticlePreview {
     return budgets.sort((a, b) => a.max - b.max);
   }
 
-  /** Finds a referenced definition: this file first, then everything indexed */
-  private async lookUp(
-    name: string,
-    keywords: string[],
-    localText: string,
-  ): Promise<IniDefinition | undefined> {
-    const local = findParticleDefinitions(localText).find(
-      (definition) =>
-        definition.name.toLowerCase() === name.toLowerCase() &&
-        keywords.includes(definition.keyword),
-    );
-
-    if (local) {
-      return local;
-    }
-    for (const keyword of keywords) {
-      for (const place of this.index.findDefinitions(keyword, name)) {
-        const found = findParticleDefinitions(
-          await readWorkspaceText(place.uri),
-        ).find(
-          (definition) =>
-            definition.keyword === keyword &&
-            definition.name.toLowerCase() === name.toLowerCase(),
-        );
-
-        if (found) {
-          return found;
-        }
-      }
-    }
-    return undefined;
-  }
-
-  private texture(name: string): Promise<string | null> {
-    const key = name.toLowerCase();
-    let entry = this.textures.get(key);
-
-    if (!entry) {
-      entry = (async () => {
-        if (!this.locator) {
-          return null;
-        }
-        for (const candidate of [name.replace(/\.[^.]*$/, '.dds'), name]) {
-          const bytes = await this.locator.read(candidate, this.uri);
-
-          if (bytes) {
-            const image = (
-              /\.dds$/i.test(candidate) ? decodeDds(bytes) : decodeTga(bytes)
-            ).levels[0];
-
-            return `data:image/png;base64,${Buffer.from(encodePng(image)).toString('base64')}`;
-          }
-        }
-        return null;
-      })().catch(() => null);
-      this.textures.set(key, entry);
-    }
-    return entry;
-  }
-
   private async send(): Promise<void> {
     await this.index.whenReady();
 
@@ -507,93 +444,16 @@ class ParticlePreview {
     const definition = findParticleDefinitions(text).find(
       (candidate) => candidate.startLine === root.definition.startLine,
     )!;
-    const systems: Record<string, ParticleDef> = {};
-    const fxLists: Record<string, FxListDef> = {};
-    const notes = new Set<string>();
-    const queue: { name: string; list: boolean }[] = [];
-    const visit = (def: ParticleDef | FxListDef) => {
-      const { systems: names, fxLists: lists } = referencedNames(def);
-
-      names.forEach((name) => queue.push({ name, list: false }));
-      lists.forEach((name) => queue.push({ name, list: true }));
-    };
-
-    if (definition.keyword === 'FXList') {
-      const list = readFxList(definition);
-
-      fxLists[list.name.toLowerCase()] = list;
-      visit(list);
-    } else {
-      const def = readParticleDef(definition);
-
-      systems[def.name.toLowerCase()] = def;
-      visit(def);
-    }
-
-    for (let count = 0; queue.length && count < MAX_REFERENCES; count++) {
-      const next = queue.shift()!;
-      const table = next.list ? fxLists : systems;
-
-      if (table[next.name.toLowerCase()]) {
-        continue;
-      }
-
-      // Reading (i) of particles.md §2c: the block form wins over the flat
-      const found = await this.lookUp(
-        next.name,
-        next.list ? ['FXList'] : ['FXParticleSystem', 'ParticleSystem'],
-        text,
-      );
-
-      if (!found) {
-        notes.add(
-          `${next.list ? 'FX list' : 'Particle system'} ${next.name} was not found`,
-        );
-        continue;
-      }
-
-      const def = next.list ? readFxList(found) : readParticleDef(found);
-
-      table[next.name.toLowerCase()] = def as ParticleDef & FxListDef;
-      visit(def);
-    }
-
-    for (const list of Object.values(fxLists)) {
-      if (list.skipped.length) {
-        notes.add(
-          `${list.name}: ${list.skipped.join(', ')} not previewed; only ParticleSystem nuggets play`,
-        );
-      }
-    }
-
-    const textures: Record<string, string | null> = {};
-
-    for (const def of Object.values(systems)) {
-      if (def.type === 'DRAWABLE') {
-        notes.add(
-          `${def.name} draws the model ${def.particleName ?? '?'}; shown as markers`,
-        );
-        continue;
-      }
-      if (def.type === 'STREAK') {
-        notes.add(`${def.name} is a streak; shown as sprites`);
-      }
-      if (def.volume.type === 'unread') {
-        notes.add(
-          `${def.name}: ${def.volume.module} emits from its centre here`,
-        );
-      }
-      if (def.particleName) {
-        const texture = await this.texture(def.particleName);
-
-        textures[def.particleName.toLowerCase()] = texture;
-        if (!texture) {
-          notes.add(
-            `Texture ${def.particleName} was not found; a soft dot stands in`,
-          );
-        }
-      }
-    }
+    const previewed = (
+      definition.keyword === 'FXList'
+        ? readFxList(definition)
+        : readParticleDef(definition)
+    ) as ParticleDef | FxListDef;
+    const { systems, fxLists, textures, notes } = await this.library.collect(
+      [previewed],
+      [],
+      text,
+    );
 
     this.lastScene = {
       kind: 'scene',
@@ -606,7 +466,7 @@ class ParticlePreview {
       systems,
       fxLists,
       textures,
-      notes: [...notes],
+      notes,
       fields: numericFields(root.definition),
       values: Object.fromEntries(this.values),
       comparing: this.comparing,
@@ -663,6 +523,12 @@ kbd { font-size: 10px; opacity: 0.7; }
 <div id="view"><canvas id="canvas"></canvas><canvas id="handles"></canvas><div id="hud"></div></div>
 <div id="side">
   <div class="row"><strong id="title"></strong></div>
+  <div id="object" hidden>
+    <div class="row">State <select id="objectState"></select></div>
+    <div class="row">Animation <select id="objectAnimation"></select></div>
+    <div id="objectElements"></div>
+    <div id="objectNotice" class="muted"></div>
+  </div>
   <div class="row">
     <button id="play" title="Space">Pause</button>
     <button id="restart" title="R">Restart</button>
@@ -694,15 +560,17 @@ kbd { font-size: 10px; opacity: 0.7; }
   <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · <kbd>B</kbd> as written or with changes · drag the yellow handles to size the emission volume · drag to orbit, right-drag to pan, wheel to zoom</div>
   <div id="notice"></div>
   <div id="notes"></div>
-  <div id="timeline"></div>
-  <div id="curves"></div>
   <h3>Load</h3>
   <div id="stats"></div>
+  <div id="editing">
+  <div id="timeline"></div>
+  <div id="curves"></div>
   <h3>Values <span class="muted">preview only until applied</span></h3>
   <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
   <div class="row" title="Scales every length, speed and duration together, so the effect stays the same effect: previewed until applied">Scale: size × <input id="scaleSpace" type="number" value="1" step="0.1" min="0.05"> time × <input id="scaleTime" type="number" value="1" step="0.1" min="0.05"> <button id="scale">Scale</button></div>
   <div class="row"><button id="compare" title="B: show the block as written, then with the values here, to compare">A/B: as written</button> <button id="vary" title="Nudge every value up to the amount either way, to try variations">Vary ±</button><input id="varyAmount" type="number" value="15" step="5" min="1">% <button id="variant" title="Write the values here as a new system after this one; this one keeps its values">Save as variant…</button></div>
   <div id="fields"></div>
+  </div>
 </div>
 </div>`,
   });
