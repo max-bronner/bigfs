@@ -221,6 +221,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.checkTranslations",
+        "title": "Check Translations",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.launchGame",
         "title": "Launch Game with Mod",
         "category": "BIG",
