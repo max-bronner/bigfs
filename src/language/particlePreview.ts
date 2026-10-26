@@ -17,6 +17,7 @@ import type {
 } from '../formats/particles/particleIni';
 import { encodePng } from '../formats/textureEncode';
 import { keyEdits } from '../formats/particles/particleKeys';
+import { duplicateDefinition } from './model/duplicateDefinition';
 import type { KeyKind, KeyValue } from '../formats/particles/particleKeys';
 import { webviewPage } from '../providers/webviewPage';
 import { decodeDds, decodeTga } from '../tools/textureTools';
@@ -48,6 +49,8 @@ class ParticlePreview {
   private readonly textures = new Map<string, Promise<string | null>>();
   private readonly disposables: vscode.Disposable[] = [];
   private restartNext = true;
+  /** Showing the block as written, slider values held back, to compare */
+  private comparing = false;
   private updating: Promise<void> = Promise.resolve();
   /** Whether an update is waiting; slider drags coalesce into it */
   private queued = false;
@@ -156,6 +159,8 @@ class ParticlePreview {
     particles?: number;
     keyKind?: KeyKind;
     values?: Record<string, number>;
+    on?: boolean;
+    name?: string;
     keys?: KeyValue[];
   }): Promise<void> {
     switch (message?.kind) {
@@ -182,6 +187,14 @@ class ParticlePreview {
           }
         }
         this.update();
+        break;
+      case 'compare':
+        this.comparing = !!message.on;
+        this.restartNext = true;
+        this.update();
+        break;
+      case 'variant':
+        await this.saveVariant(message.name);
         break;
       case 'reset':
         this.values.clear();
@@ -266,6 +279,58 @@ class ParticlePreview {
     }
     this.values.clear();
     await vscode.workspace.applyEdit(edit);
+  }
+
+  /**
+   * Writes the block, with its slider values, as a new definition after
+   * it, and leaves the block itself as it was: a variant to keep
+   */
+  private async saveVariant(given?: string): Promise<void> {
+    const root = await this.rootDefinition();
+
+    if (!root) {
+      return;
+    }
+
+    const name =
+      given ??
+      (await vscode.window.showInputBox({
+        prompt: `Name of the variant of ${this.name}, with the values in the preview`,
+        value: `${this.name}_Variant`,
+        validateInput: (value) =>
+          /^[A-Za-z0-9_]+$/.test(value)
+            ? undefined
+            : 'One word: letters, digits and _',
+      }));
+
+    if (!name) {
+      return;
+    }
+
+    const lines = applyValueEdits(
+      root.text,
+      valueEdits(root.definition, this.values),
+    ).split(/\r?\n/);
+    const copy = duplicateDefinition(
+      lines,
+      root.definition.startLine,
+      root.definition.endLine,
+      name,
+    );
+    const document = await vscode.workspace.openTextDocument(this.uri);
+    const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+    const edit = new vscode.WorkspaceEdit();
+
+    edit.insert(
+      this.uri,
+      document.lineAt(root.definition.endLine).range.end,
+      `${eol}${eol}${copy.lines.join(eol)}`,
+    );
+    this.values.clear();
+    await vscode.workspace.applyEdit(edit);
+    void vscode.window.showInformationMessage(
+      `${name} written after ${this.name}; ${this.name} keeps its values`,
+    );
   }
 
   private update(): void {
@@ -388,10 +453,9 @@ class ParticlePreview {
     }
 
     // Slider values are previewed on a copy of the text, never written
-    const text = applyValueEdits(
-      root.text,
-      valueEdits(root.definition, this.values),
-    );
+    const text = this.comparing
+      ? root.text
+      : applyValueEdits(root.text, valueEdits(root.definition, this.values));
     const definition = findParticleDefinitions(text).find(
       (candidate) => candidate.startLine === root.definition.startLine,
     )!;
@@ -497,6 +561,7 @@ class ParticlePreview {
       notes: [...notes],
       fields: numericFields(root.definition),
       values: Object.fromEntries(this.values),
+      comparing: this.comparing,
       budgets: await this.particleBudgets(),
     };
     await this.panel.webview.postMessage(this.lastScene);
@@ -525,7 +590,8 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 .field label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .field.changed label { color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d); font-weight: 600; }
 .field input[type=number] { width: 60px; }
-#scaleSpace, #scaleTime { width: 52px; }
+#scaleSpace, #scaleTime, #varyAmount { width: 52px; }
+button.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .field input[type=range] { width: 100%; }
 #handles { position: absolute; inset: 0; pointer-events: none; cursor: default; }
 #notes div { opacity: 0.8; margin: 2px 0; }
@@ -576,7 +642,7 @@ kbd { font-size: 10px; opacity: 0.7; }
     <label><input type="checkbox" id="compound" checked> Attached systems and events</label>
     <label><input type="checkbox" id="batchLimit" checked> 512 per system</label>
   </div>
-  <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · drag the yellow handles to size the emission volume · drag to orbit, right-drag to pan, wheel to zoom</div>
+  <div class="row muted"><kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>.</kbd> step · <kbd>W</kbd> wind · <kbd>H</kbd> hollow box · <kbd>B</kbd> as written or with changes · drag the yellow handles to size the emission volume · drag to orbit, right-drag to pan, wheel to zoom</div>
   <div id="notice"></div>
   <div id="notes"></div>
   <div id="timeline"></div>
@@ -586,6 +652,7 @@ kbd { font-size: 10px; opacity: 0.7; }
   <h3>Values <span class="muted">preview only until applied</span></h3>
   <div class="row"><button id="apply" class="primary" disabled>Apply to INI</button><button id="reset" disabled>Reset</button></div>
   <div class="row" title="Scales every length, speed and duration together, so the effect stays the same effect: previewed until applied">Scale: size × <input id="scaleSpace" type="number" value="1" step="0.1" min="0.05"> time × <input id="scaleTime" type="number" value="1" step="0.1" min="0.05"> <button id="scale">Scale</button></div>
+  <div class="row"><button id="compare" title="B: show the block as written, then with the values here, to compare">A/B: as written</button> <button id="vary" title="Nudge every value up to the amount either way, to try variations">Vary ±</button><input id="varyAmount" type="number" value="15" step="5" min="1">% <button id="variant" title="Write the values here as a new system after this one; this one keeps its values">Save as variant…</button></div>
   <div id="fields"></div>
 </div>
 </div>`,
