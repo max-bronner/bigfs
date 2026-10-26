@@ -25,6 +25,9 @@ const MAX_SAMPLES = 600;
 const MARGIN = 16;
 const LOG_LINES = 8;
 
+/** Frames a second the game plays a movie at, which speed 1 is */
+const FRAME_RATE = 30;
+
 /** The modes the stage draws in; each has a hotkey and is printed on change */
 export const view = {
   origin: true,
@@ -35,7 +38,8 @@ export const view = {
   scripts: true,
   interact: false,
   playing: false,
-  fps: 30,
+  /** Playback speed: 1 is the game's 30 frames a second */
+  speed: 1,
 };
 
 const stage = byId<HTMLCanvasElement>('stage');
@@ -207,7 +211,9 @@ const formatRect = ([left, top, right, bottom]: Rect) =>
 export const showMode = (): void => {
   modeLabel.textContent = [
     view.interact ? 'interact' : 'inspect',
-    view.playing ? `playing at ${view.fps} fps` : 'paused',
+    view.playing
+      ? `playing at ${view.speed}× (${Math.round(FRAME_RATE * view.speed * 10) / 10} frames/s)`
+      : `paused at ${view.speed}×`,
     `origin ${view.origin ? 'on' : 'off'}`,
     `boxes ${view.boxes ? 'on' : 'off'}`,
     `scripts ${view.scripts ? 'on' : 'off'}`,
@@ -616,7 +622,10 @@ const loop = (time: number) => {
     return;
   }
 
-  owed += lastTime === undefined ? 0 : ((time - lastTime) / 1000) * view.fps;
+  owed +=
+    lastTime === undefined
+      ? 0
+      : ((time - lastTime) / 1000) * FRAME_RATE * view.speed;
   lastTime = time;
 
   // A tab that was hidden owes many frames; catch up at most a few
