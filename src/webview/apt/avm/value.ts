@@ -69,6 +69,11 @@ export interface StageHost {
   remove(clip: Instance): void;
   /** The machine finished its outermost script: what it queued may run */
   idle(): void;
+  /**
+   * `loadMovie`/`unloadMovie`: the movie a URL names into a clip, or into a
+   * level (a number); no URL empties it
+   */
+  loadMovie(into: Instance | number, url: string | undefined): void;
   readonly root: Instance;
 }
 

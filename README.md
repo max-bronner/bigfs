@@ -266,6 +266,13 @@ your mod's archives.
   `.const` and `.dat` are read from its own archive first, whatever their
   casing there, and imports resolve in the game's load order (mod, ROTWK,
   BFME II).
+- Movies a script loads (`loadMovie`, `loadMovieNum`, `unloadMovie`,
+  `getURL` to a clip or level) are found in the game's load order like an
+  import (`.apt` and `.const`) and play inside the target clip or level; one
+  that cannot be found or read is a line in the log. Sounds a movie asks for
+  (`FSCommand:PlaySound`) are listed in the Engine panel with a play button;
+  the **Play movie sounds** checkbox, off at every start, lets them play as
+  the movie asks.
 - ActionScript as a small JavaScript-like language, editable and compiled
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,

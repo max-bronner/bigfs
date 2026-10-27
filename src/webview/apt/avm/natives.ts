@@ -306,6 +306,22 @@ export const installNatives = (vm: Vm): void => {
     }
     return undefined;
   });
+  method(protos.movieClip, 'loadMovie', (_, self, args) => {
+    const at = clip(self);
+
+    if (at) {
+      vm.loadMovie(at, vm.string(arg(args, 0)));
+    }
+    return undefined;
+  });
+  method(protos.movieClip, 'unloadMovie', (_, self) => {
+    const at = clip(self);
+
+    if (at) {
+      vm.loadMovie(at, '');
+    }
+    return undefined;
+  });
   method(protos.movieClip, 'swapDepths', (_, self, args) => {
     const at = clip(self);
     const parent = at?.parent;
@@ -749,6 +765,16 @@ export const installNatives = (vm: Vm): void => {
   );
   method(global, 'escape', (_, __, args) => vm.string(arg(args, 0)));
   method(global, 'unescape', (_, __, args) => vm.string(arg(args, 0)));
+  // The level forms; `loadMovie(url, target)` as a statement is `GetUrl2`,
+  // and called as a method it is the clip's own
+  method(global, 'loadMovieNum', (_, __, args) => {
+    vm.loadMovie(toInt32(arg(args, 1)), vm.string(arg(args, 0)));
+    return undefined;
+  });
+  method(global, 'unloadMovieNum', (_, __, args) => {
+    vm.loadMovie(toInt32(arg(args, 0)), '');
+    return undefined;
+  });
   method(global, 'setInterval', (_, __, args) => {
     // setInterval(fn, ms, ...) or setInterval(object, "method", ms, ...)
     if (typeof args[1] === 'string' && args[0] instanceof AsObject) {

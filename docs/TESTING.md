@@ -266,10 +266,28 @@ Open an `.apt` (with its `.const` beside it).
 - [ ] Palantir check: open `palantir.apt`, call `SetPlayerFaction` with the
   faction name the movie's labels use, and see the matching art; play with
   the values it lists.
+- [ ] **new** Movies a script loads play in place (ported from mint's
+  apt-player `load.rs`). Open a movie whose script calls `loadMovie`,
+  `loadMovieNum`, `unloadMovie` or `getURL` with a clip or level target (the
+  retail in-game hero select does, into a slot of the palantir) with the
+  movie's install in the workspace. The loaded movie (its `.apt` and
+  `.const` found in the load order, like imports) replaces the clip's
+  content and plays from frame 0; a level (`_level1`) shows above the
+  movie; `unloadMovie` leaves the clip empty. The log under the stage names
+  each load. A movie no install holds, or one that does not read, shows
+  `loadMovie: <name> not loaded: <reason>` and nothing throws.
+- [ ] **new** Movie sounds (ported from mint's apt-player/`expose.rs`). In
+  the Engine panel, **Sounds the movie asks for** lists each event a
+  `FSCommand:PlaySound` (or `GameCode` with a `PlaySound` command) asked
+  for, with a count and a **▶ Play** button that plays it through the sound
+  player. The log shows `movie sound: <event> (not played, Play movie sounds
+  is off)`. Tick **Play movie sounds** and hover the menu's buttons: each
+  sound plays as it is asked. The box is off every time the editor is
+  opened and is not remembered.
 - Known gaps: pointer events on plain clips (`onPress` on a sprite) are not
   delivered, only on buttons; `Color`, drag, `hitTest` and `localToGlobal`
-  do nothing; the imported library movies' code runs, but nothing loads a
-  movie a script asks for by URL.
+  do nothing; a movie loaded into `_level0` is refused, and a mounted
+  movie's own `onLoad` clip events do not run.
 
 ## Game language (new)
 

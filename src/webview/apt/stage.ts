@@ -1,4 +1,5 @@
 import { engine, onEngineLog, watchMovie } from "./engineState";
+import { fetchMovie } from "./movieLoads";
 import type { Rect } from "../../formats/apt/aptMovie";
 import { byId } from "./dom";
 import { maskArea, paintLeaf } from "./paint";
@@ -134,6 +135,7 @@ const newPlayer = (rootScripts: boolean, logged: boolean) => {
     rootScripts,
     log: logged ? addLog : undefined,
     engine: logged ? engine : undefined,
+    fetchMovie: logged ? fetchMovie : undefined,
   });
 };
 
