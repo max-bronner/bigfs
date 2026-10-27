@@ -249,6 +249,24 @@ Open an `.apt` (with its `.const` beside it).
   do nothing; the imported library movies' code runs, but nothing loads a
   movie a script asks for by URL.
 
+## Game language (new)
+
+- [ ] **new** With one `lang/<Language>.big` installed, hover a `DisplayName =
+  OBJECT:...` value: the text is that language's, and nothing is asked.
+- [ ] **new** With two or more installed (and `bigfs.language` on `auto`),
+  the first run shows one quick pick listing them. Reload: it does not ask
+  again. `*Audio.big` archives are not listed.
+- [ ] **new** **bigFS: Choose Game Language** switches the language; hovers,
+  the WND preview (reopen it) and APT `$KEY` text follow. Setting
+  `bigfs.language` to `German` (say) picks it without asking.
+- [ ] **new** In an APT movie, a `$KEY` text field shows the string table's
+  `APT:key` text (else `key`); an absent key shows `MISSING: 'APT:key'`, and
+  `&dropShadow` is not shown.
+- [ ] **new** Type an override in the Engine panel, close the movie and the
+  window, reopen: the override is back. A different movie has its own.
+- [ ] **new** A movie inside an archive opens with its `.const` and `.dat`
+  from that archive even where their names differ in casing.
+
 ## String tables, layouts, maps
 
 - [ ] `.str` language (outline, folding, problems) and **Open as Table**;

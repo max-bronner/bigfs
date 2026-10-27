@@ -4,6 +4,7 @@ import type { AptEdit } from '../../formats/apt/aptWriter';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import type { Problem } from '../../formats/apt/aptIntegrity';
+import type { EngineValues } from './avm/engine';
 
 /**
  * The messages between the APT editor and its page. Shared by both sides,
@@ -52,6 +53,13 @@ export type ToPage =
       unresolved: string[];
       /** Where each movie reached through imports was loaded from */
       origins: Record<string, string>;
+      /**
+       * Each `$KEY` string the movies hold as the game's language reads it,
+       * by lowercased key as written; none when no string table is loaded
+       */
+      texts?: Record<string, string>;
+      /** The Engine panel's answers kept for this movie in the workspace */
+      answers?: EngineValues;
     }
   | { kind: 'select'; character: number }
   /** What the integrity check found in the movie and the files beside it */
@@ -70,6 +78,8 @@ export type ToPage =
 export type FromPage =
   | { kind: 'ready' }
   | { kind: 'script'; block: number }
+  /** The Engine panel's answers for the shown movie, to keep in the workspace */
+  | { kind: 'engineAnswers'; values: EngineValues }
   | { kind: 'edit'; edit: AptEdit }
   | { kind: 'scriptEdit'; block: number; text: string }
   | { kind: 'openGeometry'; geometry: number }

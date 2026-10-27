@@ -1,4 +1,5 @@
 import type { Character } from '../../formats/apt/aptMovie';
+import { localise } from './gameText';
 import { UNRESOLVED, localBounds, textureOf } from './scene';
 import type { Leaf } from './scene';
 import { isPlainColor, type ColorTransform } from './timeline';
@@ -82,16 +83,18 @@ export const fontStack = (name?: string): string =>
     .join(', ');
 
 /**
- * The text a field shows. The one place the string comes from, so that
- * resolving `$KEY` strings against a language can hook in here later.
+ * The text a field shows. The one place the string comes from: a `$KEY`
+ * string is read in the game's language here.
  */
 export const textOf = (
   leaf: Pick<Leaf, 'text'>,
   character: Extract<Character, { type: 'editText' }>,
 ): string =>
-  leaf.text ??
-  character.text ??
-  (character.variable ? '{' + character.variable + '}' : '');
+  localise(
+    leaf.text ??
+      character.text ??
+      (character.variable ? '{' + character.variable + '}' : ''),
+  );
 
 /** Breaks text at `\r`, `\r\n` and `\n`, then at spaces so no line is wider than `width` */
 export const wrapLines = (

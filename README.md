@@ -244,6 +244,12 @@ your mod's archives.
 - Create whole new movies (**New APT Movie…** on a folder): an `.apt`,
   `.const` and `.dat` with exported empty sprites, ready for a root movie to
   import with **Add import** in its movie panel.
+- Text fields written as `$KEY` show the game's text: `APT:key` is tried,
+  then `key`, and a key neither has shows `MISSING: 'APT:key'` as the game
+  does; a trailing `&dropShadow` is style and not shown. A movie's own
+  `.const` and `.dat` are read from its own archive first, whatever their
+  casing there, and imports resolve in the game's load order (mod, ROTWK,
+  BFME II).
 - ActionScript as a small JavaScript-like language, editable and compiled
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,
@@ -279,6 +285,17 @@ your mod's archives.
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens
   it in the tween form with its easing, to change it as one tween.
+
+## Game language
+
+A game's languages are the `lang/<Language>.big` archives of its install
+(`English.big`, ...); the `*Audio.big` ones hold speech and are ignored. Each
+holds its own string table. **bigFS: Choose Game Language** picks which one
+labels resolve against, and the `bigfs.language` setting (default `auto`)
+names it directly. With `auto`, the only installed language is used; when
+several are installed, bigFS asks once and remembers the answer for the
+workspace. The language applies to INI `DisplayName` hovers, APT `$KEY` text
+and the WND preview's text.
 
 ## Development
 

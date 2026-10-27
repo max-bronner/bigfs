@@ -15,6 +15,7 @@ import { registerClipboardCommands } from './commands/clipboardCommands';
 import { registerModCommands } from './commands/modCommands';
 import { createToolRegistry } from './tools/toolRegistry';
 import { createFormatRegistry } from './formats/formatRegistry';
+import { GameLanguage } from './language/gameLanguage';
 import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { registerSageStrLanguage } from './language/sageStrLanguage';
 import { registerSageWndLanguage } from './language/sageWndLanguage';
@@ -74,18 +75,42 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     locator,
     PreviewEditorProvider.register(tools, locator, context.extensionUri),
+    MapEditorProvider.register(),
+  );
+
+  const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
+  const gameLanguage = new GameLanguage(
+    archiveModel,
+    context.workspaceState,
+    iniIndex,
+  );
+
+  context.subscriptions.push(
+    gameLanguage,
+    vscode.commands.registerCommand(`${SCHEME}.chooseLanguage`, () =>
+      gameLanguage.choose(),
+    ),
     AptEditorProvider.register(
       tools,
       locator,
       archiveModel,
       context.extensionUri,
+      { gameLanguage, index: iniIndex, state: context.workspaceState },
     ),
-    MapEditorProvider.register(),
   );
 
-  const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
+  // Settled once the archives are indexed, so hovers and diagnostics read
+  // text in the chosen language; asks only when several are installed
+  void archiveModel
+    .whenReady()
+    .then(() => gameLanguage.ensure())
+    .catch((error: unknown) => log.error('Failed to settle language', error));
   registerSageStrLanguage(context);
-  registerSageWndLanguage(context, { index: iniIndex, locator });
+  registerSageWndLanguage(context, {
+    index: iniIndex,
+    locator,
+    gameLanguage,
+  });
   registerTextureCommands(context);
   registerAptCommands(context);
   context.subscriptions.push(registerW3dAnimationCommands());

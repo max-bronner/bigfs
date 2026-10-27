@@ -9,6 +9,7 @@ import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './model/sageIniSchema';
 import type { SageIniSchema } from './model/sageIniSchema';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { referencedNames } from './model/sageAudioValues';
+import { languageOfArchive } from './model/gameLanguage';
 import { findString, parseStringTable } from './model/sageStringTable';
 import type { SageString } from './model/sageStringTable';
 import { decodeWindows1252 } from '../common/windows1252';
@@ -66,6 +67,8 @@ export interface SageMacro {
 /** A string table record and the file that holds it */
 export interface SageStringPlace extends SageString {
   uri: Uri;
+  /** The language of the `lang/<Language>.big` it came from; none for a loose file */
+  language?: string;
 }
 
 /**
@@ -179,8 +182,12 @@ export class SageIniIndex implements Disposable {
    */
   private constantUses = new Map<string, SageReference[]>();
 
-  /** Every string table record, by lowercased label */
-  private strings = new Map<string, SageStringPlace>();
+  /** Every string table record of every language, by lowercased label, in load order */
+  private strings = new Map<string, SageStringPlace[]>();
+
+  /** The records of the chosen language, built when first asked for */
+  private activeStrings?: Map<string, SageStringPlace>;
+  private language?: string;
 
   /** Archives and loose files already read, by key, so a rescan only does the new ones */
   private indexed = new Set<string>();
@@ -232,6 +239,7 @@ export class SageIniIndex implements Disposable {
     this.macros.clear();
     this.constantUses.clear();
     this.strings.clear();
+    this.activeStrings = undefined;
     this.indexed.clear();
   }
 
@@ -249,12 +257,47 @@ export class SageIniIndex implements Disposable {
    * `DisplayName = OBJECT:GondorFighter` shows, if it names one
    */
   public findString(value: string): SageStringPlace | undefined {
-    return findString(this.strings, value) as SageStringPlace | undefined;
+    return findString(this.activeTable(), value) as SageStringPlace | undefined;
   }
 
-  /** How many string table records are indexed */
+  /** How many string table records are indexed in the chosen language */
   public get stringCount(): number {
-    return this.strings.size;
+    return this.activeTable().size;
+  }
+
+  /**
+   * Picks the language game text is read in. Records from a language archive
+   * of another language stop answering; loose tables answer in every one.
+   */
+  public setLanguage(language: string | undefined): void {
+    if (language !== this.language) {
+      this.language = language;
+      this.activeStrings = undefined;
+    }
+  }
+
+  /**
+   * One record per label: the first in load order that is in the chosen
+   * language, a map's own table only when the main tables have none
+   */
+  private activeTable(): Map<string, SageStringPlace> {
+    if (!this.activeStrings) {
+      const table = new Map<string, SageStringPlace>();
+
+      for (const [key, places] of this.strings) {
+        const usable = places.filter(
+          (place) => !place.language || place.language === this.language,
+        );
+        const chosen =
+          usable.find((place) => !isMapStringTable(place.uri)) ?? usable[0];
+
+        if (chosen) {
+          table.set(key, chosen);
+        }
+      }
+      this.activeStrings = table;
+    }
+    return this.activeStrings;
   }
 
   /** Every place a macro is used, which is what find references answers with */
@@ -379,7 +422,8 @@ export class SageIniIndex implements Disposable {
     purgeNamespaced(this.references, rootKey);
     purgeOne(this.macros, rootKey);
     purgeList(this.constantUses, rootKey);
-    purgeOne(this.strings, rootKey);
+    purgeList(this.strings, rootKey);
+    this.activeStrings = undefined;
   }
 
   private async build(): Promise<void> {
@@ -450,22 +494,26 @@ export class SageIniIndex implements Disposable {
     await this.archiveModel.readFiles(
       entries.map((node) => ({ node })),
       async ({ node }, content) => {
-        this.indexContent(getNodeUri(node), node.entryPath, content, schema);
+        this.indexContent(
+          getNodeUri(node),
+          node.entryPath,
+          content,
+          schema,
+          languageOfArchive(root.archive.archivePath),
+        );
       },
     );
   }
 
   /** Records the records of one string table, behind the main table's */
-  private indexStrings(uri: Uri, text: string): void {
-    const isMapTable = isMapStringTable(uri);
-
+  private indexStrings(uri: Uri, text: string, language?: string): void {
     for (const [key, record] of parseStringTable(text)) {
-      const existing = this.strings.get(key);
-
-      if (!existing || (isMapStringTable(existing.uri) && !isMapTable)) {
-        this.strings.set(key, { ...record, uri });
-      }
+      this.strings.set(key, [
+        ...(this.strings.get(key) ?? []),
+        { ...record, uri, language },
+      ]);
     }
+    this.activeStrings = undefined;
   }
 
   /** Records the definitions, macros and references of one file */
@@ -474,13 +522,14 @@ export class SageIniIndex implements Disposable {
     entryPath: string,
     content: Uint8Array,
     schema: SageIniSchema,
+    language?: string,
   ): void {
     // The WHATWG `latin1` decoder is Windows-1252, which is what the text in
     // the string tables means: 0x92 is an apostrophe there
     const text = decodeWindows1252(content);
 
     if (entryPath.toLowerCase().endsWith('.str')) {
-      this.indexStrings(uri, text);
+      this.indexStrings(uri, text, language);
       return;
     }
 

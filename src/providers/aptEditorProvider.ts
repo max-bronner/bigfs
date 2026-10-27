@@ -24,7 +24,7 @@ import { AptScripts } from './aptScripts';
 import { checkMovie } from '../formats/apt/aptIntegrity';
 import { referencesTo } from '../formats/apt/aptManage';
 import type { Problem } from '../formats/apt/aptIntegrity';
-import { movieAccess, workspaceMovies } from './aptAccess';
+import { findBeside, movieAccess, workspaceMovies } from './aptAccess';
 import { deleteMovie, renameMovie } from './aptMovieFiles';
 import type { MovieHost } from './aptMovieFiles';
 import {
@@ -42,6 +42,10 @@ import type { Behaviour } from '../formats/apt/aptBehaviour';
 import type { FromPage, PageMovie, ToPage } from '../webview/apt/protocol';
 import { AptLibrary, movieKey } from './aptLibrary';
 import type { MovieLocation } from './aptLibrary';
+import { collectTextKeys, resolveAptText } from '../formats/apt/aptText';
+import type { GameLanguage } from '../language/gameLanguage';
+import type { SageIniIndex } from '../language/sageIniIndex';
+import type { EngineValues } from '../webview/apt/avm/engine';
 import { createNonce } from './webviewNonce';
 import { decodeWindows1252 } from '../common/windows1252';
 
@@ -61,6 +65,18 @@ import { decodeWindows1252 } from '../common/windows1252';
 export const APT_VIEW_TYPE = 'bigfs.aptEditor';
 
 type MovieMessage = Extract<ToPage, { kind: 'movie' }>;
+
+/** What a movie reads of the game beside its own files */
+export interface AptGameServices {
+  /** Settles the language `$KEY` text is read in */
+  gameLanguage: GameLanguage;
+  index: SageIniIndex;
+  /** Where the Engine panel's answers are kept, per movie */
+  state: vscode.Memento;
+}
+
+/** The workspace state key of the Engine panel's answers, by movie name */
+export const ENGINE_ANSWERS = 'bigfs.apt.engineAnswers';
 type ScriptSite = Extract<FromPage, { kind: 'addScript' }>['to'];
 
 /** A movie as the page draws it, with the textures it needs sent */
@@ -111,6 +127,29 @@ const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
   } catch {
     return undefined;
   }
+};
+
+/**
+ * A file beside the movie, in the folder or archive holding its `.apt`: the
+ * exact name, else the one matching without casing, as a retail archive's
+ * `Name.CONST` beside `name.apt` is. Found nowhere else here, so a movie
+ * reads its own copy before any other archive's.
+ */
+const readOwn = async (
+  aptUri: vscode.Uri,
+  relative: string,
+): Promise<Uint8Array | undefined> => {
+  const exact = await tryRead(
+    vscode.Uri.joinPath(vscode.Uri.joinPath(aptUri, '..'), relative),
+  );
+
+  if (exact) {
+    return exact;
+  }
+
+  const found = await findBeside(aptUri, relative, vscode.FileType.File);
+
+  return found ? tryRead(found) : undefined;
 };
 
 const latin1 = decodeWindows1252;
@@ -221,8 +260,6 @@ export class AptDocument implements vscode.CustomDocument {
     locator: EntryLocator,
     private readonly tools: ToolBox,
   ) {
-    const folder = vscode.Uri.joinPath(uri, '..');
-
     this.image = new AptImage(apt);
     this.constBytes = constBytes;
     this.savedConst = constBytes;
@@ -233,7 +270,7 @@ export class AptDocument implements vscode.CustomDocument {
         : this.cached(
             relative,
             async () =>
-              (await tryRead(vscode.Uri.joinPath(folder, relative))) ??
+              (await readOwn(uri, relative)) ??
               (await locator.read(
                 relative.slice(relative.lastIndexOf('/') + 1),
                 uri,
@@ -251,9 +288,9 @@ export class AptDocument implements vscode.CustomDocument {
       .slice(uri.path.lastIndexOf('/') + 1)
       .replace(/\.apt$/i, '');
     const apt = await vscode.workspace.fs.readFile(uri);
-    const constUri = vscode.Uri.joinPath(uri, '..', `${name}.const`);
     const constBytes =
-      (await tryRead(constUri)) ?? (await locator.read(`${name}.const`, uri));
+      (await readOwn(uri, `${name}.const`)) ??
+      (await locator.read(`${name}.const`, uri));
 
     if (!constBytes) {
       throw new Error(`${name}.const is not beside the movie`);
@@ -723,6 +760,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     private readonly locator: EntryLocator,
     archiveModel: ArchiveModel,
     extensionUri: vscode.Uri,
+    private readonly game: AptGameServices,
   ) {
     this.scripts = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
     this.library = new AptLibrary(archiveModel);
@@ -740,12 +778,14 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     locator: EntryLocator,
     archiveModel: ArchiveModel,
     extensionUri: vscode.Uri,
+    game: AptGameServices,
   ): vscode.Disposable {
     const provider = new AptEditorProvider(
       tools,
       locator,
       archiveModel,
       extensionUri,
+      game,
     );
 
     provider.scriptTabs = new AptScripts({
@@ -1042,10 +1082,12 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
           document.editedFiles,
         ),
       )),
-      ...unresolved.map((entry): Problem => ({
-        severity: 'warning',
-        message: `The import ${entry} resolves in no install`,
-      })),
+      ...unresolved.map(
+        (entry): Problem => ({
+          severity: 'warning',
+          message: `The import ${entry} resolves in no install`,
+        }),
+      ),
     ];
 
     this.show(document.uri, found);
@@ -1346,7 +1388,63 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       library,
       unresolved,
       origins,
+      texts: await this.textsOf([...movies.values()]),
+      answers: this.answers()[movieKey(document.name)],
     };
+  }
+
+  /** The Engine panel's answers kept for every movie */
+  private answers(): Record<string, EngineValues> {
+    return this.game.state.get<Record<string, EngineValues>>(
+      ENGINE_ANSWERS,
+      {},
+    );
+  }
+
+  /** Keeps the answers given for a movie; none removes them */
+  private async keepAnswers(
+    name: string,
+    values: EngineValues | undefined,
+  ): Promise<void> {
+    const all = { ...this.answers() };
+
+    if (values) {
+      all[movieKey(name)] = values;
+    } else {
+      delete all[movieKey(name)];
+    }
+    await this.game.state.update(ENGINE_ANSWERS, all);
+  }
+
+  /**
+   * Every `$KEY` string the movies hold, as the chosen language reads it, by
+   * the key as written. None when no string table is loaded, in which case
+   * the page shows the keys.
+   */
+  private async textsOf(
+    movies: readonly PageMovie[],
+  ): Promise<Record<string, string> | undefined> {
+    await this.game.gameLanguage.ensure();
+
+    if (!this.game.index.stringCount) {
+      return undefined;
+    }
+
+    const keys = collectTextKeys(
+      movies.flatMap((movie) => [
+        ...(movie.consts ?? []),
+        ...movie.characters.flatMap((character) =>
+          character.type === 'editText' ? [character.text] : [],
+        ),
+      ]),
+    );
+
+    return Object.fromEntries(
+      keys.map((key) => [
+        key.toLowerCase(),
+        resolveAptText(key, (label) => this.game.index.findString(label)?.text),
+      ]),
+    );
   }
 
   /** Applies an edit; duplicating a shape also copies its geometry file */
@@ -1438,6 +1536,8 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         if (message?.kind === 'ready') {
           this.pagesReady.add(document);
           await this.redraws.get(document)?.();
+        } else if (message?.kind === 'engineAnswers') {
+          await this.keepAnswers(document.name, message.values);
         } else if (message?.kind === 'script') {
           const block = Number(message.block);
           let script;
