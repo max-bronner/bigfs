@@ -1,15 +1,44 @@
 import * as vscode from 'vscode';
 import { openDocument } from './workspaceText';
 import { parseWnd, toBoxes } from './model/wndLayout';
-import type { WndWindow } from './model/wndLayout';
+import type { WndBox, WndWindow } from './model/wndLayout';
+import { imageExtent, isRotated, mappedUv } from '../formats/mappedImage';
+import type { UvRect } from '../formats/mappedImage';
+import type { EntryLocator } from '../formats/entryLocator';
+import { encodePng } from '../formats/textureEncode';
+import { loadMappedTexture, readMappedImage } from './mappedImagePreview';
+import type { SageIniIndex } from './sageIniIndex';
 import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
 import { webviewPage } from '../providers/webviewPage';
 
 /**
  * Language support for `.wnd` window layouts: problems, an outline of the
  * windows by name, folding, completion of the keys and flag values EA's
- * reader knows, and a live layout preview beside the text.
+ * reader knows, and a live layout preview beside the text. The preview draws
+ * the images the INI's `MappedImage` definitions name, and the text through
+ * the string tables, when the index and locator are supplied.
  */
+
+/** What the preview reads the game's data through */
+export interface WndPreviewServices {
+  index: SageIniIndex;
+  locator: EntryLocator;
+}
+
+/** One image of a layout: where its texture is, and how it maps */
+interface PreviewImage {
+  texture: string;
+  uv: UvRect;
+  rotated: boolean;
+  /** Pixels it draws at, `Coords`' size swapped when rotated */
+  extent: [number, number];
+}
+
+interface ResolvedImage {
+  image: PreviewImage;
+  /** The texture's PNG, until it has been sent */
+  dataUri: string;
+}
 
 export const WND_LANGUAGE = 'sage-wnd';
 
@@ -29,6 +58,7 @@ const WINDOW_TYPES = [
   'PROGRESSBAR',
   'COMBOBOX',
   'TABCONTROL',
+  'COMMANDBUTTON',
 ];
 
 /** `STATUS` flags, from the same file's status table */
@@ -68,6 +98,25 @@ const STYLE_FLAGS = [
   'MOUSETRACK',
 ];
 
+/** The draw data of a gadget's own parts, which mint's gadgets read */
+const GADGET_DRAW_KEYS = [
+  'LISTBOXENABLEDUPBUTTONDRAWDATA',
+  'LISTBOXHILITEUPBUTTONDRAWDATA',
+  'LISTBOXENABLEDDOWNBUTTONDRAWDATA',
+  'LISTBOXHILITEDOWNBUTTONDRAWDATA',
+  'LISTBOXENABLEDSLIDERDRAWDATA',
+  'LISTBOXHILITESLIDERDRAWDATA',
+  'SLIDERTHUMBENABLEDDRAWDATA',
+  'SLIDERTHUMBHILITEDRAWDATA',
+  'COMBOBOXDROPDOWNBUTTONENABLEDDRAWDATA',
+  'COMBOBOXDROPDOWNBUTTONHILITEDRAWDATA',
+  'COMBOBOXDROPDOWNBUTTONDISABLEDDRAWDATA',
+  'COMBOBOXEDITBOXENABLEDDRAWDATA',
+  'COMBOBOXEDITBOXHILITEDRAWDATA',
+  'COMBOBOXLISTBOXENABLEDDRAWDATA',
+  'COMBOBOXLISTBOXHILITEDRAWDATA',
+];
+
 /** Window and layout keys EA's reader has fields for */
 const KEYS = [
   'WINDOWTYPE',
@@ -88,6 +137,7 @@ const KEYS = [
   'ENABLEDDRAWDATA',
   'DISABLEDDRAWDATA',
   'HILITEDRAWDATA',
+  ...GADGET_DRAW_KEYS,
   'LISTBOXDATA',
   'COMBOBOXDATA',
   'RADIOBUTTONDATA',
@@ -156,8 +206,16 @@ const foldsOf = (
 class WndPreview {
   private static readonly panels = new Map<string, WndPreview>();
   private readonly panel: vscode.WebviewPanel;
+  /** Images already resolved, by lowercased name; `null` for a name nothing defines */
+  private readonly images = new Map<string, Promise<ResolvedImage | null>>();
+  /** Textures the page already has */
+  private readonly sent = new Set<string>();
+  private version = 0;
 
-  private constructor(private readonly document: vscode.TextDocument) {
+  private constructor(
+    private readonly document: vscode.TextDocument,
+    private readonly services?: WndPreviewServices,
+  ) {
     this.panel = vscode.window.createWebviewPanel(
       'bigfs.wndPreview',
       `Layout: ${document.uri.path.slice(document.uri.path.lastIndexOf('/') + 1)}`,
@@ -167,7 +225,7 @@ class WndPreview {
     this.panel.webview.html = renderPreviewHtml();
     this.panel.webview.onDidReceiveMessage(async (message) => {
       if (message?.kind === 'ready') {
-        this.update();
+        void this.update();
       } else if (message?.kind === 'reveal') {
         const position = document.positionAt(Number(message.offset));
         const editor = await vscode.window.showTextDocument(
@@ -187,7 +245,10 @@ class WndPreview {
     );
   }
 
-  public static show(document: vscode.TextDocument): void {
+  public static show(
+    document: vscode.TextDocument,
+    services?: WndPreviewServices,
+  ): void {
     const key = document.uri.toString();
     const existing = WndPreview.panels.get(key);
 
@@ -197,17 +258,100 @@ class WndPreview {
       return;
     }
 
-    WndPreview.panels.set(key, new WndPreview(document));
+    WndPreview.panels.set(key, new WndPreview(document, services));
   }
 
   public static refresh(document: vscode.TextDocument): void {
-    WndPreview.panels.get(document.uri.toString())?.update();
+    void WndPreview.panels.get(document.uri.toString())?.update();
   }
 
-  private update(): void {
+  /**
+   * The image a `MappedImage` of this name draws: its texture as a PNG data
+   * URI, and the rect of it the definition's `Coords` cover
+   */
+  private resolveImage(name: string): Promise<ResolvedImage | null> {
+    const key = name.toLowerCase();
+    let found = this.images.get(key);
+
+    if (!found) {
+      found = this.loadImage(name).catch(() => null);
+      this.images.set(key, found);
+    }
+
+    return found;
+  }
+
+  private async loadImage(name: string): Promise<ResolvedImage | null> {
+    const { index, locator } = this.services ?? {};
+    const definition = index?.findDefinitions('MappedImage', name)[0];
+
+    if (!locator || !definition) {
+      return null;
+    }
+
+    const mapped = await readMappedImage(definition);
+    const texture =
+      mapped.texture &&
+      (await loadMappedTexture(locator, mapped.texture, definition.uri));
+
+    if (!mapped.texture || !texture) {
+      return null;
+    }
+
+    return {
+      image: {
+        texture: mapped.texture.toLowerCase(),
+        uv: mappedUv(mapped, [texture.width, texture.height]),
+        rotated: isRotated(mapped),
+        extent: imageExtent(mapped) ?? [texture.width, texture.height],
+      },
+      dataUri: `data:image/png;base64,${Buffer.from(encodePng(texture)).toString('base64')}`,
+    };
+  }
+
+  private async update(): Promise<void> {
+    const version = ++this.version;
+    const { index } = this.services ?? {};
+    const boxes = toBoxes(parseWnd(this.document.getText()).windows, {
+      text: (value) => index?.findString(value)?.text,
+    });
+    const names = new Set<string>();
+    const collect = (list: WndBox[]) =>
+      list.forEach((box) => {
+        Object.values(box.looks).forEach((parts) =>
+          parts.forEach((part) => part.image && names.add(part.image)),
+        );
+        collect(box.children);
+      });
+
+    collect(boxes);
+
+    const images: Record<string, PreviewImage> = {};
+    const textures: Record<string, string> = {};
+
+    for (const name of names) {
+      const resolved = await this.resolveImage(name);
+
+      if (resolved) {
+        images[name] = resolved.image;
+
+        if (!this.sent.has(resolved.image.texture)) {
+          textures[resolved.image.texture] = resolved.dataUri;
+        }
+      }
+    }
+
+    // A newer edit is already on its way; its message carries the textures
+    if (version !== this.version) {
+      return;
+    }
+
+    Object.keys(textures).forEach((id) => this.sent.add(id));
     void this.panel.webview.postMessage({
       kind: 'layout',
-      boxes: toBoxes(parseWnd(this.document.getText()).windows),
+      boxes,
+      images,
+      textures,
     });
   }
 }
@@ -221,7 +365,8 @@ export const renderPreviewHtml = (): string => {
   canvas { background: #1b1c1f; max-width: 100%; cursor: pointer; }
   .muted { opacity: 0.7; }
 `,
-    body: `<div id="bar"><label><input type="checkbox" id="hidden"> Show hidden</label><span id="status" class="muted"></span></div>
+    allow: { img: 'data:' },
+    body: `<div id="bar"><label>State <select id="state"><option value="enabled">Enabled</option><option value="hilite">Hilite</option><option value="disabled">Disabled</option></select></label><label><input type="checkbox" id="checked"> Checked</label><label><input type="checkbox" id="outlines" checked> Outlines</label><label><input type="checkbox" id="hidden"> Show hidden</label><span id="status" class="muted"></span></div>
 <canvas id="screen" width="800" height="600"></canvas>`,
     script: WND_PREVIEW_SCRIPT,
   });
@@ -229,6 +374,7 @@ export const renderPreviewHtml = (): string => {
 
 export const registerSageWndLanguage = (
   context: vscode.ExtensionContext,
+  services?: WndPreviewServices,
 ): void => {
   const diagnostics = vscode.languages.createDiagnosticCollection(WND_LANGUAGE);
   const refresh = (document: vscode.TextDocument) => {
@@ -340,11 +486,11 @@ export const registerSageWndLanguage = (
           : vscode.window.activeTextEditor?.document;
 
         if (document) {
-          WndPreview.show(document);
+          WndPreview.show(document, services);
         } else if (uri) {
           void vscode.workspace
             .openTextDocument(uri)
-            .then((opened) => WndPreview.show(opened));
+            .then((opened) => WndPreview.show(opened, services));
         }
       },
     ),

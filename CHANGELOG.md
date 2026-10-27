@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- WND layout preview draws what the game draws: each window type's own image slots (check box, sliders, list box, combo box), `MappedImage` pictures from the game's textures with rotation, text through the string tables, an Enabled / Hilite / Disabled (+ Checked) switch, and engine-placed children kept inside their parent (ported from mint2's apt-viewer gadgets). A key stated twice reads as its last statement.
+
 - Fix: APT scripts that goto each other overflowed the stack and broke the editor; frames entered by a goto now queue their scripts, a failing script is reported instead of thrown, and only clips scripts touched are checked each frame. The Engine panel overrides any variable the movie reads instead of only supplying unset ones.
 
 - APT preview runs ActionScript in full (ported from mint2's AVM), and an Engine panel lists what the movie asks of the game: functions only the engine calls, with a Call button; values it reads but never sets, and extern keys, each settable; calls into the engine with their arguments and a settable return.

@@ -65,7 +65,7 @@ export const registerSageIniLanguage = (
   archiveModel: ArchiveModel,
   log: LogOutputChannel,
   locator?: EntryLocator,
-): void => {
+): SageIniIndex => {
   const documents = new SageIniDocuments(context.extensionUri);
   const index = new SageIniIndex(
     archiveModel,
@@ -164,4 +164,6 @@ export const registerSageIniLanguage = (
       createSageIniRenameProvider(documents, index),
     ),
   );
+
+  return index;
 };

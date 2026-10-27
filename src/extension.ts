@@ -82,9 +82,9 @@ export function activate(context: vscode.ExtensionContext) {
     MapEditorProvider.register(),
   );
 
-  registerSageIniLanguage(context, archiveModel, log, locator);
+  const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
   registerSageStrLanguage(context);
-  registerSageWndLanguage(context);
+  registerSageWndLanguage(context, { index: iniIndex, locator });
   registerTextureCommands(context);
   registerAptCommands(context);
   context.subscriptions.push(registerW3dAnimationCommands());
