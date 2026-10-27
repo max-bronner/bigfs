@@ -4,9 +4,10 @@ import { join } from 'path';
 import {
   BulkQueryError,
   bulkChanges,
+  bulkChangesAcross,
   compileBulkQuery,
 } from '../../language/model/bulkEdit';
-import type { BulkQuery } from '../../language/model/bulkEdit';
+import type { BulkQuery, BulkSource } from '../../language/model/bulkEdit';
 import { parseSageIni } from '../../language/model/sageIniParser';
 import { createSageIniSchema } from '../../language/model/sageIniSchema';
 
@@ -107,5 +108,116 @@ suite('INI bulk edits', () => {
     assert.throws(() => run({ where: 'Side Testland' }), BulkQueryError);
     assert.throws(() => run({ field: 'Body/' }), BulkQueryError);
     assert.throws(() => run({ formula: 'x *' }), BulkQueryError);
+  });
+
+  suite('where a value is defined', () => {
+    const source = (uri: string, text: string, isFragment = false) => ({
+      uri,
+      document: parseSageIni(text.split('\n'), schema, { isFragment }),
+    });
+    const across = (
+      files: BulkSource[],
+      fragments: BulkSource[],
+      query: Partial<BulkQuery>,
+    ) =>
+      bulkChangesAcross(
+        {
+          sources: files,
+          include: (_from, path) =>
+            fragments.find((each) => each.uri === path.toLowerCase()),
+        },
+        compileBulkQuery({
+          blocks: 'Object',
+          where: '',
+          field: 'BuildCost',
+          formula: 'x * 2',
+          ...query,
+        }),
+      );
+
+    test('a macro value is edited in the #define, once', () => {
+      const file = source(
+        'a.ini',
+        '#define COST 100\nObject A\n  BuildCost = COST\nEnd\nObject B\n  BuildCost = COST\nEnd\n',
+      );
+      const result = across([file], [], {});
+
+      assert.deepStrictEqual(
+        result.changes.map((c) => [c.uri, c.line, c.before, c.after, c.via]),
+        [['a.ini', 0, '100', '200', 'macro COST']],
+      );
+      assert.strictEqual(result.redirected, 1);
+    });
+
+    test('a macro whose body is not one number is reported, not edited', () => {
+      const file = source(
+        'a.ini',
+        '#define COST 100 200\nObject A\n  BuildCost = COST\nEnd\n',
+      );
+      const result = across([file], [], {});
+
+      assert.deepStrictEqual(result.changes, []);
+      assert.strictEqual(result.unresolved.length, 1);
+    });
+
+    test('fields from an included fragment are edited in that file', () => {
+      const fragment = source('parts.inc', '  BuildCost = 50\n', true);
+      const file = source('a.ini', 'Object A\n  #include "parts.inc"\nEnd\n');
+      const result = across([file], [fragment], {});
+
+      assert.deepStrictEqual(
+        result.changes.map((c) => [c.uri, c.before, c.after, c.via]),
+        [['parts.inc', '50', '100', 'included file']],
+      );
+    });
+
+    test('a ChildObject that writes no value edits its parent where it is defined', () => {
+      const file = source(
+        'a.ini',
+        'Object Base\n  BuildCost = 70\nEnd\nChildObject Kid Base\n  Side = X\nEnd\n',
+      );
+      const result = across([file], [], { blocks: 'ChildObject' });
+
+      assert.deepStrictEqual(
+        result.changes.map((c) => [c.line, c.before, c.after, c.via]),
+        [[1, '70', '140', 'inherited from Kid'.replace('Kid', 'Base')]],
+      );
+      // A child that overrides is edited itself
+      const own = source(
+        'b.ini',
+        'Object Base\n  BuildCost = 70\nEnd\nChildObject Kid Base\n  BuildCost = 10\nEnd\n',
+      );
+
+      assert.deepStrictEqual(
+        across([own], [], { blocks: 'ChildObject' }).changes.map((c) => c.line),
+        [4],
+      );
+    });
+
+    test('conditions see inherited and macro values', () => {
+      const file = source(
+        'a.ini',
+        '#define SIDE Rohan\nObject Base\n  Side = SIDE\nEnd\nChildObject Kid Base\n  BuildCost = 5\nEnd\n',
+      );
+
+      assert.strictEqual(
+        across([file], [], {
+          blocks: 'ChildObject',
+          where: 'Side = Rohan',
+        }).changes.length,
+        1,
+      );
+    });
+
+    test('a computed value is reported as not editable', () => {
+      const file = source(
+        'a.ini',
+        'Object A\n  BuildCost = #ADD( 10 20 )\nEnd\n',
+      );
+      const result = across([file], [], {});
+
+      assert.deepStrictEqual(result.changes, []);
+      assert.strictEqual(result.unresolved.length + result.skipped, 1);
+    });
   });
 });

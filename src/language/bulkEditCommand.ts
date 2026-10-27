@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import {
   BulkQueryError,
-  bulkChanges,
+  bulkChangesAcross,
   compileBulkQuery,
 } from './model/bulkEdit';
-import type { BulkQuery } from './model/bulkEdit';
-import { parseSageIni } from './model/sageIniParser';
+import type { BulkQuery, BulkSource } from './model/bulkEdit';
+import { isFragmentPath, parseSageIni } from './model/sageIniParser';
+import { resolveIncludeUri } from './sageIniInclude';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { readWorkspaceText } from './workspaceText';
 
@@ -13,8 +14,10 @@ import { readWorkspaceText } from './workspaceText';
  * "Bulk Edit INI Values…": asks for blocks, conditions, a field and a
  * formula, finds every matching value in the workspace's loose INI files,
  * and opens the change as a refactor preview, where each value can be
- * looked at as a diff and unticked before it is applied. Files inside
- * archives are left alone.
+ * looked at as a diff and unticked before it is applied. A value written as
+ * a macro, in an included file or inherited from a parent object is edited
+ * where it is defined; one that cannot be is reported. Files inside archives
+ * are left alone.
  */
 
 const LAST_QUERY = 'bigfs.bulkEdit.lastQuery';
@@ -128,10 +131,44 @@ export const registerBulkEdit = (
       );
       const edit = new vscode.WorkspaceEdit();
       const confirm = given?.confirm ?? true;
-      let changed = 0;
-      let blocks = 0;
-      let skipped = 0;
-      let touched = 0;
+      const sources = new Map<string, BulkSource | undefined>();
+      const read = async (uri: vscode.Uri) => {
+        const key = uri.toString();
+
+        if (!sources.has(key)) {
+          sources.set(key, undefined);
+          try {
+            sources.set(key, {
+              uri: key,
+              document: parseSageIni(
+                (await readWorkspaceText(uri)).split(/\r?\n/),
+                schema,
+                { isFragment: isFragmentPath(uri.path) },
+              ),
+            });
+          } catch {
+            // Unreadable or missing: an include of it simply resolves to nothing
+          }
+        }
+        return sources.get(key);
+      };
+      const includesOf = async (source: BulkSource) => {
+        for (const include of source.document.includes) {
+          const target = resolveIncludeUri(
+            vscode.Uri.parse(source.uri),
+            include.path,
+          );
+
+          if (!sources.has(target.toString())) {
+            const loaded = await read(target);
+
+            if (loaded) {
+              await includesOf(loaded);
+            }
+          }
+        }
+      };
+      const roots: BulkSource[] = [];
 
       await vscode.window.withProgress(
         {
@@ -140,45 +177,54 @@ export const registerBulkEdit = (
         },
         async () => {
           for (const uri of files) {
-            const result = bulkChanges(
-              parseSageIni(
-                (await readWorkspaceText(uri)).split(/\r?\n/),
-                schema,
-              ),
-              compiled,
-            );
+            const source = await read(uri);
 
-            blocks += result.blocks;
-            skipped += result.skipped;
-            if (result.changes.length) {
-              touched++;
-            }
-            for (const change of result.changes) {
-              changed++;
-              edit.replace(
-                uri,
-                new vscode.Range(
-                  change.line,
-                  change.start,
-                  change.line,
-                  change.end,
-                ),
-                change.after,
-                {
-                  needsConfirmation: confirm,
-                  label: change.block,
-                  description: `${change.before} → ${change.after}`,
-                },
-              );
+            if (source) {
+              roots.push(source);
+              await includesOf(source);
             }
           }
         },
       );
 
+      const result = bulkChangesAcross(
+        {
+          sources: roots,
+          include: (from, path) =>
+            sources.get(
+              resolveIncludeUri(vscode.Uri.parse(from.uri), path).toString(),
+            ),
+        },
+        compiled,
+      );
+      const changed = result.changes.length;
+      const blocks = result.blocks;
+      const skipped = result.skipped;
+      const touched = new Set(result.changes.map((change) => change.uri)).size;
+
+      for (const change of result.changes) {
+        edit.replace(
+          vscode.Uri.parse(change.uri),
+          new vscode.Range(change.line, change.start, change.line, change.end),
+          change.after,
+          {
+            needsConfirmation: confirm,
+            label: change.block,
+            description: `${change.before} → ${change.after}${change.via ? ` (${change.via})` : ''}`,
+          },
+        );
+      }
+
       const summary =
         `${changed} value${changed === 1 ? '' : 's'} in ${blocks} matching block${blocks === 1 ? '' : 's'}` +
         (touched ? ` across ${touched} file${touched === 1 ? '' : 's'}` : '') +
-        (skipped ? `; ${skipped} left alone, not being numbers` : '');
+        (result.redirected
+          ? `; ${result.redirected} edited where defined (macro, included file or parent object)`
+          : '') +
+        (skipped ? `; ${skipped} left alone, not being numbers` : '') +
+        (result.unresolved.length
+          ? `; ${result.unresolved.length} cannot be edited: ${result.unresolved.slice(0, 3).join('; ')}`
+          : '');
 
       if (!changed) {
         void vscode.window.showInformationMessage(
