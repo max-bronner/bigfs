@@ -1,5 +1,15 @@
-import { Diagnostic, DiagnosticSeverity, Range, workspace } from 'vscode';
+import {
+  Diagnostic,
+  DiagnosticSeverity,
+  Range,
+  commands,
+  window,
+  workspace,
+} from 'vscode';
 import type { EntryLocator } from '../formats/entryLocator';
+import { BASE_SETTING } from '../model/baseGameFolders';
+import { decideAssetCheck } from './model/assetCheckPolicy';
+import type { AssetCheckMode } from './model/assetCheckPolicy';
 import { closestNames } from './model/sageIniFormat';
 import {
   findAssetReferences,
@@ -12,13 +22,12 @@ import type { SageDocument } from './model/sageIniParser';
  * Reports models, animations, textures and sounds an INI file names that no
  * archive or folder holds, the commonest cause of a mod that crashes on
  * load or shows nothing. Off unless the base game's files are in reach,
- * where a missing name is a mistake rather than a file the workspace lacks.
+ * where a missing name is a mistake rather than a file the workspace lacks;
+ * with no base game folder configured it switches itself off and says so
+ * once (`assetCheckPolicy`).
  */
 
 export const CHECK_ASSETS_SETTING = 'bigfs.ini.checkAssets';
-
-/** `.w3d` files the base game alone ships many more of */
-const AUTO_MINIMUM_MODELS = 200;
 
 const EXTENSIONS: Record<AssetKind, RegExp> = {
   model: /\.w3d$/,
@@ -53,24 +62,53 @@ const stemsOf = (names: Set<string>, kind: AssetKind): string[] => {
   return stems;
 };
 
+let hinted = false;
+
+/** Says once per session why the check is off for want of a base game folder */
+const hintNoBaseGame = () => {
+  if (hinted) {
+    return;
+  }
+  hinted = true;
+  void window
+    .showInformationMessage(
+      'bigFS: missing-asset checks are off because no base game folder is set, so every texture and model your mod borrows would be flagged. Set "bigfs.baseGameFolder" to turn them on.',
+      'Open Setting',
+    )
+    .then((choice) => {
+      if (choice) {
+        void commands.executeCommand(
+          'workbench.action.openSettings',
+          BASE_SETTING,
+        );
+      }
+    });
+};
+
 /** Whether references are checked, given the setting and what is in reach */
 export const shouldCheckAssets = (names: Set<string>): boolean => {
-  const mode = workspace
-    .getConfiguration()
-    .get<'auto' | 'on' | 'off'>(CHECK_ASSETS_SETTING, 'auto');
-
-  if (mode !== 'auto') {
-    return mode === 'on';
-  }
-
+  const configuration = workspace.getConfiguration();
+  const mode = configuration.get<AssetCheckMode>(CHECK_ASSETS_SETTING, 'auto');
   let models = 0;
 
-  for (const name of names) {
-    if (name.endsWith('.w3d') && ++models >= AUTO_MINIMUM_MODELS) {
-      return true;
+  if (mode === 'auto') {
+    for (const name of names) {
+      if (name.endsWith('.w3d')) {
+        models++;
+      }
     }
   }
-  return false;
+
+  const decision = decideAssetCheck(
+    mode,
+    Boolean(configuration.get<string>(BASE_SETTING)?.trim()),
+    models,
+  );
+
+  if (decision === 'no-base-game') {
+    hintNoBaseGame();
+  }
+  return decision === 'check';
 };
 
 /** A warning for every file reference no archive or folder satisfies */

@@ -705,7 +705,7 @@
             "off"
           ],
           "enumDescriptions": [
-            "Check once the archives and folders hold the base game's models, so a missing name is a mistake",
+            "Check once a base game folder is set (bigfs.baseGameFolder) and the archives and folders hold its models, so a missing name is a mistake; without one the check stays off and says so once",
             "Always check, even with only a mod's own files open",
             "Never check"
           ],
