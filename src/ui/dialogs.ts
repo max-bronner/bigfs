@@ -1,9 +1,11 @@
 ﻿import { window } from 'vscode';
+import type { ConflictChoice } from '../model/transferPlan';
 
 const MAX_LISTED_NAMES = 5;
 
 const REPLACE_LABEL = 'Replace';
 const SKIP_LABEL = 'Skip';
+const KEEP_BOTH_LABEL = 'Keep Both';
 const DELETE_LABEL = 'Delete';
 
 const SEPARATOR_PATTERN = /[\\/]/;
@@ -94,6 +96,37 @@ const askForOverwrite = async (names: string[]): Promise<OverwriteChoice> => {
       return 'skip';
     default:
       return 'cancel';
+  }
+};
+
+/**
+ * Asks what to do with the files whose names are taken in the target:
+ * replace them, skip them or keep both under a free name; dismissing the
+ * dialog cancels the transfer
+ */
+export const askForTransferConflict = async (
+  names: string[],
+): Promise<ConflictChoice | undefined> => {
+  const subject =
+    names.length === 1 ? 'file already exists' : 'files already exist';
+
+  const selectedOption = await window.showWarningMessage(
+    `${names.length} ${subject} in the target.`,
+    { modal: true, detail: getListedNames(names) },
+    REPLACE_LABEL,
+    SKIP_LABEL,
+    KEEP_BOTH_LABEL,
+  );
+
+  switch (selectedOption) {
+    case REPLACE_LABEL:
+      return 'replace';
+    case SKIP_LABEL:
+      return 'skip';
+    case KEEP_BOTH_LABEL:
+      return 'keepBoth';
+    default:
+      return undefined;
   }
 };
 

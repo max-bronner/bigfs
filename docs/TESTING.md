@@ -34,6 +34,23 @@ deserves one load in the game as well.
   copy and paste (Ctrl+X/C/V), duplicate, drag and drop, copy path. Saving
   keeps names, duplicates, header and trailer as shipped; the game still
   loads the archive.
+- [ ] **new** Copy between archives: with two writable archives, copy (or
+  cut) a file and a folder in one, paste on the other archive or a folder in
+  it, and drag the same. A name already there asks Replace, Skip or Keep
+  Both (Keep Both adds ` copy`); Cancel (Esc) changes nothing. The target
+  saves once; a cut removes the files from the source archive.
+- [ ] **new** Copy a file out of a base game archive (`bigfs.baseGameFolder`)
+  into a workspace archive: it works. Cut or drag it: the file stays in the
+  base game and the message says Copied. Pasting into a base game archive is
+  refused.
+- [ ] **new** Drag a loose folder from the Explorer into an archive that
+  holds some of the same files: the same Replace, Skip, Keep Both prompt.
+- [ ] **new** **BIG: Find Game Installs** (and once on first start with
+  `bigfs.baseGameFolder` and `bigfs.underlyingGameFolder` empty) lists the
+  installs found on the machine: registry, Program Files, EA app, Origin,
+  and Wine/Proton prefixes on Linux and macOS. Picking ROTWK also sets BFME II
+  beneath it. Dismissing the pick changes no setting and it is not offered
+  again at start.
 - [ ] **Extract…** a file, a folder and a whole archive; **Add Files…** from
   disk. A name that would escape the target folder is refused.
 - [ ] **Pack into BIG Archive…** on a folder in the Explorer.

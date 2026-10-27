@@ -109,6 +109,11 @@
         "title": "Paste"
       },
       {
+        "command": "bigfs.findGameInstalls",
+        "title": "Find Game Installs",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.duplicate",
         "title": "Duplicate"
       },

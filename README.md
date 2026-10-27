@@ -18,6 +18,17 @@ your mod's archives.
   and drop files inside an archive. A save rewrites the archive through a
   temporary file and keeps names, duplicates and the header layout as the
   game shipped them.
+- **new** **Copy and move between archives:** cut, copy and paste, or drag,
+  files and folders from one archive into another writable one (a loose
+  folder dragged in from the Explorer works too). Names the target already
+  holds ask to replace, skip or keep both, and the target is saved once.
+  Copying out of the read-only base game is allowed; moving out of it copies.
+- **new** **Find Game Installs:** with `bigfs.baseGameFolder` unset, a quick
+  pick offers the BFME, BFME II and ROTWK installs found through the
+  registry (`reg query`), the usual Program Files, EA app and Origin
+  folders, and Wine, Proton and CrossOver prefixes on Linux and macOS.
+  Nothing is written until you pick one; **BIG: Find Game Installs** asks
+  again later. The folders are only read.
 - **Extract** files, folders or whole archives, and **add** files from disk.
 - **Pack into BIG Archive** on any folder in the Explorer.
 - **Launch Game with Mod** starts the game with `-mod "<folder>"` on a folder
