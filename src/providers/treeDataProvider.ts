@@ -58,6 +58,9 @@ const rowName = (element: ExplorerNode): string =>
 /** Setting choosing between the per archive view and the game view */
 export const VIEW_SETTING = 'bigfs.explorer.view';
 
+/** Ends the context value of a row in a read-only source, which package.json keeps the edit items off */
+const READ_ONLY_SUFFIX = 'ReadOnly';
+
 /** Whether the explorer shows the game view rather than every archive */
 export const isGameViewShown = (): boolean =>
   workspace.getConfiguration().get<string>(VIEW_SETTING) === 'game';
@@ -67,7 +70,10 @@ export const isGameViewShown = (): boolean =>
  * description names where that copy comes from, and the tooltip lists the
  * copies it overrides
  */
-const createGameItem = ({ node }: GameRow): TreeItem => {
+const createGameItem = (
+  { node }: GameRow,
+  isReadOnly: (node: VirtualNode) => boolean,
+): TreeItem => {
   if (node.children) {
     const item = new TreeItem(node.name, TreeItemCollapsibleState.Collapsed);
 
@@ -94,7 +100,10 @@ const createGameItem = ({ node }: GameRow): TreeItem => {
     `Loaded from ${winner.origin}`,
     ...(node.shadowed ?? []).map((copy) => `Ignored in ${copy.origin}`),
   ].join('\n');
-  item.contextValue = winner.ref.kind === 'entry' ? 'bigFile' : 'bigLooseFile';
+  item.contextValue =
+    winner.ref.kind === 'entry'
+      ? `bigFile${isReadOnly(winner.ref.node) ? READ_ONLY_SUFFIX : ''}`
+      : 'bigLooseFile';
   item.command = { command: 'vscode.open', title: 'Open', arguments: [uri] };
 
   return item;
@@ -112,20 +121,25 @@ export class BigTreeItem extends TreeItem {
   /**
    * @param isLoaded - False for an archive whose index table has not been read,
    * which leaves the file count off the row until it has
+   * @param isReadOnly - True for a row of the base game, whose menu leaves out
+   * everything that edits (the context value carries `ReadOnly`)
    */
   constructor(
     public readonly node: VirtualNode,
     public readonly collapsibleState: TreeItemCollapsibleState,
     isLoaded = true,
+    isReadOnly = false,
   ) {
     super(node.name, collapsibleState);
+
+    const suffix = isReadOnly ? READ_ONLY_SUFFIX : '';
 
     this.id = getNodePath(node);
     this.resourceUri = getNodeUri(node);
     this.tooltip = getNodePath(node);
 
     if (node.type === FileType.File) {
-      this.contextValue = 'bigFile';
+      this.contextValue = `bigFile${suffix}`;
       this.command = {
         command: 'vscode.open',
         title: 'Open',
@@ -135,7 +149,7 @@ export class BigTreeItem extends TreeItem {
       return;
     }
 
-    this.contextValue = isArchiveRoot(node) ? 'bigArchive' : 'bigFolder';
+    this.contextValue = `${isArchiveRoot(node) ? 'bigArchive' : 'bigFolder'}${suffix}`;
 
     // An archive that has not been read yet says nothing about its content
     if (isLoaded) {
@@ -221,7 +235,9 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
     }
 
     if (isGameRow(element)) {
-      return createGameItem(element);
+      return createGameItem(element, (node) =>
+        this.archiveModel.isReadOnly(node.archive),
+      );
     }
 
     return new BigTreeItem(
@@ -230,6 +246,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
         ? TreeItemCollapsibleState.Collapsed
         : TreeItemCollapsibleState.None,
       !isArchiveRoot(element) || this.archiveModel.isLoaded(element),
+      this.archiveModel.isReadOnly(element.archive),
     );
   }
 

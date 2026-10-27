@@ -53,7 +53,7 @@ suite('Command target', () => {
         gameRow({
           origin: 'Art.big',
           entryPath: 'a.tga',
-          ref: { kind: 'entry', node: file },
+          ref: { kind: 'entry', node: file, base: false },
         }),
       )!.toString(),
       getNodeUri(file).toString(),
@@ -63,7 +63,7 @@ suite('Command target', () => {
         gameRow({
           origin: 'disk',
           entryPath: 'a.tga',
-          ref: { kind: 'loose', uri: loose },
+          ref: { kind: 'loose', uri: loose, base: false },
         }),
       ),
       loose,

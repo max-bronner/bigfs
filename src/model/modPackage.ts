@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { archiveOrderKey } from './gameView';
 
 /**
@@ -12,9 +13,16 @@ import { archiveOrderKey } from './gameView';
 /** How the mod reaches the game */
 export type Delivery = 'gameFolder' | 'modFolder';
 
-/** A base archive, by its path below the install, and the files it holds */
+/**
+ * A base archive, by its path below the install, and the files it holds. The
+ * loose files of an install come as one entry marked `loose`, which the game
+ * takes before every archive of that install.
+ */
 export interface BaseArchive {
   path: string;
+  /** Which install it is in, 0 being the one the mod is delivered to and each later one beneath it */
+  layer?: number;
+  loose?: boolean;
   /** Lowercased, '/' separated */
   entries: ReadonlySet<string>;
 }
@@ -41,8 +49,11 @@ export const overrideReport = (
 ): OverrideReport => {
   const report: OverrideReport = { added: [], overrides: [], ignored: [] };
   const mine = archiveOrderKey(archiveName);
-  const ordered = [...base].sort((a, b) =>
-    archiveOrderKey(a.path) < archiveOrderKey(b.path) ? -1 : 1,
+  const ordered = [...base].sort(
+    (a, b) =>
+      (a.layer ?? 0) - (b.layer ?? 0) ||
+      Number(!!b.loose) - Number(!!a.loose) ||
+      (archiveOrderKey(a.path) < archiveOrderKey(b.path) ? -1 : 1),
   );
 
   for (const file of files) {
@@ -56,7 +67,14 @@ export const overrideReport = (
 
     const first = holders[0];
 
-    if (delivery === 'gameFolder' && archiveOrderKey(first.path) < mine) {
+    // Copied into the game folder the mod is an archive of the top install:
+    // only what that install loads first can keep a file from it, an install
+    // beneath it never does
+    if (
+      delivery === 'gameFolder' &&
+      (first.layer ?? 0) === 0 &&
+      (first.loose || archiveOrderKey(first.path) < mine)
+    ) {
       report.ignored.push({ path: file, keptBy: first.path });
     } else {
       report.overrides.push({
@@ -66,6 +84,35 @@ export const overrideReport = (
     }
   }
   return report;
+};
+
+/**
+ * Where the save dialog starts for a packed mod: beside the mod folder. Never
+ * the base game folder, or the next comparison would count the mod's own
+ * archive as part of the base game; a mod folder inside the base game, which
+ * has no safe sibling, packs into the home folder instead.
+ */
+export const defaultPackageFolder = (
+  modFolder: string,
+  bases: readonly string[],
+  home: string,
+): string => {
+  const beside = path.dirname(modFolder);
+
+  return bases.some((base) => isInsideOrSame(beside, base)) ? home : beside;
+};
+
+/** Whether `candidate` is `folder` or lies below it, without casing */
+export const isInsideOrSame = (candidate: string, folder: string): boolean => {
+  const relative = path.relative(
+    path.resolve(folder).toLowerCase(),
+    path.resolve(candidate).toLowerCase(),
+  );
+
+  return (
+    relative === '' ||
+    (relative.split(path.sep)[0] !== '..' && !path.isAbsolute(relative))
+  );
 };
 
 /** The report as Markdown, for a preview beside the editor */

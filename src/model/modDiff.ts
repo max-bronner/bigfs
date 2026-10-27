@@ -1,118 +1,117 @@
-import { open, readdir } from 'fs/promises';
+import { open, readFile } from 'fs/promises';
 import * as path from 'path';
-import { readArchiveIndexTable } from '../binary/archiveFile';
-import { archiveOrderKey } from './gameView';
+import { scanInstalls } from './installScan';
+import type { ScanOptions } from './installScan';
 import type { BaseArchive } from './modPackage';
 
 /**
- * The base game a mod is compared against: every file its archives give the
- * game, after the engine's order (archives sorted by path below the install,
- * the first holding a file winning; inside one archive the last copy wins),
- * read straight from the install folder, which need not be in the workspace.
+ * The base game a mod is compared against: every file its installs give the
+ * game, after the engine's order (inside one install loose files, then
+ * archives sorted by path below it with the first holding a file winning,
+ * inside one archive the last copy; installs layered, the first given
+ * winning), read straight from the install folders, which need not be in
+ * the workspace.
  */
 
 export interface BaseEntry {
+  /** The archive, or for a loose file the file itself */
   archive: string;
   offset: number;
   size: number;
+  /** A file on disk rather than an archive entry */
+  loose?: boolean;
 }
 
 /** Lowercased, '/' separated entry path to where the base game keeps it */
 export type BaseIndex = Map<string, BaseEntry>;
 
-const MAX_DEPTH = 8;
-
-const findArchives = async (folder: string, depth = 0): Promise<string[]> => {
-  if (depth > MAX_DEPTH) {
-    return [];
-  }
-
-  const found: string[] = [];
-
-  for (const entry of await readdir(folder, { withFileTypes: true })) {
-    const full = path.join(folder, entry.name);
-
-    if (entry.isDirectory()) {
-      found.push(...(await findArchives(full, depth + 1)));
-    } else if (entry.name.toLowerCase().endsWith('.big')) {
-      found.push(full);
-    }
-  }
-
-  return found;
-};
-
-/** Reads every archive's index table under an install folder */
+/**
+ * Reads every install given, highest layer first, into one index: the first
+ * file seen at a path is the one the game loads
+ */
 export const indexBaseGame = async (
-  folder: string,
+  folders: string | readonly string[],
+  options: ScanOptions = {},
 ): Promise<{ index: BaseIndex; archives: number; unreadable: string[] }> => {
-  const archives = (await findArchives(folder)).sort((a, b) =>
-    archiveOrderKey(path.relative(folder, a)) <
-    archiveOrderKey(path.relative(folder, b))
-      ? -1
-      : 1,
-  );
+  const layers = typeof folders === 'string' ? [folders] : folders;
+  const { installs, files } = await scanInstalls(layers, options);
   const index: BaseIndex = new Map();
-  const unreadable: string[] = [];
 
-  for (const archive of archives) {
-    let entries;
+  for (const { entryPath, ref } of files) {
+    const key = entryPath.toLowerCase();
 
-    try {
-      ({ entries } = await readArchiveIndexTable(archive));
-    } catch {
-      unreadable.push(path.relative(folder, archive));
-      continue;
-    }
-
-    const own = new Map<string, BaseEntry>();
-
-    for (const entry of entries) {
-      own.set(entry.name.replace(/\\/g, '/').toLowerCase(), {
-        archive,
-        offset: entry.offset,
-        size: entry.size,
-      });
-    }
-
-    for (const [name, entry] of own) {
-      if (!index.has(name)) {
-        index.set(name, entry);
-      }
+    if (!index.has(key)) {
+      index.set(
+        key,
+        ref.kind === 'loose'
+          ? { archive: ref.path, offset: 0, size: ref.size, loose: true }
+          : { archive: ref.path, offset: ref.offset, size: ref.size },
+      );
     }
   }
 
-  return { index, archives: archives.length, unreadable };
+  return {
+    index,
+    archives: installs.reduce(
+      (sum, { archives, unreadable }) =>
+        sum + archives.length + unreadable.length,
+      0,
+    ),
+    unreadable: installs.flatMap(({ folder, unreadable }) =>
+      unreadable.map((each) =>
+        layers.length > 1 ? `${path.basename(folder)}/${each}` : each,
+      ),
+    ),
+  };
 };
 
-/** Every archive of an install with the files it holds, by path below it */
+/**
+ * Every archive of the installs with the files it holds, by path below its
+ * install, and each install's loose files as one entry of their own
+ */
 export const listBaseArchives = async (
-  folder: string,
+  folders: string | readonly string[],
+  options: ScanOptions = {},
 ): Promise<{ archives: BaseArchive[]; unreadable: string[] }> => {
+  const layers = typeof folders === 'string' ? [folders] : folders;
+  const { installs } = await scanInstalls(layers, options);
   const archives: BaseArchive[] = [];
-  const unreadable: string[] = [];
 
-  for (const archive of await findArchives(folder)) {
-    const relative = path.relative(folder, archive);
-
-    try {
-      const { entries } = await readArchiveIndexTable(archive);
-
+  installs.forEach((install, layer) => {
+    if (install.loose.length) {
       archives.push({
-        path: relative.replace(/\\/g, '/'),
+        path: `${path.basename(install.folder)} (loose files)`,
+        layer,
+        loose: true,
         entries: new Set(
-          entries.map((entry) => entry.name.replace(/\\/g, '/').toLowerCase()),
+          install.loose.map((file) => file.entryPath.toLowerCase()),
         ),
       });
-    } catch {
-      unreadable.push(relative);
     }
-  }
-  return { archives, unreadable };
+
+    for (const archive of install.archives) {
+      archives.push({
+        path: archive.pathInInstall,
+        layer,
+        entries: new Set(
+          archive.files.map((file) => file.entryPath.toLowerCase()),
+        ),
+      });
+    }
+  });
+
+  return {
+    archives,
+    unreadable: installs.flatMap((install) => install.unreadable),
+  };
 };
 
 /** Reads a base game file */
 export const readBaseEntry = async (entry: BaseEntry): Promise<Uint8Array> => {
+  if (entry.loose) {
+    return readFile(entry.archive);
+  }
+
   const file = await open(entry.archive, 'r');
 
   try {
@@ -148,10 +147,15 @@ export const compareWithBase = async (
   files: ModFile[],
   base: BaseIndex,
   progress?: (done: number) => void,
+  isCancelled: () => boolean = () => false,
 ): Promise<ComparedFile[]> => {
   const results: ComparedFile[] = [];
 
   for (const [done, file] of files.entries()) {
+    if (isCancelled()) {
+      break;
+    }
+
     const entry = base.get(file.entryPath.toLowerCase());
 
     if (!entry) {

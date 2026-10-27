@@ -1,21 +1,31 @@
 import * as vscode from 'vscode';
+import os from 'os';
 import path from 'path';
 import { listBaseArchives } from '../model/modDiff';
 import {
+  defaultPackageFolder,
   overrideReport,
   reportMarkdown,
   skippedFromPackage,
 } from '../model/modPackage';
 import type { Delivery, OverrideReport } from '../model/modPackage';
+import { packedArchives } from '../model/packagedOutputs';
+import { decodeWindows1252 } from '../common/windows1252';
+import { diagnoseText } from '../language/sageIniValidation';
+import type { SageIniDocuments } from '../language/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';
 
 /**
  * **Package Mod…**: packs a mod folder into one archive after showing what
  * shipping it does. The report lists, against the base game, the files the
  * archive overrides, the new ones, and the ones it would not override
- * because a base archive sorts before its name; and the INI errors open in
- * the Problems panel for the folder. Hidden files and archives inside the
+ * because a base archive sorts before its name; and the INI errors of the
+ * folder's files, checked here rather than read off the Problems panel. Hidden files and archives inside the
  * folder are left out.
+ *
+ * The base game is every install the settings name, ROTWK above BFME II,
+ * loose files included. The archive is offered beside the mod folder, never
+ * in the base game folder, and a copy saved there is not counted as base.
  */
 
 export interface PackageRequest {
@@ -28,24 +38,41 @@ export interface PackageRequest {
   confirm?: boolean;
 }
 
-/** INI errors the Problems panel holds for files below the folder */
-const errorsBelow = (folder: vscode.Uri) =>
-  vscode.languages.getDiagnostics().flatMap(([uri, diagnostics]) =>
-    uri.scheme === 'file' &&
-    uri.fsPath.startsWith(folder.fsPath + path.sep) &&
-    /\.(ini|inc)$/i.test(uri.fsPath)
-      ? diagnostics
-          .filter(
-            (diagnostic) =>
-              diagnostic.severity === vscode.DiagnosticSeverity.Error,
-          )
-          .map((diagnostic) => ({
-            path: path.relative(folder.fsPath, uri.fsPath).replace(/\\/g, '/'),
+/**
+ * The INI errors of the mod folder's files, found by checking them here: a
+ * file nobody opened has no diagnostics in the Problems panel to count
+ */
+const errorsIn = async (
+  files: { uri: vscode.Uri; relativePath: string }[],
+  documents: SageIniDocuments,
+) => {
+  const schema = await documents.getSchema();
+  const errors: { path: string; line: number; message: string }[] = [];
+
+  for (const { uri, relativePath } of files) {
+    if (!/\.(ini|inc)$/i.test(relativePath)) {
+      continue;
+    }
+
+    try {
+      const text = decodeWindows1252(await vscode.workspace.fs.readFile(uri));
+
+      for (const diagnostic of diagnoseText(text, relativePath, schema)) {
+        if (diagnostic.severity === vscode.DiagnosticSeverity.Error) {
+          errors.push({
+            path: relativePath,
             line: diagnostic.range.start.line,
             message: diagnostic.message,
-          }))
-      : [],
-  );
+          });
+        }
+      }
+    } catch {
+      // a file that does not read has nothing to report
+    }
+  }
+
+  return errors;
+};
 
 const ask = async (): Promise<PackageRequest | undefined> => {
   const folders = vscode.workspace.workspaceFolders ?? [];
@@ -101,7 +128,8 @@ const ask = async (): Promise<PackageRequest | undefined> => {
 };
 
 export const registerPackageMod = (
-  baseFolder: () => Promise<string | undefined>,
+  baseLayers: () => Promise<string[]>,
+  documents: SageIniDocuments,
 ): vscode.Disposable =>
   vscode.commands.registerCommand(
     'bigfs.packageMod',
@@ -114,18 +142,22 @@ export const registerPackageMod = (
         return undefined;
       }
 
-      const base = await baseFolder();
-      const files = (await listFiles(request.folder))
-        .map((file) => file.relativePath)
-        .filter((file) => !skippedFromPackage(file));
-      const archives = base ? (await listBaseArchives(base)).archives : [];
+      const layers = await baseLayers();
+      const listed = (await listFiles(request.folder)).filter(
+        (file) => !skippedFromPackage(file.relativePath),
+      );
+      const files = listed.map((file) => file.relativePath);
+      const archives = layers.length
+        ? (await listBaseArchives(layers, { exclude: packedArchives() }))
+            .archives
+        : [];
       const report = overrideReport(
         files,
         request.name,
         archives,
         request.delivery,
       );
-      const problems = errorsBelow(request.folder);
+      const problems = await errorsIn(listed, documents);
 
       if (request.confirm !== false) {
         const document = await vscode.workspace.openTextDocument({
@@ -135,7 +167,7 @@ export const registerPackageMod = (
             request.name,
             request.delivery,
             problems,
-            !!base,
+            layers.length > 0,
           ),
         });
 
@@ -160,9 +192,7 @@ export const registerPackageMod = (
         (await vscode.window.showSaveDialog({
           defaultUri: vscode.Uri.file(
             path.join(
-              request.delivery === 'gameFolder' && base
-                ? base
-                : path.dirname(request.folder.fsPath),
+              defaultPackageFolder(request.folder.fsPath, layers, os.homedir()),
               request.name,
             ),
           ),

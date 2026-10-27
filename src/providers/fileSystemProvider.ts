@@ -93,7 +93,15 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     // editor that the archive changed under it
     const mtime = node.archive?.getModifiedAt(node.entryPath) ?? 0;
 
-    return { type: node.type, ctime: mtime, mtime, size };
+    return {
+      type: node.type,
+      ctime: mtime,
+      mtime,
+      size,
+      permissions: this.archiveModel.isReadOnly(node.archive)
+        ? vscode.FilePermission.Readonly
+        : undefined,
+    };
   }
 
   async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
@@ -127,7 +135,10 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   async createDirectory(uri: vscode.Uri): Promise<void> {
-    if (this.archiveModel.getNode(uri)) {
+    this.archiveModel.ensureWritable(uri);
+
+    // Reads the archive first: one nobody opened has no nodes to find
+    if (await this.resolveNode(uri)) {
       throw vscode.FileSystemError.FileExists(uri);
     }
 
@@ -141,7 +152,10 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     content: Uint8Array,
     options: { create: boolean; overwrite: boolean },
   ): Promise<void> {
-    const existingNode = this.archiveModel.getNode(uri);
+    this.archiveModel.ensureWritable(uri);
+
+    // Reads the archive first, or an entry of one nobody opened looks new
+    const existingNode = await this.resolveNode(uri);
 
     if (!existingNode && !options.create) {
       throw vscode.FileSystemError.FileNotFound(uri);
@@ -162,6 +176,9 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   async delete(uri: vscode.Uri): Promise<void> {
+    this.archiveModel.ensureWritable(uri);
+
+    await this.resolveNode(uri);
     await this.archiveModel.delete(uri);
 
     this.fireSoon({ type: vscode.FileChangeType.Deleted, uri });
@@ -172,13 +189,16 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     newUri: vscode.Uri,
     options: { overwrite: boolean },
   ): Promise<void> {
-    const sourceNode = this.archiveModel.getNode(oldUri);
+    this.archiveModel.ensureWritable(oldUri);
+    this.archiveModel.ensureWritable(newUri);
+
+    const sourceNode = await this.resolveNode(oldUri);
 
     if (!sourceNode) {
       throw vscode.FileSystemError.FileNotFound(oldUri);
     }
 
-    const targetNode = this.archiveModel.getNode(newUri);
+    const targetNode = await this.resolveNode(newUri);
 
     // Resolving to the same node means a rename that only changes the casing
     if (targetNode && targetNode !== sourceNode && !options.overwrite) {

@@ -6,19 +6,22 @@
   FileType,
   Uri,
 } from 'vscode';
-import type { FileSystemWatcher, LogOutputChannel } from 'vscode';
+import type { Disposable, FileSystemWatcher, LogOutputChannel } from 'vscode';
 import { BIG_PATTERN } from '../constants';
 import { NotAnArchiveError } from '../binary/bigFormat';
 import type { BigFileEntry } from '../binary/bigFormat';
 import { isContainedPath, isPathBelow } from '../common/paths';
 import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
-import {
-  createWorkspaceSources,
-  findSourceFor,
-  getPathInSource,
-} from './archiveSource';
+import { createSources, findSourceFor, getPathInSource } from './archiveSource';
+import { findArchives } from './installScan';
+import { BASE_SETTING, UNDERLYING_SETTING } from './baseGameFolders';
 import type { ArchiveSource } from './archiveSource';
+import {
+  ReadOnlySourceError,
+  assertWritableSource,
+  isReadOnlySource,
+} from './sourceAccess';
 import { findBlockingFile, findChild, isArchiveRoot } from './virtualNode';
 import { getNodePath, parseNodeUri } from './nodeAddress';
 import type { ResolvedUri } from './nodeAddress';
@@ -33,6 +36,13 @@ export interface ArchiveChange {
   type: 'added' | 'changed' | 'removed';
   archivePath: string;
   rootPath: string;
+  /**
+   * The archive's index table was read for the first time, which only fills
+   * its row in. What the archive holds did not change, so a view built from
+   * every archive's content, which reads each one itself, has no reason to
+   * build again.
+   */
+  loaded?: boolean;
 }
 
 /**
@@ -112,12 +122,17 @@ export class ArchiveModel {
 
   private disposed = false;
 
+  /** Counts the scans started, so one that a newer scan overtook adds nothing */
+  private scanGeneration = 0;
+
   /** Reads the user is waiting on, which the background work steps aside for */
   private awaitedLoads = 0;
   private backgroundLoading?: Promise<void>;
 
   /** Follows the archives on disk for the life of the model */
   private readonly archiveWatcher: FileSystemWatcher;
+  /** Follows the workspace folders and the base game settings, which decide what a scan finds */
+  private readonly sourceWatchers: Disposable[];
 
   /** The scan in flight, replaced by each rescan and awaited by `whenReady` */
   private currentScan: Promise<void>;
@@ -135,6 +150,19 @@ export class ArchiveModel {
   ) {
     this.currentScan = this.scanWorkspace();
     this.archiveWatcher = this.watchArchives();
+    this.sourceWatchers = [
+      workspace.onDidChangeWorkspaceFolders(() => {
+        void this.scanWorkspace();
+      }),
+      workspace.onDidChangeConfiguration((event) => {
+        if (
+          event.affectsConfiguration(BASE_SETTING) ||
+          event.affectsConfiguration(UNDERLYING_SETTING)
+        ) {
+          void this.scanWorkspace();
+        }
+      }),
+    ];
   }
 
   /**
@@ -144,6 +172,7 @@ export class ArchiveModel {
   public dispose(): void {
     this.disposed = true;
     this.archiveWatcher.dispose();
+    this.sourceWatchers.forEach((watcher) => watcher.dispose());
   }
 
   /** Follows the archives on disk, so edits made outside the editor show up */
@@ -300,11 +329,16 @@ export class ArchiveModel {
    * Announces an archive on `onDidChangeArchive`, which is the only place it
    * is fired from: the views redraw from this and nothing else
    */
-  private fireChanged(archive: Archive, kind: ArchiveChange['type']): void {
+  private fireChanged(
+    archive: Archive,
+    kind: ArchiveChange['type'],
+    loaded = false,
+  ): void {
     this._onDidChangeArchive.fire({
       type: kind,
       archivePath: archive.archivePath,
       rootPath: archive.rootPath,
+      ...(loaded && { loaded }),
     });
   }
 
@@ -330,23 +364,45 @@ export class ArchiveModel {
    * that is not an archive at all as one to ignore rather than one that failed.
    */
   private async runScan(): Promise<void> {
-    this.sources = createWorkspaceSources();
+    const generation = (this.scanGeneration += 1);
+    const sources = await createSources();
 
-    if (!this.sources.length) {
+    if (generation !== this.scanGeneration) {
+      return; // a newer scan has started and will say what is there
+    }
+
+    if (!sources.length) {
+      this.sources = sources;
       this.archives = new Map<string, Archive>();
 
       return;
     }
 
+    // The scan fills a map of its own and swaps it in when done, so a save
+    // that arrives meanwhile still finds the archives it writes to
     const loaded = this.archives;
+    const found = new Map<string, Archive>();
 
-    this.archives = new Map<string, Archive>();
+    this.sources = sources;
 
-    const archiveUris = await workspace.findFiles(BIG_PATTERN);
+    const archiveUris = [
+      ...(await workspace.findFiles(BIG_PATTERN)),
+      ...(
+        await Promise.all(
+          sources
+            .filter((source) => source.external)
+            .map((source) =>
+              findArchives(source.baseUri.fsPath).catch(() => []),
+            ),
+        )
+      )
+        .flat()
+        .map((archivePath) => Uri.file(archivePath)),
+    ];
 
     const results = await Promise.allSettled(
       archiveUris.map(async (uri) => {
-        const source = findSourceFor(this.sources, uri);
+        const source = findSourceFor(sources, uri);
 
         if (!source) {
           return;
@@ -367,9 +423,15 @@ export class ArchiveModel {
 
         // Nothing is opened here: the scan lists what carries the extension
         // and each archive is read when it is needed or read ahead
-        this.archives.set(archive.rootKey, archive);
+        found.set(archive.rootKey, archive);
       }),
     );
+
+    if (generation !== this.scanGeneration) {
+      return;
+    }
+
+    this.archives = found;
 
     const failed = results.filter((result) => result.status === 'rejected');
 
@@ -414,6 +476,38 @@ export class ArchiveModel {
     return Array.from(this.archives.values()).filter(
       (archive) => archive.sourceId === sourceId,
     );
+  }
+
+  /** Whether an archive sits in a source that is never written to */
+  public isReadOnly(archive: Archive): boolean {
+    const source = this.sources.find((each) => each.id === archive.sourceId);
+
+    return Boolean(source && isReadOnlySource(source));
+  }
+
+  /**
+   * Rejects a write into a source that is read-only, going by the source a
+   * uri names first so it holds for an archive nobody has opened
+   */
+  public ensureWritable(uri: Uri): void {
+    const [sourceId] = uri.path.split('/').filter(Boolean);
+    const source = this.sources.find((each) => each.id === sourceId);
+
+    if (source) {
+      this.assertWritable(source);
+    }
+  }
+
+  private assertWritable(source: ArchiveSource): void {
+    try {
+      assertWritableSource(source);
+    } catch (error) {
+      if (error instanceof ReadOnlySourceError) {
+        throw FileSystemError.NoPermissions(error.message);
+      }
+
+      throw error;
+    }
   }
 
   /** Whether an archive has read its index table yet */
@@ -517,7 +611,7 @@ export class ArchiveModel {
     try {
       if (await this.readArchive(archive)) {
         // The row had nothing to say about its content until now
-        this.fireChanged(archive, 'changed');
+        this.fireChanged(archive, 'changed', true);
       }
     } finally {
       this.awaitedLoads -= 1;
@@ -556,7 +650,7 @@ export class ArchiveModel {
       }
 
       if (await this.readArchive(archive)) {
-        this.fireChanged(archive, 'changed');
+        this.fireChanged(archive, 'changed', true);
       }
 
       // Hand the thread back between archives, parsing one is not free
@@ -605,6 +699,12 @@ export class ArchiveModel {
     archive: Archive,
     changes: readonly EntryChange[],
   ): Promise<void> {
+    const source = this.sources.find((each) => each.id === archive.sourceId);
+
+    if (source) {
+      this.assertWritable(source);
+    }
+
     try {
       await archive.applyChanges(changes);
     } catch (error) {

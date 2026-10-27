@@ -49,6 +49,25 @@ const getSourcesInArchive = (
 };
 
 /**
+ * Warns and returns true when any node sits in a read-only source, the game
+ * install the user did not open, which no action may change
+ */
+const refuseReadOnly = (
+  archiveModel: ArchiveModel,
+  nodes: readonly VirtualNode[],
+): boolean => {
+  if (!nodes.some((node) => archiveModel.isReadOnly(node.archive))) {
+    return false;
+  }
+
+  window.showWarningMessage(
+    'The base game is read-only. Copy what you need into a folder of the workspace to change it.',
+  );
+
+  return true;
+};
+
+/**
  * Moves nodes into a directory under their own names, and reports how many
  * moved. A selection spanning several archives is safe to pass: sources
  * outside the target's archive are dropped with a warning. A name already
@@ -59,6 +78,10 @@ export const moveNodes = async (
   sources: readonly VirtualNode[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
+  if (refuseReadOnly(archiveModel, [targetDirectory])) {
+    return 0;
+  }
+
   const sourcesInArchive = getSourcesInArchive(
     sources,
     targetDirectory,
@@ -94,6 +117,10 @@ export const copyNodes = async (
   sources: readonly VirtualNode[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
+  if (refuseReadOnly(archiveModel, [targetDirectory])) {
+    return 0;
+  }
+
   const sourcesInArchive = getSourcesInArchive(
     sources,
     targetDirectory,
@@ -133,7 +160,7 @@ export const deleteNodes = async (
 ): Promise<number> => {
   const topLevelNodes = getTopLevelNodes(nodes);
 
-  if (!topLevelNodes.length) {
+  if (!topLevelNodes.length || refuseReadOnly(archiveModel, topLevelNodes)) {
     return 0;
   }
 
@@ -202,6 +229,10 @@ export const importFromDisk = async (
   sourceUris: Uri[],
   targetDirectory: VirtualNode,
 ): Promise<number> => {
+  if (refuseReadOnly(archiveModel, [targetDirectory])) {
+    return 0;
+  }
+
   const files = await readFiles(sourceUris);
 
   const hasFileConflict = (file: ImportedFile) =>
