@@ -1,4 +1,5 @@
 import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './sageIniSchema';
+import { referencedNames } from './sageAudioValues';
 import type { SageIniSchema } from './sageIniSchema';
 import type { SageDocument, SageStatement, SageToken } from './sageIniParser';
 
@@ -84,6 +85,22 @@ export const resolveSageSymbol = (
 
   if (statement.block || token === statement.keyword) {
     return undefined; // a nested block header, or a field name rather than a value
+  }
+
+  // A sound or announcer field names its sounds inside its values, so the
+  // symbol is the name alone: not the `EVA:` before it, nor the weight after
+  const inside = referencedNames(statement, schema).find(
+    (candidate) => character >= candidate.start && character <= candidate.end,
+  );
+
+  if (inside?.isAudio) {
+    return {
+      token: { text: inside.name, start: inside.start, end: inside.end },
+      line,
+      name: inside.name,
+      namespaces: inside.namespaces,
+      isDeclaration: false,
+    };
   }
 
   // Every value is returned, even one whose field references no namespace: a

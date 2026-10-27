@@ -89,3 +89,5 @@
 - Missing game-text labels reported, with a fix that adds them.
 - CommandSet hover with the button icons, labels and commands.
 - Play audio events and sounds from INI files.
+
+- INI: sound and announcer fields resolve into the engine's one audio namespace (AudioEvent, DialogEvent, MusicTrack, AmbientStream, StreamedSound, Multisound) or the announcer one, and navigation, references, rename and the missing-name check see the name inside `EVA:`, `+SOUND:`, `Sound:` and `name:weight` forms. A block's own `Filename` is no longer read as a reference.

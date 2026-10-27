@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { SageIniIndex } from './sageIniIndex';
+import { AUDIO_NAMESPACES, EVA_NAMESPACES } from './model/sageAudioFields';
 
 /**
  * "Find Unused Definitions": every definition in the workspace's own files
@@ -10,13 +11,18 @@ import type { SageIniIndex } from './sageIniIndex';
  */
 
 /** Namespaces used by name from outside INI, lowercased */
-const NAMED_ELSEWHERE = new Set([
-  'object',
-  'childobject',
-  'objectreskin',
-  'mappedimage',
-  'playertemplate',
-]);
+const NAMED_ELSEWHERE = new Set(
+  [
+    'object',
+    'childobject',
+    'objectreskin',
+    'mappedimage',
+    'playertemplate',
+    // Maps, APT movies and the engine play sounds and announcements by name
+    ...AUDIO_NAMESPACES,
+    ...EVA_NAMESPACES,
+  ].map((namespace) => namespace.toLowerCase()),
+);
 
 export const registerUnusedDefinitions = (
   index: SageIniIndex,

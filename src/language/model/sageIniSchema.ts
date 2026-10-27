@@ -17,6 +17,12 @@
  * Names are matched without regard to casing, as the shipped data writes them.
  */
 
+import {
+  audioReferenceKind,
+  isAudioNamespace,
+  namespacesOfKind,
+} from './sageAudioFields';
+
 /** Whether a keyword opens a block or holds a value */
 export type KeywordKind = 'block' | 'field';
 
@@ -24,14 +30,13 @@ export type KeywordKind = 'block' | 'field';
 /**
  * Fields whose value names a definition only in one block, by the block's
  * context name and the field. The schema's reference table is keyed by
- * field name alone, which a field as general as `Name` cannot be: these
- * are the FX list nuggets that name what they play (EA's FXList.cpp parses
- * a ParticleSystem nugget's Name as a particle system template and a Sound
- * nugget's as an audio event).
+ * field name alone, which a field as general as `Name` cannot be: this
+ * is the FX list nugget that names a particle system (EA's FXList.cpp parses
+ * a ParticleSystem nugget's Name as a particle system template). Sound and
+ * announcer fields are decided by `audioReferenceKind` instead.
  */
 const SCOPED_REFERENCES: Record<string, string[]> = {
   'fxlist > particlesystem/name': ['FXParticleSystem', 'ParticleSystem'],
-  'fxlist > sound/name': ['AudioEvent'],
 };
 
 export const ROOT_CONTEXT = '<root>';
@@ -325,14 +330,27 @@ export const createSageIniSchema = (
 
       return entry && { type: entry.t, used: entry.u === 1 };
     },
-    getReferenceNamespaces: (field, context) =>
-      (context === undefined
-        ? undefined
-        : SCOPED_REFERENCES[
-            `${(contextOf(context)?.name ?? context).toLowerCase()}/${field.toLowerCase()}`
-          ]) ??
-      references.get(field.toLowerCase()) ??
-      [],
+    getReferenceNamespaces: (field, context) => {
+      const contextName =
+        context === undefined ? '' : (contextOf(context)?.name ?? context);
+      const kind = audioReferenceKind(contextName, field);
+
+      if (kind) {
+        return namespacesOfKind(kind);
+      }
+
+      // The table carries sound fields of its own, which name `AudioEvent`
+      // alone; whatever audioReferenceKind does not recognise is no sound
+      return (
+        SCOPED_REFERENCES[
+          `${contextName.toLowerCase()}/${field.toLowerCase()}`
+        ] ??
+        references
+          .get(field.toLowerCase())
+          ?.filter((namespace) => !isAudioNamespace(namespace)) ??
+        []
+      );
+    },
     getContextKeywords: (context) => {
       if (context === ROOT_CONTEXT) {
         return Object.keys(file.fileScope).map((name) => ({
