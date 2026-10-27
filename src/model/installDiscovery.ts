@@ -178,22 +178,22 @@ export const winePrefixRoots = (machine: Machine): string[] => {
   }
 
   const roots = [
-    path.join(home, '.wine'),
-    path.join(home, '.local/share/wineprefixes'),
-    path.join(home, 'Games'),
-    path.join(home, '.var/app/com.usebottles.bottles/data/bottles/bottles'),
-    path.join(home, '.local/share/bottles/bottles'),
+    path.posix.join(home, '.wine'),
+    path.posix.join(home, '.local/share/wineprefixes'),
+    path.posix.join(home, 'Games'),
+    path.posix.join(home, '.var/app/com.usebottles.bottles/data/bottles/bottles'),
+    path.posix.join(home, '.local/share/bottles/bottles'),
   ];
 
   if (platform === 'darwin') {
     roots.push(
-      path.join(home, 'Library/Application Support/CrossOver/Bottles'),
+      path.posix.join(home, 'Library/Application Support/CrossOver/Bottles'),
     );
   } else {
     roots.push(
-      path.join(home, '.steam/steam/steamapps/compatdata'),
-      path.join(home, '.local/share/Steam/steamapps/compatdata'),
-      path.join(
+      path.posix.join(home, '.steam/steam/steamapps/compatdata'),
+      path.posix.join(home, '.local/share/Steam/steamapps/compatdata'),
+      path.posix.join(
         home,
         '.var/app/com.valvesoftware.Steam/data/Steam/steamapps/compatdata',
       ),
@@ -208,11 +208,11 @@ export const driveCOfPrefix = (
   prefix: string,
   children: string[],
 ): string[] => [
-  path.join(prefix, 'drive_c'),
-  path.join(prefix, 'pfx', 'drive_c'),
+  path.posix.join(prefix, 'drive_c'),
+  path.posix.join(prefix, 'pfx', 'drive_c'),
   ...children.flatMap((child) => [
-    path.join(prefix, child, 'drive_c'),
-    path.join(prefix, child, 'pfx', 'drive_c'),
+    path.posix.join(prefix, child, 'drive_c'),
+    path.posix.join(prefix, child, 'pfx', 'drive_c'),
   ]),
 ];
 
@@ -249,8 +249,8 @@ export const windowsCandidates = (machine: Machine): string[] => {
 /** The usual install folders inside one Wine drive C */
 export const wineCandidates = (driveC: string): string[] =>
   underRoots(
-    PROGRAM_ROOTS.map((root) => path.join(driveC, root)),
-    path.join,
+    PROGRAM_ROOTS.map((root) => path.posix.join(driveC, root)),
+    path.posix.join,
   );
 
 const unique = (folders: string[]): string[] => {
@@ -348,7 +348,7 @@ export const findInstalls = async (
         }
 
         const registry = await host.read(
-          path.join(path.dirname(driveC), 'system.reg'),
+          path.posix.join(path.posix.dirname(driveC), 'system.reg'),
         );
 
         for (const game of GAMES) {
@@ -358,7 +358,7 @@ export const findInstalls = async (
             const match = /^([a-z]):\\(.*)$/i.exec(windowsPath);
 
             if (match && match[1].toLowerCase() === 'c') {
-              candidates.push(path.join(driveC, ...match[2].split('\\')));
+              candidates.push(path.posix.join(driveC, ...match[2].split('\\')));
             }
           }
         }
