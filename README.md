@@ -248,7 +248,10 @@ your mod's archives.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
   Animations of the skeleton are listed and play on the model (dense,
   time-coded, adaptive-delta and motion channels); a skeleton or an
-  animation file on its own shows its bones.
+  animation file on its own shows its bones. Meshes marked hidden are not
+  drawn (a toggle shows them); the HLOD's levels of detail are picked from a
+  dropdown with their max screen size, one drawn at a time, and its aggregate
+  and proxy lists are shown; collision boxes can be drawn as wireframes.
 
 **Interface movies (APT)**
 

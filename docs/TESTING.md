@@ -175,6 +175,15 @@ Open a `.w3d` from an archive or folder.
 - [ ] **new** Bones are off when there are meshes; **B** toggles them (#86).
 - [ ] **new** "Used in" under the model lists the INI lines naming the file,
   each a link to the line (#88).
+- [ ] **new** Meshes with the HIDDEN attribute are not drawn; **Show hidden**
+  (only offered when the model has one) draws them.
+- [ ] **new** A model with an HLOD draws one level of detail at a time, the
+  finest first. The dropdown lists each level with its mesh count and max
+  screen size; picking one redraws only that level. Under the model the
+  aggregate and proxy lists are named.
+- [ ] **new** **Show boxes** (only offered when the file has `BOX` chunks)
+  draws the collision boxes as green wireframes; off by default. Boxes are
+  drawn in the bind pose, not following an animation.
 - [ ] The animation list of the skeleton plays on the model; play, pause,
   frame slider.
 - [ ] **Edit W3D Animation…**: retime, reverse, ease, trim, rate, written as

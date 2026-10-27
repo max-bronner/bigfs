@@ -1,9 +1,10 @@
-import type { Tool } from './toolRegistry';
+import type { Tool } from "./toolRegistry";
 
 /**
  * Parser for the parts of a W3D model a preview draws: meshes with their
  * vertices, normals, triangles, texture coordinates and texture names, the
- * bone hierarchy, and the HLOD that places each mesh on a bone.
+ * bone hierarchy, the HLOD that places each mesh on a bone (every level of
+ * detail, with its aggregate and proxy lists), and the collision boxes.
  *
  * A W3D file is a tree of chunks, each an 8-byte header (a type, and a size
  * whose top bit marks a chunk that holds chunks) and a payload. Every size is
@@ -29,6 +30,11 @@ export interface W3dMesh {
   indices: Uint32Array;
   /** The bone each vertex follows, for a skin */
   bones?: Uint16Array;
+  /**
+   * `W3D_MESH_FLAG_HIDDEN`: the mesh starts out hidden and is not drawn until
+   * something turns it on, though its HLOD still lists it
+   */
+  hidden: boolean;
   /** Texture of the first stage, when the mesh has one */
   texture?: string;
   /** Whether the drawn material cuts out where the texture's alpha is low */
@@ -38,7 +44,7 @@ export interface W3dMesh {
 }
 
 /** The framebuffer operations the shipped meshes use */
-export type W3dBlend = 'opaque' | 'alpha' | 'additive' | 'multiply';
+export type W3dBlend = "opaque" | "alpha" | "additive" | "multiply";
 
 /** One bone, relative to its parent */
 export interface W3dPivot {
@@ -63,17 +69,46 @@ export interface W3dSubObject {
   bone: number;
 }
 
+/** One level of detail, or the aggregate or proxy list of an HLOD */
+export interface W3dHlodArray {
+  /**
+   * Screen size above which the game switches to a finer level; the finest
+   * level stores the largest float, meaning never
+   */
+  maxScreenSize: number;
+  subObjects: W3dSubObject[];
+}
+
 /** What a model's HLOD records: its skeleton and the mesh on each bone */
 export interface W3dHlod {
   name: string;
   hierarchyName: string;
-  /** The most detailed level of detail only, which is the one shown */
+  /** The most detailed level of detail only */
   subObjects: W3dSubObject[];
+  /** Every level of detail, coarsest first as written; the last is finest */
+  lods: W3dHlodArray[];
+  /** Other models the game attaches to bones */
+  aggregates?: W3dHlodArray;
+  /** Named bone transforms game logic places objects at */
+  proxies?: W3dHlodArray;
+}
+
+/** A collision box (`BOX` chunk) */
+export interface W3dBox {
+  /** `CONTAINER.NAME`, the name an HLOD sub-object uses to place it */
+  name: string;
+  /** Whether the box turns with its bone (else it keeps the model's axes) */
+  oriented: boolean;
+  /** Centre, in the space of the bone it rides on */
+  center: [number, number, number];
+  /** Half the size along each axis */
+  extent: [number, number, number];
 }
 
 /** Everything read from one W3D file */
 export interface W3dFile {
   meshes: W3dMesh[];
+  boxes: W3dBox[];
   hierarchy?: W3dHierarchy;
   hlod?: W3dHlod;
 }
@@ -103,11 +138,20 @@ const CHUNK = {
   HLOD: 0x700,
   HLOD_HEADER: 0x701,
   HLOD_LOD_ARRAY: 0x702,
+  HLOD_SUB_OBJECT_ARRAY_HEADER: 0x703,
   HLOD_SUB_OBJECT: 0x704,
+  HLOD_AGGREGATE_ARRAY: 0x705,
+  HLOD_PROXY_ARRAY: 0x706,
+  BOX: 0x740,
 };
 
 const GEOMETRY_TYPE_MASK = 0x00ff0000;
 const GEOMETRY_TYPE_SKIN = 0x00020000;
+const MESH_FLAG_HIDDEN = 0x00001000;
+const BOX_ATTRIBUTE_ORIENTED = 0x1;
+const BOX_SIZE = 68;
+const HLOD_ARRAY_HEADER_SIZE = 8;
+const HLOD_SUB_OBJECT_SIZE = 36;
 
 /** A chunk's type and payload */
 interface Chunk {
@@ -191,7 +235,7 @@ const readShaderMaterial = (
     const valueAt = 8 + nameLength;
 
     if (type === 7 && valueAt < property.payload.length) {
-      if (name === 'AlphaTestEnable') {
+      if (name === "AlphaTestEnable") {
         alphaTest = property.payload[valueAt] !== 0;
       }
       continue;
@@ -206,9 +250,9 @@ const readShaderMaterial = (
       view.getUint32(valueAt, true),
     );
 
-    if (name === 'DiffuseTexture') {
+    if (name === "DiffuseTexture") {
       texture = value;
-    } else if (name === 'Texture_0') {
+    } else if (name === "Texture_0") {
       fallback = value;
     }
   }
@@ -231,22 +275,22 @@ const blendOf = (shader: Uint8Array): W3dBlend => {
 
   // Alpha-blended but writing depth and alpha-testing is a cutout
   if (alphaTest && depthMask && destBlend === 5) {
-    return 'opaque';
+    return "opaque";
   }
   if (destBlend === 1) {
-    return 'additive';
+    return "additive";
   }
   if (destBlend === 4 || destBlend === 5) {
-    return 'alpha';
+    return "alpha";
   }
   if (destBlend === 2 && srcBlend === 0) {
-    return 'multiply';
+    return "multiply";
   }
-  return 'opaque';
+  return "opaque";
 };
 
 /** Additive wins over alpha over the rest, as a glow must never turn solid */
-const BLEND_RANK: W3dBlend[] = ['opaque', 'multiply', 'alpha', 'additive'];
+const BLEND_RANK: W3dBlend[] = ["opaque", "multiply", "alpha", "additive"];
 
 /**
  * The first material pass, the one a single-pass renderer draws (mint's
@@ -385,6 +429,7 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
     isSkin:
       (viewOf(header).getUint32(4, true) & GEOMETRY_TYPE_MASK) ===
       GEOMETRY_TYPE_SKIN,
+    hidden: (viewOf(header).getUint32(4, true) & MESH_FLAG_HIDDEN) !== 0,
     positions,
     normals: normals?.length === positions.length ? normals : undefined,
     uvs: pass?.uvs?.length === vertexCount * 2 ? pass.uvs : undefined,
@@ -404,13 +449,13 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
       .reduce<W3dBlend>(
         (best, each) =>
           BLEND_RANK.indexOf(each) > BLEND_RANK.indexOf(best) ? each : best,
-        'opaque',
+        "opaque",
       ),
   };
 };
 
 const readHierarchy = (payload: Uint8Array): W3dHierarchy | undefined => {
-  let name = '';
+  let name = "";
   const pivots: W3dPivot[] = [];
 
   for (const chunk of readChunks(payload)) {
@@ -438,18 +483,50 @@ const readHierarchy = (payload: Uint8Array): W3dHierarchy | undefined => {
   return pivots.length ? { name, pivots } : undefined;
 };
 
+/** One LOD, aggregate or proxy array: a header, then its sub-objects */
+const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
+  let maxScreenSize = 0;
+  const subObjects: W3dSubObject[] = [];
+
+  for (const chunk of readChunks(payload)) {
+    if (chunk.type === CHUNK.HLOD_SUB_OBJECT_ARRAY_HEADER) {
+      if (chunk.payload.length < HLOD_ARRAY_HEADER_SIZE) {
+        throw new Error(
+          `W3D HLOD array header is ${chunk.payload.length} bytes, expected ${HLOD_ARRAY_HEADER_SIZE}`,
+        );
+      }
+      maxScreenSize = viewOf(chunk.payload).getFloat32(4, true);
+    } else if (chunk.type === CHUNK.HLOD_SUB_OBJECT) {
+      if (chunk.payload.length < HLOD_SUB_OBJECT_SIZE) {
+        throw new Error(
+          `W3D HLOD sub-object is ${chunk.payload.length} bytes, expected ${HLOD_SUB_OBJECT_SIZE}`,
+        );
+      }
+      subObjects.push({
+        bone: viewOf(chunk.payload).getUint32(0, true),
+        name: readName(chunk.payload, 4, 32),
+      });
+    }
+  }
+
+  return { maxScreenSize, subObjects };
+};
+
 const readHlod = (payload: Uint8Array): W3dHlod | undefined => {
   let header: Uint8Array | undefined;
-  let lod: Uint8Array | undefined;
+  const lods: W3dHlodArray[] = [];
+  let aggregates: W3dHlodArray | undefined;
+  let proxies: W3dHlodArray | undefined;
 
   for (const chunk of readChunks(payload)) {
     if (chunk.type === CHUNK.HLOD_HEADER) {
       header = chunk.payload;
-    }
-
-    // The last level of detail is the most detailed one
-    if (chunk.type === CHUNK.HLOD_LOD_ARRAY) {
-      lod = chunk.payload;
+    } else if (chunk.type === CHUNK.HLOD_LOD_ARRAY) {
+      lods.push(readHlodArray(chunk.payload));
+    } else if (chunk.type === CHUNK.HLOD_AGGREGATE_ARRAY) {
+      aggregates = readHlodArray(chunk.payload);
+    } else if (chunk.type === CHUNK.HLOD_PROXY_ARRAY) {
+      proxies = readHlodArray(chunk.payload);
     }
   }
 
@@ -457,28 +534,43 @@ const readHlod = (payload: Uint8Array): W3dHlod | undefined => {
     return undefined;
   }
 
-  const subObjects = lod
-    ? readChunks(lod)
-        .filter(
-          (chunk) =>
-            chunk.type === CHUNK.HLOD_SUB_OBJECT && chunk.payload.length >= 36,
-        )
-        .map((chunk) => ({
-          bone: viewOf(chunk.payload).getUint32(0, true),
-          name: readName(chunk.payload, 4, 32),
-        }))
-    : [];
-
   return {
     name: readName(header, 8, 16),
     hierarchyName: readName(header, 24, 16),
-    subObjects,
+    // The last level of detail is the most detailed one
+    subObjects: lods.at(-1)?.subObjects ?? [],
+    lods,
+    aggregates,
+    proxies,
+  };
+};
+
+/**
+ * A `BOX` chunk: version, attributes, name, colour, centre and extent
+ * (EA's `W3dBoxStruct`, 68 bytes; the layout is from `w3d_file.h`, the
+ * extent being the half-size as in `OBBoxClass`)
+ */
+const readBox = (payload: Uint8Array): W3dBox => {
+  if (payload.length < BOX_SIZE) {
+    throw new Error(
+      `W3D BOX chunk is ${payload.length} bytes, expected ${BOX_SIZE}`,
+    );
+  }
+
+  const view = viewOf(payload);
+  const float = (offset: number) => view.getFloat32(offset, true);
+
+  return {
+    name: readName(payload, 8, 32),
+    oriented: (view.getUint32(4, true) & BOX_ATTRIBUTE_ORIENTED) !== 0,
+    center: [float(44), float(48), float(52)],
+    extent: [float(56), float(60), float(64)],
   };
 };
 
 /** Reads the meshes, hierarchy and HLOD of a W3D file */
 export const parseW3d = (bytes: Uint8Array): W3dFile => {
-  const file: W3dFile = { meshes: [] };
+  const file: W3dFile = { meshes: [], boxes: [] };
 
   for (const chunk of readChunks(bytes)) {
     switch (chunk.type) {
@@ -491,6 +583,9 @@ export const parseW3d = (bytes: Uint8Array): W3dFile => {
 
         break;
       }
+      case CHUNK.BOX:
+        file.boxes.push(readBox(chunk.payload));
+        break;
       case CHUNK.HIERARCHY:
         file.hierarchy ??= readHierarchy(chunk.payload);
         break;
@@ -505,6 +600,6 @@ export const parseW3d = (bytes: Uint8Array): W3dFile => {
 
 /** Tool that parses a W3D entry */
 export const parseW3dTool: Tool<Uint8Array, W3dFile> = {
-  id: 'model.parseW3d',
+  id: "model.parseW3d",
   run: parseW3d,
 };
