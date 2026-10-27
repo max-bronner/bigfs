@@ -12,7 +12,7 @@ const node = (entryPath: string): VirtualNode =>
     name: entryPath.split('/').pop()!,
     type: vscode.FileType.File,
     entryPath,
-    archive: { rootPath: 'src-1/Art.big' } as unknown as Archive,
+    archive: { rootPath: '/src-1/Art.big' } as unknown as Archive,
   }) as VirtualNode;
 
 const gameRow = (winner: GameViewNode['winner']): GameRow => ({
