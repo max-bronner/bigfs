@@ -27,6 +27,7 @@ import {
   NOT_REFERENCE_NAMESPACES,
   canonicalNamespace,
   canonicalNamespaces,
+  widenParticleNamespaces,
   namesTokenAt,
   scopedReference,
 } from './sageReferenceFields';
@@ -232,10 +233,12 @@ export const createSageIniSchema = (
   const fields = foldKeys(file.fields);
   const references = new Map<string, readonly string[]>(
     [...foldKeys(file.references)].flatMap(([field, namespaces]) => {
-      const kept = canonicalNamespaces(
-        namespaces.filter(
-          (namespace) =>
-            !NOT_REFERENCE_NAMESPACES.has(namespace.toLowerCase()),
+      const kept = widenParticleNamespaces(
+        canonicalNamespaces(
+          namespaces.filter(
+            (namespace) =>
+              !NOT_REFERENCE_NAMESPACES.has(namespace.toLowerCase()),
+          ),
         ),
       );
 

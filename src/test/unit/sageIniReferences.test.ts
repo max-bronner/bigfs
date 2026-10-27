@@ -331,14 +331,44 @@ suite('SAGE INI reference checking', () => {
 
     assert.deepStrictEqual(
       referenced(lines).filter((name) => name.endsWith('ParticleSystem')),
-      ['Spark@FXParticleSystem', 'Spark@ParticleSystem', 'FireSystem@FXParticleSystem'],
+      [
+        'Spark@FXParticleSystem',
+        'Spark@ParticleSystem',
+        'FireSystem@FXParticleSystem',
+        'FireSystem@ParticleSystem',
+      ],
     );
 
     const bone = resolveSageSymbol(parse(lines), schema, 7, 24);
     const system = resolveSageSymbol(parse(lines), schema, 7, 35);
 
     assert.deepStrictEqual(bone?.namespaces, []);
-    assert.deepStrictEqual(system?.namespaces, ['FXParticleSystem']);
+    assert.deepStrictEqual(system?.namespaces, [
+      'FXParticleSystem',
+      'ParticleSystem',
+    ]);
+  });
+
+  test('particle fields resolve systems defined in the old format', () => {
+    const lines = [
+      'ParticleSystem OldSpark',
+      '  Priority = ALWAYS_RENDER',
+      'End',
+      'Object Unit',
+      '  Draw = W3DModelDraw ModuleTag_Draw',
+      '    ParticleSysBone = BoneName OldSpark',
+      '  End',
+      '  Behavior = SlowDeathBehavior ModuleTag_Death',
+      '    WadingParticleSys = OldSpark',
+      '  End',
+      'End',
+      'ParticleSystem Trail',
+      '  PerParticleAttachedSystem = OldSpark',
+      'End',
+    ];
+
+    assert.ok(referenced(lines).includes('OldSpark@ParticleSystem'));
+    assert.deepStrictEqual(warningsIn({ 'particles.ini': lines }, 'particles.ini'), []);
   });
 
   test('Filename of a Video or AmbientStream is a file, not a reference', () => {

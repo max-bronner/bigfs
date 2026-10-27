@@ -40,6 +40,20 @@ export const canonicalNamespaces = (
 ): string[] => [...new Set(namespaces.map(canonicalNamespace))];
 
 /**
+ * Particle systems are declared as `FXParticleSystem` in the new format and
+ * as `ParticleSystem` in the old one, and the engine reads both into one set.
+ * The table lists most particle fields under `FXParticleSystem` alone, which
+ * would flag every system the shipped data defines as `ParticleSystem X`.
+ */
+export const widenParticleNamespaces = (
+  namespaces: readonly string[],
+): string[] =>
+  namespaces.some((namespace) => namespace.toLowerCase() === 'fxparticlesystem') &&
+  !namespaces.some((namespace) => namespace.toLowerCase() === 'particlesystem')
+    ? [...namespaces, 'ParticleSystem']
+    : [...namespaces];
+
+/**
  * Header keywords whose second value names the definition they inherit from:
  * `ChildObject Name Parent` and `ObjectReskin Name Parent`
  */
