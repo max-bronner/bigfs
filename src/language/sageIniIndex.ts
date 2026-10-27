@@ -1,21 +1,22 @@
-import { FileType, ProgressLocation, Uri, window, workspace } from 'vscode';
-import type { Disposable, LogOutputChannel, TextDocument } from 'vscode';
-import type { ArchiveModel } from '../model/archiveModel';
-import type { VirtualNode } from '../model/virtualNode';
-import { getFileNodes } from '../model/virtualNode';
-import { getNodeUri } from '../model/nodeAddress';
-import type { SageIniSchema } from './model/sageIniSchema';
+import { FileType, ProgressLocation, Uri, window, workspace } from "vscode";
+import type { Disposable, LogOutputChannel, TextDocument } from "vscode";
+import type { ArchiveModel } from "../model/archiveModel";
+import type { VirtualNode } from "../model/virtualNode";
+import { getFileNodes } from "../model/virtualNode";
+import { getNodeUri } from "../model/nodeAddress";
+import type { SageIniSchema } from "./model/sageIniSchema";
+import { languageOfArchive } from "./model/gameLanguage";
 import {
   FILE_USES,
   collectEntries,
   reachedThroughMacros,
-} from './model/sageIniEntries';
-import type { EntryBodyToken } from './model/sageIniEntries';
-import { canonicalNamespace } from './model/sageReferenceFields';
-import { SAGE_INI_LANGUAGE } from '../constants';
-import { findString, parseStringTable } from './model/sageStringTable';
-import type { SageString } from './model/sageStringTable';
-import { decodeIniText } from '../common/windows1252';
+} from "./model/sageIniEntries";
+import type { EntryBodyToken } from "./model/sageIniEntries";
+import { canonicalNamespace } from "./model/sageReferenceFields";
+import { SAGE_INI_LANGUAGE } from "../constants";
+import { findString, parseStringTable } from "./model/sageStringTable";
+import type { SageString } from "./model/sageStringTable";
+import { decodeIniText } from "../common/windows1252";
 
 /**
  * Where every definition, reference and macro in every open archive lives, so
@@ -70,6 +71,8 @@ export interface SageMacro {
 /** A string table record and the file that holds it */
 export interface SageStringPlace extends SageString {
   uri: Uri;
+  /** The language of the `lang/<Language>.big` it came from; none for a loose file */
+  language?: string;
 }
 
 /**
@@ -77,7 +80,7 @@ export interface SageStringPlace extends SageString {
  * the game's main table, so its records never replace the main one's
  */
 const isMapStringTable = (uri: Uri): boolean =>
-  uri.path.toLowerCase().endsWith('/map.str');
+  uri.path.toLowerCase().endsWith("/map.str");
 
 /** Where a name was used, as the value of a reference field or a macro */
 export interface SageReference {
@@ -103,7 +106,7 @@ const OPEN_DOCUMENT_DELAY_MS = 300;
 const ENTRY_PATTERN = /\.(ini|inc|bhav|str)$/i;
 
 /** Glob for the same files loose in the workspace, as an unpacked mod holds them */
-const LOOSE_PATTERN = '**/*.{ini,inc,bhav,str,INI,INC,BHAV,STR}';
+const LOOSE_PATTERN = "**/*.{ini,inc,bhav,str,INI,INC,BHAV,STR}";
 
 /** Whether a node is an entry this index reads */
 const isSageEntry = (node: VirtualNode): boolean =>
@@ -203,8 +206,12 @@ export class SageIniIndex implements Disposable {
 
   private readonly pendingOpen = new Map<string, NodeJS.Timeout>();
 
-  /** Every string table record, by lowercased label */
-  private strings = new Map<string, SageStringPlace>();
+  /** Every string table record of every language, by lowercased label, in load order */
+  private strings = new Map<string, SageStringPlace[]>();
+
+  /** The records of the chosen language, built when first asked for */
+  private activeStrings?: Map<string, SageStringPlace>;
+  private language?: string;
 
   /** Archives and loose files already read, by key, so a rescan only does the new ones */
   private indexed = new Set<string>();
@@ -267,6 +274,7 @@ export class SageIniIndex implements Disposable {
     this.indexedFiles.clear();
     this.openVersions.clear();
     this.strings.clear();
+    this.activeStrings = undefined;
     this.indexed.clear();
   }
 
@@ -284,12 +292,47 @@ export class SageIniIndex implements Disposable {
    * `DisplayName = OBJECT:GondorFighter` shows, if it names one
    */
   public findString(value: string): SageStringPlace | undefined {
-    return findString(this.strings, value) as SageStringPlace | undefined;
+    return findString(this.activeTable(), value) as SageStringPlace | undefined;
   }
 
-  /** How many string table records are indexed */
+  /** How many string table records are indexed in the chosen language */
   public get stringCount(): number {
-    return this.strings.size;
+    return this.activeTable().size;
+  }
+
+  /**
+   * Picks the language game text is read in. Records from a language archive
+   * of another language stop answering; loose tables answer in every one.
+   */
+  public setLanguage(language: string | undefined): void {
+    if (language !== this.language) {
+      this.language = language;
+      this.activeStrings = undefined;
+    }
+  }
+
+  /**
+   * One record per label: the first in load order that is in the chosen
+   * language, a map's own table only when the main tables have none
+   */
+  private activeTable(): Map<string, SageStringPlace> {
+    if (!this.activeStrings) {
+      const table = new Map<string, SageStringPlace>();
+
+      for (const [key, places] of this.strings) {
+        const usable = places.filter(
+          (place) => !place.language || place.language === this.language,
+        );
+        const chosen =
+          usable.find((place) => !isMapStringTable(place.uri)) ?? usable[0];
+
+        if (chosen) {
+          table.set(key, chosen);
+        }
+      }
+      this.activeStrings = table;
+    }
+    return this.activeStrings;
   }
 
   /** Every place a macro is used, which is what find references answers with */
@@ -422,13 +465,13 @@ export class SageIniIndex implements Disposable {
       await window.withProgress(
         {
           location: ProgressLocation.Window,
-          title: 'bigFS: indexing INI definitions',
+          title: "bigFS: indexing INI definitions",
         },
         () => this.build(),
       );
     } catch (error) {
       // A failed index leaves navigation empty rather than breaking the editor
-      this.log.error('Failed to index INI definitions', error);
+      this.log.error("Failed to index INI definitions", error);
     } finally {
       this.building = undefined;
     }
@@ -453,7 +496,8 @@ export class SageIniIndex implements Disposable {
     purgeOne(this.macros, rootKey);
     purgeList(this.constantUses, rootKey);
     purgeList(this.bodyTokens, rootKey);
-    purgeOne(this.strings, rootKey);
+    purgeList(this.strings, rootKey);
+    this.activeStrings = undefined;
   }
 
   /**
@@ -556,7 +600,7 @@ export class SageIniIndex implements Disposable {
     // mod comes after the one it overrides, as it does in the engine
     for (const uri of await workspace.findFiles(
       LOOSE_PATTERN,
-      '**/node_modules/**',
+      "**/node_modules/**",
     )) {
       if (this.indexed.has(uri.path.toLowerCase())) {
         continue;
@@ -609,22 +653,26 @@ export class SageIniIndex implements Disposable {
     await this.archiveModel.readFiles(
       entries.map((node) => ({ node })),
       async ({ node }, content) => {
-        this.indexContent(getNodeUri(node), node.entryPath, content, schema);
+        this.indexContent(
+          getNodeUri(node),
+          node.entryPath,
+          content,
+          schema,
+          languageOfArchive(root.archive.archivePath),
+        );
       },
     );
   }
 
   /** Records the records of one string table, behind the main table's */
-  private indexStrings(uri: Uri, text: string): void {
-    const isMapTable = isMapStringTable(uri);
-
+  private indexStrings(uri: Uri, text: string, language?: string): void {
     for (const [key, record] of parseStringTable(text)) {
-      const existing = this.strings.get(key);
-
-      if (!existing || (isMapStringTable(existing.uri) && !isMapTable)) {
-        this.strings.set(key, { ...record, uri });
-      }
+      this.strings.set(key, [
+        ...(this.strings.get(key) ?? []),
+        { ...record, uri, language },
+      ]);
     }
+    this.activeStrings = undefined;
   }
 
   /** Records the definitions, macros and references of one file */
@@ -633,10 +681,11 @@ export class SageIniIndex implements Disposable {
     entryPath: string,
     content: Uint8Array,
     schema: SageIniSchema,
+    language?: string,
   ): void {
     // The WHATWG `latin1` decoder is Windows-1252, which is what the text in
     // the string tables means: 0x92 is an apostrophe there
-    this.indexText(uri, entryPath, decodeIniText(content), schema);
+    this.indexText(uri, entryPath, decodeIniText(content), schema, language);
   }
 
   private indexText(
@@ -644,9 +693,10 @@ export class SageIniIndex implements Disposable {
     entryPath: string,
     text: string,
     schema: SageIniSchema,
+    language?: string,
   ): void {
-    if (entryPath.toLowerCase().endsWith('.str')) {
-      this.indexStrings(uri, text);
+    if (entryPath.toLowerCase().endsWith(".str")) {
+      this.indexStrings(uri, text, language);
       return;
     }
 

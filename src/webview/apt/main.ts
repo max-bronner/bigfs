@@ -1,4 +1,6 @@
 import { onEngineRestart, showEngine } from './enginePanel';
+import { keepAnswers } from './engineState';
+import { setGameText } from './gameText';
 import { byId, escapeHtml } from './dom';
 import {
   describe,
@@ -284,6 +286,10 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       const isFirst = !state.movie;
 
       state.movie = data.movie;
+      setGameText(data.texts);
+      if (data.answers) {
+        keepAnswers(data.answers);
+      }
       for (const [key, imported] of Object.entries(data.library)) {
         state.library.set(key, imported);
       }

@@ -129,6 +129,11 @@
         "title": "Pack into BIG Archive..."
       },
       {
+        "command": "bigfs.chooseLanguage",
+        "title": "Choose Game Language",
+        "category": "bigFS"
+      },
+      {
         "command": "bigfs.searchArchives",
         "title": "Search in BIG Archives...",
         "category": "BIG"
@@ -711,6 +716,11 @@
           ],
           "default": "auto",
           "description": "Whether a model, animation, texture or sound an INI file names, which no archive or folder holds, is reported."
+        },
+        "bigfs.language": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "The language the game's text is shown in: the `lang/<Language>.big` archive whose string table labels resolve against, such as `English`. `auto` uses the only language installed, and otherwise asks once and remembers the answer for the workspace."
         },
         "bigfs.explorer.view": {
           "type": "string",

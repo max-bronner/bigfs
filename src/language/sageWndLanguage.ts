@@ -7,6 +7,7 @@ import type { UvRect } from '../formats/mappedImage';
 import type { EntryLocator } from '../formats/entryLocator';
 import { encodePng } from '../formats/textureEncode';
 import { loadMappedTexture, readMappedImage } from './mappedImagePreview';
+import type { GameLanguage } from './gameLanguage';
 import type { SageIniIndex } from './sageIniIndex';
 import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
 import { webviewPage } from '../providers/webviewPage';
@@ -22,6 +23,8 @@ import { webviewPage } from '../providers/webviewPage';
 /** What the preview reads the game's data through */
 export interface WndPreviewServices {
   index: SageIniIndex;
+  /** Settles the language labels resolve in before the text is drawn */
+  gameLanguage?: GameLanguage;
   locator: EntryLocator;
 }
 
@@ -311,7 +314,10 @@ class WndPreview {
 
   private async update(): Promise<void> {
     const version = ++this.version;
-    const { index } = this.services ?? {};
+    const { index, gameLanguage } = this.services ?? {};
+
+    await gameLanguage?.ensure();
+
     const boxes = toBoxes(parseWnd(this.document.getText()).windows, {
       text: (value) => index?.findString(value)?.text,
     });
