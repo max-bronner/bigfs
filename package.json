@@ -832,6 +832,16 @@
         "priority": "default"
       },
       {
+        "viewType": "bigfs.cahEditor",
+        "displayName": "bigFS Create-a-Hero",
+        "selector": [
+          {
+            "filenamePattern": "*.{cah,CAH}"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "bigfs.mapEditor",
         "displayName": "bigFS Map",
         "selector": [
