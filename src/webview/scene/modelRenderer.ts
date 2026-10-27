@@ -1,12 +1,14 @@
-import { boneLines, poseAt, skin } from '../../formats/w3dPose';
-import type { Pose, Vec3 } from '../../formats/w3dPose';
-import type { ModelScene } from '../../formats/w3dScene';
-import type { W3dBlend } from '../../tools/w3dTools';
+import { boneLines, poseAt, skin } from "../../formats/w3dPose";
+import type { Pose, Vec3 } from "../../formats/w3dPose";
+import { visibleMeshes } from "../../formats/w3dScene";
+import type { ModelScene } from "../../formats/w3dScene";
+import type { W3dBlend } from "../../tools/w3dTools";
 
 /**
  * Draws a W3D model with WebGL: every mesh textured and lit from the
  * camera, or flat grey where it has no texture, skinned on the CPU to the
- * pose it is given, and its bones as lines when asked. One renderer serves
+ * pose it is given, its bones and collision boxes as lines when asked, one
+ * level of detail at a time and without the meshes marked hidden. One renderer serves
  * the W3D viewer and the particle preview, so a model looks the same in
  * both. WebGL 1, which the particle preview draws with.
  */
@@ -45,6 +47,7 @@ void main() {
 }`;
 
 const BONE_COLOUR = [1, 0.75, 0.2, 1];
+const BOX_COLOUR = [0.3, 0.9, 0.5, 1];
 
 export interface DrawOptions {
   /** Where the model stands */
@@ -54,6 +57,12 @@ export interface DrawOptions {
   showBones: boolean;
   /** False draws the bones alone */
   showMeshes?: boolean;
+  /** HLOD level to draw, an index into `hlod.lods`; the finest when absent */
+  lod?: number;
+  /** Draws the meshes marked HIDDEN too */
+  showHidden?: boolean;
+  /** Draws the collision boxes as wireframes */
+  showBoxes?: boolean;
 }
 
 export interface ModelRenderer {
@@ -68,6 +77,8 @@ export interface ModelRenderer {
 const ALPHA_CUTOFF = 96 / 255;
 
 interface Drawable {
+  /** Index into `ModelScene.meshes` */
+  mesh: number;
   count: number;
   alphaTest: boolean;
   blend: W3dBlend;
@@ -91,14 +102,14 @@ const compile = (
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(shader) ?? 'shader');
+    throw new Error(gl.getShaderInfoLog(shader) ?? "shader");
   }
   return shader;
 };
 
 /** The bind pose, cached by skeleton, for bones drawn before any pose is set */
 const bindPoses = new WeakMap<object, Pose>();
-const poseAtBind = (skeleton: NonNullable<ModelScene['skeleton']>): Pose => {
+const poseAtBind = (skeleton: NonNullable<ModelScene["skeleton"]>): Pose => {
   let pose = bindPoses.get(skeleton);
 
   if (!pose) {
@@ -119,7 +130,7 @@ export const createModelRenderer = (
   gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER));
   gl.linkProgram(program);
 
-  const wideIndices = !!gl.getExtension('OES_element_index_uint');
+  const wideIndices = !!gl.getExtension("OES_element_index_uint");
   const uniforms = new Map<string, WebGLUniformLocation | null>();
   const uniform = (name: string) => {
     if (!uniforms.has(name)) {
@@ -128,11 +139,13 @@ export const createModelRenderer = (
     return uniforms.get(name)!;
   };
   const attributes = {
-    position: gl.getAttribLocation(program, 'position'),
-    normal: gl.getAttribLocation(program, 'normal'),
-    uv: gl.getAttribLocation(program, 'uv'),
+    position: gl.getAttribLocation(program, "position"),
+    normal: gl.getAttribLocation(program, "normal"),
+    uv: gl.getAttribLocation(program, "uv"),
   };
   const boneBuffer = gl.createBuffer()!;
+  const boxBuffer = gl.createBuffer()!;
+  let boxVertices = 0;
 
   let scene: ModelScene | undefined;
   let drawables: Drawable[] = [];
@@ -209,7 +222,15 @@ export const createModelRenderer = (
       return texture;
     });
 
-    drawables = next.meshes.flatMap((mesh): Drawable[] => {
+    const boxLines = Float32Array.from(
+      next.boxes.flatMap((box) => Array.from(box.lines)),
+    );
+
+    boxVertices = boxLines.length / 3;
+    gl.bindBuffer(gl.ARRAY_BUFFER, boxBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, boxLines, gl.STATIC_DRAW);
+
+    drawables = next.meshes.flatMap((mesh, at): Drawable[] => {
       const vertices = mesh.positions.length / 3;
       const narrow = vertices <= 0x10000;
 
@@ -221,6 +242,7 @@ export const createModelRenderer = (
 
       return [
         {
+          mesh: at,
           count: mesh.indices.length,
           indexType: narrow ? gl.UNSIGNED_SHORT : gl.UNSIGNED_INT,
           texture:
@@ -293,15 +315,15 @@ export const createModelRenderer = (
 
   /** The framebuffer operation a material asks for; blended ones keep the depth buffer */
   const applyBlend = (blend: W3dBlend) => {
-    gl.depthMask(blend === 'opaque');
-    if (blend === 'opaque') {
+    gl.depthMask(blend === "opaque");
+    if (blend === "opaque") {
       gl.disable(gl.BLEND);
       return;
     }
     gl.enable(gl.BLEND);
-    if (blend === 'additive') {
+    if (blend === "additive") {
       gl.blendFunc(gl.ONE, gl.ONE);
-    } else if (blend === 'multiply') {
+    } else if (blend === "multiply") {
       gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
     } else {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -310,40 +332,50 @@ export const createModelRenderer = (
 
   const draw = (
     viewProjection: Float32Array | number[],
-    { offset = [0, 0, 0], light, showBones, showMeshes = true }: DrawOptions,
+    {
+      offset = [0, 0, 0],
+      light,
+      showBones,
+      showMeshes = true,
+      lod,
+      showHidden,
+      showBoxes,
+    }: DrawOptions,
   ) => {
     if (!scene) {
       return;
     }
     gl.useProgram(program);
-    gl.uniformMatrix4fv(uniform('viewProjection'), false, viewProjection);
-    gl.uniform3fv(uniform('offset'), offset);
-    gl.uniform3fv(uniform('lightDirection'), light);
-    gl.uniform1i(uniform('useSolid'), 0);
+    gl.uniformMatrix4fv(uniform("viewProjection"), false, viewProjection);
+    gl.uniform3fv(uniform("offset"), offset);
+    gl.uniform3fv(uniform("lightDirection"), light);
+    gl.uniform1i(uniform("useSolid"), 0);
     gl.enable(gl.DEPTH_TEST);
     gl.depthMask(true);
     gl.disable(gl.BLEND);
 
     // Opaque first, so what blends over it finds it in the depth buffer
-    const ordered = showMeshes
-      ? [
-          ...drawables.filter((each) => each.blend === 'opaque'),
-          ...drawables.filter((each) => each.blend !== 'opaque'),
-        ]
+    const visible = visibleMeshes(scene, { lod, showHidden });
+    const shown = showMeshes
+      ? drawables.filter((each) => visible[each.mesh])
       : [];
+    const ordered = [
+      ...shown.filter((each) => each.blend === "opaque"),
+      ...shown.filter((each) => each.blend !== "opaque"),
+    ];
 
     for (const drawable of ordered) {
       applyBlend(drawable.blend);
       gl.uniform1f(
-        uniform('alphaCutoff'),
+        uniform("alphaCutoff"),
         drawable.alphaTest ? ALPHA_CUTOFF : -1,
       );
-      gl.uniform1i(uniform('hasTexture'), drawable.texture ? 1 : 0);
-      gl.uniform1i(uniform('hasNormals'), drawable.hasNormals ? 1 : 0);
+      gl.uniform1i(uniform("hasTexture"), drawable.texture ? 1 : 0);
+      gl.uniform1i(uniform("hasNormals"), drawable.hasNormals ? 1 : 0);
       if (drawable.texture) {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, drawable.texture);
-        gl.uniform1i(uniform('tex'), 0);
+        gl.uniform1i(uniform("tex"), 0);
       }
       bind(attributes.position, drawable.position, 3);
       bind(attributes.normal, drawable.normal, 3);
@@ -352,7 +384,16 @@ export const createModelRenderer = (
       gl.drawElements(gl.TRIANGLES, drawable.count, drawable.indexType, 0);
     }
 
-    applyBlend('opaque');
+    applyBlend("opaque");
+
+    if (showBoxes && boxVertices) {
+      gl.uniform1i(uniform("useSolid"), 1);
+      gl.uniform4fv(uniform("solid"), BOX_COLOUR);
+      bind(attributes.normal, undefined, 3);
+      bind(attributes.uv, undefined, 2);
+      bind(attributes.position, boxBuffer, 3);
+      gl.drawArrays(gl.LINES, 0, boxVertices);
+    }
 
     const skeleton = scene.skeleton;
     const lines =
@@ -362,8 +403,8 @@ export const createModelRenderer = (
 
     if (lines.length) {
       gl.disable(gl.DEPTH_TEST);
-      gl.uniform1i(uniform('useSolid'), 1);
-      gl.uniform4fv(uniform('solid'), BONE_COLOUR);
+      gl.uniform1i(uniform("useSolid"), 1);
+      gl.uniform4fv(uniform("solid"), BONE_COLOUR);
       gl.bindBuffer(gl.ARRAY_BUFFER, boneBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
       bind(attributes.normal, undefined, 3);
