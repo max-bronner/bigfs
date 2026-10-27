@@ -1,4 +1,21 @@
-import { AsObject, toBoolean, toInt32, toNumber } from './value';
+import type { Instance } from '../player';
+import {
+  apply,
+  invert,
+  multiply,
+  placedColor,
+  transformRect,
+  union,
+} from '../scene';
+import type { Affine } from '../scene';
+import type { Rect } from '../../../formats/apt/aptMovie';
+import {
+  AsObject,
+  SCRIPT_DEPTH_BIAS,
+  toBoolean,
+  toInt32,
+  toNumber,
+} from './value';
 import type { NativeFunction, Value } from './value';
 import type { Vm } from './vm';
 
@@ -40,6 +57,64 @@ const setValues = (array: AsObject, values: Value[]) => {
   }
   values.forEach((value, at) => array.set(String(at), value));
   array.define('length', values.length);
+};
+
+/** Deepest depth a script may use, mint's `AVM_MAX_DEPTH` */
+const MAX_SCRIPT_DEPTH = 2_130_706_428;
+/** Depths a script may remove, mint's `AVM_MAX_REMOVE_DEPTH` */
+const MAX_REMOVE_DEPTH = 2_130_706_416;
+const MAX_TREE = 4096;
+
+/** The depth a clip sits at, as the display list numbers it */
+const listDepth = (clip: Instance) => Number(clip.path.split('/').pop());
+
+const asAffine = (clip: Instance): Affine => [
+  ...clip.matrix,
+  ...clip.translate,
+];
+
+/** Clip space to the stage's */
+const worldOf = (clip: Instance): Affine => {
+  const chain: Instance[] = [];
+
+  for (
+    let at: Instance | undefined = clip;
+    at && chain.length < 64;
+    at = at.parent
+  ) {
+    chain.unshift(at);
+  }
+  return chain.reduce<Affine>(
+    (sum, each) => multiply(sum, asAffine(each)),
+    [1, 0, 0, 1, 0, 0],
+  );
+};
+
+/** The box around what a clip draws, in the clip's own space */
+const ownBounds = (clip: Instance): Rect | undefined => {
+  const boxes: Rect[] = [];
+  const visit = (at: Instance, matrix: Affine, count: { n: number }) => {
+    if (at.visible === false || count.n++ > MAX_TREE) {
+      return;
+    }
+    if (at.character && 'bounds' in at.character) {
+      boxes.push(transformRect(matrix, at.character.bounds));
+    }
+    for (const child of at.children.values()) {
+      visit(child, multiply(matrix, asAffine(child)), count);
+    }
+  };
+
+  visit(clip, [1, 0, 0, 1, 0, 0], { n: 0 });
+  return union(boxes);
+};
+
+/** Gives a subtree the paths its root's new depth implies */
+const repath = (clip: Instance, path: string) => {
+  clip.path = path;
+  for (const child of clip.children.values()) {
+    repath(child, `${path}/${child.path.split('/').pop()}`);
+  }
 };
 
 export const installNatives = (vm: Vm): void => {
@@ -153,7 +228,16 @@ export const installNatives = (vm: Vm): void => {
   const depthOf: NativeFunction = (_, self) => {
     const at = clip(self);
 
-    return at ? Number(at.path.split('/').pop()) || 0 : undefined;
+    return at ? (listDepth(at) || 0) - SCRIPT_DEPTH_BIAS : undefined;
+  };
+  const scriptDepth = (value: Value) => toInt32(value) + SCRIPT_DEPTH_BIAS;
+  const inRange = (depth: number) => depth >= 0 && depth <= MAX_SCRIPT_DEPTH;
+  const initialise = (made: Instance, init: Value) => {
+    if (init instanceof AsObject) {
+      const object = vm.objectOf(made);
+
+      init.keys().forEach((key) => object.set(key, init.get(key)));
+    }
   };
 
   method(protos.movieClip, 'getDepth', depthOf);
@@ -161,54 +245,196 @@ export const installNatives = (vm: Vm): void => {
   method(protos.textField, 'getDepth', depthOf);
   method(protos.movieClip, 'attachMovie', (_, self, args) => {
     const at = clip(self);
+    const depth = scriptDepth(arg(args, 2));
     const made =
-      at &&
-      vm.stage.attach(
-        at,
-        vm.string(arg(args, 0)),
-        vm.string(arg(args, 1)),
-        toInt32(arg(args, 2)),
-      );
+      at && args.length >= 3 && inRange(depth)
+        ? vm.stage.attach(
+            at,
+            vm.string(arg(args, 0)),
+            vm.string(arg(args, 1)),
+            depth,
+          )
+        : undefined;
 
+    if (made) {
+      initialise(made, args[3]);
+    }
     return made && vm.objectOf(made);
   });
   method(protos.movieClip, 'createEmptyMovieClip', (_, self, args) => {
     const at = clip(self);
+    const depth = scriptDepth(arg(args, 1));
     const made =
-      at &&
-      vm.stage.createEmpty(at, vm.string(arg(args, 0)), toInt32(arg(args, 1)));
+      at && args.length >= 2 && inRange(depth)
+        ? vm.stage.createEmpty(at, vm.string(arg(args, 0)), depth)
+        : undefined;
 
     return made && vm.objectOf(made);
   });
   method(protos.movieClip, 'duplicateMovieClip', (_, self, args) => {
     const at = clip(self);
+    const depth = scriptDepth(arg(args, 1));
     const made =
-      at?.parent &&
-      vm.stage.attach(
-        at.parent,
-        `#${at.id}`,
-        vm.string(arg(args, 0)),
-        toInt32(arg(args, 1)),
-      );
+      at?.parent && inRange(depth)
+        ? vm.stage.attach(
+            at.parent,
+            `#${at.id}`,
+            vm.string(arg(args, 0)),
+            depth,
+          )
+        : undefined;
 
+    if (at && made) {
+      made.matrix = [...at.matrix];
+      made.translate = [...at.translate];
+      made.alpha = at.alpha;
+      made.tint = at.tint;
+      made.clipActions = at.clipActions;
+      made.visible = at.visible;
+      made.scripted = true;
+      initialise(made, args[2]);
+    }
     return made && vm.objectOf(made);
   });
   method(protos.movieClip, 'removeMovieClip', (_, self) => {
     const at = clip(self);
+    const depth = at ? listDepth(at) : NaN;
 
-    if (at) {
+    // Only depths a script can own: what the timeline placed stays
+    if (at?.parent && depth >= SCRIPT_DEPTH_BIAS && depth < MAX_REMOVE_DEPTH) {
       vm.stage.remove(at);
     }
     return undefined;
   });
-  method(protos.movieClip, 'swapDepths', () => undefined);
+  method(protos.movieClip, 'swapDepths', (_, self, args) => {
+    const at = clip(self);
+    const parent = at?.parent;
+
+    if (!at || !parent) {
+      return undefined;
+    }
+
+    const mine = listDepth(at);
+    const other =
+      typeof args[0] === 'number'
+        ? scriptDepth(args[0])
+        : (() => {
+            const named = vm.clipAt(args[0], parent);
+
+            return named?.parent === parent ? listDepth(named) : NaN;
+          })();
+
+    if (
+      Number.isNaN(mine) ||
+      Number.isNaN(other) ||
+      other === mine ||
+      !inRange(other)
+    ) {
+      return undefined;
+    }
+
+    const there = parent.children.get(String(other));
+    const moved: [Instance, number][] = [[at, other]];
+
+    if (there) {
+      moved.push([there, mine]);
+    }
+    parent.children.delete(String(mine));
+    parent.children.delete(String(other));
+    for (const [each, depth] of moved) {
+      // Placed by a script now, so the timeline no longer moves or drops it
+      each.dynamic = true;
+      each.scripted = true;
+      parent.children.set(String(depth), each);
+      repath(each, `${parent.path}/${depth}`);
+    }
+    parent.children = new Map(
+      [...parent.children].sort(([a], [b]) => Number(a) - Number(b)),
+    );
+    return undefined;
+  });
   method(protos.movieClip, 'getBytesLoaded', () => 1);
   method(protos.movieClip, 'getBytesTotal', () => 1);
-  method(protos.movieClip, 'hitTest', () => false);
+  /** A point or clip argument as a box in the stage's space */
+  const stageBox = (at: Instance): Rect | undefined => {
+    const box = ownBounds(at);
+
+    return box && transformRect(worldOf(at), box);
+  };
+  method(protos.movieClip, 'hitTest', (_, self, args) => {
+    const at = clip(self);
+    const mine = at && stageBox(at);
+
+    if (!mine) {
+      return false;
+    }
+
+    const other =
+      clip(args[0]) ??
+      (typeof args[0] === 'string' ? vm.clipAt(args[0], at) : undefined);
+
+    if (other) {
+      const theirs = stageBox(other);
+
+      return (
+        !!theirs &&
+        mine[0] < theirs[2] &&
+        theirs[0] < mine[2] &&
+        mine[1] < theirs[3] &&
+        theirs[1] < mine[3]
+      );
+    }
+
+    const [x, y] = [toNumber(args[0]), toNumber(args[1])];
+
+    return x >= mine[0] && x <= mine[2] && y >= mine[1] && y <= mine[3];
+  });
+  method(protos.movieClip, 'getBounds', (_, self, args) => {
+    const at = clip(self);
+    const box = at && ownBounds(at);
+    const result = vm.object();
+    const space =
+      (at && (clip(args[0]) ?? (args.length ? vm.clipAt(args[0], at) : at))) ||
+      at;
+
+    if (!at || !box || !space) {
+      return result;
+    }
+
+    const [l, t, r, b] = transformRect(
+      multiply(invert(worldOf(space)), worldOf(at)),
+      box,
+    );
+
+    result.set('xMin', l);
+    result.set('xMax', r);
+    result.set('yMin', t);
+    result.set('yMax', b);
+    return result;
+  });
   method(protos.movieClip, 'startDrag', () => undefined);
   method(protos.movieClip, 'stopDrag', () => undefined);
-  method(protos.movieClip, 'localToGlobal', () => undefined);
-  method(protos.movieClip, 'globalToLocal', () => undefined);
+  const convert =
+    (toStage: boolean): NativeFunction =>
+    (_, self, args) => {
+      const at = clip(self);
+      const point = args[0];
+
+      if (at && point instanceof AsObject) {
+        const world = worldOf(at);
+        const [x, y] = apply(toStage ? world : invert(world), [
+          toNumber(point.get('x')),
+          toNumber(point.get('y')),
+        ]);
+
+        point.set('x', x);
+        point.set('y', y);
+      }
+      return undefined;
+    };
+
+  method(protos.movieClip, 'localToGlobal', convert(true));
+  method(protos.movieClip, 'globalToLocal', convert(false));
   method(protos.movieClip, 'getNextHighestDepth', (_, self) => {
     const at = clip(self);
 
@@ -216,23 +442,100 @@ export const installNatives = (vm: Vm): void => {
       ? Math.max(
           0,
           ...[...at.children.keys()]
-            .map((key) => Number(key))
+            .map((key) => Number(key) - SCRIPT_DEPTH_BIAS + 1)
             .filter(Number.isFinite),
-        ) + 1
+        )
       : undefined;
   });
   method(protos.movieClip, 'getInstanceAtDepth', (_, self, args) => {
-    const child = clip(self)?.children.get(String(toInt32(arg(args, 0))));
+    const child = clip(self)?.children.get(String(scriptDepth(arg(args, 0))));
 
     return child && vm.objectOf(child);
   });
 
-  // ---- Color, enough to set a clip's tint without failing
-  constructor('Color', new AsObject(protos.object), (_, self, args) => {
+  // ---- Color
+  const colorProto = new AsObject(protos.object);
+  const colorTarget = (self: Value) => {
+    const target = self instanceof AsObject ? self.get('target') : undefined;
+
+    return clip(target) ?? vm.clipAt(target, vm.stage.root);
+  };
+  const byte = (unit: number) =>
+    Math.max(-255, Math.min(255, Math.round(unit * 255)));
+  const CHANNELS = [
+    ['ra', 'rb'],
+    ['ga', 'gb'],
+    ['ba', 'bb'],
+    ['aa', 'ab'],
+  ] as const;
+
+  constructor('Color', colorProto, (_, self, args) => {
     if (self instanceof AsObject) {
       self.set('target', args[0]);
     }
+    return self;
+  });
+  method(colorProto, 'setRGB', (_, self, args) => {
+    const at = colorTarget(self);
+    const rgb = toInt32(arg(args, 0));
+
+    if (at) {
+      at.tint = {
+        mult: [0, 0, 0, 1],
+        add: [
+          ((rgb >> 16) & 255) / 255,
+          ((rgb >> 8) & 255) / 255,
+          (rgb & 255) / 255,
+          0,
+        ],
+      };
+    }
     return undefined;
+  });
+  method(colorProto, 'getRGB', (_, self) => {
+    const at = colorTarget(self);
+    const add = at && placedColor(at).add;
+
+    return add && (byte(add[0]) << 16) | (byte(add[1]) << 8) | byte(add[2]);
+  });
+  method(colorProto, 'setTransform', (_, self, args) => {
+    const at = colorTarget(self);
+    const given = args[0];
+
+    if (at && given instanceof AsObject) {
+      const { mult, add } = placedColor(at);
+      const next = { mult: [...mult], add: [...add] } as typeof at.tint &
+        object;
+
+      CHANNELS.forEach(([m, a], channel) => {
+        if (given.get(m) !== undefined) {
+          next.mult[channel] = toNumber(given.get(m)) / 100;
+        }
+        if (given.get(a) !== undefined) {
+          next.add[channel] = toNumber(given.get(a)) / 255;
+        }
+      });
+      at.tint = next;
+      // The instance's own alpha is what draws, so the alpha term lands there
+      at.alpha = next.mult[3];
+    }
+    return undefined;
+  });
+  method(colorProto, 'getTransform', (_, self) => {
+    const at = colorTarget(self);
+
+    if (!at) {
+      return undefined;
+    }
+
+    const { mult, add } = placedColor(at);
+    const result = vm.object();
+
+    CHANNELS.forEach(([m, a], channel) => {
+      result.set(m, mult[channel] * 100);
+      result.set(a, add[channel] * 255);
+    });
+    return result;
   });
 
   // ---- String

@@ -9,6 +9,7 @@ import {
   AsObject,
   formatNumber,
   looseEquals,
+  SCRIPT_DEPTH_BIAS,
   toBoolean,
   toInt32,
   toNumber,
@@ -256,16 +257,7 @@ export class Vm implements NativeHost {
    * over a clip or object the movie keeps under the name.
    */
   public assertValue(path: string, value: Value): void {
-    const frame: Frame = {
-      movie: this.stage.root.movie,
-      scope: this.targetScope(this.stage.root),
-      pool: [],
-      self: this.objectOf(this.stage.root),
-      target: this.stage.root,
-      base: this.stage.root,
-      stack: [],
-      depth: 0,
-    };
+    const frame = this.frameOn(this.stage.root);
     const target = `_root.${path}`;
     const held = this.lookupVariable(frame, target).value;
 
@@ -327,6 +319,24 @@ export class Vm implements NativeHost {
   /** Whether a script is running, so a frame entered now waits its turn */
   public get busy(): boolean {
     return this.nesting > 0;
+  }
+
+  /** A frame with nothing running, for resolving paths from a clip */
+  private frameOn(clip: Instance): Frame {
+    return {
+      movie: clip.movie,
+      scope: this.targetScope(clip),
+      pool: [],
+      self: this.objectOf(clip),
+      target: clip,
+      base: clip,
+      stack: [],
+      depth: 0,
+    };
+  }
+
+  public clipAt(target: Value, from: Instance): Instance | undefined {
+    return this.targetClip(this.frameOn(from), from, target, false);
   }
 
   /** A clip's script object if a script has touched it, without making one */
@@ -1219,7 +1229,7 @@ export class Vm implements NativeHost {
     // during this code stops it
     const wasRemoved = frame.base?.removed;
 
-    for (let pc = 0; pc < code.length;) {
+    for (let pc = 0; pc < code.length; ) {
       if (--this.budget < 0) {
         throw new Halt(`over ${MAX_STEPS} instructions in one action`);
       }
@@ -2024,7 +2034,12 @@ export class Vm implements NativeHost {
         );
 
         if (clip?.parent) {
-          this.stage.attach(clip.parent, `#${clip.id}`, newName, depth + 16384);
+          this.stage.attach(
+            clip.parent,
+            `#${clip.id}`,
+            newName,
+            depth + SCRIPT_DEPTH_BIAS,
+          );
         }
         break;
       }

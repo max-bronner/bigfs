@@ -9,6 +9,9 @@ import type { PageMovie } from '../protocol';
  * a string is true when it reads as a non-zero number.
  */
 
+/** Depth a script's number 0 is on the display list, above anything a timeline places */
+export const SCRIPT_DEPTH_BIAS = 16384;
+
 export type Value = undefined | null | boolean | number | string | AsObject;
 
 /** A function the movie's bytecode defines, with the scope it closes over */
@@ -37,6 +40,8 @@ export interface NativeHost {
   array(values: Value[]): AsObject;
   object(): AsObject;
   clipOf(value: Value): Instance | undefined;
+  /** The clip a target path or clip value names, a path read from `from` */
+  clipAt(target: Value, from: Instance): Instance | undefined;
   objectOf(instance: Instance): AsObject;
   readonly stage: StageHost;
   random(): number;
