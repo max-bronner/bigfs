@@ -1,5 +1,10 @@
 import * as assert from 'assert';
-import { moveSlot, slotEdits } from '../../language/model/commandSetEdit';
+import {
+  commandSetHeader,
+  moveSlot,
+  sameSlots,
+  slotEdits,
+} from '../../language/model/commandSetEdit';
 
 const apply = (lines: string[], edits: ReturnType<typeof slotEdits>) => {
   const out = [...lines];
@@ -68,5 +73,31 @@ suite('Command set moves', () => {
       [2, 'B'],
       [6, 'A'],
     ]);
+  });
+
+  test('only a CommandSet header names a set, not a CommandSet field', () => {
+    assert.strictEqual(commandSetHeader('CommandSet TestSet'), 'TestSet');
+    assert.strictEqual(
+      commandSetHeader('  commandset TestSet ; note'),
+      'TestSet',
+    );
+    assert.strictEqual(
+      commandSetHeader('CommandSet\tTestSet // note'),
+      'TestSet',
+    );
+    assert.strictEqual(commandSetHeader('  CommandSet = TestSet'), undefined);
+    assert.strictEqual(commandSetHeader('  CommandSet =TestSet'), undefined);
+    assert.strictEqual(commandSetHeader('  CommandSet=TestSet'), undefined);
+    assert.strictEqual(commandSetHeader('  CommandSetX Test'), undefined);
+    assert.strictEqual(
+      commandSetHeader('CommandSet TestSet = Other'),
+      undefined,
+    );
+  });
+
+  test('slot maps are the same when they hold the same buttons', () => {
+    assert.ok(sameSlots(new Map([[1, 'A']]), new Map([[1, 'A']])));
+    assert.ok(!sameSlots(new Map([[1, 'A']]), new Map([[1, 'B']])));
+    assert.ok(!sameSlots(new Map([[1, 'A']]), new Map()));
   });
 });

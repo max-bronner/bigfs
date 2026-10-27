@@ -8,7 +8,12 @@ import {
 } from './commandSetPreview';
 import { createMappedImagePreview } from './mappedImagePreview';
 import { hotkeyClashes } from './model/hotkeys';
-import { moveSlot, slotEdits } from './model/commandSetEdit';
+import {
+  commandSetHeader,
+  moveSlot,
+  sameSlots,
+  slotEdits,
+} from './model/commandSetEdit';
 import type {
   CommandSetMessage,
   FromCommandSetPage,
@@ -195,15 +200,43 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
   }
 
   /** Writes the slots as the set's numbered lines */
-  private async write(slots: Map<number, string>): Promise<void> {
+  private async write(
+    before: ReadonlyMap<number, string>,
+    slots: Map<number, string>,
+  ): Promise<void> {
     const found = await this.block();
 
     if (!found) {
       return;
     }
 
+    // The page drew the slots as of the last refresh, which may be behind
+    // the file: the edit must start from the same lines it was asked of
+    const current = new Map(
+      commandSetSlots(
+        found.lines.slice(found.block.startLine + 1, found.block.endLine),
+      ).map(({ slot, button }) => [slot, button]),
+    );
+
+    if (!sameSlots(current, before)) {
+      await this.stale();
+      return;
+    }
+
     const edit = new vscode.WorkspaceEdit();
     const document = await vscode.workspace.openTextDocument(this.uri);
+
+    for (
+      let line = found.block.startLine;
+      line <= found.block.endLine;
+      line++
+    ) {
+      if (document.lineAt(line).text !== found.lines[line]) {
+        await this.stale();
+        return;
+      }
+    }
+
     const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
 
     for (const change of slotEdits(
@@ -222,19 +255,29 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
     await this.refresh();
   }
 
+  private async stale(): Promise<void> {
+    void vscode.window.showErrorMessage(
+      'The file changed since the editor was drawn; it has been refreshed',
+    );
+    await this.refresh();
+  }
+
   public async receive(message: FromCommandSetPage): Promise<void> {
     switch (message.kind) {
       case 'ready':
         await this.refresh();
         return;
       case 'move':
-        await this.write(moveSlot(this.slots, message.from, message.to));
+        await this.write(
+          this.slots,
+          moveSlot(this.slots, message.from, message.to),
+        );
         return;
       case 'clear': {
         const next = new Map(this.slots);
 
         next.delete(message.slot);
-        await this.write(next);
+        await this.write(this.slots, next);
         return;
       }
       case 'add': {
@@ -248,7 +291,10 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
           ));
 
         if (button) {
-          await this.write(new Map(this.slots).set(message.slot, button));
+          await this.write(
+            this.slots,
+            new Map(this.slots).set(message.slot, button),
+          );
         }
         return;
       }
@@ -278,14 +324,14 @@ class CommandSetLensProvider implements vscode.CodeLensProvider {
     const lenses: vscode.CodeLens[] = [];
 
     for (let line = 0; line < document.lineCount; line++) {
-      const match = /^\s*CommandSet\s+(\S+)/i.exec(document.lineAt(line).text);
+      const name = commandSetHeader(document.lineAt(line).text);
 
-      if (match) {
+      if (name) {
         lenses.push(
           new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
             title: 'Edit slots',
             command: 'bigfs.editCommandSet',
-            arguments: [document.uri, match[1]],
+            arguments: [document.uri, name],
           }),
         );
       }

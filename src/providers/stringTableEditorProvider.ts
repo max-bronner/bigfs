@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
-import { CsfFile, parseCsf, writeCsf } from '../formats/csf';
+import {
+  CsfFile,
+  csfNameProblem,
+  keepLineBreaks,
+  parseCsf,
+  writeCsf,
+} from '../formats/csf';
 import {
   parseStringRecords,
   quoteStringText,
@@ -114,6 +120,15 @@ const checkLabel = (label: string) => {
     throw new Error(
       `"${label}" is not a label: it cannot hold spaces or quotes`,
     );
+  }
+};
+
+/** Refuses a label or speech name the `.csf` cannot store */
+const checkEncodable = (name: string) => {
+  const problem = csfNameProblem(name);
+
+  if (problem) {
+    throw new Error(problem);
   }
 };
 
@@ -277,9 +292,12 @@ class CsfDocument implements vscode.CustomDocument {
   public constructor(
     public readonly uri: vscode.Uri,
     public file: CsfFile,
+    private readonly onDispose: () => void,
   ) {}
 
-  public dispose(): void {}
+  public dispose(): void {
+    this.onDispose();
+  }
 }
 
 const cloneCsf = (file: CsfFile): CsfFile => ({
@@ -307,10 +325,13 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
   ): Promise<CsfDocument> {
     const source = context.backupId ? vscode.Uri.parse(context.backupId) : uri;
 
-    return new CsfDocument(
+    const document: CsfDocument = new CsfDocument(
       uri,
       parseCsf(await vscode.workspace.fs.readFile(source)),
+      () => this.redraws.delete(document),
     );
+
+    return document;
   }
 
   private redraw(document: CsfDocument): void {
@@ -393,20 +414,27 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
       },
       (message) => {
         switch (message.kind) {
-          case 'setText':
-            labelOf(document.file, message);
+          case 'setText': {
+            const previous = labelOf(document.file, message).strings[0]?.text;
+            const text = keepLineBreaks(previous ?? '', message.value ?? '');
+
+            if (previous === text) {
+              return;
+            }
 
             return this.change(document, 'Edit text', (file) => {
               const label = labelOf(file, message);
 
               if (label.strings.length) {
-                label.strings[0].text = message.value ?? '';
+                label.strings[0].text = text;
               } else {
-                label.strings.push({ text: message.value ?? '' });
+                label.strings.push({ text });
               }
             });
+          }
           case 'setSpeech':
             labelOf(document.file, message);
+            checkEncodable((message.value ?? '').trim());
 
             return this.change(document, 'Edit speech', (file) => {
               const label = labelOf(file, message);
@@ -422,6 +450,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             const name = (message.value ?? '').trim();
 
             checkLabel(name);
+            checkEncodable(name);
             labelOf(document.file, message);
 
             return this.change(document, 'Rename label', (file) => {
@@ -432,6 +461,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             const name = (message.label ?? '').trim();
 
             checkLabel(name);
+            checkEncodable(name);
 
             return this.change(document, 'Add label', (file) => {
               file.labels.push({

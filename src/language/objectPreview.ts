@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { EntryLocator } from '../formats/entryLocator';
-import { parseW3dAnimations } from '../formats/w3dAnimation';
+import { findAnimation, parseW3dAnimations } from '../formats/w3dAnimation';
 import { buildW3dScene } from '../formats/w3dScene';
 import { createToolRegistry } from '../tools/toolRegistry';
 import { EffectLibrary } from './effectLibrary';
@@ -38,6 +38,17 @@ const objectAt = (parsed: SageDocument, line: number) =>
       line <= block.endLine,
   );
 
+/** The object template a name defines, wherever it has moved to in the file */
+const objectNamed = (parsed: SageDocument, name: string) =>
+  parsed.blocks.find(
+    (block) =>
+      TEMPLATE.test(block.keyword) &&
+      block.name?.split(/\s+/)[0].toLowerCase() === name.toLowerCase(),
+  );
+
+/** How long after an edit the preview is drawn again */
+const REDRAW_DELAY = 300;
+
 class ObjectPreview {
   private static readonly panels = new Map<string, ObjectPreview>();
 
@@ -66,30 +77,24 @@ class ObjectPreview {
       return;
     }
 
-    const key = `${uri.toString()}#${object.startLine}`;
+    const name = object.name?.split(/\s+/)[0] ?? 'Object';
+    const key = `${uri.toString()}#${name.toLowerCase()}`;
     const preview =
       ObjectPreview.panels.get(key) ??
-      new ObjectPreview(
-        context,
-        documents,
-        index,
-        locator,
-        uri,
-        object.startLine,
-        object.name?.split(/\s+/)[0] ?? 'Object',
-        key,
-      );
+      new ObjectPreview(context, documents, index, locator, uri, name, key);
 
     ObjectPreview.panels.set(key, preview);
-    preview.focusLine = line;
+    preview.focusOffset = line - object.startLine;
     preview.panel.reveal(undefined, true);
     if (preview.isReady) {
       await preview.send();
     }
   }
 
-  private focusLine: number;
+  /** Lines below the object's header the preview opens on */
+  private focusOffset = 0;
   private isReady = false;
+  private redrawTimer?: ReturnType<typeof setTimeout>;
 
   private constructor(
     context: vscode.ExtensionContext,
@@ -97,11 +102,9 @@ class ObjectPreview {
     private readonly index: SageIniIndex,
     private readonly locator: EntryLocator | undefined,
     private readonly uri: vscode.Uri,
-    private readonly headerLine: number,
-    name: string,
+    private readonly name: string,
     key: string,
   ) {
-    this.focusLine = headerLine;
     this.library = new EffectLibrary(index, locator, uri);
 
     const scripts = vscode.Uri.joinPath(
@@ -137,10 +140,32 @@ class ObjectPreview {
         ),
     );
 
+    // The object may be anywhere in the lineage of files: any INI edit
+    // can change what it composes to
+    const editing = vscode.workspace.onDidChangeTextDocument((event) => {
+      if (this.isReady && event.document.languageId === 'sage-ini') {
+        this.redrawSoon();
+      }
+    });
+
     this.panel.onDidDispose(() => {
       ObjectPreview.panels.delete(key);
+      clearTimeout(this.redrawTimer);
       listening.dispose();
+      editing.dispose();
     });
+  }
+
+  private redrawSoon(): void {
+    clearTimeout(this.redrawTimer);
+    this.redrawTimer = setTimeout(() => {
+      this.send().catch((error: unknown) =>
+        this.post({
+          kind: 'notice',
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }, REDRAW_DELAY);
   }
 
   private post(message: ToPage): Thenable<boolean> {
@@ -165,14 +190,17 @@ class ObjectPreview {
   /** The object, the effects on it, and where to open it */
   private async send(): Promise<void> {
     const schema = await this.documents.getSchema();
-    const composed = await composeEffective(
-      this.documents,
-      this.index,
-      this.uri,
-      this.headerLine,
+    const source = parseSageIni(
+      (await readWorkspaceText(this.uri)).split(/\r?\n/),
+      schema,
     );
+    const header = objectNamed(source, this.name)?.startLine;
+    const composed =
+      header === undefined
+        ? undefined
+        : await composeEffective(this.documents, this.index, this.uri, header);
 
-    if (composed === undefined) {
+    if (header === undefined || composed === undefined) {
       await this.post({
         kind: 'notice',
         message: 'The object is no longer where it was',
@@ -196,10 +224,6 @@ class ObjectPreview {
       return;
     }
 
-    const source = parseSageIni(
-      (await readWorkspaceText(this.uri)).split(/\r?\n/),
-      schema,
-    );
     const effects = await this.library.collect(
       [],
       [
@@ -228,7 +252,7 @@ class ObjectPreview {
     await this.post({
       kind: 'object',
       object: scene,
-      focus: focusAt(source, this.focusLine, scene),
+      focus: focusAt(source, header + this.focusOffset, scene),
     });
   }
 
@@ -262,10 +286,7 @@ class ObjectPreview {
     await this.post({
       kind: 'animation',
       name,
-      animation:
-        animations.find(
-          (each) => each.name.toLowerCase() === name.toLowerCase(),
-        ) ?? animations[0],
+      animation: findAnimation(animations, name),
     });
   }
 }
