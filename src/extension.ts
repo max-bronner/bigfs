@@ -194,9 +194,9 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       if (document.uri.scheme === SCHEME) {
-        vscode.window.showInformationMessage(
+        vscode.window.setStatusBarMessage(
           `BIG archive updated: ${document.uri.path}`,
-          { modal: false },
+          4000,
         );
       }
     }),
