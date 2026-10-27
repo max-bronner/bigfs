@@ -1,6 +1,60 @@
 import type { Character, Frame, Matrix2 } from '../../formats/apt/aptMovie';
 import type { PageMovie } from './protocol';
 
+/**
+ * A colour transform as the game applies it: `out = c * mult + add`, each of
+ * red, green, blue, alpha in 0-1 units. Ported from mint's apt-player
+ * `ColorTransform`.
+ */
+export interface ColorTransform {
+  mult: [number, number, number, number];
+  add: [number, number, number, number];
+}
+
+export const IDENTITY_COLOR: ColorTransform = {
+  mult: [1, 1, 1, 1],
+  add: [0, 0, 0, 0],
+};
+
+/**
+ * From a PlaceObject's two packed words: `mult` holds its channels in memory
+ * order R, G, B, A; `add` is `0x00RRGGBB` and has no alpha term
+ */
+export const colorFromApt = (mult: number, add = 0): ColorTransform => ({
+  mult: [
+    (mult & 255) / 255,
+    ((mult >>> 8) & 255) / 255,
+    ((mult >>> 16) & 255) / 255,
+    (mult >>> 24) / 255,
+  ],
+  add: [
+    ((add >>> 16) & 255) / 255,
+    ((add >>> 8) & 255) / 255,
+    (add & 255) / 255,
+    0,
+  ],
+});
+
+/** The parent's transform followed by the child's: a child's add is scaled by the parent's mult */
+export const concatColor = (
+  parent: ColorTransform,
+  child: ColorTransform,
+): ColorTransform => ({
+  mult: parent.mult.map((m, i) => m * child.mult[i]) as ColorTransform['mult'],
+  add: parent.add.map(
+    (a, i) => a + parent.mult[i] * child.add[i],
+  ) as ColorTransform['add'],
+});
+
+/** Whether a transform leaves red, green and blue alone (alpha apart) */
+export const isPlainColor = ({ mult, add }: ColorTransform): boolean =>
+  mult[0] === 1 &&
+  mult[1] === 1 &&
+  mult[2] === 1 &&
+  add[0] === 0 &&
+  add[1] === 0 &&
+  add[2] === 0;
+
 /** A character on a display list, at its depth */
 export interface Placement {
   depth: number;
@@ -8,6 +62,8 @@ export interface Placement {
   matrix: Matrix2;
   translate: [number, number];
   alpha: number;
+  /** Its full colour transform; `alpha` is its multiply alpha */
+  color: ColorTransform;
   name?: string;
   /** The frame this instance was placed in; a move keeps it, a new character does not */
   born: number;
@@ -59,6 +115,7 @@ export const displayList = (frames: Frame[], frame: number): Placement[] => {
               matrix: [1, 0, 0, 1],
               translate: [0, 0],
               alpha: 1,
+              color: IDENTITY_COLOR,
               born: index,
               placedItem: item.offset,
               matrixItem: item.offset,
@@ -78,7 +135,8 @@ export const displayList = (frames: Frame[], frame: number): Placement[] => {
           next.matrixItem = item.offset;
         }
         if (item.colorTransform !== undefined) {
-          next.alpha = (item.colorTransform >>> 24) / 255;
+          next.color = colorFromApt(item.colorTransform, item.colorAdd);
+          next.alpha = next.color.mult[3];
         }
         if (item.name !== undefined) {
           next.name = item.name;
