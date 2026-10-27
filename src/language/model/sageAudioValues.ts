@@ -8,6 +8,8 @@ import {
 import type { AudioReferenceKind } from './sageAudioFields';
 import type { SageStatement, SageToken } from './sageIniParser';
 import type { SageIniSchema } from './sageIniSchema';
+import { parentOf } from './sageIniNames';
+import { nameOffsetIn } from './sageReferenceFields';
 
 /**
  * The sound and announcer names written inside the values of an audio field,
@@ -184,14 +186,31 @@ export interface ReferencedName extends AudioName {
 
 /**
  * Every name a statement's field points at another definition with: the names
- * inside the values of a sound or announcer field, or each whole value of any
- * other reference field. Nothing for a field that references nothing.
+ * inside the values of a sound or announcer field, the parent a `ChildObject`
+ * header inherits from, or each value of any other reference field that names
+ * something. Nothing for a field that references nothing.
  */
 export const referencedNames = (
   statement: SageStatement,
   schema: SageIniSchema,
 ): ReferencedName[] => {
   const { keyword, context, values } = statement;
+  const parent = parentOf(statement);
+
+  if (statement.block) {
+    return parent
+      ? [
+          {
+            name: parent.token.text,
+            start: parent.token.start,
+            end: parent.token.end,
+            namespaces: [parent.namespace],
+            isAudio: false,
+          },
+        ]
+      : [];
+  }
+
   const contextName = schema.describeContext(context);
   const kind = audioReferenceKind(contextName, keyword.text);
 
@@ -202,15 +221,25 @@ export const referencedNames = (
     }));
   }
 
-  const namespaces = schema.getReferenceNamespaces(keyword.text, context);
+  return values.flatMap(({ text, start, end }, index) => {
+    const namespaces = schema.getReferenceNamespaces(
+      keyword.text,
+      context,
+      index,
+    );
 
-  return namespaces.length
-    ? values.map(({ text, start, end }) => ({
-        name: text,
-        start,
-        end,
-        namespaces,
-        isAudio: false,
-      }))
-    : [];
+    const offset = nameOffsetIn(keyword.text, values, index);
+
+    return namespaces.length && offset !== undefined
+      ? [
+          {
+            name: text.slice(offset),
+            start: start + offset,
+            end,
+            namespaces,
+            isAudio: false,
+          },
+        ]
+      : [];
+  });
 };

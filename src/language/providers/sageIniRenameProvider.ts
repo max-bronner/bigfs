@@ -93,8 +93,10 @@ export const createSageIniRenameProvider = (
       return undefined;
     }
 
-    // A rename is only complete once every archive has been read
+    // A rename is only complete once every archive has been read, and it
+    // edits what the open documents hold now, not what was last saved
     await index.whenReady();
+    await index.syncOpenDocuments();
 
     const edit = new WorkspaceEdit();
     const replace = (place: {

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { parseCsf, writeCsf } from '../formats/csf';
 import { parseStringRecords, quoteStringText } from './model/sageStringRecords';
 import {
-  decodeWindows1252,
+  decodeIniText,
   encodeWindows1252,
   unencodableCharacters,
 } from '../common/windows1252';
@@ -210,7 +210,7 @@ export const registerSageStrLanguage = (
     } else {
       await vscode.workspace.fs.writeFile(
         output,
-        strToCsf(decodeWindows1252(bytes)),
+        strToCsf(decodeIniText(bytes)),
       );
     }
 

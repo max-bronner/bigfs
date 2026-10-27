@@ -14,7 +14,7 @@ import { findBaseGameFolders } from '../model/baseGameFolders';
 import { packedArchives, useOutputStore } from '../model/packagedOutputs';
 import { webviewPage } from '../providers/webviewPage';
 import { registerPackageMod } from './packageModCommand';
-import { decodeWindows1252 } from '../common/windows1252';
+import { decodeIniText } from '../common/windows1252';
 import { diffDefinitions } from '../language/model/definitionDiff';
 import type { DefinitionDiff } from '../language/model/definitionDiff';
 import { parseSageIni } from '../language/model/sageIniParser';
@@ -255,7 +255,7 @@ export const registerModDiffCommands = (
           }
 
           const read = (bytes: Uint8Array) => {
-            const lines = decodeWindows1252(bytes).split(/\r?\n/);
+            const lines = decodeIniText(bytes).split(/\r?\n/);
 
             return { document: parseSageIni(lines, schema), lines };
           };
@@ -321,7 +321,7 @@ export const registerModDiffCommands = (
           uri.path.replace(/^\//, '').toLowerCase(),
         );
 
-        return entry ? decodeWindows1252(await readBaseEntry(entry)) : '';
+        return entry ? decodeIniText(await readBaseEntry(entry)) : '';
       },
     }),
     vscode.commands.registerCommand('bigfs.compareWithBaseGame', async () => {

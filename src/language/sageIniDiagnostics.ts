@@ -8,7 +8,7 @@ import {
 } from 'vscode';
 import type { Disposable, TextDocument } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../constants';
-import { isAudioSentinel, referencedNames } from './model/sageAudioValues';
+import { findUnresolvedReferences } from './model/sageIniReferenceCheck';
 import { findSageIniProblems } from './model/sageIniProblems';
 import { findGameTextLabels, missingTextMessage } from './model/gameTextLabels';
 import type { SageProblem } from './model/sageIniProblems';
@@ -53,23 +53,8 @@ const toDiagnostic = (
   return diagnostic;
 };
 
-/**
- * How many definitions a namespace must hold before `auto` checks references
- * into it: enough that the base game's files are indexed, so a name missing
- * from it is a mistake rather than a file the workspace does not hold
- */
-const AUTO_CHECK_MINIMUM = 50;
-
 /** Setting choosing whether references to unknown names are reported */
 const CHECK_REFERENCES_SETTING = 'bigfs.ini.checkReferences';
-
-/**
- * Values that are never a definition's name: numbers and percentages,
- * SCREAMING_SNAKE words (enum values and macros), string labels with a
- * colon, and the `NONE` many fields accept
- */
-const NOT_A_NAME =
-  /^(?:[+-]?[\d.]+%?|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*|[^:]+:.*|none)$/i;
 
 /**
  * Builds a diagnostic for every value of a reference field that names
@@ -90,67 +75,20 @@ const getReferenceDiagnostics = async (
 
   await index.whenReady();
 
-  const diagnostics: Diagnostic[] = [];
-
-  /** Whether `auto` has seen enough definitions in a group of namespaces */
-  const isChecked = (namespaces: readonly string[], isGroup: boolean) =>
-    mode === 'on' ||
-    (isGroup
-      ? namespaces.reduce(
-          (sum, namespace) => sum + index.countDefinitions(namespace),
-          0,
-        ) >= AUTO_CHECK_MINIMUM
-      : true);
-
-  for (const statement of parsed.statements) {
-    if (statement.block) {
-      continue;
-    }
-
-    for (const reference of referencedNames(statement, schema)) {
-      // A sound's namespaces are one group, since which kind holds a name is
-      // not something the field says; any other field is checked per
-      // namespace, as each one is only trusted once enough is indexed
-      const namespaces = reference.isAudio
-        ? reference.namespaces
-        : reference.namespaces.filter(
-            (namespace) =>
-              mode === 'on' ||
-              index.countDefinitions(namespace) >= AUTO_CHECK_MINIMUM,
-          );
-
-      if (
-        !namespaces.length ||
-        !isChecked(namespaces, reference.isAudio) ||
-        (reference.isAudio
-          ? isAudioSentinel(reference.name)
-          : NOT_A_NAME.test(reference.name)) ||
-        index.findMacro(reference.name) ||
-        namespaces.some(
-          (namespace) =>
-            index.findDefinitions(namespace, reference.name).length,
-        )
-      ) {
-        continue;
-      }
-
+  return findUnresolvedReferences(parsed, schema, index, mode === 'on').map(
+    ({ name, line, start, end, namespaces }) => {
       const diagnostic = new Diagnostic(
-        new Range(
-          statement.line,
-          reference.start,
-          statement.line,
-          reference.end,
-        ),
-        `No ${namespaces.join(' or ')} named '${reference.name}' is defined in the workspace`,
-        DiagnosticSeverity.Warning,
+        new Range(line, start, line, end),
+        `No ${namespaces.join(' or ')} named '${name}' is defined in the workspace`,
+        // The engine tolerates a name nothing defines, so it is a hint
+        DiagnosticSeverity.Information,
       );
 
       diagnostic.source = SOURCE;
-      diagnostics.push(diagnostic);
-    }
-  }
 
-  return diagnostics;
+      return diagnostic;
+    },
+  );
 };
 
 /** Setting choosing whether game-text labels nothing defines are reported */

@@ -45,6 +45,7 @@ export const createSageIniReferenceProvider = (
 
     // A lookup is only complete once every archive has been read
     await index.whenReady();
+    await index.syncOpenDocuments();
 
     // A macro is resolved before any namespace, the way the engine substitutes
     // it, so its uses are what "what uses this" means for one

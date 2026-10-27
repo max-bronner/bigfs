@@ -17,7 +17,7 @@ import { SCHEME } from '../constants';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { findSageIniProblems } from './model/sageIniProblems';
 import type { SageIniDocuments } from './sageIniDocuments';
-import { decodeWindows1252 } from '../common/windows1252';
+import { decodeIniText } from '../common/windows1252';
 import type { EntryLocator } from '../formats/entryLocator';
 import { assetNamesToCheck, getAssetDiagnostics } from './sageIniAssetCheck';
 
@@ -113,7 +113,7 @@ export const registerSageIniValidation = (
               results.push([
                 getNodeUri(node),
                 diagnoseText(
-                  decodeWindows1252(content),
+                  decodeIniText(content),
                   node.entryPath,
                   schema,
                   assetNames,
@@ -137,7 +137,7 @@ export const registerSageIniValidation = (
           results.push([
             uri,
             diagnoseText(
-              decodeWindows1252(await workspace.fs.readFile(uri)),
+              decodeIniText(await workspace.fs.readFile(uri)),
               uri.path,
               schema,
               assetNames,
