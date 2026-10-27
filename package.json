@@ -329,17 +329,17 @@
         {
           "command": "bigfs.newFile",
           "group": "navigation@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.newFolder",
           "group": "navigation@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.addFiles",
           "group": "navigation@3",
-          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.extract",
@@ -349,17 +349,17 @@
         {
           "command": "bigfs.rename",
           "group": "7_modification@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.delete",
           "group": "7_modification@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.cut",
           "group": "5_cutcopypaste@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.copy",
@@ -369,12 +369,12 @@
         {
           "command": "bigfs.paste",
           "group": "5_cutcopypaste@3",
-          "when": "view == bigArchiveExplorer && bigfs.hasClipboard && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && bigfs.hasClipboard && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.duplicate",
           "group": "5_cutcopypaste@4",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.copyPath",
@@ -394,7 +394,7 @@
         {
           "command": "bigfs.convertStringTable",
           "group": "7_modification@10",
-          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(str|csf)$/i"
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(str|csf)$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.exportPng",
@@ -404,37 +404,37 @@
         {
           "command": "bigfs.importImage",
           "group": "7_modification@12",
-          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(tga|dds)$/i"
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(tga|dds)$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.convertPng",
           "group": "7_modification@13",
-          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i"
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.newAptMovie",
           "group": "7_modification@14",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Folder|Archive)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Folder|Archive)$/ && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.convertToVp6",
           "group": "7_modification@15",
-          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif)$/i"
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif)$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.renameAptMovie",
           "group": "7_modification@15",
-          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i"
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.editW3dAnimation",
           "group": "7_modification@15",
-          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.w3d$/i"
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.w3d$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
           "command": "bigfs.deleteAptMovie",
           "group": "7_modification@16",
-          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i"
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         }
       ],
       "commandPalette": [

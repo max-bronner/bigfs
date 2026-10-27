@@ -17,6 +17,11 @@ import { createSources, findSourceFor, getPathInSource } from './archiveSource';
 import { findArchives } from './installScan';
 import { BASE_SETTING, UNDERLYING_SETTING } from './baseGameFolders';
 import type { ArchiveSource } from './archiveSource';
+import {
+  ReadOnlySourceError,
+  assertWritableSource,
+  isReadOnlySource,
+} from './sourceAccess';
 import { findBlockingFile, findChild, isArchiveRoot } from './virtualNode';
 import { getNodePath, parseNodeUri } from './nodeAddress';
 import type { ResolvedUri } from './nodeAddress';
@@ -473,6 +478,38 @@ export class ArchiveModel {
     );
   }
 
+  /** Whether an archive sits in a source that is never written to */
+  public isReadOnly(archive: Archive): boolean {
+    const source = this.sources.find((each) => each.id === archive.sourceId);
+
+    return Boolean(source && isReadOnlySource(source));
+  }
+
+  /**
+   * Rejects a write into a source that is read-only, going by the source a
+   * uri names first so it holds for an archive nobody has opened
+   */
+  public ensureWritable(uri: Uri): void {
+    const [sourceId] = uri.path.split('/').filter(Boolean);
+    const source = this.sources.find((each) => each.id === sourceId);
+
+    if (source) {
+      this.assertWritable(source);
+    }
+  }
+
+  private assertWritable(source: ArchiveSource): void {
+    try {
+      assertWritableSource(source);
+    } catch (error) {
+      if (error instanceof ReadOnlySourceError) {
+        throw FileSystemError.NoPermissions(error.message);
+      }
+
+      throw error;
+    }
+  }
+
   /** Whether an archive has read its index table yet */
   public isLoaded(node: VirtualNode): boolean {
     return node.archive.isLoaded;
@@ -662,6 +699,12 @@ export class ArchiveModel {
     archive: Archive,
     changes: readonly EntryChange[],
   ): Promise<void> {
+    const source = this.sources.find((each) => each.id === archive.sourceId);
+
+    if (source) {
+      this.assertWritable(source);
+    }
+
     try {
       await archive.applyChanges(changes);
     } catch (error) {
