@@ -27,9 +27,10 @@ export interface SageProblem {
   /**
    * An error is structural and certain. A keyword the grammar does not hold is
    * a warning: the grammar is extracted from the games' editors and accepts
-   * 99.95% of what they ship, not all of it.
+   * 99.95% of what they ship, not all of it. A hint is information about
+   * data that is valid but unused, and is no mistake.
    */
-  severity: 'error' | 'warning';
+  severity: 'error' | 'warning' | 'hint';
 }
 
 /** Display names of the games, as a message names them */
@@ -90,6 +91,22 @@ export const findSageIniProblems = (
       message: `'${keyword.text}' is not a block or field ${game} reads ${where}`,
       severity: 'warning',
     });
+  }
+
+  // Generals' flat particle format is left in the tree and neither title reads
+  // it, so each block is one note rather than a warning per line inside it
+  if (schema.isStrict) {
+    for (const { block, keyword, line } of parsed.statements) {
+      if (block?.isLegacy) {
+        problems.push({
+          line,
+          start: keyword.start,
+          end: keyword.end,
+          message: `'${block.keyword}' at file scope is a format ${game} does not read, so this block has no effect in game`,
+          severity: 'hint',
+        });
+      }
+    }
   }
 
   for (const call of parsed.calls) {
