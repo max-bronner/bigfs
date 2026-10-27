@@ -208,6 +208,13 @@ Open an `.apt` (with its `.const` beside it).
   breaks the editor: a script that fails or runs away is stopped and
   reported in the log under the stage, and frames whose scripts goto each
   other take turns instead of overflowing (#95).
+- [ ] **new** Retail root movies boot: open MainMenu, Palantir, Options and
+  LoadScreen; a root script that reads `_root` or `_level0` in its first
+  frame runs, and the log under the stage shows no
+  `Cannot read properties of undefined`. A first-frame `stop()` stays after
+  **Interact**/**Ignore action scripts** restart the movie, and a sprite's
+  init actions have run before the first frame, wherever the movie holds
+  them.
 - [ ] **new** **Engine** panel (top of the right side) lists what the movie
   asks of the game, found while it runs, nothing hard-coded:
   - *Called by the engine*: functions the movie stores but never calls

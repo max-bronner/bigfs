@@ -1,13 +1,13 @@
-import { engine, onEngineLog, watchMovie } from './engineState';
-import type { Rect } from '../../formats/apt/aptMovie';
-import { byId } from './dom';
-import { maskArea, paintLeaf } from './paint';
-import { Player } from './player';
-import type { Instance } from './player';
-import { resolve } from './resolve';
-import { boundsOf, collect, localBounds, transformRect, union } from './scene';
-import type { Affine, HitArea, Leaf } from './scene';
-import { movie, state } from './state';
+import { engine, onEngineLog, watchMovie } from "./engineState";
+import type { Rect } from "../../formats/apt/aptMovie";
+import { byId } from "./dom";
+import { maskArea, paintLeaf } from "./paint";
+import { Player } from "./player";
+import type { Instance } from "./player";
+import { resolve } from "./resolve";
+import { boundsOf, collect, localBounds, transformRect, union } from "./scene";
+import type { Affine, HitArea, Leaf } from "./scene";
+import { movie, state } from "./state";
 
 /**
  * The stage: plays the selected character on a canvas sized once to
@@ -49,12 +49,12 @@ export const view = {
   speed: 1,
 };
 
-const stage = byId<HTMLCanvasElement>('stage');
-const zoomSelect = byId<HTMLSelectElement>('zoom');
-const frameInput = byId<HTMLInputElement>('frame');
-const frameLabel = byId('frame-label');
-const modeLabel = byId('mode');
-const logList = byId('log');
+const stage = byId<HTMLCanvasElement>("stage");
+const zoomSelect = byId<HTMLSelectElement>("zoom");
+const frameInput = byId<HTMLInputElement>("frame");
+const frameLabel = byId("frame-label");
+const modeLabel = byId("mode");
+const logList = byId("log");
 
 /** Called when the inspected instance changes, to show it */
 let onInspect: () => void = () => {};
@@ -142,7 +142,7 @@ const addLog = (line: string): void => {
   log.splice(0, Math.max(0, log.length - LOG_LINES));
   logList.replaceChildren(
     ...log.map((text) => {
-      const element = document.createElement('div');
+      const element = document.createElement("div");
 
       element.textContent = text;
       return element;
@@ -192,7 +192,14 @@ export const goToFrame = (frame: number): void => {
   const target = count ? Math.max(0, Math.min(count - 1, frame)) : 0;
 
   if (rootScriptsRun()) {
-    currentPlayer().goTo(currentPlayer().root, target, view.playing);
+    const root = currentPlayer().root;
+
+    if (target === root.frame) {
+      // Already there: a stop() the frame's script ran stays, a pause is kept
+      root.playing = root.playing && view.playing;
+    } else {
+      currentPlayer().goTo(root, target, view.playing);
+    }
   } else {
     if (target < currentPlayer().root.frame || currentPlayer().ticks > target) {
       player = newPlayer(false, true);
@@ -208,7 +215,7 @@ export const goToFrame = (frame: number): void => {
 const measure = (): Rect => {
   const shown = resolve(movie(), state.selected);
 
-  if (shown?.character.type === 'movie') {
+  if (shown?.character.type === "movie") {
     return [
       0,
       0,
@@ -242,17 +249,17 @@ const formatRect = ([left, top, right, bottom]: Rect) =>
 /** Prints the modes, in a form that pastes into a report */
 export const showMode = (): void => {
   modeLabel.textContent = [
-    view.interact ? 'interact' : 'inspect',
+    view.interact ? "interact" : "inspect",
     view.playing
       ? `playing at ${view.speed}× (${Math.round(FRAME_RATE * view.speed * 10) / 10} frames/s)`
       : `paused at ${view.speed}×`,
-    `origin ${view.origin ? 'on' : 'off'}`,
-    `boxes ${view.boxes ? 'on' : 'off'}`,
-    `masks ${view.masks ? 'applied' : 'shown'}`,
-    `action scripts ${view.scripts ? 'respected' : 'ignored'}`,
-    `wireframe ${view.wireframe ? 'on' : 'off'}`,
-    `onion ${view.onion ? `±${view.onion}` : 'off'}`,
-  ].join(' · ');
+    `origin ${view.origin ? "on" : "off"}`,
+    `boxes ${view.boxes ? "on" : "off"}`,
+    `masks ${view.masks ? "applied" : "shown"}`,
+    `action scripts ${view.scripts ? "respected" : "ignored"}`,
+    `wireframe ${view.wireframe ? "on" : "off"}`,
+    `onion ${view.onion ? `±${view.onion}` : "off"}`,
+  ].join(" · ");
 };
 
 /** What is drawn now, in paint order */
@@ -279,7 +286,7 @@ const inspectable = (leaf: Leaf, deep: boolean): Instance => {
   // The innermost sprite or button, for reaching inside
   while (
     at.parent &&
-    !['sprite', 'button'].includes(at.character?.type ?? '')
+    !["sprite", "button"].includes(at.character?.type ?? "")
   ) {
     at = at.parent;
   }
@@ -310,8 +317,8 @@ const outlineMasks = (ctx: CanvasRenderingContext2D) => {
   ctx.setTransform(...base);
   ctx.lineWidth = 2 / base[0];
   ctx.setLineDash([6 / base[0], 4 / base[0]]);
-  ctx.strokeStyle = 'rgba(0, 220, 255, 0.95)';
-  ctx.fillStyle = 'rgba(0, 220, 255, 0.08)';
+  ctx.strokeStyle = "rgba(0, 220, 255, 0.95)";
+  ctx.fillStyle = "rgba(0, 220, 255, 0.08)";
   for (const mask of masks) {
     const area = maskArea(mask);
 
@@ -338,7 +345,7 @@ export const render = (): void => {
   const width = Math.max(1, right - left);
   const height = Math.max(1, bottom - top);
   const zoom =
-    zoomSelect.value === 'fit'
+    zoomSelect.value === "fit"
       ? Math.min(
           4,
           Math.max(
@@ -357,11 +364,11 @@ export const render = (): void => {
   if (stage.width !== pixelWidth || stage.height !== pixelHeight) {
     stage.width = pixelWidth;
     stage.height = pixelHeight;
-    stage.style.width = pixelWidth / ratio + 'px';
-    stage.style.height = pixelHeight / ratio + 'px';
+    stage.style.width = pixelWidth / ratio + "px";
+    stage.style.height = pixelHeight / ratio + "px";
   }
 
-  const ctx = stage.getContext('2d')!;
+  const ctx = stage.getContext("2d")!;
   const scale = zoom * ratio;
 
   base = [scale, 0, 0, scale, (MARGIN - left) * scale, (MARGIN - top) * scale];
@@ -430,7 +437,7 @@ const overlays = (
 
   ctx.lineWidth = pixel;
   ctx.font = `${11 * pixel}px sans-serif`;
-  ctx.textBaseline = 'bottom';
+  ctx.textBaseline = "bottom";
 
   if (view.boxes) {
     const byChild = new Map<number, Rect[]>();
@@ -445,8 +452,8 @@ const overlays = (
     }
 
     ctx.setLineDash([]);
-    ctx.strokeStyle = 'rgba(0,200,255,0.55)';
-    ctx.fillStyle = 'rgba(0,200,255,0.9)';
+    ctx.strokeStyle = "rgba(0,200,255,0.55)";
+    ctx.fillStyle = "rgba(0,200,255,0.9)";
     for (const [depth, boxes] of byChild) {
       const rect = union(boxes)!;
 
@@ -456,14 +463,14 @@ const overlays = (
 
     if (frameBox) {
       ctx.setLineDash([6 * pixel, 4 * pixel]);
-      ctx.strokeStyle = 'rgba(255,220,0,0.95)';
+      ctx.strokeStyle = "rgba(255,220,0,0.95)";
       box(frameBox);
     }
   }
 
   if (view.origin) {
     ctx.setLineDash([]);
-    ctx.strokeStyle = 'rgba(255,60,60,0.8)';
+    ctx.strokeStyle = "rgba(255,60,60,0.8)";
     ctx.beginPath();
     ctx.moveTo(left - MARGIN, 0);
     ctx.lineTo(right + MARGIN, 0);
@@ -483,8 +490,8 @@ const overlays = (
 
   ctx.setLineDash([]);
   for (const [instance, colour, width] of [
-    [hovered, 'rgba(255,0,255,0.6)', 1],
-    [inspected(), 'rgba(255,0,255,1)', 2],
+    [hovered, "rgba(255,0,255,0.6)", 1],
+    [inspected(), "rgba(255,0,255,1)", 2],
   ] as const) {
     const rect = instance && instanceBox(instance);
 
@@ -508,9 +515,9 @@ const showFrame = (frameBox: Rect | undefined) => {
 
   frameInput.value = String(state.frame);
   frameLabel.textContent =
-    (count ? `frame ${state.frame} of ${count}` : 'no timeline') +
-    (ticks !== state.frame ? ` · tick ${ticks}` : '') +
-    (frameBox ? ` · ${formatRect(frameBox)}` : '');
+    (count ? `frame ${state.frame} of ${count}` : "no timeline") +
+    (ticks !== state.frame ? ` · tick ${ticks}` : "") +
+    (frameBox ? ` · ${formatRect(frameBox)}` : "");
 };
 
 /** A point on the canvas, in the shown character's space */
@@ -535,7 +542,7 @@ const covers = (leaf: Leaf, [x, y]: [number, number]): boolean => {
   const lx = (d * (x - tx) - c * (y - ty)) / det;
   const ly = (a * (y - ty) - b * (x - tx)) / det;
 
-  if (leaf.character?.type === 'shape') {
+  if (leaf.character?.type === "shape") {
     return (leaf.movie.shapes[leaf.id] ?? []).some((run) => {
       const t = run.triangles;
 
@@ -604,7 +611,7 @@ const instanceAt = (
   return undefined;
 };
 
-stage.addEventListener('mousemove', (event) => {
+stage.addEventListener("mousemove", (event) => {
   if (!state.movie) {
     return;
   }
@@ -623,21 +630,21 @@ stage.addEventListener('mousemove', (event) => {
       hovered = next;
       render();
     }
-    stage.style.cursor = next ? 'pointer' : 'default';
+    stage.style.cursor = next ? "pointer" : "default";
   } else {
     const next = instanceAt(point);
 
     stage.style.cursor =
-      tools.map((each) => each.cursor(point)).find(Boolean) ?? 'default';
+      tools.map((each) => each.cursor(point)).find(Boolean) ?? "default";
     if (next !== hovered) {
       hovered = next;
-      stage.title = next ? next.path || 'the shown character' : '';
+      stage.title = next ? next.path || "the shown character" : "";
       render();
     }
   }
 });
 
-stage.addEventListener('mouseleave', () => {
+stage.addEventListener("mouseleave", () => {
   if (view.interact && hovered) {
     currentPlayer().hover(hovered, undefined);
   }
@@ -647,7 +654,7 @@ stage.addEventListener('mouseleave', () => {
   }
 });
 
-stage.addEventListener('mousedown', (event) => {
+stage.addEventListener("mousedown", (event) => {
   if (!state.movie) {
     return;
   }
@@ -673,7 +680,7 @@ stage.addEventListener('mousedown', (event) => {
   render();
 });
 
-window.addEventListener('mouseup', () => {
+window.addEventListener("mouseup", () => {
   holder?.up();
   holder = undefined;
   if (view.interact && pressed) {
@@ -730,7 +737,7 @@ export const playFrom = (frame: number): void => {
 export const play = (playing: boolean): void => {
   view.playing = playing;
   owed = 0;
-  byId('play').textContent = playing ? '⏸' : '▶';
+  byId("play").textContent = playing ? "⏸" : "▶";
   showMode();
   if (playing) {
     requestAnimationFrame(loop);
