@@ -1,7 +1,14 @@
 import type { Character, Rect } from '../../formats/apt/aptMovie';
 import type { Instance, Player } from './player';
 import type { PageMovie } from './protocol';
+import { resolve } from './resolve';
 import { state } from './state';
+import {
+  IDENTITY_COLOR,
+  concatColor,
+  displayList,
+  type ColorTransform,
+} from './timeline';
 
 /**
  * The display tree of a character at a moment, flattened to the things
@@ -58,7 +65,10 @@ export interface Leaf {
   /** The import's `movie:name`, for one nothing fills */
   missing?: string;
   matrix: Affine;
+  /** Its accumulated alpha: `color.mult[3]` */
   alpha: number;
+  /** Its accumulated colour transform down the display tree */
+  color: ColorTransform;
   /** The instance that draws it */
   instance: Instance;
   /** The depth of the root's child it is drawn inside, if any */
@@ -79,6 +89,27 @@ export interface HitArea {
   button: Instance;
 }
 
+/**
+ * The colour transform an instance places itself with: the timeline's
+ * red, green, blue and add terms, and the instance's own alpha, which a
+ * script may have changed
+ */
+const placedColor = (child: Instance): ColorTransform => {
+  const depth = Number(child.path.split('/').pop());
+  const placement =
+    child.parent && !child.dynamic && Number.isInteger(depth)
+      ? displayList(child.parent.frames, child.parent.frame).find(
+          (each) =>
+            each.depth === depth &&
+            each.born === child.born &&
+            each.character === child.placed,
+        )
+      : undefined;
+  const { mult, add } = placement?.color ?? IDENTITY_COLOR;
+
+  return { mult: [mult[0], mult[1], mult[2], child.alpha], add };
+};
+
 /** What a player shows right now, flattened in paint order, with button hit areas */
 export const collect = (
   player: Player,
@@ -89,7 +120,7 @@ export const collect = (
   const visit = (
     instance: Instance,
     matrix: Affine,
-    alpha: number,
+    color: ColorTransform,
     top: number | undefined,
     out: Leaf[],
     masks: Leaf[][] = [],
@@ -109,7 +140,8 @@ export const collect = (
         character,
         missing: instance.missing,
         matrix,
-        alpha,
+        alpha: color.mult[3],
+        color,
         instance,
         top,
         ...(masks.length ? { masks } : {}),
@@ -131,14 +163,26 @@ export const collect = (
       const depth = Number(key);
       const childTop = top ?? (instance === player.root ? depth : undefined);
 
-      if (child.clipDepth !== undefined) {
+      // A clip with nothing in it is no mask: it draws nothing, and every
+      // child above it still shows (mint's apt-player `allow_as_mask`)
+      const emptyClip =
+        child.children.size === 0 &&
+        ['sprite', 'movie'].includes(child.character?.type ?? '');
+
+      if (child.clipDepth !== undefined && !emptyClip) {
         const area: Leaf[] = [];
 
-        visit(child, place(child), 1, childTop, area, masks);
+        visit(child, place(child), IDENTITY_COLOR, childTop, area, masks);
         open.push({ until: child.clipDepth, leaves: area });
         continue;
       }
-      visit(child, place(child), alpha * child.alpha, childTop, out, [
+      visit(
+        child,
+        place(child),
+        concatColor(color, placedColor(child)),
+        childTop,
+        out,
+        [
         ...masks,
         ...open
           .filter((mask) => Number.isNaN(depth) || depth <= mask.until)
@@ -149,14 +193,28 @@ export const collect = (
       for (const hit of instance.hits) {
         const area: Leaf[] = [];
 
-        visit(hit, place(hit), alpha, top, area);
+        visit(hit, place(hit), color, top, area);
         hits.push(...area.map((leaf) => ({ leaf, button: instance })));
       }
     }
   };
 
-  visit(player.root, IDENTITY, 1, undefined, leaves);
+  visit(player.root, IDENTITY, IDENTITY_COLOR, undefined, leaves);
   return { leaves, hits };
+};
+
+/**
+ * The texture an image character draws: an import placeholder takes the
+ * texture of the character the exporting movie names, as mint's apt-viewer
+ * resolves it through the library
+ */
+export const textureOf = (
+  movie: PageMovie,
+  id: number,
+): HTMLCanvasElement | undefined => {
+  const found = resolve(movie, id);
+
+  return found && state.textures.get(found.movie.imageTextures[found.id]);
 };
 
 /** The box a leaf covers in its own space */
@@ -170,7 +228,7 @@ export const localBounds = (leaf: Leaf): Rect => {
     return character.bounds;
   }
 
-  const texture = state.textures.get(leaf.movie.imageTextures[leaf.id]);
+  const texture = textureOf(leaf.movie, leaf.id);
 
   return [0, 0, texture?.width ?? 64, texture?.height ?? 64];
 };

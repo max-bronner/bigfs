@@ -4,7 +4,8 @@ import type { Character } from '../../formats/apt/aptMovie';
 import { vscode } from './details';
 import { button, byId, heading, row } from './dom';
 import type { PageMovie } from './protocol';
-import { apply } from './scene';
+import { resolve } from './resolve';
+import { apply, textureOf } from './scene';
 import type { Affine } from './scene';
 import { inspected, render } from './stage';
 import { movie, state } from './state';
@@ -69,8 +70,9 @@ const regionOf = (
   source: PageMovie,
   image: number,
 ): [number, number, number, number] => {
-  const location = source.imageLocations[image];
-  const texture = state.textures.get(source.imageTextures[image]);
+  const found = resolve(source, image);
+  const location = found?.movie.imageLocations[found.id];
+  const texture = textureOf(source, image);
 
   return location?.kind === 'standalone'
     ? location.rect
@@ -100,7 +102,7 @@ const draw = (shape: Target) => {
   const texture =
     image === undefined
       ? undefined
-      : state.textures.get(shape.movie.imageTextures[image]);
+      : textureOf(shape.movie, image);
   const ctx = canvas.getContext('2d')!;
 
   if (!texture) {
