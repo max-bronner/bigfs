@@ -1,4 +1,5 @@
 import type { SageBlock, SageDocument, SageStatement } from './sageIniParser';
+import { audioReferenceKind } from './sageAudioFields';
 import type { SageIniSchema } from './sageIniSchema';
 
 /**
@@ -34,6 +35,8 @@ export interface ObjectScene {
   states: SceneState[];
   /** FX the object names outside any state, by the field naming them */
   fx: { field: string; name: string }[];
+  /** Sounds and announcer events the object names, by the field naming them */
+  voices: { field: string; name: string }[];
 }
 
 /** Where a preview was asked for, so it opens on that */
@@ -112,6 +115,7 @@ export const readObjectScene = (
     name: object.name?.split(/\s+/)[0] ?? '',
     states: [],
     fx: [],
+    voices: [],
   };
   const stateOf = (draw: SageBlock, block: SageBlock) => {
     let state = states.get(block);
@@ -145,6 +149,22 @@ export const readObjectScene = (
     const values = statement.values.map((value) => value.text);
     const { draw, state } = placeOf(parsed.blocks, statement.line);
     const owner = draw && state ? stateOf(draw, state) : undefined;
+
+    // Every field the audio tables call a sound, inherited ones included
+    // since the object is read as composed; `NONE` is the engine's "no sound"
+    if (audioReferenceKind(statement.context, statement.keyword.text)) {
+      for (const name of values.filter((value) => !/^none$/i.test(value))) {
+        if (
+          !scene.voices.some(
+            (voice) =>
+              voice.name === name && voice.field === statement.keyword.text,
+          )
+        ) {
+          scene.voices.push({ field: statement.keyword.text, name });
+        }
+      }
+      continue;
+    }
 
     if (owner && MODEL_FIELDS.has(key)) {
       owner.model = values[0];

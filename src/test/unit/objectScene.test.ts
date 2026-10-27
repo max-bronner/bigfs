@@ -93,4 +93,39 @@ suite('Object scene', () => {
       system: 'TorchFire',
     });
   });
+
+  test('every voice and sound field is listed once, by the field naming it', () => {
+    const voiced = parseSageIni(
+      [
+        'Object TestHero',
+        '  VoiceSelect = TestHeroVoiceSelect',
+        '  VoiceMove = TestHeroVoiceMove',
+        '  VoiceMove = TestHeroVoiceMove',
+        '  VoiceAttack = NONE',
+        '  VoicePriority = 5',
+        '  SoundOnDamaged = TestHeroHurt',
+        '  EvaEventDieOwner = TestHeroLost',
+        '  Draw = W3DModelDraw ModuleTag_Draw',
+        '    DefaultModelConditionState',
+        '      Model = TH_SKN',
+        '    End',
+        '  End',
+        'End',
+      ],
+      schema,
+    );
+    const voices = readObjectScene(
+      voiced,
+      schema,
+      () => false,
+      () => false,
+    )!.voices;
+
+    assert.deepStrictEqual(voices, [
+      { field: 'VoiceSelect', name: 'TestHeroVoiceSelect' },
+      { field: 'VoiceMove', name: 'TestHeroVoiceMove' },
+      { field: 'SoundOnDamaged', name: 'TestHeroHurt' },
+      { field: 'EvaEventDieOwner', name: 'TestHeroLost' },
+    ]);
+  });
 });

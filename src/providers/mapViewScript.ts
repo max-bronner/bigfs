@@ -271,7 +271,24 @@ const showInfo = () => {
     const scripts = element('details');
     const count = (nodes) => nodes.reduce((sum, node) => sum + (node.kind === 'group' ? count(node.children) : 1), 0);
     scripts.append(element('summary', 'Scripts (' + map.scripts.reduce((sum, list) => sum + count(list), 0) + ')'));
-    const calls = (title, list) => list.length ? title + ' ' + list.map((call) => call.name + (call.parameters.length ? '(' + call.parameters.join(', ') + ')' : '')).join('; ') : '';
+    /** A call as text, a play button after each parameter that names a sound */
+    const callNodes = (call) => {
+      const nodes = [document.createTextNode(call.name + (call.parameters.length ? '(' : ''))];
+      call.parameters.forEach((parameter, at) => {
+        if (at) nodes.push(document.createTextNode(', '));
+        nodes.push(document.createTextNode(parameter));
+        if ((call.sounds || []).includes(at)) {
+          const play = element('button', '▶', 'play');
+          play.title = 'Play ' + parameter;
+          play.onclick = () => vscode.postMessage({ kind: 'playSound', name: parameter });
+          nodes.push(play);
+        }
+      });
+      if (call.parameters.length) nodes.push(document.createTextNode(')'));
+      return nodes;
+    };
+    const joined = (calls, separator) => calls.flatMap((call, at) => [...(at ? [document.createTextNode(separator)] : []), ...callNodes(call)]);
+    const calls = (title, list) => list.length ? [document.createTextNode(title + ' '), ...joined(list, '; ')] : [];
     const render = (nodes, parent) => {
       for (const node of nodes) {
         const box = element('input');
@@ -291,11 +308,16 @@ const showInfo = () => {
           const label = element('label');
           label.append(box, document.createTextNode(node.name + (node.oneShot ? ' · once' : '') + (node.subroutine ? ' · subroutine' : '') + (node.difficulties.length < 3 ? ' · ' + node.difficulties.join('/') : '')));
           if (node.comment) label.title = node.comment;
-          const detail = element('div', [
-            node.conditions.length ? 'IF ' + node.conditions.map((and) => and.map((call) => call.name + (call.parameters.length ? '(' + call.parameters.join(', ') + ')' : '')).join(' AND ')).join(' OR ') : '',
+          const detail = element('div', undefined, 'calls');
+          const parts = [
+            node.conditions.length ? [document.createTextNode('IF '), ...node.conditions.flatMap((and, at) => [...(at ? [document.createTextNode(' OR ')] : []), ...joined(and, ' AND ')])] : [],
             calls('THEN', node.actions),
             calls('ELSE', node.actionsFalse),
-          ].filter(Boolean).join(' · '), 'calls');
+          ].filter((part) => part.length);
+          parts.forEach((part, at) => {
+            if (at) detail.append(document.createTextNode(' · '));
+            detail.append(...part);
+          });
           item.append(label, detail);
           parent.append(item);
         }
