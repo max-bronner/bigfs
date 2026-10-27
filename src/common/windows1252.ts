@@ -20,6 +20,19 @@ export const decodeWindows1252 = (bytes: Uint8Array): string =>
   decoder.decode(bytes);
 
 /**
+ * Decodes an INI, fragment or string table file. Editors save UTF-8 files
+ * with a three byte mark in front, which the games' reader never sees as
+ * text and which Windows-1252 would turn into `ï»¿` at the start of the
+ * first line, so it is dropped before decoding.
+ */
+export const decodeIniText = (bytes: Uint8Array): string =>
+  decodeWindows1252(
+    bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
+      ? bytes.subarray(3)
+      : bytes,
+  );
+
+/**
  * Encodes text; a character the encoding lacks throws, or becomes
  * `replacement` when one is given
  */

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix: INI reference checking is keyed by block and field. `Object`, `ChildObject` and `ObjectReskin` are one namespace and a `ChildObject` header's parent is a reference; `#define` bodies are indexed so rename and find references follow a name through macros; macro chains of any depth evaluate and only a real cycle is reported; flags, `Filename`, cursor images and the auto-resolve tables are not references; `ParticleSysBone` checks its particle system only; nested `Region` and `RadiusCursorTemplate` blocks are definitions; a SCREAMING_SNAKE value is skipped case-sensitively; rename edits unsaved documents; a UTF-8 byte order mark no longer starts the first INI or STR line (reference rules ported from mint's `ini` crate).
+
 - WND layout preview draws what the game draws: each window type's own image slots (check box, sliders, list box, combo box), `MappedImage` pictures from the game's textures with rotation, text through the string tables, an Enabled / Hilite / Disabled (+ Checked) switch, and engine-placed children kept inside their parent (ported from mint2's apt-viewer gadgets). A key stated twice reads as its last statement.
 - Fix: INI grammar. `AddEmotion` opens a block only as `AddEmotion = OVERRIDE`, `End` with trailing tokens closes its block, mint's hand-written block tables are in the schema (`StanceTemplate`, `FormationTemplate`, `LODPreset`, `BenchProfile`, `WebpageURL`, `OptionGroup`, `StrategicHUD`, horde `MeleeBehavior`, ...), `.inc` fragments read a keyword several contexts open as their union, and Generals' flat `ParticleSystem` blocks are one hint each.
 

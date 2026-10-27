@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { decodeWindows1252 } from '../common/windows1252';
+import { decodeIniText } from '../common/windows1252';
 import type { EntryLocator } from '../formats/entryLocator';
 import { isRotated, parseMappedImage } from '../formats/mappedImage';
 import type { MappedImage } from '../formats/mappedImage';
@@ -22,7 +22,7 @@ const MAX_SIDE = 256;
 export const readMappedImage = async (
   definition: SageDefinition,
 ): Promise<MappedImage> => {
-  const text = decodeWindows1252(
+  const text = decodeIniText(
     await vscode.workspace.fs.readFile(definition.uri),
   ).split(/\r?\n/);
 

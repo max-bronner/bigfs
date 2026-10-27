@@ -1,4 +1,4 @@
-import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './sageIniSchema';
+import { declarationOf, parentOf } from './sageIniNames';
 import { referencedNames } from './sageAudioValues';
 import type { SageIniSchema } from './sageIniSchema';
 import type { SageDocument, SageStatement, SageToken } from './sageIniParser';
@@ -60,31 +60,42 @@ export const resolveSageSymbol = (
     return undefined;
   }
 
-  // A block at file scope declares a name; its keyword is the namespace, and
-  // the position may be on either the keyword or the name itself
-  const isFileScope =
-    statement.context === ROOT_CONTEXT ||
-    (statement.context === FRAGMENT_CONTEXT &&
-      schema.isEngineBlock(statement.keyword.text));
+  // A block header declares a name, in the namespace its keyword makes; the
+  // position may be on either the keyword or the name itself. A
+  // `ChildObject` header's second value is not a declaration but the object
+  // it inherits from.
+  if (statement.block) {
+    const declaration = declarationOf(statement, schema);
+    const parent = parentOf(statement);
 
-  if (statement.block && isFileScope) {
-    const name = statement.values[0];
+    if (parent && token === parent.token) {
+      return {
+        token,
+        line,
+        name: token.text,
+        namespaces: [parent.namespace],
+        isDeclaration: false,
+      };
+    }
 
-    if (!name) {
-      return undefined;
+    if (
+      !declaration ||
+      (token !== statement.keyword && token !== declaration.name)
+    ) {
+      return undefined; // a header that declares nothing, or a value of it that is no name
     }
 
     return {
-      token: token === statement.keyword ? name : token,
+      token: declaration.name,
       line,
-      name: token === statement.keyword ? name.text : token.text,
-      namespaces: [statement.keyword.text],
+      name: declaration.name.text,
+      namespaces: [declaration.namespace],
       isDeclaration: true,
     };
   }
 
-  if (statement.block || token === statement.keyword) {
-    return undefined; // a nested block header, or a field name rather than a value
+  if (token === statement.keyword) {
+    return undefined; // a field name rather than a value
   }
 
   // A sound or announcer field names its sounds inside its values, so the
@@ -112,6 +123,7 @@ export const resolveSageSymbol = (
     namespaces: schema.getReferenceNamespaces(
       statement.keyword.text,
       statement.context,
+      statement.values.indexOf(token),
     ),
     isDeclaration: false,
   };

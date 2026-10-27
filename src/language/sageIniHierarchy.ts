@@ -314,18 +314,24 @@ export const createTypeHierarchyProvider = (
       const read = lineReader();
       const children: vscode.TypeHierarchyItem[] = [];
 
-      for (const keyword of INHERITING) {
-        for (const name of index.getNames(keyword)) {
-          for (const definition of index.findDefinitions(keyword, name)) {
-            const parent = parentOf(
-              await read(definition.uri, definition.line),
-            );
+      // The three template keywords are one namespace; only the inheriting
+      // ones carry a parent
+      for (const name of index.getNames('Object')) {
+        for (const definition of index.findDefinitions('Object', name)) {
+          if (
+            !INHERITING.some(
+              (each) => each.toLowerCase() === definition.keyword.toLowerCase(),
+            )
+          ) {
+            continue;
+          }
 
-            if (parent?.toLowerCase() === item.name.toLowerCase()) {
-              children.push(
-                itemOfDefinition(vscode.TypeHierarchyItem, definition),
-              );
-            }
+          const parent = parentOf(await read(definition.uri, definition.line));
+
+          if (parent?.toLowerCase() === item.name.toLowerCase()) {
+            children.push(
+              itemOfDefinition(vscode.TypeHierarchyItem, definition),
+            );
           }
         }
       }

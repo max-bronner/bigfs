@@ -93,6 +93,8 @@ export interface SageMacroDefinition {
   end: number;
   name: string;
   value: string;
+  /** Column the value's first character sits at, so its tokens can be placed */
+  valueStart: number;
 }
 
 /** An embedded Lua region, which the block parse skips over */
@@ -269,13 +271,17 @@ export const parseSageIni = (
 
       if (macro) {
         const start = content.indexOf(macro[1]);
+        const value = macro[2].trim();
 
         macros.push({
           line: index,
           start,
           end: start + macro[1].length,
           name: macro[1],
-          value: macro[2].trim(),
+          value,
+          valueStart: value
+            ? content.indexOf(value, start + macro[1].length)
+            : content.length,
         });
       }
 

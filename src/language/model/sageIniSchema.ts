@@ -22,23 +22,19 @@ import {
   isAudioNamespace,
   namespacesOfKind,
 } from './sageAudioFields';
+import {
+  NOT_REFERENCE_FIELDS,
+  NOT_REFERENCE_NAMESPACES,
+  canonicalNamespace,
+  canonicalNamespaces,
+  namesTokenAt,
+  scopedReference,
+} from './sageReferenceFields';
 
 /** Whether a keyword opens a block or holds a value */
 export type KeywordKind = 'block' | 'field';
 
 /** File scope of a `.ini` file, where only the engine's root blocks are legal */
-/**
- * Fields whose value names a definition only in one block, by the block's
- * context name and the field. The schema's reference table is keyed by
- * field name alone, which a field as general as `Name` cannot be: this
- * is the FX list nugget that names a particle system (EA's FXList.cpp parses
- * a ParticleSystem nugget's Name as a particle system template). Sound and
- * announcer fields are decided by `audioReferenceKind` instead.
- */
-const SCOPED_REFERENCES: Record<string, string[]> = {
-  'fxlist > particlesystem/name': ['FXParticleSystem', 'ParticleSystem'],
-};
-
 export const ROOT_CONTEXT = '<root>';
 
 /**
@@ -182,7 +178,18 @@ export interface SageIniSchema {
    * names a particle system in an FX list's `ParticleSystem` nugget and a
    * sound in its `Sound` one.
    */
-  getReferenceNamespaces(field: string, context?: string): readonly string[];
+  getReferenceNamespaces(
+    field: string,
+    context?: string,
+    tokenIndex?: number,
+  ): readonly string[];
+
+  /**
+   * Whether some reference field names this kind of definition, which is
+   * what makes a block of that kind written inside another block a
+   * definition too (a `Region` inside a campaign)
+   */
+  isReferenceNamespace(namespace: string): boolean;
 
   /** The keywords legal in a context, with what each one is */
   getContextKeywords(
@@ -223,7 +230,26 @@ export const createSageIniSchema = (
   const fileScope = foldKeys(file.fileScope);
   const modules = foldKeys(file.modules);
   const fields = foldKeys(file.fields);
-  const references = foldKeys(file.references);
+  const references = new Map<string, readonly string[]>(
+    [...foldKeys(file.references)].flatMap(([field, namespaces]) => {
+      const kept = canonicalNamespaces(
+        namespaces.filter(
+          (namespace) =>
+            !NOT_REFERENCE_NAMESPACES.has(namespace.toLowerCase()),
+        ),
+      );
+
+      return NOT_REFERENCE_FIELDS.has(field) || !kept.length
+        ? []
+        : [[field, kept] as const];
+    }),
+  );
+  const referenceNamespaces = new Set(
+    [...references.values()]
+      .flat()
+      .filter((namespace) => !isAudioNamespace(namespace))
+      .map((namespace) => namespace.toLowerCase()),
+  );
   const slotTypes = foldKeys(file.slotTypes);
   const enumValues = foldKeys(file.enumValues);
 
@@ -464,7 +490,7 @@ export const createSageIniSchema = (
 
       return entry && { type: entry.t, used: entry.u === 1 };
     },
-    getReferenceNamespaces: (field, context) => {
+    getReferenceNamespaces: (field, context, tokenIndex) => {
       const contextName =
         context === undefined ? '' : (contextOf(context)?.name ?? context);
       const kind = audioReferenceKind(contextName, field);
@@ -473,18 +499,25 @@ export const createSageIniSchema = (
         return namespacesOfKind(kind);
       }
 
+      if (
+        tokenIndex !== undefined &&
+        !namesTokenAt(contextName, field, tokenIndex)
+      ) {
+        return [];
+      }
+
       // The table carries sound fields of its own, which name `AudioEvent`
       // alone; whatever audioReferenceKind does not recognise is no sound
-      return (
-        SCOPED_REFERENCES[
-          `${contextName.toLowerCase()}/${field.toLowerCase()}`
-        ] ??
-        references
-          .get(field.toLowerCase())
-          ?.filter((namespace) => !isAudioNamespace(namespace)) ??
-        []
-      );
+      const scoped = scopedReference(contextName, field);
+
+      return scoped
+        ? canonicalNamespaces(scoped)
+        : (references
+            .get(field.toLowerCase())
+            ?.filter((namespace) => !isAudioNamespace(namespace)) ?? []);
     },
+    isReferenceNamespace: (namespace) =>
+      referenceNamespaces.has(canonicalNamespace(namespace).toLowerCase()),
     getContextKeywords: (context) => {
       if (context === ROOT_CONTEXT) {
         return Object.keys(file.fileScope).map((name) => ({
