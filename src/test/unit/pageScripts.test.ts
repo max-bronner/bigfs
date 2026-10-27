@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { MAP_VIEW_SCRIPT } from '../../providers/mapViewScript';
+import { SCRIPT_FILE_VIEW_SCRIPT } from '../../providers/scriptTreeScript';
 import { WND_PREVIEW_SCRIPT } from '../../language/wndPreviewScript';
 import { BALANCE_SHEET_SCRIPT } from '../../language/balanceSheetScript';
 import { STRING_TABLE_SCRIPT } from '../../providers/stringTableViewScript';
@@ -10,6 +11,7 @@ suite('Page scripts', () => {
     for (const script of [
       BALANCE_SHEET_SCRIPT,
       MAP_VIEW_SCRIPT,
+      SCRIPT_FILE_VIEW_SCRIPT,
       STRING_TABLE_SCRIPT,
       WND_PREVIEW_SCRIPT,
     ]) {

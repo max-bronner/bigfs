@@ -28,6 +28,7 @@ import { registerModDiffCommands } from './commands/modDiffCommands';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { AptEditorProvider } from './providers/aptEditorProvider';
 import { MapEditorProvider } from './providers/mapEditorProvider';
+import { ScriptFileEditorProvider } from './providers/scriptFileEditorProvider';
 import {
   CSF_VIEW_TYPE,
   CsfEditorProvider,
@@ -75,10 +76,14 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     locator,
     PreviewEditorProvider.register(tools, locator, context.extensionUri),
-    MapEditorProvider.register(),
   );
 
   const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
+
+  context.subscriptions.push(
+    MapEditorProvider.register(iniIndex),
+    ScriptFileEditorProvider.register(),
+  );
   const gameLanguage = new GameLanguage(
     archiveModel,
     context.workspaceState,

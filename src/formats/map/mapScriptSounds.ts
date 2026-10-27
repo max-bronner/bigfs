@@ -1,3 +1,5 @@
+import type { MapScriptNode } from './mapFile';
+
 /**
  * Which parameters of a map script call name a sound. A script's parameters
  * are stored with an engine type ordinal that is not the same across the
@@ -46,3 +48,18 @@ export const withSoundParameters = <
   ...call,
   sounds: soundParameterIndexes(call.name, call.parameters),
 });
+
+/** Every call of a script tree with the parameters that name a sound marked */
+export const markSounds = (nodes: MapScriptNode[]): MapScriptNode[] =>
+  nodes.map((node) =>
+    node.kind === 'group'
+      ? { ...node, children: markSounds(node.children) }
+      : {
+          ...node,
+          conditions: node.conditions.map((and) =>
+            and.map(withSoundParameters),
+          ),
+          actions: node.actions.map(withSoundParameters),
+          actionsFalse: node.actionsFalse.map(withSoundParameters),
+        },
+  );

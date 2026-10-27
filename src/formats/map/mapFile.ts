@@ -95,6 +95,8 @@ export interface MapFile {
   compression: 'ear' | 'none';
   body: Uint8Array;
   names: Map<number, string>;
+  /** Where the name table ends in the body, which is where a new name goes */
+  namesEnd: number;
   chunks: MapChunk[];
   worldInfo?: Dict;
   heights?: MapHeights;
@@ -105,14 +107,29 @@ export interface MapFile {
   /** One list per player slot */
   scripts: MapScriptNode[][];
   triggerAreas: MapTriggerArea[];
+  /** Where the `TriggerAreas` records sit in the body, if the chunk is there and read */
+  triggerAreaSpan?: [number, number];
+  waypointLinks: MapWaypointLink[];
+  /** The `WaypointsList` chunk, if it is there and read whole */
+  waypointLinksChunk?: MapChunk;
   problems: string[];
+}
+
+/** A directed link between two waypoint ids */
+export interface MapWaypointLink {
+  from: number;
+  to: number;
 }
 
 /** A named polygon scripts refer to, in world units */
 export interface MapTriggerArea {
   name: string;
+  /** The editor layer the area was authored on; empty in shipped maps */
+  layerName: string;
   id: number;
   points: [number, number][];
+  /** The word after the points, kept as read */
+  trailing: number;
 }
 
 /** A script call: a condition or an action, by its name and parameters */
@@ -415,7 +432,7 @@ export const writeDict = (entries: DictEntry[]): Uint8Array => {
   return Uint8Array.from(out);
 };
 
-const find = (chunks: MapChunk[], name: string) =>
+export const findChunk = (chunks: MapChunk[], name: string) =>
   chunks.find((chunk) => chunk.name === name);
 
 /** Reads a map body (decompressed) */
@@ -441,17 +458,20 @@ export const parseMapBody = (
     names.set(reader.u32(), name);
   }
 
+  const namesEnd = reader.at;
   const chunks = readChunks(reader, names, body.length, 0);
   const map: MapFile = {
     compression,
     body,
     names,
+    namesEnd,
     chunks,
     objects: [],
     sides: [],
     teams: [],
     scripts: [],
     triggerAreas: [],
+    waypointLinks: [],
     problems: [],
   };
   const attempt = (what: string, read: () => void) => {
@@ -466,7 +486,7 @@ export const parseMapBody = (
   const payload = (chunk: MapChunk) =>
     new MapReader(body, chunk.start, chunk.end);
 
-  const worldInfo = find(chunks, 'WorldInfo');
+  const worldInfo = findChunk(chunks, 'WorldInfo');
 
   if (worldInfo) {
     attempt('WorldInfo', () => {
@@ -474,7 +494,7 @@ export const parseMapBody = (
     });
   }
 
-  const heightMap = find(chunks, 'HeightMapData');
+  const heightMap = findChunk(chunks, 'HeightMapData');
 
   if (heightMap) {
     attempt('HeightMapData', () => {
@@ -510,7 +530,7 @@ export const parseMapBody = (
     });
   }
 
-  const lighting = find(chunks, 'GlobalLighting');
+  const lighting = findChunk(chunks, 'GlobalLighting');
 
   if (lighting) {
     attempt('GlobalLighting', () => {
@@ -536,7 +556,7 @@ export const parseMapBody = (
     });
   }
 
-  const objects = find(chunks, 'ObjectsList');
+  const objects = findChunk(chunks, 'ObjectsList');
 
   attempt('ObjectsList', () => {
     for (const chunk of objects?.children ?? []) {
@@ -569,7 +589,7 @@ export const parseMapBody = (
     }
   });
 
-  const sides = find(chunks, 'SidesList');
+  const sides = findChunk(chunks, 'SidesList');
 
   if (sides) {
     attempt('SidesList', () => {
@@ -598,7 +618,7 @@ export const parseMapBody = (
     });
   }
 
-  const teams = find(chunks, 'Teams');
+  const teams = findChunk(chunks, 'Teams');
 
   if (teams) {
     attempt('Teams', () => {
@@ -610,17 +630,16 @@ export const parseMapBody = (
     });
   }
 
-  const areas = find(chunks, 'TriggerAreas');
+  const areas = findChunk(chunks, 'TriggerAreas');
 
   if (areas) {
     attempt('TriggerAreas', () => {
       const data = payload(areas);
+      const found: MapTriggerArea[] = [];
 
       for (let count = data.u32(); count > 0; count--) {
         const name = data.string();
-
-        data.string();
-
+        const layerName = data.string();
         const id = data.u32();
         const points: [number, number][] = [];
 
@@ -628,13 +647,35 @@ export const parseMapBody = (
           points.push([data.f32(), data.f32()]);
         }
 
-        data.u32();
-        map.triggerAreas.push({ name, id, points });
+        found.push({ name, layerName, id, points, trailing: data.u32() });
       }
+
+      map.triggerAreas = found;
+      map.triggerAreaSpan = [areas.start, data.at];
     });
   }
 
-  const scripts = find(chunks, 'PlayerScriptsList');
+  const links = findChunk(chunks, 'WaypointsList');
+
+  if (links) {
+    attempt('WaypointsList', () => {
+      const data = payload(links);
+      const count = data.u32();
+
+      // A count the payload cannot hold is a chunk this editor leaves alone
+      if (count * 8 !== links.end - links.start - 4) {
+        throw new Error(`${count} links do not fill the chunk`);
+      }
+
+      for (let link = 0; link < count; link++) {
+        map.waypointLinks.push({ from: data.i32(), to: data.i32() });
+      }
+
+      map.waypointLinksChunk = links;
+    });
+  }
+
+  const scripts = findChunk(chunks, 'PlayerScriptsList');
 
   if (scripts) {
     attempt('PlayerScriptsList', () => {
@@ -764,18 +805,20 @@ export const writeMap = (map: MapFile): Uint8Array =>
   map.compression === 'ear' ? compressEar(map.body) : map.body;
 
 /** Every chunk, nested ones included */
-const allChunks = (chunks: MapChunk[]): MapChunk[] =>
+export const allChunks = (chunks: MapChunk[]): MapChunk[] =>
   chunks.flatMap((chunk) => [chunk, ...allChunks(chunk.children ?? [])]);
 
 /**
  * Replaces `[start, end)` of the body, growing or shrinking every chunk
- * that holds the span, and returns the map read again
+ * that holds the span, and returns the map read again. A span added at the
+ * end of a chunk names that chunk as `inside`.
  */
 export const spliceMap = (
   map: MapFile,
   start: number,
   end: number,
   replacement: Uint8Array,
+  inside?: { start: number; end: number },
 ): MapFile => {
   const delta = replacement.length - (end - start);
   const body = new Uint8Array(map.body.length + delta);
@@ -786,8 +829,11 @@ export const spliceMap = (
 
   const view = new DataView(body.buffer);
 
+  // Text added at the end of a chunk is inside it, which the span alone cannot say
+  const holder = inside ?? { start, end };
+
   for (const chunk of allChunks(map.chunks)) {
-    if (chunk.start <= start && end <= chunk.end) {
+    if (chunk.start <= holder.start && holder.end <= chunk.end) {
       const lengthAt = chunk.header + 6;
 
       view.setUint32(lengthAt, chunk.end - chunk.start + delta, true);
@@ -795,202 +841,4 @@ export const spliceMap = (
   }
 
   return parseMapBody(body, map.compression);
-};
-
-/** An edit the map editor makes */
-export type MapEdit =
-  | { kind: 'timeOfDay'; value: number }
-  | {
-      kind: 'dict';
-      owner: 'world' | { side: number } | { object: number } | { team: number };
-      key: string;
-      value: DictValue;
-    }
-  | {
-      kind: 'object';
-      index: number;
-      x?: number;
-      y?: number;
-      z?: number;
-      angle?: number;
-      template?: string;
-    }
-  | { kind: 'scriptActive'; at: number; active: boolean }
-  | {
-      kind: 'light';
-      /** 0 morning to 3 night */
-      config: number;
-      field: 'ambient' | 'color' | 'direction';
-      value: [number, number, number];
-    };
-
-const ownerDict = (
-  map: MapFile,
-  owner: Extract<MapEdit, { kind: 'dict' }>['owner'],
-): Dict | undefined =>
-  owner === 'world'
-    ? map.worldInfo
-    : 'side' in owner
-      ? map.sides[owner.side]
-      : 'team' in owner
-        ? map.teams[owner.team]
-        : map.objects[owner.object]?.properties;
-
-/** Applies an edit and returns the map read again */
-export const applyMapEdit = (map: MapFile, edit: MapEdit): MapFile => {
-  switch (edit.kind) {
-    case 'timeOfDay': {
-      if (!map.lighting) {
-        throw new Error('This map has no lighting');
-      }
-
-      if (![1, 2, 3, 4].includes(edit.value)) {
-        throw new Error('The time of day is 1 to 4');
-      }
-
-      const word = new Uint8Array(4);
-
-      new DataView(word.buffer).setUint32(0, edit.value, true);
-
-      return spliceMap(
-        map,
-        map.lighting.timeOfDayAt,
-        map.lighting.timeOfDayAt + 4,
-        word,
-      );
-    }
-    case 'scriptActive': {
-      const nodes = (list: MapScriptNode[]): MapScriptNode[] =>
-        list.flatMap((node) => [
-          node,
-          ...(node.kind === 'group' ? nodes(node.children) : []),
-        ]);
-
-      if (
-        !map.scripts
-          .flat()
-          .some((node) =>
-            nodes([node]).some((candidate) => candidate.activeAt === edit.at),
-          )
-      ) {
-        throw new Error('There is no script there');
-      }
-
-      return spliceMap(
-        map,
-        edit.at,
-        edit.at + 1,
-        Uint8Array.of(edit.active ? 1 : 0),
-      );
-    }
-    case 'light': {
-      if (!map.lighting || edit.config < 0 || edit.config > 3) {
-        throw new Error('There is no such lighting');
-      }
-
-      if (!edit.value.every(Number.isFinite)) {
-        throw new Error('A light holds three numbers');
-      }
-
-      // Each time of day is nine lights of nine floats; the terrain sun is the first
-      const at =
-        map.lighting.timeOfDayAt +
-        4 +
-        edit.config * 9 * 9 * 4 +
-        { ambient: 0, color: 12, direction: 24 }[edit.field];
-
-      return spliceMap(
-        map,
-        at,
-        at + 12,
-        new Uint8Array(new Float32Array(edit.value).buffer),
-      );
-    }
-    case 'dict': {
-      const dict = ownerDict(map, edit.owner);
-
-      if (!dict) {
-        throw new Error('There is no such dictionary');
-      }
-
-      const entry = dict.entries.find(
-        (candidate) => candidate.key === edit.key,
-      );
-
-      if (!entry) {
-        throw new Error(`There is no ${edit.key} to change`);
-      }
-
-      if (entry.value.type !== edit.value.type) {
-        throw new Error(
-          `${edit.key} holds a ${entry.value.type}, not a ${edit.value.type}`,
-        );
-      }
-
-      const entries = dict.entries.map((candidate) =>
-        candidate === entry ? { ...entry, value: edit.value } : candidate,
-      );
-
-      return spliceMap(map, dict.start, dict.end, writeDict(entries));
-    }
-    case 'object': {
-      const object = map.objects[edit.index];
-
-      if (!object) {
-        throw new Error('There is no such object');
-      }
-
-      let next = map;
-      const fields: ['x' | 'y' | 'z' | 'angle', number][] = [
-        ['x', 0],
-        ['y', 4],
-        ['z', 8],
-        ['angle', 12],
-      ];
-
-      for (const [field, offset] of fields) {
-        const value = edit[field];
-
-        if (value !== undefined) {
-          if (!Number.isFinite(value)) {
-            throw new Error(`${field} must be a number`);
-          }
-
-          const word = new Uint8Array(new Float32Array([value]).buffer);
-
-          next = spliceMap(
-            next,
-            object.chunk.start + offset,
-            object.chunk.start + offset + 4,
-            word,
-          );
-        }
-      }
-
-      if (edit.template !== undefined) {
-        const template = edit.template.trim();
-
-        if (!template || /[^\x20-\x7e]/.test(template)) {
-          throw new Error('A template name is plain ASCII');
-        }
-
-        const target = next.objects[edit.index];
-        const bytes = new Uint8Array(2 + template.length);
-
-        new DataView(bytes.buffer).setUint16(0, template.length, true);
-        bytes.set(
-          Array.from(template, (char) => char.charCodeAt(0)),
-          2,
-        );
-        next = spliceMap(
-          next,
-          target.templateSpan[0],
-          target.templateSpan[1],
-          bytes,
-        );
-      }
-
-      return next;
-    }
-  }
 };
