@@ -1,3 +1,4 @@
+import { pathKey } from './avm/engine';
 import type { FunctionEntry, ReadValue, Seen } from './avm/engine';
 import { AsObject } from './avm/value';
 import type { Value } from './avm/value';
@@ -13,8 +14,10 @@ import { render } from './stage';
  *   each with a field per parameter and a Call button
  * - **Values**: every variable it read, with what it held; any can be
  *   overridden, and an override wins over the movie's own value from the
- *   next read. A name not read yet can be added. An override matches the
- *   whole path or its last name, so `side` also covers `_root.side`.
+ *   next read and is written into the movie, so `_root.side` and `this.side`
+ *   read it too. A name not read yet can be added. An override matches the
+ *   whole path from the root (`side` is `_root.side`), never a local
+ *   variable or a longer path ending in the same name.
  * - **Calls to the engine**: with how often and the last arguments, each
  *   with the value it returns
  *
@@ -94,12 +97,12 @@ const callRow = (entry: FunctionEntry) => {
   );
 };
 
-const overrideField = (name: string, current: string, placeholder: string) => {
-  const field = input(
-    current,
-    (value) => changed(() => engine.override(name, value)),
-    'line',
-  );
+const overrideField = (
+  current: string,
+  placeholder: string,
+  set: (value: string) => void,
+) => {
+  const field = input(current, (value) => changed(() => set(value)), 'line');
 
   field.placeholder = placeholder;
   return field;
@@ -109,9 +112,9 @@ const valueRow = (read: ReadValue) =>
   row(
     read.name,
     overrideField(
-      read.name,
-      engine.overrides.get(read.name.toLowerCase()) ?? '',
+      engine.overrides.get(pathKey(read.name)) ?? '',
       preview(read.value),
+      (value) => engine.override(read.name, value),
     ),
     text(
       read.found ? `read ${read.count}×` : `read ${read.count}×, never set`,
@@ -123,9 +126,9 @@ const externRow = (seen: Seen) =>
   row(
     seen.name,
     overrideField(
-      seen.name,
-      engine.overrides.get(seen.name.toLowerCase()) ?? '',
-      'not set',
+      engine.externOverrides.get(seen.name.toLowerCase()) ?? '',
+      engine.externWrites.get(seen.name.toLowerCase())?.value ?? 'not set',
+      (value) => engine.overrideExtern(seen.name, value),
     ),
     text(`extern · read ${seen.count}×`, 'muted'),
   );
@@ -158,7 +161,7 @@ const addRow = () => {
   const name = input('', () => {}, 'line');
   const value = input('', () => {}, 'line');
 
-  name.placeholder = 'name or path';
+  name.placeholder = 'path from _root, or extern.Key';
   value.placeholder = 'value';
   return row(
     'Override',
@@ -205,7 +208,7 @@ export const showEngine = (): void => {
   );
   const entries = functions.filter((each) => each.engineOnly);
   const others = functions.filter((each) => !each.engineOnly);
-  const overridden = (name: string) => engine.overrides.has(name.toLowerCase());
+  const overridden = (name: string) => engine.overrides.has(pathKey(name));
   // Overridden first, then what nothing sets, then the rest, by name
   const reads = [...engine.reads.values()]
     .filter((each) => matches(each.name))
@@ -220,7 +223,13 @@ export const showEngine = (): void => {
   );
   const calls = [...engine.calls.values()].filter((each) => matches(each.name));
   const unseen = [...engine.overrides.keys()].filter(
-    (key) => !engine.reads.has(key) && !engine.externs.has(key) && matches(key),
+    (key) => !engine.reads.has(key) && matches(key),
+  );
+  const unseenExterns = [...engine.externOverrides.keys()].filter(
+    (key) => !engine.externs.has(key) && matches(key),
+  );
+  const written = [...engine.externWrites.values()].filter((each) =>
+    matches(each.name),
   );
   const more = document.createElement('details');
   const summary = document.createElement('summary');
@@ -243,7 +252,7 @@ export const showEngine = (): void => {
   const title = document.createElement('summary');
 
   wrapper.open = panel.querySelector('details')?.open ?? true;
-  title.textContent = `Engine: ${engine.overrides.size} overrides · ${entries.length} entry points · ${engine.reads.size} values read · ${engine.calls.size} calls`;
+  title.textContent = `Engine: ${engine.overrides.size + engine.externOverrides.size} overrides · ${entries.length} entry points · ${engine.reads.size} values read · ${engine.calls.size} calls`;
   wrapper.append(
     title,
     row('', search),
@@ -267,11 +276,29 @@ export const showEngine = (): void => {
     ...unseen.map((key) =>
       row(
         key,
-        overrideField(key, engine.overrides.get(key) ?? '', ''),
+        overrideField(engine.overrides.get(key) ?? '', '', (value) =>
+          engine.override(key, value),
+        ),
         text('not read yet', 'muted'),
       ),
     ),
+    ...unseenExterns.map((key) =>
+      row(
+        key,
+        overrideField(engine.externOverrides.get(key) ?? '', '', (value) =>
+          engine.overrideExtern(key, value),
+        ),
+        text('extern · not read yet', 'muted'),
+      ),
+    ),
     ...limited(externs, externRow),
+    ...limited(written, (each) =>
+      row(
+        each.name,
+        text(each.value),
+        text('extern · written by the movie', 'muted'),
+      ),
+    ),
     ...limited(reads, valueRow),
     heading('Calls to the engine'),
     ...(calls.length
