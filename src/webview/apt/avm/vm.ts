@@ -4,6 +4,7 @@ import type {
 } from '../../../formats/apt/aptBytecode';
 import type { PageMovie } from '../protocol';
 import type { Instance } from '../player';
+import { isWindowTarget, levelOf } from './movieLoad';
 import { installNatives } from './natives';
 import {
   AsObject,
@@ -599,6 +600,12 @@ export class Vm implements NativeHost {
         value: instance.parent && this.objectOf(instance.parent),
       };
     }
+
+    const level = this.levelClip(lower);
+
+    if (level) {
+      return { found: true, value: this.objectOf(level) };
+    }
     if (lower === '_global') {
       return { found: true, value: this.global };
     }
@@ -623,15 +630,30 @@ export class Vm implements NativeHost {
     return { found: false };
   }
 
+  /** The clip a script loaded into a level (`_level1`), if one is there */
+  private levelClip(lower: string): Instance | undefined {
+    const level = levelOf(lower);
+
+    return level
+      ? [...this.stage.root.children.values()].find(
+          (child) => child.name?.toLowerCase() === lower,
+        )
+      : undefined;
+  }
+
   public targetPath(instance: Instance, separator: '.' | '/'): string {
     const names: string[] = [];
 
     for (let at: Instance | undefined = instance; at?.parent; at = at.parent) {
       names.unshift(at.name ?? '');
     }
+
+    // A level is not below `_level0`: its path starts at itself
+    const level = names[0] && levelOf(names[0]) ? names[0] : undefined;
+
     return separator === '/'
       ? `/${names.join('/')}`
-      : ['_level0', ...names].join('.');
+      : [level ? '' : '_level0', ...names].filter(Boolean).join('.');
   }
 
   private displayProperty(instance: Instance, name: string): Value {
@@ -998,6 +1020,8 @@ export class Vm implements NativeHost {
         value = frame.self;
       } else if (first && (lower === '_root' || lower === '_level0')) {
         value = this.objectOf(this.stage.root);
+      } else if (first && this.levelClip(lower)) {
+        value = this.objectOf(this.levelClip(lower)!);
       } else {
         const clip = this.clipOf(object);
         const child = clip && this.childByName(clip, name);
@@ -1423,12 +1447,37 @@ export class Vm implements NativeHost {
     );
   }
 
-  private getUrl(url: string, target: string): void {
+  private getUrl(frame: Frame, url: string, target: string): void {
     if (/^fscommand:/i.test(url)) {
       this.engine.command(url.slice(10), target);
-    } else {
-      this.engine.call('getURL', [url, target]);
+      return;
     }
+    this.engine.call('getURL', [url, target]);
+
+    // A target that names a clip or level is Flash's loadMovie (an empty
+    // URL its unloadMovie); a window target is only the call above
+    if (!isWindowTarget(target)) {
+      const level = levelOf(target);
+      const into =
+        level ??
+        this.targetClip(frame, frame.target ?? this.stage.root, target, false);
+
+      if (into === undefined) {
+        this.engine.log(`loadMovie: no clip ${JSON.stringify(target)}`);
+      } else {
+        this.loadMovie(into, url);
+      }
+    }
+  }
+
+  /** Loads the movie a URL names into a clip or level; an empty URL unloads */
+  public loadMovie(into: Instance | number, url: string): void {
+    this.engine.log(
+      `${url ? `loadMovie ${JSON.stringify(url)}` : 'unloadMovie'} into ${
+        typeof into === 'number' ? `_level${into}` : this.targetPath(into, '.')
+      }`,
+    );
+    this.stage.loadMovie(into, url.trim() || undefined);
   }
 
   private enumerate(frame: Frame, value: Value): void {
@@ -1974,13 +2023,13 @@ export class Vm implements NativeHost {
       case 'GetUrl': {
         const [url, target] = operand as [string, string];
 
-        this.getUrl(url, target);
+        this.getUrl(frame, url, target);
         break;
       }
       case 'GetUrl2': {
         const target = text();
 
-        this.getUrl(text(), target);
+        this.getUrl(frame, text(), target);
         break;
       }
       case 'TargetPath': {

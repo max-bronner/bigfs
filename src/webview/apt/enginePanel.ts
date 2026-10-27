@@ -156,6 +156,34 @@ const callReturnRow = (seen: Seen) => {
   );
 };
 
+/** The sounds the movie asked for, each to play on request, and the switch that lets it */
+const soundRows = () => {
+  const toggle = document.createElement('input');
+
+  toggle.type = 'checkbox';
+  toggle.checked = engine.playMovieSounds;
+  toggle.onchange = () => {
+    engine.playMovieSounds = toggle.checked;
+  };
+
+  const label = document.createElement('label');
+
+  label.append(toggle, ' Play movie sounds');
+  return [
+    heading('Sounds the movie asks for'),
+    row('', label),
+    ...(engine.sounds.size
+      ? [...engine.sounds.values()].map((each) =>
+          row(
+            each.event,
+            button('▶ Play', () => engine.playSound(each.event)),
+            text(`${each.count}×`, 'muted'),
+          ),
+        )
+      : [text('No PlaySound call yet.', 'muted')]),
+  ];
+};
+
 /** An override for a name the movie has not read yet */
 const addRow = () => {
   const name = input('', () => {}, 'line');
@@ -300,6 +328,7 @@ export const showEngine = (): void => {
       ),
     ),
     ...limited(reads, valueRow),
+    ...soundRows(),
     heading('Calls to the engine'),
     ...(calls.length
       ? limited(calls, callReturnRow)

@@ -12,6 +12,7 @@ import type {
   Matrix2,
 } from "../../formats/apt/aptMovie";
 import type { PageMovie } from "./protocol";
+import { movieNameOf } from "./avm/movieLoad";
 import { displayList, framesOf } from "./timeline";
 import type { ColorTransform } from "./timeline";
 
@@ -46,6 +47,8 @@ const MAX_CHAIN = 16;
 const MAX_DEPTH = 12;
 /** Scripts one frame, event or call may start between them */
 const MAX_ACTIONS = 1000;
+/** The depth of `_level0`'s next sibling: a level sits above every placed depth */
+const LEVEL_DEPTH = 1_000_000;
 
 export interface Resolved {
   movie: PageMovie;
@@ -113,6 +116,15 @@ export interface PlayerOptions {
   /** Whether the root does too; off to step through its frames */
   rootScripts: boolean;
   log?: (line: string) => void;
+  /**
+   * Finds the movie a script loads (`loadMovie`), by name, and hands it to
+   * `done` now or when it arrives, or the reason it cannot be had. Without
+   * it a load only says so in the log.
+   */
+  fetchMovie?: (
+    name: string,
+    done: (movie: PageMovie | string) => void,
+  ) => void;
   /**
    * The engine's side: given, scripts run as bytecode on the AVM and ask
    * it what the game would answer; without, only what they do to
@@ -182,7 +194,7 @@ export class Player implements StageHost {
    * before the first frame (mint's queue_init_actions, after Ruffle's
    * preload), not when the frame holding one is entered
    */
-  private queueInitActions(movie: PageMovie): void {
+  private queueInitActions(movie: PageMovie, on?: Instance): void {
     const vm = this.vm;
 
     if (!vm) {
@@ -204,11 +216,124 @@ export class Player implements StageHost {
 
           if (item.type === "initAction" && !vm.initialised.has(key)) {
             vm.initialised.add(key);
-            this.later(() => vm.runBlock(this.root, item.block));
+            this.later(() => vm.runBlock(on ?? this.root, item.block));
           }
         }
       }
     }
+  }
+
+  // ---- loadMovie
+
+  /**
+   * `loadMovie`/`unloadMovie` into a clip, or into a level (a number): the
+   * movie a URL names replaces the clip's content, once it is found. Nothing
+   * here throws; a movie that cannot be had is a line in the log.
+   */
+  public loadMovie(into: Instance | number, url: string | undefined): void {
+    const log = (line: string) => this.options.log?.(`loadMovie: ${line}`);
+
+    if (typeof into !== "number" && !into.parent) {
+      log("the movie shown cannot be replaced or emptied");
+      return;
+    }
+    if (url === undefined) {
+      this.later(() => this.unload(into));
+      this.idle();
+      return;
+    }
+
+    const name = movieNameOf(url);
+
+    if (!name) {
+      log(`${JSON.stringify(url)} names no movie`);
+      return;
+    }
+    if (into === 0) {
+      log(`${name} cannot replace _level0, the movie shown`);
+      return;
+    }
+    if (!this.options.fetchMovie) {
+      log(`${name} cannot be loaded here`);
+      return;
+    }
+    this.options.fetchMovie(name, (found) => {
+      if (typeof found === "string") {
+        log(`${name} not loaded: ${found}`);
+        return;
+      }
+      // After the script that asked has finished, as Flash loads on the
+      // next frame; a clip gone meanwhile loads nothing
+      this.later(() => this.mount(into, found));
+      this.idle();
+    });
+  }
+
+  private levelClip(level: number): Instance | undefined {
+    return [...this.root.children.values()].find(
+      (child) => child.name?.toLowerCase() === `_level${level}`,
+    );
+  }
+
+  /** Puts a movie's root timeline in a clip or level, playing from frame 0 */
+  private mount(into: Instance | number, movie: PageMovie): void {
+    const rootId = movie.characters.findIndex(
+      (character) => character?.type === "movie",
+    );
+    const clip =
+      typeof into === "number"
+        ? (this.levelClip(into) ??
+          this.createEmpty(this.root, `_level${into}`, LEVEL_DEPTH + into))
+        : into;
+
+    if (rootId < 0 || clip.removed) {
+      this.options.log?.(
+        `loadMovie: ${movie.name} ${rootId < 0 ? "has no root timeline" : "was unloaded before it arrived"}`,
+      );
+      return;
+    }
+    clip.children.forEach((child) => this.retire(child));
+    clip.children = new Map();
+    clip.hits = [];
+    clip.movie = movie;
+    clip.id = rootId;
+    clip.character = movie.characters[rootId];
+    clip.missing = undefined;
+    clip.frames = framesOf(movie, clip.character);
+    clip.frame = 0;
+    clip.playing = true;
+    clip.visible = true;
+    clip.created = this.ticks;
+
+    // A movie loaded again runs its init actions again
+    this.vm?.initialised.forEach((key) => {
+      if (key.startsWith(`${movie.name}#`)) {
+        this.vm!.initialised.delete(key);
+      }
+    });
+    // Runs inside the drain of the script queue: what these queue follows
+    this.queueInitActions(movie, clip);
+    this.enter(clip, 0);
+    this.options.log?.(`loadMovie: ${movie.name} is in ${describe(clip)}`);
+    this.idle();
+  }
+
+  /** `unloadMovie`: the clip stays, empty and stopped; a level goes */
+  private unload(into: Instance | number): void {
+    const clip = typeof into === "number" ? this.levelClip(into) : into;
+
+    if (!clip || clip.removed) {
+      return;
+    }
+    if (typeof into === "number") {
+      this.remove(clip);
+      return;
+    }
+    clip.children.forEach((child) => this.retire(child));
+    clip.children = new Map();
+    clip.frames = [];
+    clip.frame = 0;
+    clip.playing = false;
   }
 
   /** Advances every playing timeline a frame, parents first */

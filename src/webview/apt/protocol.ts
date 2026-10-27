@@ -61,6 +61,19 @@ export type ToPage =
       /** The Engine panel's answers kept for this movie in the workspace */
       answers?: EngineValues;
     }
+  | {
+      kind: 'movieLoaded';
+      /** The movie asked for, as imports name it */
+      name: string;
+      /** Why it could not be found or read; the rest is then absent */
+      error?: string;
+      /** The movie and what its imports reach, as `movie` sends them */
+      library?: Record<string, PageMovie>;
+      textures?: Record<string, TexturePixels>;
+      unresolved?: string[];
+      origins?: Record<string, string>;
+      texts?: Record<string, string>;
+    }
   | { kind: 'select'; character: number }
   /** What the integrity check found in the movie and the files beside it */
   | { kind: 'integrity'; problems: Problem[] }
@@ -80,6 +93,10 @@ export type FromPage =
   | { kind: 'script'; block: number }
   /** The Engine panel's answers for the shown movie, to keep in the workspace */
   | { kind: 'engineAnswers'; values: EngineValues }
+  /** A script loaded a movie into a clip or level: find it like an import */
+  | { kind: 'loadMovie'; name: string }
+  /** The Engine panel's play button, or a movie sound with the box ticked */
+  | { kind: 'playSound'; name: string }
   | { kind: 'edit'; edit: AptEdit }
   | { kind: 'scriptEdit'; block: number; text: string }
   | { kind: 'openGeometry'; geometry: number }

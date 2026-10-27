@@ -1,5 +1,6 @@
 import type { AptInstruction } from '../../../formats/apt/aptBytecode';
 import type { PageMovie } from '../protocol';
+import { soundEventOf } from './movieLoad';
 import { AsObject } from './value';
 import type { Value } from './value';
 import type { EngineHooks, Vm } from './vm';
@@ -14,6 +15,8 @@ import type { EngineHooks, Vm } from './vm';
  *   keys it asks `GetExtern`/`extern.` for
  * - **calls**: `GameCode`, `FSCommand:` and functions nothing defines,
  *   counted with their last arguments, each with a value to return
+ * - **sounds**: the events `PlaySound` asks for, played only on request
+ *   or while `playMovieSounds` is ticked
  * - **entry points**: functions it stores that its own code never names
  *   again, so only the engine calls them (`SetPlayerFaction` in the
  *   palantir: mint's palantir research, point 7)
@@ -43,6 +46,12 @@ export interface FunctionEntry {
   fn: AsObject;
   /** Whether the movie's own code never names it, so the engine calls it */
   engineOnly: boolean;
+}
+
+/** A sound the movie asked the engine to play, with how often */
+export interface SoundAsked {
+  event: string;
+  count: number;
 }
 
 /** What the user set, kept per movie between sessions */
@@ -236,6 +245,13 @@ export class Engine implements EngineHooks {
   public readonly externs = new Map<string, Seen>();
   public readonly calls = new Map<string, Seen>();
   public readonly functions = new Map<string, FunctionEntry>();
+  /** The sounds the movie asked for (`PlaySound`), by lowercased event */
+  public readonly sounds = new Map<string, SoundAsked>();
+  /**
+   * Whether the sounds the movie asks for play as it asks. Off at the start
+   * of every session and never kept: sound is opt-in.
+   */
+  public playMovieSounds = false;
   /** Overrides read back as values, made once per change */
   private parsed = new Map<string, Value>();
   private written = new Map<string, Value>();
@@ -247,6 +263,7 @@ export class Engine implements EngineHooks {
   public constructor(
     private readonly onChange: () => void,
     private readonly onLog: (line: string) => void,
+    private readonly onSound: (event: string) => void = () => {},
   ) {}
 
   /** The machine of the run being watched */
@@ -261,6 +278,7 @@ export class Engine implements EngineHooks {
     this.externs.clear();
     this.calls.clear();
     this.functions.clear();
+    this.sounds.clear();
     this.externWrites.clear();
     this.written.clear();
     this.changed();
@@ -434,9 +452,39 @@ export class Engine implements EngineHooks {
       `engine: ${name}(${args.map((arg) => JSON.stringify(arg)).join(', ')})`,
     );
 
+    const sound = soundEventOf(name, args);
+
+    if (sound) {
+      this.heard(sound);
+    }
+
     const text = this.returns.get(name.toLowerCase());
 
     return text === undefined ? undefined : parseTyped(text);
+  }
+
+  /** A sound the movie asks for: listed, logged, and played only when allowed */
+  private heard(event: string): void {
+    const key = event.toLowerCase();
+    const asked = this.sounds.get(key);
+
+    if (asked) {
+      asked.count++;
+    } else {
+      this.sounds.set(key, { event, count: 1 });
+      this.changed();
+    }
+    this.onLog(
+      `movie sound: ${event} (${this.playMovieSounds ? 'playing' : 'not played, Play movie sounds is off'})`,
+    );
+    if (this.playMovieSounds) {
+      this.onSound(event);
+    }
+  }
+
+  /** Plays a listed sound once, because the user pressed its button */
+  public playSound(event: string): void {
+    this.onSound(event);
   }
 
   public command(command: string, args: string): void {

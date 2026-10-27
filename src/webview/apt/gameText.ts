@@ -28,3 +28,10 @@ export const localise = (text: string): string => {
     ? (texts[key.toLowerCase()] ?? resolveAptText(text, () => undefined))
     : stripTextStyle(text);
 };
+
+/** Adds the text of movies sent later, keeping what is held for the rest */
+export const mergeGameText = (more: Record<string, string> | undefined) => {
+  if (more) {
+    texts = { ...texts, ...more };
+  }
+};

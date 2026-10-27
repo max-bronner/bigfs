@@ -14,6 +14,7 @@ const listeners = { change: () => {}, log: (_line: string) => {} };
 export const engine = new Engine(
   () => listeners.change(),
   (line) => listeners.log(line),
+  (event) => vscode.postMessage({ kind: 'playSound', name: event }),
 );
 
 export const onEngineChange = (change: () => void): void => {
