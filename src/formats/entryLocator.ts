@@ -1,41 +1,73 @@
 import { FileType, Uri, workspace } from 'vscode';
 import type { Disposable } from 'vscode';
 import type { ArchiveModel } from '../model/archiveModel';
-import { getFileNodes } from '../model/virtualNode';
+import type { GameViewModel, GameViewNode } from '../model/gameViewModel';
 import { getNodeUri } from '../model/nodeAddress';
 import type { VirtualNode } from '../model/virtualNode';
 
 /**
- * Finds a file by name wherever the game would: beside the file asking for
- * it, in any archive of the workspace, or loose anywhere in the workspace.
- * A model names its skeleton and textures by file name only, and those
- * usually sit in another archive than the model itself.
+ * Finds a file the way the game would. A model names its skeleton and
+ * textures by file name only, and those usually sit in another archive than
+ * the model itself, so a name is looked up in the game view: loose files
+ * before archives, archives in the engine's order with the first holding the
+ * file winning, and installs layered (a mod, then ROTWK, then BFME II), so
+ * the copy found is the copy the game loads. A name with folders in front
+ * (`art/textures/x.tga`) is looked up by that path first. Only what the game
+ * view does not hold, a file beside the one asking or loose elsewhere in the
+ * workspace, is looked for afterwards.
  *
- * The name to node table over every archive is built on first use and
- * dropped when an archive changes, so a lookup after the first costs a map
- * read.
+ * The name table is the game view's, built on first use and dropped when an
+ * archive changes, so a lookup after the first costs a map read.
  */
 /** Loose files that can satisfy an asset reference */
 const LOOSE_ASSETS =
   '**/*.{w3d,W3D,dds,DDS,tga,TGA,jpg,JPG,png,PNG,wav,WAV,mp3,MP3}';
 
+/** The last segment of a path written with either slash */
+const baseName = (fileName: string): string =>
+  fileName.slice(
+    Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\')) + 1,
+  );
+
+/** The game view node at a path, if a file is there */
+const findByPath = (
+  root: GameViewNode,
+  fileName: string,
+): GameViewNode | undefined => {
+  let node: GameViewNode | undefined = root;
+
+  for (const segment of fileName.split(/[\\/]/).filter(Boolean)) {
+    node = node.children?.get(segment.toLowerCase());
+
+    if (!node) {
+      return undefined;
+    }
+  }
+
+  return node.winner ? node : undefined;
+};
+
 export class EntryLocator implements Disposable {
-  private names?: Promise<Map<string, VirtualNode>>;
   /** Archive and loose asset names together, until either changes */
   private allNames?: Promise<Set<string>>;
   private readonly subscriptions: Disposable[];
 
-  public constructor(private readonly archiveModel: ArchiveModel) {
+  public constructor(
+    private readonly archiveModel: ArchiveModel,
+    private readonly gameView: GameViewModel,
+  ) {
     const watcher = workspace.createFileSystemWatcher(LOOSE_ASSETS);
     const forgetLoose = () => {
       this.allNames = undefined;
     };
 
     this.subscriptions = [
-      archiveModel.onDidChangeArchive(() => {
-        this.names = undefined;
-        this.allNames = undefined;
+      archiveModel.onDidChangeArchive(({ loaded }) => {
+        if (!loaded) {
+          this.allNames = undefined;
+        }
       }),
+      gameView.onDidChange(forgetLoose),
       watcher,
       watcher.onDidCreate(forgetLoose),
       watcher.onDidDelete(forgetLoose),
@@ -57,7 +89,7 @@ export class EntryLocator implements Disposable {
         '**/node_modules/**',
         200_000,
       );
-      const archived = await this.getNames();
+      const archived = await this.gameView.getNames();
 
       return new Set([
         ...archived.keys(),
@@ -128,19 +160,26 @@ export class EntryLocator implements Disposable {
     fileName: string,
     nearUri: Uri,
   ): Promise<{ uri: Uri } | { node: VirtualNode } | undefined> {
-    const beside = await this.findBeside(fileName, nearUri);
+    const name = baseName(fileName);
+    const root = await this.gameView.getRoot();
+    const held =
+      (/[\\/]/.test(fileName) ? findByPath(root, fileName) : undefined) ??
+      (await this.gameView.getNames()).get(name.toLowerCase());
+    const winner = held?.winner?.ref;
+
+    if (winner) {
+      return winner.kind === 'entry'
+        ? { node: winner.node }
+        : { uri: winner.uri };
+    }
+
+    const beside = await this.findBeside(name, nearUri);
 
     if (beside) {
       return { uri: beside };
     }
 
-    const node = (await this.getNames()).get(fileName.toLowerCase());
-
-    if (node) {
-      return { node };
-    }
-
-    const [loose] = await workspace.findFiles(`**/${fileName}`, undefined, 1);
+    const [loose] = await workspace.findFiles(`**/${name}`, undefined, 1);
 
     return loose && { uri: loose };
   }
@@ -154,7 +193,9 @@ export class EntryLocator implements Disposable {
     loosePattern: string,
   ): Promise<string[]> {
     const names = new Set(
-      [...(await this.getNames()).keys()].filter((name) => matches(name)),
+      [...(await this.gameView.getNames()).keys()].filter((name) =>
+        matches(name),
+      ),
     );
 
     for (const uri of await workspace.findFiles(
@@ -190,33 +231,5 @@ export class EntryLocator implements Disposable {
     } catch {
       return undefined;
     }
-  }
-
-  /** Every file of every archive by lowercased name; the first archive listed wins */
-  private getNames(): Promise<Map<string, VirtualNode>> {
-    this.names ??= (async () => {
-      const names = new Map<string, VirtualNode>();
-
-      for (const root of this.archiveModel.getArchiveRoots()) {
-        // An archive that does not read holds nothing to find
-        try {
-          await this.archiveModel.loadArchiveOf(root);
-        } catch {
-          continue;
-        }
-
-        for (const node of getFileNodes(root)) {
-          const key = node.name.toLowerCase();
-
-          if (!names.has(key)) {
-            names.set(key, node);
-          }
-        }
-      }
-
-      return names;
-    })();
-
-    return this.names;
   }
 }

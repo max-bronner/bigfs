@@ -729,7 +729,13 @@
           "type": "string",
           "default": "",
           "scope": "machine",
-          "markdownDescription": "Install folder of the unmodded game, which **BIG: Compare with Base Game** compares the workspace against. Asked for on first use."
+          "markdownDescription": "Install folder of the unmodded game, the lowest layer of the game view: a mod-only or ROTWK-only workspace resolves the base files from it, and **BIG: Compare with Base Game** compares against it. Asked for on first use. Layers are ordered by the marker files they hold (`lotrbfme2ep1.exe` = ROTWK, `lotrbfme2.exe` = BFME II): a mod first, then ROTWK, then BFME II; folders of one kind keep their workspace folder order."
+        },
+        "bigfs.underlyingGameFolder": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Install folder of the game beneath `#bigfs.baseGameFolder#`, such as BFME II when that is ROTWK, which keeps only what it adds. On Windows, empty finds BFME II from the registry as the game does."
         },
         "bigfs.game.executable": {
           "type": "string",

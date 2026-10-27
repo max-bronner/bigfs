@@ -69,9 +69,13 @@ export const registerClipboardCommands = (
       return; // a copy can be pasted again, a cut is spent by the paste
     }
 
-    await moveNodes(archiveModel, clipboard.nodes, directory);
+    // A paste that moved nothing (refused, cancelled, or into another archive)
+    // leaves the cut waiting for a target it can go to
+    const moved = await moveNodes(archiveModel, clipboard.nodes, directory);
 
-    await setClipboard(undefined);
+    if (moved) {
+      await setClipboard(undefined);
+    }
   };
 
   /**

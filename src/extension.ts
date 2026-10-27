@@ -68,7 +68,8 @@ export function activate(context: vscode.ExtensionContext) {
   tools.register(decodeTgaTool, decodeDdsTool, playableAudioTool, parseW3dTool);
   formats.register();
 
-  const locator = new EntryLocator(archiveModel);
+  const gameView = new GameViewModel(archiveModel);
+  const locator = new EntryLocator(archiveModel, gameView);
 
   context.subscriptions.push(
     locator,
@@ -118,7 +119,6 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const fileSystemProvider = new BigFileSystemProvider(archiveModel);
-  const gameView = new GameViewModel(archiveModel);
 
   registerModDiffCommands(context, gameView);
   const treeDataProvider = new BigTreeDataProvider(archiveModel, gameView);

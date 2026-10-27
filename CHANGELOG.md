@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix: every lookup resolves a file the way the game does (after mint's `big` crate): loose files beat archives, archives in the engine's order with the first winning, installs layered as a mod, then ROTWK, then BFME II, so `___a.big` beats `b.big` and the right `aptcomponents_001.tga` is found. Installs are named by their marker files; `bigfs.baseGameFolder` (and the new `bigfs.underlyingGameFolder`) is the lowest layer and feeds the game view; workspace folder order is the fallback between folders of one kind. Loose files are found under the game's top folders, so a mod of INI files alone shows. Compare and Package Mod read the base's loose files and its BFME II layer, never count a packed archive as base, and no longer offer the base game folder as the output; Package Mod counts INI errors by checking the folder. The game view rebuilds once per burst of changes, Refresh and workspace folder changes are handled, Compare can be cancelled, a refused cut-paste keeps the clipboard, and writing into an unread archive reads it first.
+
 - Fix: APT scripts that goto each other overflowed the stack and broke the editor; frames entered by a goto now queue their scripts, a failing script is reported instead of thrown, and only clips scripts touched are checked each frame. The Engine panel overrides any variable the movie reads instead of only supplying unset ones.
 
 - APT preview runs ActionScript in full (ported from mint2's AVM), and an Engine panel lists what the movie asks of the game: functions only the engine calls, with a Call button; values it reads but never sets, and extern keys, each settable; calls into the engine with their arguments and a settable return.
