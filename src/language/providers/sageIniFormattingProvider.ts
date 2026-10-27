@@ -1,21 +1,23 @@
 import { Range, TextEdit } from 'vscode';
 import type { DocumentFormattingEditProvider } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
-import { formatSageIni } from '../model/sageIniFormat';
+import { formatSageIniStable } from '../model/sageIniFormat';
+import { isFragmentPath, parseSageIni } from '../model/sageIniParser';
 
 /** Re-indents a file from its block structure; only whitespace changes */
 export const createSageIniFormattingProvider = (
   documents: SageIniDocuments,
 ): DocumentFormattingEditProvider => ({
   async provideDocumentFormattingEdits(document, options) {
-    const parsed = await documents.parse(document);
+    const schema = await documents.getSchema();
+    const isFragment = isFragmentPath(document.uri.path);
     const lines = Array.from(
       { length: document.lineCount },
       (_, line) => document.lineAt(line).text,
     );
-    const formatted = formatSageIni(
+    const formatted = formatSageIniStable(
       lines,
-      parsed,
+      (text) => parseSageIni(text, schema, { isFragment }),
       options.insertSpaces ? ' '.repeat(options.tabSize) : '\t',
     );
 

@@ -1,13 +1,18 @@
 import * as vscode from 'vscode';
 import type { SageIniIndex } from './sageIniIndex';
 import { AUDIO_NAMESPACES, EVA_NAMESPACES } from './model/sageAudioFields';
+import { isModFile, isReportableKind } from './model/unusedPolicy';
+import { findBaseGameFolders } from '../model/baseGameFolders';
 
 /**
  * "Find Unused Definitions": every definition in the workspace's own files
  * that no INI file references, listed in the Problems panel at its header.
- * Only kinds some field can name are checked; objects (placed by maps),
- * images (named by WND and APT files) and the engine's own entry points are
- * left out, since nothing in INI names them.
+ * Only kinds nothing outside INI names are checked (`unusedPolicy`): objects
+ * and sciences are placed or granted by maps and scripts, images are named by
+ * WND and APT files, and the engine looks up player templates, default
+ * command sets, announcer events and GameData itself. Only the mod's own
+ * files are scanned, never a base game folder in or beside the workspace.
+ * Nothing is deleted; the findings are Problems-panel notes.
  */
 
 /** Namespaces used by name from outside INI, lowercased */
@@ -33,13 +38,15 @@ export const registerUnusedDefinitions = (
   const find = async (): Promise<number> => {
     await index.whenReady();
 
-    const folders = (vscode.workspace.workspaceFolders ?? []).map((folder) =>
-      folder.uri.toString(),
+    const folders = (vscode.workspace.workspaceFolders ?? []).map(
+      (folder) => folder.uri.fsPath,
     );
+    const base = await findBaseGameFolders();
     const unused = index.findUnreferenced(
       (definition) =>
         definition.uri.scheme === 'file' &&
-        folders.some((folder) => definition.uri.toString().startsWith(folder)),
+        isReportableKind(definition.keyword) &&
+        isModFile(definition.uri.fsPath, folders, base),
       NAMED_ELSEWHERE,
     );
     const byFile = new Map<string, vscode.Diagnostic[]>();

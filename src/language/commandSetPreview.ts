@@ -44,6 +44,9 @@ export interface ResolvedSlot extends CommandSetSlot {
   hotkey?: string;
   command?: string;
   imageName?: string;
+  grants?: string[];
+  needs?: string[];
+  needsAny?: boolean;
 }
 
 /** Reads the lines of definitions, each file once per call */
@@ -65,6 +68,13 @@ export const createLineReader = () => {
   };
 };
 
+/** Lower case names of a field that lists several */
+const namesOf = (value: string | undefined): string[] =>
+  (value ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((name) => name && name !== 'none');
+
 /** Each slot's button: its game text, hotkey, command and icon name */
 export const resolveSlots = async (
   index: SageIniIndex,
@@ -83,9 +93,17 @@ export const resolveSlots = async (
       const label = fields.get('textlabel');
       const text = label ? index.findString(label)?.text : undefined;
 
+      const gated = /\bNEED_UPGRADE\b/i.test(fields.get('options') ?? '');
+
       return {
         ...slot,
         defined: true,
+        grants: [
+          ...namesOf(fields.get('upgrade')),
+          ...namesOf(fields.get('science')),
+        ],
+        needs: gated ? namesOf(fields.get('neededupgrade')) : [],
+        needsAny: /^(yes|true|1)$/i.test(fields.get('neededupgradeany') ?? ''),
         text,
         hotkey: text ? hotkeyOf(text) : undefined,
         command: fields.get('command'),

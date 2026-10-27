@@ -43,6 +43,35 @@ export const formatSageIni = (
   });
 };
 
+/** How many times the text may be re-indented before it is called unstable */
+const MAX_PASSES = 8;
+
+/**
+ * The text formatting settles on: `formatSageIni` repeated, each pass parsed
+ * afresh, until a pass changes nothing. A keyword the grammar does not hold
+ * is nested by its indentation, which a pass rewrites, so one pass can
+ * change what the next reads; formatting the result again is then a no-op by
+ * construction. Text that never settles within a few passes is returned as
+ * written, which also formats to itself.
+ */
+export const formatSageIniStable = (
+  lines: string[],
+  parse: (lines: string[]) => SageDocument,
+  unit: string,
+): string[] => {
+  let current = lines;
+
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const next = formatSageIni(current, parse(current), unit);
+
+    if (next.every((line, index) => line === current[index])) {
+      return current;
+    }
+    current = next;
+  }
+  return lines;
+};
+
 /** Edit distance, for suggesting the name a typo meant */
 export const editDistance = (a: string, b: string): number => {
   const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
