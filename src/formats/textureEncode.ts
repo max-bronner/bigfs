@@ -288,7 +288,21 @@ const halve = (image: RgbaImage): RgbaImage => {
 };
 
 const to565 = (r: number, g: number, b: number) =>
-  ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+  (Math.round((r * 31) / 255) << 11) |
+  (Math.round((g * 63) / 255) << 5) |
+  Math.round((b * 31) / 255);
+
+/** Bytes written in order into a buffer of known size */
+class Sink {
+  public at = 0;
+
+  public constructor(public readonly bytes: Uint8Array) {}
+
+  public push(...values: number[]) {
+    this.bytes.set(values, this.at);
+    this.at += values.length;
+  }
+}
 const from565 = (c: number) => [
   (((c >> 11) & 31) * 255) / 31,
   (((c >> 5) & 63) * 255) / 63,
@@ -296,7 +310,7 @@ const from565 = (c: number) => [
 ];
 
 /** One DXT colour block: two 565 endpoints and 2-bit indices */
-const colourBlock = (block: Uint8Array, out: number[], isDxt1: boolean) => {
+const colourBlock = (block: Uint8Array, out: Sink, isDxt1: boolean) => {
   const min = [255, 255, 255];
   const max = [0, 0, 0];
   let hasTransparent = false;
@@ -399,7 +413,7 @@ const colourBlock = (block: Uint8Array, out: number[], isDxt1: boolean) => {
 };
 
 /** DXT5's alpha block: two endpoints and 3-bit indices */
-const alphaBlock = (block: Uint8Array, out: number[]) => {
+const alphaBlock = (block: Uint8Array, out: Sink) => {
   let low = 255;
   let high = 0;
 
@@ -437,9 +451,15 @@ const alphaBlock = (block: Uint8Array, out: number[]) => {
 
 export type DdsFormat = 'DXT1' | 'DXT3' | 'DXT5' | 'RGBA';
 
-const encodeLevel = (image: RgbaImage, format: DdsFormat): number[] => {
-  const out: number[] = [];
+/** The bytes one mip level takes in `format` */
+const levelSize = (image: RgbaImage, format: DdsFormat) =>
+  format === 'RGBA'
+    ? image.width * image.height * 4
+    : Math.max(1, Math.ceil(image.width / 4)) *
+      Math.max(1, Math.ceil(image.height / 4)) *
+      (format === 'DXT1' ? 8 : 16);
 
+const encodeLevel = (image: RgbaImage, format: DdsFormat, out: Sink) => {
   if (format === 'RGBA') {
     for (let index = 0; index < image.width * image.height; index++) {
       const p = image.pixels.subarray(index * 4, index * 4 + 4);
@@ -447,7 +467,7 @@ const encodeLevel = (image: RgbaImage, format: DdsFormat): number[] => {
       out.push(p[2], p[1], p[0], p[3]);
     }
 
-    return out;
+    return;
   }
 
   const block = new Uint8Array(64);
@@ -480,8 +500,6 @@ const encodeLevel = (image: RgbaImage, format: DdsFormat): number[] => {
       colourBlock(block, out, format === 'DXT1');
     }
   }
-
-  return out;
 };
 
 /** A DDS of the image, with every mip level down to 1×1 when `mipmaps` */
@@ -500,9 +518,12 @@ export const encodeDds = (
     levels.push(halve(levels[levels.length - 1]));
   }
 
-  const body = levels.flatMap((level) => encodeLevel(level, format));
-  const header = new Uint8Array(128);
-  const view = new DataView(header.buffer);
+  // One buffer for the header and every level, never a list of bytes
+  const out = new Uint8Array(
+    128 + levels.reduce((sum, level) => sum + levelSize(level, format), 0),
+  );
+  const header = out.subarray(0, 128);
+  const view = new DataView(out.buffer);
   const isCompressed = format !== 'RGBA';
 
   header.set([68, 68, 83, 32]);
@@ -549,5 +570,12 @@ export const encodeDds = (
 
   view.setUint32(108, 0x1000 | (levels.length > 1 ? 0x400008 : 0), true);
 
-  return concat([header, Uint8Array.from(body)]);
+  const sink = new Sink(out);
+
+  sink.at = 128;
+  for (const level of levels) {
+    encodeLevel(level, format, sink);
+  }
+
+  return out;
 };
