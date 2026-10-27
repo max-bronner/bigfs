@@ -1,14 +1,21 @@
 ﻿import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
 import { getAvailableName } from '../common/paths';
-import { confirmDelete, resolveConflicts } from '../ui/dialogs';
+import {
+  askForTransferConflict,
+  confirmDelete,
+  resolveConflicts,
+} from '../ui/dialogs';
+import { findConflicts, planTransfer } from '../model/transferPlan';
 import {
   findChild,
   getTopLevelNodes,
+  isArchiveRoot,
   isInside,
 } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
+import type { ConflictChoice } from '../model/transferPlan';
 
 /**
  * Gets the directory an operation on a node applies to: the node itself for a
@@ -234,17 +241,99 @@ export const importFromDisk = async (
   }
 
   const files = await readFiles(sourceUris);
+  const content = archiveModel.getDirectoryContent(targetDirectory);
+  const conflicts = findConflicts(
+    files.map((file) => ({ path: file.name })),
+    content,
+  );
+  let choice: ConflictChoice = 'replace';
 
-  const hasFileConflict = (file: ImportedFile) =>
-    Boolean(findChild(targetDirectory, file.name));
+  if (conflicts.length) {
+    const answer = await askForTransferConflict(
+      conflicts.map((conflict) => conflict.path),
+    );
 
-  const acceptedFiles = await resolveConflicts(files, hasFileConflict);
+    if (!answer) {
+      return 0;
+    }
 
-  if (!acceptedFiles.length) {
+    choice = answer;
+  }
+
+  const plan = planTransfer(
+    files.map((file) => ({ path: file.name, file })),
+    content,
+    choice,
+  );
+
+  if (!plan.length) {
     return 0;
   }
 
-  await archiveModel.addFiles(targetDirectory, acceptedFiles);
+  await archiveModel.addFiles(
+    targetDirectory,
+    plan.map(({ item, targetPath }) => ({ ...item.file, name: targetPath })),
+  );
 
-  return acceptedFiles.length;
+  return plan.length;
+};
+
+/** What a transfer between archives did, for the message that reports it */
+export interface TransferOutcome {
+  transferred: number;
+  /** Whether the files left their source: false for a copy, and for a move out of a read-only source */
+  moved: boolean;
+}
+
+/**
+ * Copies or moves nodes into a directory of a writable archive, from any
+ * archive or from the same one, and reports what happened. Names the target
+ * already holds prompt to replace, skip or keep both. Moving out of a
+ * read-only source such as the base game copies instead, since nothing may be
+ * taken from it. The target archive is saved once.
+ */
+export const transferNodes = async (
+  archiveModel: ArchiveModel,
+  sources: readonly VirtualNode[],
+  targetDirectory: VirtualNode,
+  operation: 'copy' | 'move',
+): Promise<TransferOutcome> => {
+  if (refuseReadOnly(archiveModel, [targetDirectory])) {
+    return { transferred: 0, moved: false };
+  }
+
+  const movable = getTopLevelNodes(sources).filter(
+    (source) =>
+      !isArchiveRoot(source) &&
+      !(
+        operation === 'move' &&
+        source.archive === targetDirectory.archive &&
+        !canMoveInto(source, targetDirectory)
+      ),
+  );
+
+  // Inside one archive the entries are renamed or copied in place, which
+  // reads and writes no content
+  if (movable.every((source) => source.archive === targetDirectory.archive)) {
+    const count = await (operation === 'move' ? moveNodes : copyNodes)(
+      archiveModel,
+      movable,
+      targetDirectory,
+    );
+
+    return { transferred: count, moved: operation === 'move' && count > 0 };
+  }
+
+  if (!movable.length) {
+    return { transferred: 0, moved: false };
+  }
+
+  const { transferred, removed } = await archiveModel.transferNodes(
+    movable,
+    targetDirectory,
+    operation === 'move',
+    askForTransferConflict,
+  );
+
+  return { transferred, moved: operation === 'move' && removed > 0 };
 };
