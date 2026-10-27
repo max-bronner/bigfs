@@ -1,4 +1,5 @@
 import type { Tool } from './toolRegistry';
+import { decompressEar, isEarWrapped } from '../formats/refpack';
 
 /**
  * Decoders for the texture formats the games ship: Truevision TGA and
@@ -88,12 +89,18 @@ const readTgaPixel = (
   out[to + 3] = bytesPerPixel === 4 ? bytes[at + 3] : 255;
 };
 
+/** A texture some retail files keep RefPack-compressed in an `EAR\0` wrapper */
+const unwrapEar = (bytes: Uint8Array) =>
+  isEarWrapped(bytes) ? decompressEar(bytes) : bytes;
+
 /**
  * Decodes a TGA: true colour at 16, 24 or 32 bits, 8-bit greyscale and 8-bit
  * colour-mapped images, each stored plain or run-length encoded, in any of
  * the four row and column orders.
  */
-export const decodeTga = (bytes: Uint8Array): DecodedTexture => {
+export const decodeTga = (wrapped: Uint8Array): DecodedTexture => {
+  const bytes = unwrapEar(wrapped);
+
   if (bytes.length < TGA_HEADER_LENGTH) {
     throw new Error('Too short for a TGA header');
   }
@@ -412,7 +419,9 @@ const maskShape = (mask: number): { shift: number; max: number } => {
  * 16, 24 and 32-bit ones described by channel masks, with every mip level
  * the file carries.
  */
-export const decodeDds = (bytes: Uint8Array): DecodedTexture => {
+export const decodeDds = (wrapped: Uint8Array): DecodedTexture => {
+  const bytes = unwrapEar(wrapped);
+
   if (bytes.length < DDS_HEADER_END) {
     throw new Error('Too short for a DDS header');
   }

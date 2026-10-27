@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Fix: every lookup resolves a file the way the game does (after mint's `big` crate): loose files beat archives, archives in the engine's order with the first winning, installs layered as a mod, then ROTWK, then BFME II, so `___a.big` beats `b.big` and the right `aptcomponents_001.tga` is found. Installs are named by their marker files; `bigfs.baseGameFolder` (and the new `bigfs.underlyingGameFolder`) is the lowest layer and feeds the game view; workspace folder order is the fallback between folders of one kind. Loose files are found under the game's top folders, so a mod of INI files alone shows. Compare and Package Mod read the base's loose files and its BFME II layer, never count a packed archive as base, and no longer offer the base game folder as the output; Package Mod counts INI errors by checking the folder. The game view rebuilds once per burst of changes, Refresh and workspace folder changes are handled, Compare can be cancelled, a refused cut-paste keeps the clipboard, and writing into an unread archive reads it first.
+- WND layout preview draws what the game draws: each window type's own image slots (check box, sliders, list box, combo box), `MappedImage` pictures from the game's textures with rotation, text through the string tables, an Enabled / Hilite / Disabled (+ Checked) switch, and engine-placed children kept inside their parent (ported from mint2's apt-viewer gadgets). A key stated twice reads as its last statement.
+- Fix: INI grammar. `AddEmotion` opens a block only as `AddEmotion = OVERRIDE`, `End` with trailing tokens closes its block, mint's hand-written block tables are in the schema (`StanceTemplate`, `FormationTemplate`, `LODPreset`, `BenchProfile`, `WebpageURL`, `OptionGroup`, `StrategicHUD`, horde `MeleeBehavior`, ...), `.inc` fragments read a keyword several contexts open as their union, and Generals' flat `ParticleSystem` blocks are one hint each.
 
 - Fix: APT scripts that goto each other overflowed the stack and broke the editor; frames entered by a goto now queue their scripts, a failing script is reported instead of thrown, and only clips scripts touched are checked each frame. The Engine panel overrides any variable the movie reads instead of only supplying unset ones.
 
@@ -91,3 +93,5 @@
 - Missing game-text labels reported, with a fix that adds them.
 - CommandSet hover with the button icons, labels and commands.
 - Play audio events and sounds from INI files.
+
+- INI: sound and announcer fields resolve into the engine's one audio namespace (AudioEvent, DialogEvent, MusicTrack, AmbientStream, StreamedSound, Multisound) or the announcer one, and navigation, references, rename and the missing-name check see the name inside `EVA:`, `+SOUND:`, `Sound:` and `name:weight` forms. A block's own `Filename` is no longer read as a reference.

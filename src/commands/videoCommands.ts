@@ -9,6 +9,8 @@ import type { FrameSource } from '../formats/vp6/encodeMovie';
 import { webviewPage } from '../providers/webviewPage';
 import { ffmpegSource, probe, run } from '../tools/ffmpeg';
 import { decodeDds, decodeTga } from '../tools/textureTools';
+import { toUri } from '../common/commandTarget';
+import type { CommandTarget } from '../common/commandTarget';
 
 /**
  * "Convert to VP6 Movie…": a video file, or a folder of numbered PNG, TGA or
@@ -25,7 +27,7 @@ const IMAGE = /\.(png|tga|dds)$/i;
 const VIDEO = /\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif|bik|vp6)$/i;
 const BROWSER_VIDEO = /\.(webm|ogv|ogg|mp4|m4v|mov)$/i;
 
-type Target = vscode.Uri | { resourceUri?: vscode.Uri } | undefined;
+type Target = CommandTarget;
 
 const QUALITIES = [
   { label: 'High', description: 'quantizer 54, larger files', q: 54 },
@@ -250,7 +252,7 @@ const keyInterval = (fps: number): number => {
 };
 
 const convert = async (target: Target): Promise<vscode.Uri | undefined> => {
-  let input = target instanceof vscode.Uri ? target : target?.resourceUri;
+  let input = toUri(target);
 
   if (!input) {
     const picked = await vscode.window.showOpenDialog({

@@ -15,8 +15,8 @@ import * as path from 'path';
  * the base game layers, which a comparison with the base game leaves out.
  */
 export type GameFileRef =
-  | { kind: 'entry'; node: VirtualNode; base: boolean }
-  | { kind: 'loose'; uri: Uri; base: boolean };
+  | { kind: 'entry'; node: VirtualNode; base?: boolean }
+  | { kind: 'loose'; uri: Uri; base?: boolean };
 
 /** A row of the game view */
 export type GameViewNode = GameNode<GameFileRef>;

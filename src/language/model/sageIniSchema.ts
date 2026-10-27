@@ -17,6 +17,12 @@
  * Names are matched without regard to casing, as the shipped data writes them.
  */
 
+import {
+  audioReferenceKind,
+  isAudioNamespace,
+  namespacesOfKind,
+} from './sageAudioFields';
+
 /** Whether a keyword opens a block or holds a value */
 export type KeywordKind = 'block' | 'field';
 
@@ -24,14 +30,13 @@ export type KeywordKind = 'block' | 'field';
 /**
  * Fields whose value names a definition only in one block, by the block's
  * context name and the field. The schema's reference table is keyed by
- * field name alone, which a field as general as `Name` cannot be: these
- * are the FX list nuggets that name what they play (EA's FXList.cpp parses
- * a ParticleSystem nugget's Name as a particle system template and a Sound
- * nugget's as an audio event).
+ * field name alone, which a field as general as `Name` cannot be: this
+ * is the FX list nugget that names a particle system (EA's FXList.cpp parses
+ * a ParticleSystem nugget's Name as a particle system template). Sound and
+ * announcer fields are decided by `audioReferenceKind` instead.
  */
 const SCOPED_REFERENCES: Record<string, string[]> = {
   'fxlist > particlesystem/name': ['FXParticleSystem', 'ParticleSystem'],
-  'fxlist > sound/name': ['AudioEvent'],
 };
 
 export const ROOT_CONTEXT = '<root>';
@@ -78,6 +83,11 @@ export interface KeywordResolution {
   childContext?: string;
   /** For a module slot such as `Behavior`, the module type its first value names */
   moduleType?: string;
+  /**
+   * Set for a file-scope block the games do not read at all. It is still a
+   * block, so its lines nest right, but nothing in it is checked.
+   */
+  isLegacy?: boolean;
 }
 
 /** Where a nested block's lines are looked up: a context, one per first value, or the module named */
@@ -91,13 +101,29 @@ interface ContextData {
   /** Title mask of the games that accept any field here */
   w: number;
   /** Keywords that open a nested block */
-  c: { k: string; m: number; t: ChildTarget }[];
+  c: ChildData[];
+}
+
+interface ChildData {
+  k: string;
+  m: number;
+  t: ChildTarget;
+  /**
+   * The first value the line must carry to open a block. Any other value
+   * leaves the keyword a field: `AddEmotion = OVERRIDE Name` defines an
+   * emotion inline, `AddEmotion = Name` only names one.
+   */
+  a?: string;
 }
 
 interface SchemaFile {
   version: number;
   contexts: ContextData[];
   fileScope: Record<string, number>;
+  /** File-scope keywords that are one-line records with no `End` */
+  fileLeaves?: Record<string, number>;
+  /** File-scope blocks no game reads, such as Generals' flat `ParticleSystem` */
+  fileLegacy?: string[];
   modules: Record<string, number>;
   fields: Record<string, { t: string; u: 0 | 1 }>;
   references: Record<string, string[]>;
@@ -217,19 +243,99 @@ export const createSageIniSchema = (
     ),
   }));
 
+  type Context = (typeof contexts)[number];
+
+  /**
+   * An `.inc` fragment is pasted inside a block of whichever file includes it,
+   * so a keyword it opens with can mean a different block in each context
+   * that has one: `Region` is a campaign's region in two of them, and a
+   * `Connection` inside it names a region rather than opening one. The
+   * fragment cannot say which, so the block is read as the union of every
+   * candidate, and a name any of them accepts is accepted.
+   */
+  const mergedIds = new Map<string, number>();
+
+  const mergeContexts = (ids: readonly number[]): number => {
+    const unique = Array.from(new Set(ids)).sort((a, b) => a - b);
+
+    if (unique.length === 1) {
+      return unique[0];
+    }
+
+    const key = unique.join(',');
+    const known = mergedIds.get(key);
+
+    if (known !== undefined) {
+      return known;
+    }
+
+    const members = unique.map((id) => contexts[id]);
+    const merged: Context = {
+      name: members[0].name,
+      accepts: members.reduce((all, member) => all | member.accepts, 0),
+      fields: new Map(members.flatMap((member) => Array.from(member.fields))),
+      children: new Map(),
+    };
+    const id = contexts.push(merged) - 1;
+
+    // Registered before the children are merged, so a cycle finds itself
+    mergedIds.set(key, id);
+
+    const byKeyword = new Map<string, ChildData[]>();
+
+    members
+      .flatMap((member) => Array.from(member.children))
+      .forEach(([name, child]) => {
+        byKeyword.set(name, [...(byKeyword.get(name) ?? []), child]);
+      });
+
+    byKeyword.forEach((children, name) => {
+      const [first] = children;
+      const numeric = children.every((child) => typeof child.t === 'number');
+
+      merged.children.set(
+        name,
+        numeric && children.length > 1
+          ? {
+              ...first,
+              t: mergeContexts(children.map((child) => child.t as number)),
+            }
+          : first,
+      );
+    });
+
+    return id;
+  };
+
   /**
    * Every block keyword and field name of any context, which is what an
-   * `.inc` fragment may open with
+   * `.inc` fragment may open with. A keyword several contexts open keeps all
+   * of them, so the fragment can pick the union rather than the last one read.
    */
-  const fragmentChildren = new Map(
-    contexts.flatMap((context) => Array.from(context.children)),
+  const fragmentCandidates = new Map<string, ChildData[]>();
+
+  contexts.forEach((context) =>
+    context.children.forEach((child, name) =>
+      fragmentCandidates.set(name, [
+        ...(fragmentCandidates.get(name) ?? []),
+        child,
+      ]),
+    ),
   );
+
   const fragmentFields = new Set(
     contexts.flatMap((context) => Array.from(context.fields.keys())),
   );
+  const fileLeaves = foldKeys(file.fileLeaves ?? {});
+  const fileLegacy = new Set(
+    (file.fileLegacy ?? []).map((name) => name.toLowerCase()),
+  );
+
+  fileLeaves.forEach((_, name) => fragmentFields.add(name));
 
   const moduleSlots = new Set(
-    Array.from(fragmentChildren.values())
+    Array.from(fragmentCandidates.values())
+      .flat()
       .filter((child) => child.t === 'module')
       .map((child) => child.k.toLowerCase()),
   );
@@ -237,8 +343,11 @@ export const createSageIniSchema = (
   const contextOf = (context: string) =>
     /^\d+$/.test(context) ? contexts[Number(context)] : undefined;
 
+  const opensBlock = (child: ChildData, values: readonly string[]): boolean =>
+    child.a === undefined || values[0]?.toUpperCase() === child.a;
+
   const resolveChild = (
-    child: ContextData['c'][number],
+    child: ChildData,
     values: readonly string[],
   ): KeywordResolution => {
     const [first] = values;
@@ -275,9 +384,19 @@ export const createSageIniSchema = (
     const rootBlock = fileScope.get(key);
 
     if (context === ROOT_CONTEXT) {
-      return rootBlock === undefined
-        ? undefined
-        : { kind: 'block', childContext: String(rootBlock) };
+      if (rootBlock !== undefined) {
+        return { kind: 'block', childContext: String(rootBlock) };
+      }
+
+      if (fileLegacy.has(key)) {
+        return {
+          kind: 'block',
+          childContext: UNCHECKED_CONTEXT,
+          isLegacy: true,
+        };
+      }
+
+      return fileLeaves.has(key) ? { kind: 'field' } : undefined;
     }
 
     if (context === FRAGMENT_CONTEXT) {
@@ -285,13 +404,33 @@ export const createSageIniSchema = (
         return { kind: 'block', childContext: String(rootBlock) };
       }
 
-      const child = fragmentChildren.get(key);
+      const opening = (fragmentCandidates.get(key) ?? []).filter((candidate) =>
+        opensBlock(candidate, values),
+      );
 
-      if (child) {
-        return resolveChild(child, values);
+      if (opening.length) {
+        const resolved = opening.map((candidate) =>
+          resolveChild(candidate, values),
+        );
+        const targets = resolved.map(({ childContext }) => childContext ?? '');
+
+        // Candidates that open different blocks are read as their union
+        if (
+          new Set(targets).size > 1 &&
+          targets.every((target) => /^\d+$/.test(target))
+        ) {
+          return {
+            ...resolved[0],
+            childContext: String(mergeContexts(targets.map(Number))),
+          };
+        }
+
+        return resolved[0];
       }
 
-      return fragmentFields.has(key) ? { kind: 'field' } : undefined;
+      return fragmentFields.has(key) || fragmentCandidates.has(key)
+        ? { kind: 'field' }
+        : undefined;
     }
 
     const data = contextOf(context);
@@ -302,7 +441,7 @@ export const createSageIniSchema = (
 
     const child = data.children.get(key);
 
-    if (child) {
+    if (child && opensBlock(child, values)) {
       return resolveChild(child, values);
     }
 
@@ -325,14 +464,27 @@ export const createSageIniSchema = (
 
       return entry && { type: entry.t, used: entry.u === 1 };
     },
-    getReferenceNamespaces: (field, context) =>
-      (context === undefined
-        ? undefined
-        : SCOPED_REFERENCES[
-            `${(contextOf(context)?.name ?? context).toLowerCase()}/${field.toLowerCase()}`
-          ]) ??
-      references.get(field.toLowerCase()) ??
-      [],
+    getReferenceNamespaces: (field, context) => {
+      const contextName =
+        context === undefined ? '' : (contextOf(context)?.name ?? context);
+      const kind = audioReferenceKind(contextName, field);
+
+      if (kind) {
+        return namespacesOfKind(kind);
+      }
+
+      // The table carries sound fields of its own, which name `AudioEvent`
+      // alone; whatever audioReferenceKind does not recognise is no sound
+      return (
+        SCOPED_REFERENCES[
+          `${contextName.toLowerCase()}/${field.toLowerCase()}`
+        ] ??
+        references
+          .get(field.toLowerCase())
+          ?.filter((namespace) => !isAudioNamespace(namespace)) ??
+        []
+      );
+    },
     getContextKeywords: (context) => {
       if (context === ROOT_CONTEXT) {
         return Object.keys(file.fileScope).map((name) => ({

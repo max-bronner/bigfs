@@ -8,6 +8,7 @@ import {
 } from 'vscode';
 import type { Disposable, TextDocument } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../constants';
+import { isAudioSentinel, referencedNames } from './model/sageAudioValues';
 import { findSageIniProblems } from './model/sageIniProblems';
 import { findGameTextLabels, missingTextMessage } from './model/gameTextLabels';
 import type { SageProblem } from './model/sageIniProblems';
@@ -91,39 +92,61 @@ const getReferenceDiagnostics = async (
 
   const diagnostics: Diagnostic[] = [];
 
-  for (const { block, context, keyword, values, line } of parsed.statements) {
-    const namespaces = block
-      ? []
-      : schema
-          .getReferenceNamespaces(keyword.text, context)
-          .filter(
+  /** Whether `auto` has seen enough definitions in a group of namespaces */
+  const isChecked = (namespaces: readonly string[], isGroup: boolean) =>
+    mode === 'on' ||
+    (isGroup
+      ? namespaces.reduce(
+          (sum, namespace) => sum + index.countDefinitions(namespace),
+          0,
+        ) >= AUTO_CHECK_MINIMUM
+      : true);
+
+  for (const statement of parsed.statements) {
+    if (statement.block) {
+      continue;
+    }
+
+    for (const reference of referencedNames(statement, schema)) {
+      // A sound's namespaces are one group, since which kind holds a name is
+      // not something the field says; any other field is checked per
+      // namespace, as each one is only trusted once enough is indexed
+      const namespaces = reference.isAudio
+        ? reference.namespaces
+        : reference.namespaces.filter(
             (namespace) =>
               mode === 'on' ||
               index.countDefinitions(namespace) >= AUTO_CHECK_MINIMUM,
           );
 
-    if (!namespaces.length) {
-      continue;
-    }
-
-    for (const value of values) {
-      const isUnknown =
-        !NOT_A_NAME.test(value.text) &&
-        !index.findMacro(value.text) &&
-        namespaces.every(
-          (namespace) => !index.findDefinitions(namespace, value.text).length,
-        );
-
-      if (isUnknown) {
-        const diagnostic = new Diagnostic(
-          new Range(line, value.start, line, value.end),
-          `No ${namespaces.join(' or ')} named '${value.text}' is defined in the workspace`,
-          DiagnosticSeverity.Warning,
-        );
-
-        diagnostic.source = SOURCE;
-        diagnostics.push(diagnostic);
+      if (
+        !namespaces.length ||
+        !isChecked(namespaces, reference.isAudio) ||
+        (reference.isAudio
+          ? isAudioSentinel(reference.name)
+          : NOT_A_NAME.test(reference.name)) ||
+        index.findMacro(reference.name) ||
+        namespaces.some(
+          (namespace) =>
+            index.findDefinitions(namespace, reference.name).length,
+        )
+      ) {
+        continue;
       }
+
+      const diagnostic = new Diagnostic(
+        new Range(
+          statement.line,
+          reference.start,
+          statement.line,
+          reference.end,
+        ),
+        `No ${namespaces.join(' or ')} named '${reference.name}' is defined in the workspace`,
+        DiagnosticSeverity.Warning,
+      );
+
+      diagnostic.source = SOURCE;
+      diagnostics.push(diagnostic);
     }
   }
 

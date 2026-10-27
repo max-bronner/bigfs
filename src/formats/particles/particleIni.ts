@@ -119,9 +119,20 @@ export interface FxNugget {
   initialDelay: Range;
 }
 
+/** A `Sound` nugget: an audio event the preview plays only when asked to */
+export interface FxSound {
+  /** The audio event's name */
+  name: string;
+  /** Which of the FX list's modules it is */
+  module: number;
+  /** Milliseconds; zero when the nugget writes none */
+  initialDelay: Range;
+}
+
 export interface FxListDef {
   name: string;
   nuggets: FxNugget[];
+  sounds: FxSound[];
   /** Other nugget kinds, which the preview does not play */
   skipped: string[];
 }
@@ -674,7 +685,7 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
   return def;
 };
 
-/** Reads an `FXList`'s particle nuggets */
+/** Reads an `FXList`'s particle and sound nuggets */
 export const readFxList = (definition: IniDefinition): FxListDef => {
   const nuggets = definition.modules.flatMap((module, index) => {
     if (!/^particlesystem$/i.test(module.slot)) {
@@ -704,13 +715,37 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
     ];
   });
 
+  const sounds = definition.modules.flatMap((module, index) => {
+    if (!/^sound$/i.test(module.slot)) {
+      return [];
+    }
+
+    const fields = fieldMap(
+      definition.lines.filter((line) => line.moduleIndex === index),
+    );
+    const name = fields.get('name')?.[0]?.text;
+
+    return name
+      ? [
+          {
+            name,
+            module: index,
+            initialDelay: rangeOf(fields.get('initialdelay') ?? []) ?? {
+              ...RANGE_ZERO,
+            },
+          },
+        ]
+      : [];
+  });
+
   return {
     name: definition.name,
     nuggets,
+    sounds,
     skipped: [
       ...new Set(
         definition.modules
-          .filter((module) => !/^particlesystem$/i.test(module.slot))
+          .filter((module) => !/^(particlesystem|sound)$/i.test(module.slot))
           .map((module) => module.slot),
       ),
     ],

@@ -126,7 +126,7 @@ const readChunks = (bytes: Uint8Array) => {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const chunks: { type: number; payload: Uint8Array }[] = [];
 
-  for (let at = 0; at + 8 <= bytes.length;) {
+  for (let at = 0; at + 8 <= bytes.length; ) {
     const type = view.getUint32(at, true);
     const size = view.getUint32(at + 4, true) & 0x7fffffff;
 
@@ -493,3 +493,23 @@ export const parseW3dAnimations = (bytes: Uint8Array): W3dAnimation[] =>
         },
       ];
     });
+
+/**
+ * The animation an INI line names, `SKELETON.CLIP`: the one whose skeleton
+ * and name are those, else the one named `CLIP`, else the file's first
+ */
+export const findAnimation = (
+  animations: W3dAnimation[],
+  name: string,
+): W3dAnimation | undefined => {
+  const wanted = name.toLowerCase();
+  const clip = wanted.slice(wanted.lastIndexOf('.') + 1);
+
+  return (
+    animations.find(
+      (each) => `${each.hierarchyName}.${each.name}`.toLowerCase() === wanted,
+    ) ??
+    animations.find((each) => each.name.toLowerCase() === clip) ??
+    animations[0]
+  );
+};

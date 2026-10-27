@@ -1,3 +1,4 @@
+import { AUDIO_NAMESPACES } from '../../language/model/sageAudioFields';
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -351,7 +352,7 @@ suite('SAGE INI engine data', () => {
     );
     assert.deepStrictEqual(
       schema.getReferenceNamespaces('Name', nugget('Sound').context),
-      ['AudioEvent'],
+      [...AUDIO_NAMESPACES],
     );
     assert.deepStrictEqual(schema.getReferenceNamespaces('Name'), []);
   });

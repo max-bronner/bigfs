@@ -1,3 +1,4 @@
+import { shownArmor } from '../../language/model/armorTable';
 import type {
   ArmorTableMessage,
   FromArmorPage,
@@ -57,16 +58,16 @@ const render = () => {
         ...data!.types.map((type) => {
           const cell = document.createElement('td');
           const input = document.createElement('input');
-          const own = row.cells[type]?.value;
-          const shown = own ?? row.cells.DEFAULT?.value ?? '';
+          const { value: shown, inherited } = shownArmor(row, type);
           const value = percent(shown);
 
           input.value = shown;
-          input.className = own === undefined ? 'inherited' : '';
-          input.title =
-            own === undefined
+          input.className = inherited ? 'inherited' : '';
+          input.title = inherited
+            ? row.cells.DEFAULT
               ? `From DEFAULT; typing writes ${type} for ${row.name}`
-              : `${row.name} against ${type}`;
+              : `The game's 100% for a type with no line; typing writes ${type} for ${row.name}`
+            : `${row.name} against ${type}`;
           input.onchange = () =>
             vscode.postMessage({
               kind: 'set',

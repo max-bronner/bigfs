@@ -8,6 +8,7 @@ import { getNodeUri } from '../model/nodeAddress';
 import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './model/sageIniSchema';
 import type { SageIniSchema } from './model/sageIniSchema';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
+import { referencedNames } from './model/sageAudioValues';
 import { findString, parseStringTable } from './model/sageStringTable';
 import type { SageString } from './model/sageStringTable';
 import { decodeWindows1252 } from '../common/windows1252';
@@ -549,19 +550,13 @@ export class SageIniIndex implements Disposable {
       // A reference field's values name definitions elsewhere. A
       // polymorphic field is recorded under each namespace it could mean,
       // since which one holds the name is not known until it is looked up.
-      const namespaces = schema.getReferenceNamespaces(keyword.text, context);
-
-      if (!namespaces.length) {
-        return;
-      }
-
-      values.forEach((value) =>
-        namespaces.forEach((namespace) =>
-          record(this.references, namespace, value.text, {
+      referencedNames(statement, schema).forEach((reference) =>
+        reference.namespaces.forEach((namespace) =>
+          record(this.references, namespace, reference.name, {
             uri,
             line,
-            start: value.start,
-            end: value.end,
+            start: reference.start,
+            end: reference.end,
             field: keyword.text,
           }),
         ),

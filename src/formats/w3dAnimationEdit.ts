@@ -10,6 +10,31 @@ import type { SampledChannel, W3dAnimation } from './w3dAnimation';
  * chunk, which BFME reads and ships 1,354 of (mint's w3d-animation.md).
  */
 
+/** The most frames a second a rate may ask for */
+export const MAX_FRAME_RATE = 1000;
+
+/**
+ * Why a rate cannot be stored, if it cannot: the header holds a whole
+ * number of frames a second, and a 0 reads back as the default 30
+ */
+export const frameRateProblem = (frameRate: number): string | undefined =>
+  Number.isInteger(frameRate) && frameRate >= 1 && frameRate <= MAX_FRAME_RATE
+    ? undefined
+    : `A frame rate is a whole number from 1 to ${MAX_FRAME_RATE}, not ${frameRate}`;
+
+/** The animation played at another rate, which must be a whole number a second */
+export const rateAnimation = (
+  animation: W3dAnimation,
+  frameRate: number,
+): W3dAnimation => {
+  const problem = frameRateProblem(frameRate);
+
+  if (problem) {
+    throw new Error(problem);
+  }
+  return { ...animation, frameRate };
+};
+
 /** Where frame `j` of the result reads the source, as a fractional frame */
 type TimeMap = (frame: number) => number;
 
@@ -285,7 +310,10 @@ export const writeW3dAnimation = (animation: W3dAnimation): Uint8Array => {
   header.name(animation.name);
   header.name(animation.hierarchyName);
   header.u32(animation.frameCount);
-  header.u32(Math.round(animation.frameRate));
+  if (!Number.isInteger(animation.frameRate) || animation.frameRate < 1) {
+    throw new Error(frameRateProblem(animation.frameRate));
+  }
+  header.u32(animation.frameRate);
 
   const body = new Writer();
 

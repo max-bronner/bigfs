@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { decodeWindows1252 } from '../common/windows1252';
 import type { EntryLocator } from '../formats/entryLocator';
+import { isRotated, parseMappedImage } from '../formats/mappedImage';
+import type { MappedImage } from '../formats/mappedImage';
 import { encodePng } from '../formats/textureEncode';
 import { decodeDds, decodeTga } from '../tools/textureTools';
 import type { RgbaImage } from '../tools/textureTools';
@@ -16,37 +18,63 @@ import type { SageDefinition } from './sageIniIndex';
 
 const MAX_SIDE = 256;
 
-const fieldsOf = (lines: string[]): Map<string, string> =>
-  new Map(
-    lines.flatMap((line) => {
-      const match = /^\s*(\w+)\s*=\s*([^;]*)/.exec(line);
+/** A definition's fields, read from the lines between its header and `End` */
+export const readMappedImage = async (
+  definition: SageDefinition,
+): Promise<MappedImage> => {
+  const text = decodeWindows1252(
+    await vscode.workspace.fs.readFile(definition.uri),
+  ).split(/\r?\n/);
 
-      return match ? [[match[1].toLowerCase(), match[2].trim()] as const] : [];
-    }),
+  return parseMappedImage(
+    definition.name,
+    text.slice(definition.line + 1, definition.endLine),
   );
+};
 
-const crop = (
+/** The texture a definition names, DDS before TGA, as the game looks */
+export const loadMappedTexture = async (
+  locator: EntryLocator,
+  textureName: string,
+  near: vscode.Uri,
+): Promise<RgbaImage | undefined> => {
+  for (const name of [textureName.replace(/\.[^.]*$/, '.dds'), textureName]) {
+    const bytes = await locator.read(name, near);
+
+    if (bytes) {
+      return (/\.dds$/i.test(name) ? decodeDds(bytes) : decodeTga(bytes))
+        .levels[0];
+    }
+  }
+
+  return undefined;
+};
+
+/**
+ * The rect `width` by `height` at `left`, `top` of `image`, scaled down to
+ * fit. A `rotated` image is packed turned a quarter turn clockwise, so it
+ * comes out turned back: width and height swap, its left edge reading the
+ * rect's top and its top edge the rect's right (`UiQuad::uv_rotated_cw`).
+ */
+export const crop = (
   image: RgbaImage,
   left: number,
   top: number,
   width: number,
   height: number,
+  rotated = false,
 ): RgbaImage => {
   const scale = Math.min(1, MAX_SIDE / Math.max(width, height));
-  const outWidth = Math.max(1, Math.round(width * scale));
-  const outHeight = Math.max(1, Math.round(height * scale));
+  const outWidth = Math.max(1, Math.round((rotated ? height : width) * scale));
+  const outHeight = Math.max(1, Math.round((rotated ? width : height) * scale));
   const pixels = new Uint8Array(outWidth * outHeight * 4);
 
   for (let y = 0; y < outHeight; y++) {
     for (let x = 0; x < outWidth; x++) {
-      const sx = Math.min(
-        image.width - 1,
-        Math.max(0, Math.floor(left + x / scale)),
-      );
-      const sy = Math.min(
-        image.height - 1,
-        Math.max(0, Math.floor(top + y / scale)),
-      );
+      const px = rotated ? width - (y + 0.5) / scale : x / scale;
+      const py = rotated ? (x + 0.5) / scale : y / scale;
+      const sx = Math.min(image.width - 1, Math.max(0, Math.floor(left + px)));
+      const sy = Math.min(image.height - 1, Math.max(0, Math.floor(top + py)));
 
       pixels.set(
         image.pixels.subarray(
@@ -67,59 +95,47 @@ export const createMappedImagePreview = (locator: EntryLocator) => {
   const build = async (
     definition: SageDefinition,
   ): Promise<string | undefined> => {
-    const text = decodeWindows1252(
-      await vscode.workspace.fs.readFile(definition.uri),
-    ).split(/\r?\n/);
-    const fields = fieldsOf(
-      text.slice(definition.line + 1, definition.endLine),
-    );
-    const textureName = fields.get('texture');
+    const image = await readMappedImage(definition);
 
-    if (!textureName) {
+    if (!image.texture) {
       return undefined;
     }
 
-    let texture: RgbaImage | undefined;
-
-    for (const name of [textureName.replace(/\.[^.]*$/, '.dds'), textureName]) {
-      const bytes = await locator.read(name, definition.uri);
-
-      if (bytes) {
-        texture = (/\.dds$/i.test(name) ? decodeDds(bytes) : decodeTga(bytes))
-          .levels[0];
-        break;
-      }
-    }
+    const texture = await loadMappedTexture(
+      locator,
+      image.texture,
+      definition.uri,
+    );
 
     if (!texture) {
-      return `*Texture \`${textureName}\` was not found.*`;
+      return `*Texture \`${image.texture}\` was not found.*`;
     }
 
-    const coords = new Map(
-      [...(fields.get('coords') ?? '').matchAll(/(\w+)\s*:\s*(-?\d+)/g)].map(
-        (match) => [match[1].toLowerCase(), Number(match[2])],
-      ),
-    );
-    const declaredWidth = Number(fields.get('texturewidth')) || texture.width;
-    const declaredHeight =
-      Number(fields.get('textureheight')) || texture.height;
-    const sx = texture.width / declaredWidth;
-    const sy = texture.height / declaredHeight;
-    const left = (coords.get('left') ?? 0) * sx;
-    const top = (coords.get('top') ?? 0) * sy;
-    const right = (coords.get('right') ?? declaredWidth) * sx;
-    const bottom = (coords.get('bottom') ?? declaredHeight) * sy;
+    const sx = texture.width / (image.textureWidth ?? texture.width);
+    const sy = texture.height / (image.textureHeight ?? texture.height);
+    const { left, top, right, bottom } = image.coords ?? {
+      left: 0,
+      top: 0,
+      right: image.textureWidth ?? texture.width,
+      bottom: image.textureHeight ?? texture.height,
+    };
+    const packedWidth = Math.max(1, (right - left) * sx);
+    const packedHeight = Math.max(1, (bottom - top) * sy);
     const png = encodePng(
       crop(
         texture,
-        left,
-        top,
-        Math.max(1, right - left),
-        Math.max(1, bottom - top),
+        left * sx,
+        top * sy,
+        packedWidth,
+        packedHeight,
+        isRotated(image),
       ),
     );
+    const [width, height] = isRotated(image)
+      ? [packedHeight, packedWidth]
+      : [packedWidth, packedHeight];
 
-    return `![${definition.name}](data:image/png;base64,${Buffer.from(png).toString('base64')})\n\n${textureName} · ${Math.round(right - left)}×${Math.round(bottom - top)}`;
+    return `![${definition.name}](data:image/png;base64,${Buffer.from(png).toString('base64')})\n\n${image.texture} · ${Math.round(width)}×${Math.round(height)}`;
   };
 
   return (definition: SageDefinition): Promise<string | undefined> => {

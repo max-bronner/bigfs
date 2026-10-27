@@ -54,7 +54,9 @@ export const diagnoseText = (
         message,
         severity === 'error'
           ? DiagnosticSeverity.Error
-          : DiagnosticSeverity.Warning,
+          : severity === 'hint'
+            ? DiagnosticSeverity.Information
+            : DiagnosticSeverity.Warning,
       );
 
       diagnostic.source = 'bigFS validation';

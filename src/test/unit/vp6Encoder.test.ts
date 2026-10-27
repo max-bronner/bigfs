@@ -1,6 +1,7 @@
 import * as assert from 'assert';
-import { Vp6Movie, parseVp6 } from '../../formats/vp6/container';
+import { Vp6Movie, parseVp6, writeVp6 } from '../../formats/vp6/container';
 import { encodeMovie } from '../../formats/vp6/encodeMovie';
+import { Vp6Encoder, pictureFromRgba } from '../../formats/vp6/encoder';
 
 /** A picture with edges, gradients and transparency, odd-sized */
 const frame = (width: number, height: number, shift: number) => {
@@ -70,5 +71,56 @@ suite('VP6 encoder', () => {
       assert.ok(psnr(source, shown, [0, 1, 2]) > 32, `frame ${index} colour`);
       assert.ok(psnr(source, shown, [3]) > 38, `frame ${index} alpha`);
     }
+  });
+
+  test('seeking in a movie whose alpha key frames are not at its colour key frames equals playing through', () => {
+    const [width, height, count] = [32, 16, 12];
+    const colour = new Vp6Encoder({ quality: 54 });
+    const alpha = new Vp6Encoder({ quality: 54 });
+    const frames = [];
+
+    for (let index = 0; index < count; index++) {
+      const rgba = frame(width, height, index * 9);
+      // Colour keys at 0 and 6, alpha keys at 0 and 3 and 9
+      const colourKey = colour.encode(
+        pictureFromRgba(rgba, width, height),
+        index % 6 === 0,
+      );
+      const alphaKey = alpha.encode(
+        pictureFromRgba(rgba, width, height, true),
+        index % 3 === 0 && index % 6 !== 0 ? true : index === 0,
+      );
+
+      frames.push({
+        colour: colourKey.data,
+        isKey: colourKey.isKey,
+        alpha: alphaKey.data,
+        isAlphaKey: alphaKey.isKey,
+      });
+    }
+
+    const bytes = writeVp6({
+      width,
+      height,
+      rateNumerator: 15,
+      rateDenominator: 1,
+      frames,
+    });
+    const played = new Vp6Movie(bytes);
+    const expected: Uint8ClampedArray[] = [];
+
+    for (let index = 0; index < count; index++) {
+      expected.push(played.frame(index));
+    }
+
+    // Colour restarts at 6 but alpha's key before it is 3
+    const seeker = new Vp6Movie(bytes);
+
+    assert.deepStrictEqual(seeker.frame(count - 1), expected[count - 1]);
+    assert.deepStrictEqual(seeker.frame(7), expected[7]);
+  });
+
+  test('an empty file says so', () => {
+    assert.throws(() => new Vp6Movie(new Uint8Array(0)), /empty/);
   });
 });

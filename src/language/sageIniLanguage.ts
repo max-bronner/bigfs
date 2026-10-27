@@ -23,7 +23,11 @@ import {
   createTypeHierarchyProvider,
 } from './sageIniHierarchy';
 import { registerDuplicateDefinition } from './duplicateDefinition';
-import { describeSound, registerSoundPlayer } from './soundPlayer';
+import {
+  createAudioLookup,
+  describeSound,
+  registerSoundPlayer,
+} from './soundPlayer';
 import { registerArmorTable } from './armorTable';
 import { registerCommandSetEditor } from './commandSetEditor';
 import { registerBalanceSheet } from './balanceSheet';
@@ -65,7 +69,7 @@ export const registerSageIniLanguage = (
   archiveModel: ArchiveModel,
   log: LogOutputChannel,
   locator?: EntryLocator,
-): void => {
+): SageIniIndex => {
   const documents = new SageIniDocuments(context.extensionUri);
   const index = new SageIniIndex(
     archiveModel,
@@ -74,6 +78,7 @@ export const registerSageIniLanguage = (
   );
   const selector = { language: SAGE_INI_LANGUAGE };
   const mappedImagePreview = locator && createMappedImagePreview(locator);
+  const soundLookup = createAudioLookup(index, documents);
 
   // Built up front rather than on the first navigation. Reading a full
   // install takes a few seconds, and a provider that slow is cancelled by the
@@ -107,7 +112,7 @@ export const registerSageIniLanguage = (
       createTypeHierarchyProvider(documents, index),
     ),
     ...registerDuplicateDefinition(selector, documents, index),
-    ...registerSoundPlayer(selector, index, locator),
+    ...registerSoundPlayer(selector, documents, index, locator),
     registerBalanceSheet(documents, index),
     registerArmorTable(context, documents, index),
     ...registerCommandSetEditor(context, selector, documents, index, locator),
@@ -135,7 +140,7 @@ export const registerSageIniLanguage = (
         mappedImagePreview,
         createCommandSetPreview(index, mappedImagePreview),
         (parsed, line, token, uri) =>
-          describeSound(index, parsed, line, token, uri),
+          describeSound(soundLookup, parsed, line, token, uri),
       ),
     ),
     languages.registerDefinitionProvider(
@@ -164,4 +169,6 @@ export const registerSageIniLanguage = (
       createSageIniRenameProvider(documents, index),
     ),
   );
+
+  return index;
 };

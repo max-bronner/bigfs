@@ -53,6 +53,21 @@ export const quoteStringText = (text: string): string =>
 export const strRecord = (label: string, text: string, eol: string): string =>
   `${label}${eol}${quoteStringText(text)}${eol}END${eol}`;
 
+/**
+ * Where the text ends: the first quote no backslash escapes. A backslash
+ * escapes the character after it, itself included, so `\\"` closes the text.
+ */
+const closingQuote = (raw: string): number => {
+  for (let at = 0; at < raw.length; at++) {
+    if (raw[at] === '\\') {
+      at += 1;
+    } else if (raw[at] === '"') {
+      return at;
+    }
+  }
+  return -1;
+};
+
 /** Splits the source into lines with their start offsets */
 const splitLines = (source: string) => {
   const lines: { text: string; start: number; end: number; next: number }[] =
@@ -127,7 +142,7 @@ export const parseStringRecords = (source: string): StringRecord[] => {
         // has to, and the rest of the closing line is discarded
         const open = current.start + current.text.indexOf('"');
         let raw = trimmed.slice(1);
-        let close = raw.search(/(?<!\\)"/);
+        let close = closingQuote(raw);
         let closeLine = current;
         let closeOffset = close < 0 ? -1 : open + 1 + close;
 
@@ -139,7 +154,7 @@ export const parseStringRecords = (source: string): StringRecord[] => {
           const part = closeLine.text.trim();
 
           raw += ` ${part}`;
-          close = raw.search(/(?<!\\)"/);
+          close = closingQuote(raw);
 
           if (close >= 0) {
             const lead =

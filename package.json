@@ -329,67 +329,67 @@
         {
           "command": "bigfs.newFile",
           "group": "navigation@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|Folder)$/"
         },
         {
           "command": "bigfs.newFolder",
           "group": "navigation@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|Folder)$/"
         },
         {
           "command": "bigfs.addFiles",
           "group": "navigation@3",
-          "when": "view == bigArchiveExplorer && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|Folder)$/"
         },
         {
           "command": "bigfs.extract",
           "group": "3_extract@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|Folder|File)$/"
         },
         {
           "command": "bigfs.rename",
           "group": "7_modification@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.delete",
           "group": "7_modification@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.cut",
           "group": "5_cutcopypaste@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.copy",
           "group": "5_cutcopypaste@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.paste",
           "group": "5_cutcopypaste@3",
-          "when": "view == bigArchiveExplorer && bigfs.hasClipboard && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && bigfs.hasClipboard && viewItem =~ /^big(Archive|Folder)$/"
         },
         {
           "command": "bigfs.duplicate",
           "group": "5_cutcopypaste@4",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.copyPath",
           "group": "6_copypath@1",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.copyRelativePath",
           "group": "6_copypath@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigGameFolder && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.overrideInFolder",
           "group": "3_extract@2",
-          "when": "view == bigArchiveExplorer && viewItem != bigArchive && viewItem != bigLooseFile"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
         },
         {
           "command": "bigfs.convertStringTable",
@@ -638,30 +638,30 @@
       {
         "command": "bigfs.rename",
         "key": "f2",
-        "when": "focusedView == bigArchiveExplorer"
+        "when": "focusedView == bigArchiveExplorer && !inputFocus"
       },
       {
         "command": "bigfs.delete",
         "key": "delete",
-        "when": "focusedView == bigArchiveExplorer"
+        "when": "focusedView == bigArchiveExplorer && !inputFocus"
       },
       {
         "command": "bigfs.cut",
         "key": "ctrl+x",
         "mac": "cmd+x",
-        "when": "focusedView == bigArchiveExplorer"
+        "when": "focusedView == bigArchiveExplorer && !inputFocus"
       },
       {
         "command": "bigfs.copy",
         "key": "ctrl+c",
         "mac": "cmd+c",
-        "when": "focusedView == bigArchiveExplorer"
+        "when": "focusedView == bigArchiveExplorer && !inputFocus"
       },
       {
         "command": "bigfs.paste",
         "key": "ctrl+v",
         "mac": "cmd+v",
-        "when": "focusedView == bigArchiveExplorer && bigfs.hasClipboard"
+        "when": "focusedView == bigArchiveExplorer && bigfs.hasClipboard && !inputFocus"
       }
     ],
     "configuration": {
