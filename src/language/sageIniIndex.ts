@@ -191,6 +191,13 @@ export class SageIniIndex implements Disposable {
    */
   private bodyTokens = new Map<string, SageBodyToken[]>();
 
+  /**
+   * The files whose entries are in the tables, by lowercased address. A file
+   * read twice - by overlapping scans, or from disk and from the editor -
+   * replaces its first entries instead of adding to them.
+   */
+  private indexedFiles = new Set<string>();
+
   /** The version of each open document the index last read, by address */
   private openVersions = new Map<string, number>();
 
@@ -257,6 +264,7 @@ export class SageIniIndex implements Disposable {
     this.macros.clear();
     this.constantUses.clear();
     this.bodyTokens.clear();
+    this.indexedFiles.clear();
     this.openVersions.clear();
     this.strings.clear();
     this.indexed.clear();
@@ -434,6 +442,12 @@ export class SageIniIndex implements Disposable {
 
   /** Drops everything a root or a single file contributed */
   private purge(rootKey: string): void {
+    for (const file of this.indexedFiles) {
+      if (file === rootKey || file.startsWith(`${rootKey}/`)) {
+        this.indexedFiles.delete(file);
+      }
+    }
+
     purgeNamespaced(this.definitions, rootKey);
     purgeNamespaced(this.references, rootKey);
     purgeOne(this.macros, rootKey);
@@ -635,6 +649,14 @@ export class SageIniIndex implements Disposable {
       this.indexStrings(uri, text);
       return;
     }
+
+    const fileKey = uri.path.toLowerCase();
+
+    if (this.indexedFiles.has(fileKey)) {
+      this.purge(fileKey);
+    }
+
+    this.indexedFiles.add(fileKey);
 
     const entries = collectEntries(text, entryPath, schema);
 
