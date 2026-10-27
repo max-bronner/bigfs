@@ -68,7 +68,8 @@ your mod's archives.
 - Quick fixes: add a missing `End`, remove a stray one, and correct a
   misspelt keyword or name to the close ones the game knows.
 - **Format Document** re-indents from the block structure, touching only
-  whitespace; embedded scripts stay as written.
+  whitespace; embedded scripts stay as written, and formatting again never
+  changes the result.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
 - Lua in `BeginScript` regions is checked for syntax errors.
 - **Duplicate Definition…** (refactor menu, editor context menu) copies the
@@ -76,16 +77,20 @@ your mod's archives.
   that carry the old name and copying their text into the string table.
 - Hovering a CommandSet name shows its buttons in slot order, each with its
   icon, its label in game text, its hotkey and its command; undefined buttons
-  are marked. Slots whose buttons share a hotkey are reported as problems.
+  are marked. Slots whose buttons share a hotkey are reported as problems,
+  unless they are never on the command bar together: a purchase button and
+  the ability it unlocks (`NEED_UPGRADE` on an upgrade or science it buys).
 - Audio events get a **▶ Play** lens that plays one of their sounds, as the
   game picks one; hovering a sound or an event name gives play links.
 - Game-text labels such as `OBJECT:Name` that no string table defines are
   reported, with a quick fix that adds the record to the table the file
   already uses (`bigfs.ini.checkStrings`).
 - **Find Unused Definitions** lists, in the Problems panel, every weapon,
-  upgrade, FX list, command button and other definition in the workspace that
-  no INI file references (objects and images, which maps and UI name, are
-  left out).
+  armor, FX list, particle system, locomotor, command button and similar
+  definition in the mod's own files that no INI file references. Kinds that
+  maps, scripts or the engine name (objects, upgrades, sciences, special
+  powers, command sets, player templates, sounds, announcer events, images,
+  GameData) are never listed, nor is anything under `bigfs.baseGameFolder`.
 - **New Unit, Hero or Building…** makes a new object from an existing one:
   inherit (`ChildObject`) or copy, its own display name, and a copy of the
   button that builds the original, added to the next free slot of that
@@ -104,7 +109,10 @@ your mod's archives.
   (`Object *Archer*`), conditions (`Side = Rohan; KindOf ~ INFANTRY`), a
   field (`ActiveBody/MaxHealth`) and a formula of `x` and the block's own
   fields (`round(x * 1.1)`). Every change opens in the refactor preview as a
-  diff to review and untick before applying. Loose INI files only.
+  diff to review and untick before applying. Loose INI files only. A value
+  written as a `#define` macro, in an `#include`d file or inherited by a
+  `ChildObject` from its parent is edited where it is defined (the preview
+  says so); one that cannot be, such as an `#ADD` call, is reported.
 - **Effective definition** lens on every `ChildObject` and `ObjectReskin`:
   the object as the game composes it from its parents, each line marked
   with where it comes from and what it replaced (fields override, modules
@@ -115,7 +123,8 @@ your mod's archives.
   **Show Type Hierarchy** follows ChildObject and ObjectReskin parents and
   children.
 - Models, animations, textures and sounds named in INI files are checked
-  against every archive and folder; a missing one is reported with the
+  against every archive and folder once `bigfs.baseGameFolder` is set (until
+  then the check stays off and says so once); a missing one is reported with the
   nearest existing names as quick fixes, in the editor and in **Validate INI
   Files** (`bigfs.ini.checkAssets`).
 

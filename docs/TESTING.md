@@ -23,7 +23,7 @@ deserves one load in the game as well.
 | `bigfs.baseGameFolder` | An untouched install, for Compare with Base Game and Package Mod |
 | `bigfs.game.executable`, `bigfs.game.arguments` | Launch Game with Mod |
 | `bigfs.explorer.view` | `archives` (default) or `game`, the merged view |
-| `bigfs.ini.checkReferences`, `checkAssets`, `checkStrings` | `auto` checks only once the base game is indexed; `on` or `off` force it |
+| `bigfs.ini.checkReferences`, `checkAssets`, `checkStrings` | `auto` checks only once the base game is indexed (`checkAssets` also needs `bigfs.baseGameFolder`, else it stays off with a one-time hint); `on` or `off` force it |
 | `bigfs.ffmpegPath`, `bigfs.vp6.keyFrameSeconds` | Convert to VP6 Movie |
 
 ## Archives
@@ -71,20 +71,27 @@ Open any `.ini`, `.inc` or `.bhav`.
   **Validate INI Files** checks the whole workspace.
 - [ ] Quick fixes: add a missing `End`, remove a stray one, fix a misspelt
   keyword or name, add a missing game-text record.
-- [ ] **Format Document** re-indents and touches only whitespace.
+- [ ] **Format Document** re-indents and touches only whitespace; running it
+  again changes nothing, even on a file with unknown keywords.
 - [ ] Hover a `MappedImage` name: the image cut from its texture.
 - [ ] Lua in `BeginScript` regions reports syntax errors.
 - [ ] Hover a CommandSet name: its buttons with icons, labels, hotkeys;
-  hotkey clashes are problems.
+  hotkey clashes are problems, except a purchase button and the ability it
+  unlocks (`NEED_UPGRADE`) sharing a key. **new**
 - [ ] Audio events: **▶ Play** lens, play links on hover.
 - [ ] **Show Call Hierarchy** (Shift+Alt+H) and **Show Type Hierarchy** on a
   definition.
-- [ ] **Find Unused Definitions** / **Clear Unused Definitions**.
+- [ ] **Find Unused Definitions** / **Clear Unused Definitions**: only the
+  mod's own files, never objects, upgrades, sciences, command sets, player
+  templates, sounds, EVA events or GameData; nothing from the base game
+  folder. **new**
 - [ ] **Duplicate Definition…** (context menu): new name, game text copied.
 - [ ] **New Unit, Hero or Building…**: inherit or copy, display name, build
   button in the next free slot, text in the original's string table.
 - [ ] **Bulk Edit INI Values…**: blocks, conditions, a field and a formula
-  (`round(x * 1.1)`), reviewed as a diff in the refactor preview.
+  (`round(x * 1.1)`), reviewed as a diff in the refactor preview. Values from
+  a `#define`, an `#include`d file or a `ChildObject`'s parent are edited
+  where defined; an `#ADD` operand is reported as not editable. **new**
 - [ ] **Effective definition** lens on `ChildObject` / `ObjectReskin`: the
   composed object, each line marked with its source; follows edits.
 - [ ] **Edit slots** lens on a `CommandSet`: drag buttons between slots,

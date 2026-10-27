@@ -6,6 +6,7 @@ import { parseSageIni } from '../../language/model/sageIniParser';
 import {
   closestNames,
   formatSageIni,
+  formatSageIniStable,
   missingEndLine,
 } from '../../language/model/sageIniFormat';
 
@@ -64,5 +65,38 @@ suite('SAGE INI formatting and fixes', () => {
       ['AttackRange'],
     );
     assert.deepStrictEqual(closestNames('Zzz', ['AttackRange']), []);
+  });
+
+  test('formatting twice gives what formatting once does', () => {
+    const unit = '  ';
+    const parse = (text: string[]) => parseSageIni(text, schema);
+    const samples = [
+      // Unknown keywords are nested by their indentation, which a pass rewrites
+      [
+        '  Side = X',
+        '\t\tPrimaryDamage = 3',
+        '  MaxHealth = 5',
+        '; comment',
+        '     BeginScript',
+        '  End',
+        'Bogus = 1',
+        '\tEndScript',
+      ],
+      ['Weapon W', '\t\tUnknown', '  End', 'End', '   End'],
+      [
+        'Object O',
+        '    Draw = Nothing T',
+        'Mystery = 1',
+        '  End',
+        'End',
+        'End',
+      ],
+    ];
+
+    for (const lines of samples) {
+      const once = formatSageIniStable(lines, parse, unit);
+
+      assert.deepStrictEqual(formatSageIniStable(once, parse, unit), once);
+    }
   });
 });
