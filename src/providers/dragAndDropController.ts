@@ -1,12 +1,6 @@
-﻿import {
-  Uri,
-  DataTransfer,
-  DataTransferItem,
-  FileType,
-  window,
-} from 'vscode';
+﻿import { Uri, DataTransfer, DataTransferItem, FileType, window } from 'vscode';
 import type { TreeDragAndDropController } from 'vscode';
-import { importFromDisk, moveNodes } from '../actions/fileActions';
+import { importFromDisk, transferNodes } from '../actions/fileActions';
 import { formatCount } from '../common/messages';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
@@ -18,9 +12,7 @@ import type { ExplorerNode } from './explorerNode';
  * archive and takes files dropped in from outside VS Code, both through the
  * same actions the commands use
  */
-export class BigDragAndDropController
-  implements TreeDragAndDropController<ExplorerNode>
-{
+export class BigDragAndDropController implements TreeDragAndDropController<ExplorerNode> {
   /**
    * The explorer's own drag type, whose last segment has to be the view id, and
    * the type a drop from outside VS Code arrives as
@@ -61,15 +53,16 @@ export class BigDragAndDropController
       const internalData = dataTransfer.get(this.dropMimeTypes[0]);
 
       if (internalData) {
-        const moved = await moveNodes(
+        const { transferred, moved } = await transferNodes(
           this.archiveModel,
           internalData.value as VirtualNode[],
           directory,
+          'move',
         );
 
-        if (moved) {
+        if (transferred) {
           window.showInformationMessage(
-            `Moved ${formatCount(moved, 'item')} to ${directory.name}.`,
+            `${moved ? 'Moved' : 'Copied'} ${formatCount(transferred, 'file')} to ${directory.name}.`,
           );
         }
 

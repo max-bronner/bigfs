@@ -3,7 +3,7 @@ import { SCHEME } from '../constants';
 import {
   copyNodes,
   getTargetDirectory,
-  moveNodes,
+  transferNodes,
 } from '../actions/fileActions';
 import { getTopLevelNodes } from '../model/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
@@ -56,7 +56,10 @@ export const registerClipboardCommands = (
     );
   };
 
-  /** Pastes into the target's directory, moving for a cut and copying for a copy */
+  /**
+   * Pastes into the target's directory, moving for a cut and copying for a
+   * copy, also from another archive or from the base game
+   */
   const paste = async (target: VirtualNode): Promise<void> => {
     const directory = getTargetDirectory(target);
 
@@ -64,16 +67,18 @@ export const registerClipboardCommands = (
       return;
     }
 
-    if (clipboard.operation === 'copy') {
-      await copyNodes(archiveModel, clipboard.nodes, directory);
-      return; // a copy can be pasted again, a cut is spent by the paste
-    }
+    const { nodes, operation } = clipboard;
+    const { transferred, moved } = await transferNodes(
+      archiveModel,
+      nodes,
+      directory,
+      operation === 'cut' ? 'move' : 'copy',
+    );
 
-    // A paste that moved nothing (refused, cancelled, or into another archive)
-    // leaves the cut waiting for a target it can go to
-    const moved = await moveNodes(archiveModel, clipboard.nodes, directory);
-
-    if (moved) {
+    // A copy can be pasted again; a cut is spent only by a paste that took
+    // the files out of their archive. One that copied out of the read-only
+    // base game, or moved nothing, leaves it waiting
+    if (transferred && moved) {
       await setClipboard(undefined);
     }
   };

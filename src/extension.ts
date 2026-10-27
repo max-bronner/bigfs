@@ -23,6 +23,7 @@ import { registerTextureCommands } from './commands/textureCommands';
 import { registerAptCommands } from './commands/aptCommands';
 import { registerW3dAnimationCommands } from './commands/w3dAnimationCommands';
 import { registerVideoCommands } from './commands/videoCommands';
+import { registerInstallDetectCommands } from './commands/installDetectCommands';
 import { registerLaunchCommands } from './commands/launchCommands';
 import { registerModDiffCommands } from './commands/modDiffCommands';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
@@ -116,6 +117,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(registerW3dAnimationCommands());
   registerVideoCommands(context);
   registerLaunchCommands(context);
+  registerInstallDetectCommands(context, archiveModel.whenReady());
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
