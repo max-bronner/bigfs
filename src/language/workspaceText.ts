@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { decodeWindows1252 } from '../common/windows1252';
+import { decodeIniText } from '../common/windows1252';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import type { SageDocument } from './model/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
@@ -21,7 +21,7 @@ export const openDocument = (
 
 export const readWorkspaceText = async (uri: vscode.Uri): Promise<string> =>
   openDocument(uri)?.getText() ??
-  decodeWindows1252(await vscode.workspace.fs.readFile(uri));
+  decodeIniText(await vscode.workspace.fs.readFile(uri));
 
 export interface ParseCache {
   /** The parsed file, or nothing when it cannot be read (deleted since indexed) */
@@ -47,7 +47,7 @@ export const createParseCache = (documents: SageIniDocuments): ParseCache => {
             return documents.parse(open);
           }
 
-          const text = decodeWindows1252(
+          const text = decodeIniText(
             await vscode.workspace.fs.readFile(uri),
           );
 

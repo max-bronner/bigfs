@@ -18,8 +18,12 @@ const OPERATIONS: Record<string, (a: number, b: number) => number> = {
   DIVIDE: (a, b) => a / b,
 };
 
-/** How deep macro bodies may refer to other calls, against a cycle */
-const MAX_DEPTH = 8;
+/**
+ * A backstop on how many macros one expansion may pass through. A cycle is
+ * found exactly, by the macro names already on the chain; the shipped data
+ * chains up to ten deep, so no small constant can stand in for that.
+ */
+const MAX_CHAIN = 256;
 
 /** One operand of a call, positioned on its line */
 export interface SageOperand {
@@ -105,11 +109,15 @@ export type SageValue = { value: number } | { error: string };
 /** Finds a macro's body by name, without regard to casing */
 export type LookupMacro = (name: string) => string | undefined;
 
-/** Evaluates an operand: a number, or a macro whose body is a number or a call */
+/**
+ * Evaluates an operand: a number, or a macro whose body is a number, a call
+ * or another macro's name. `chain` holds the macros being expanded, folded,
+ * so a macro met again is a cycle.
+ */
 const evaluateOperand = (
   text: string,
   lookupMacro: LookupMacro,
-  depth: number,
+  chain: readonly string[],
 ): SageValue => {
   const number = parseNumber(text);
 
@@ -123,7 +131,9 @@ const evaluateOperand = (
     return { error: `'${text}' is neither a number nor a known macro` };
   }
 
-  if (depth >= MAX_DEPTH) {
+  const key = text.toLowerCase();
+
+  if (chain.includes(key) || chain.length >= MAX_CHAIN) {
     return { error: `'${text}' refers to itself through other macros` };
   }
 
@@ -136,7 +146,12 @@ const evaluateOperand = (
   const [call] = scanCalls(body, 0);
 
   if (call && call.start === 0 && call.end === body.length) {
-    return evaluateCall(call, lookupMacro, depth + 1);
+    return evaluateCall(call, lookupMacro, [...chain, key]);
+  }
+
+  // `#define Alias Other`: the engine substitutes the body, which is a name
+  if (/^\S+$/.test(body) && lookupMacro(body) !== undefined) {
+    return evaluateOperand(body, lookupMacro, [...chain, key]);
   }
 
   return { error: `'${text}' stands for '${body}', which is not a number` };
@@ -146,14 +161,14 @@ const evaluateOperand = (
 export const evaluateCall = (
   call: SageCall,
   lookupMacro: LookupMacro,
-  depth = 0,
+  chain: readonly string[] = [],
 ): SageValue => {
   if (call.error) {
     return { error: call.error };
   }
 
   const [left, right] = call.operands.map((operand) =>
-    evaluateOperand(operand.text, lookupMacro, depth),
+    evaluateOperand(operand.text, lookupMacro, chain),
   );
 
   if ('error' in left) {
@@ -183,7 +198,7 @@ export const evaluateMacroBody = (
   const [call] = scanCalls(trimmed, 0);
 
   if (call && call.start === 0 && call.end === trimmed.length) {
-    return evaluateCall(call, lookupMacro, 1);
+    return evaluateCall(call, lookupMacro);
   }
 
   return undefined;
