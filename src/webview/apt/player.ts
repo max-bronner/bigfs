@@ -1,18 +1,18 @@
-import { Vm } from './avm/vm';
-import type { EngineHooks } from './avm/vm';
-import type { StageHost } from './avm/value';
+import { Vm } from "./avm/vm";
+import type { EngineHooks } from "./avm/vm";
+import type { StageHost } from "./avm/value";
 import type {
   Behaviour,
   TimelineCommand,
-} from '../../formats/apt/aptBehaviour';
+} from "../../formats/apt/aptBehaviour";
 import type {
   ButtonRecord,
   Character,
   Frame,
   Matrix2,
-} from '../../formats/apt/aptMovie';
-import type { PageMovie } from './protocol';
-import { displayList, framesOf } from './timeline';
+} from "../../formats/apt/aptMovie";
+import type { PageMovie } from "./protocol";
+import { displayList, framesOf } from "./timeline";
 
 /**
  * A small APT player: every placed character is an instance, every
@@ -129,15 +129,15 @@ const CLIP_EVENT = {
 
 /** Script handlers a button or clip object can carry, by pointer event */
 const HANDLERS: Record<number, string> = {
-  [CONDITION.rollOver]: 'onRollOver',
-  [CONDITION.rollOut]: 'onRollOut',
-  [CONDITION.press]: 'onPress',
-  [CONDITION.release]: 'onRelease',
-  [CONDITION.releaseOutside]: 'onReleaseOutside',
+  [CONDITION.rollOver]: "onRollOver",
+  [CONDITION.rollOut]: "onRollOut",
+  [CONDITION.press]: "onPress",
+  [CONDITION.release]: "onRelease",
+  [CONDITION.releaseOutside]: "onReleaseOutside",
 };
 
 const isTimeline = (instance: Instance) =>
-  instance.character?.type === 'sprite' || instance.character?.type === 'movie';
+  instance.character?.type === "sprite" || instance.character?.type === "movie";
 
 export class Player implements StageHost {
   public readonly root: Instance;
@@ -157,12 +157,55 @@ export class Player implements StageHost {
     if (options.engine) {
       this.vm = new Vm(this, options.engine);
     }
-    this.root = this.create(movie, id, '', undefined, {
-      matrix: [1, 0, 0, 1],
-      translate: [0, 0],
-      alpha: 1,
-      born: 0,
-    });
+    // Scripts wait until the root exists, as mint's apt-player runs actions
+    // only once it has a root; one that reads `_root` would find nothing
+    this.draining = true;
+    try {
+      this.queueInitActions(movie);
+      this.root = this.create(movie, id, "", undefined, {
+        matrix: [1, 0, 0, 1],
+        translate: [0, 0],
+        alpha: 1,
+        born: 0,
+      });
+    } finally {
+      this.draining = false;
+    }
+    this.idle();
+  }
+
+  /**
+   * Queues every init action of a movie's timelines, to run as the root
+   * before the first frame (mint's queue_init_actions, after Ruffle's
+   * preload), not when the frame holding one is entered
+   */
+  private queueInitActions(movie: PageMovie): void {
+    const vm = this.vm;
+
+    if (!vm) {
+      return;
+    }
+    const timelines = [
+      movie.frames,
+      ...movie.characters.flatMap((character) =>
+        character.type === "sprite"
+          ? [movie.spriteFrames[character.id] ?? []]
+          : [],
+      ),
+    ];
+
+    for (const frames of timelines) {
+      for (const frame of frames) {
+        for (const item of frame.items) {
+          const key = `${movie.name}#${item.type === "initAction" ? item.sprite : ""}`;
+
+          if (item.type === "initAction" && !vm.initialised.has(key)) {
+            vm.initialised.add(key);
+            this.later(() => vm.runBlock(this.root, item.block));
+          }
+        }
+      }
+    }
   }
 
   /** Advances every playing timeline a frame, parents first */
@@ -200,8 +243,8 @@ export class Player implements StageHost {
 
         // Only a clip a script has touched can carry an onEnterFrame
         const object = vm.peekObject(instance);
-        const handler = object?.has('onEnterFrame')
-          ? object.get('onEnterFrame')
+        const handler = object?.has("onEnterFrame")
+          ? object.get("onEnterFrame")
           : undefined;
 
         if (handler !== undefined && object) {
@@ -299,7 +342,7 @@ export class Player implements StageHost {
     );
 
     instance.character = {
-      type: 'sprite',
+      type: "sprite",
       id: -1,
       offset: 0,
       frameCount: 0,
@@ -388,7 +431,7 @@ export class Player implements StageHost {
     const index = timeline.frames.findIndex((frame) =>
       frame.items.some(
         (item) =>
-          item.type === 'frameLabel' && item.label.toLowerCase() === wanted,
+          item.type === "frameLabel" && item.label.toLowerCase() === wanted,
       ),
     );
 
@@ -399,7 +442,7 @@ export class Player implements StageHost {
   public labels(timeline: Instance): { label: string; frame: number }[] {
     return timeline.frames.flatMap((frame, index) =>
       frame.items.flatMap((item) =>
-        item.type === 'frameLabel' ? [{ label: item.label, frame: index }] : [],
+        item.type === "frameLabel" ? [{ label: item.label, frame: index }] : [],
       ),
     );
   }
@@ -477,7 +520,7 @@ export class Player implements StageHost {
     parent: Instance | undefined,
     place: Pick<
       Instance,
-      'matrix' | 'translate' | 'alpha' | 'born' | 'clipDepth' | 'clipActions'
+      "matrix" | "translate" | "alpha" | "born" | "clipDepth" | "clipActions"
     > & {
       name?: string;
       placedItem?: number;
@@ -498,7 +541,7 @@ export class Player implements StageHost {
         ? undefined
         : entry
           ? `${entry.movie}:${entry.name}`
-          : 'import',
+          : "import",
       parent,
       name: place.name,
       matrix: place.matrix,
@@ -517,14 +560,14 @@ export class Player implements StageHost {
       buttonState: UP,
       created: this.ticks,
     };
-    const depth = path.split('/').length;
+    const depth = path.split("/").length;
 
     if (depth > MAX_DEPTH) {
       return instance;
     }
     if (isTimeline(instance)) {
       this.enter(instance, 0);
-    } else if (instance.character?.type === 'button') {
+    } else if (instance.character?.type === "button") {
       this.syncButton(instance);
     }
     if (parent && this.vm && this.scriptsRun(parent)) {
@@ -551,15 +594,15 @@ export class Player implements StageHost {
     if (vm) {
       // A sprite's init actions run once, before any frame script
       for (const item of items) {
-        const key = `${timeline.movie.name}#${item.type === 'initAction' ? item.sprite : ''}`;
+        const key = `${timeline.movie.name}#${item.type === "initAction" ? item.sprite : ""}`;
 
-        if (item.type === 'initAction' && !vm.initialised.has(key)) {
+        if (item.type === "initAction" && !vm.initialised.has(key)) {
           vm.initialised.add(key);
           this.later(() => vm.runBlock(timeline, item.block));
         }
       }
       for (const item of items) {
-        if (item.type === 'action') {
+        if (item.type === "action") {
           // A frame left before its turn came does not run its script
           this.later(() => {
             if (timeline.frame === frame && !timeline.removed) {
@@ -572,8 +615,8 @@ export class Player implements StageHost {
       return;
     }
     for (const item of items) {
-      if (item.type === 'action') {
-        this.run(timeline, timeline.movie.behaviours[item.block], 'frame');
+      if (item.type === "action") {
+        this.run(timeline, timeline.movie.behaviours[item.block], "frame");
       }
     }
   }
@@ -635,7 +678,7 @@ export class Player implements StageHost {
 
   /** Shows the records of a button's state, keeping those still shown */
   private syncButton(button: Instance): void {
-    if (button.character?.type !== 'button') {
+    if (button.character?.type !== "button") {
       return;
     }
 
@@ -675,7 +718,7 @@ export class Player implements StageHost {
     condition: number,
     state: number,
   ): void {
-    if (button.character?.type !== 'button') {
+    if (button.character?.type !== "button") {
       return;
     }
 
@@ -686,7 +729,7 @@ export class Player implements StageHost {
     const owner = button.parent ?? this.root;
     const name =
       Object.entries(CONDITION).find(([, bit]) => bit === condition)?.[0] ??
-      'event';
+      "event";
 
     const vm = this.vm;
 
@@ -728,7 +771,7 @@ export class Player implements StageHost {
 
     if (
       !this.vm ||
-      character?.type !== 'editText' ||
+      character?.type !== "editText" ||
       !character.variable ||
       !instance.parent
     ) {
@@ -762,17 +805,17 @@ export class Player implements StageHost {
           done.push(describeCommand(command));
         } else {
           done.push(
-            `${describeCommand(command)} (no ${command.target.join('.')})`,
+            `${describeCommand(command)} (no ${command.target.join(".")})`,
           );
         }
       }
       // Frame scripts run every time a frame is entered; only events are worth a line
-      if (why !== 'frame') {
+      if (why !== "frame") {
         this.options.log?.(
-          `${why}: ${done.join(', ') || 'nothing to run'}` +
+          `${why}: ${done.join(", ") || "nothing to run"}` +
             (behaviour.skipped
-              ? ` · ${behaviour.skipped} statement${behaviour.skipped === 1 ? '' : 's'} not run${behaviour.conditional ? ' (conditional)' : ''}`
-              : ''),
+              ? ` · ${behaviour.skipped} statement${behaviour.skipped === 1 ? "" : "s"} not run${behaviour.conditional ? " (conditional)" : ""}`
+              : ""),
         );
       }
     } finally {
@@ -782,7 +825,7 @@ export class Player implements StageHost {
 
   private apply(target: Instance, command: TimelineCommand): void {
     switch (command.op) {
-      case 'goto': {
+      case "goto": {
         const frame =
           command.label !== undefined
             ? this.labelFrame(target, command.label)
@@ -793,17 +836,17 @@ export class Player implements StageHost {
         }
         break;
       }
-      case 'play':
+      case "play":
         target.playing = true;
         break;
-      case 'stop':
+      case "stop":
         target.playing = false;
         break;
-      case 'next':
-      case 'prev':
+      case "next":
+      case "prev":
         this.goTo(
           target,
-          target.frame + (command.op === 'next' ? 1 : -1),
+          target.frame + (command.op === "next" ? 1 : -1),
           false,
         );
         break;
@@ -817,15 +860,15 @@ export class Player implements StageHost {
     for (const part of path) {
       const lower = part.toLowerCase();
 
-      if (lower === '_parent') {
+      if (lower === "_parent") {
         at = at?.parent;
         // A button is not a timeline; its parent's parent is
         while (at && !isTimeline(at)) {
           at = at.parent;
         }
-      } else if (lower === '_root') {
+      } else if (lower === "_root") {
         at = this.root;
-      } else if (lower !== 'this') {
+      } else if (lower !== "this") {
         at =
           at &&
           [...at.children.values()].find(
@@ -838,13 +881,13 @@ export class Player implements StageHost {
 }
 
 export const describe = (instance: Instance): string =>
-  (instance.name ? `"${instance.name}" ` : '') +
-  `#${instance.id}${instance.path ? ' @' + instance.path : ''}`;
+  (instance.name ? `"${instance.name}" ` : "") +
+  `#${instance.id}${instance.path ? " @" + instance.path : ""}`;
 
 const describeCommand = (command: TimelineCommand): string => {
-  const on = command.target.length ? ` on ${command.target.join('.')}` : '';
+  const on = command.target.length ? ` on ${command.target.join(".")}` : "";
 
-  if (command.op !== 'goto') {
+  if (command.op !== "goto") {
     return command.op + on;
   }
 
@@ -853,5 +896,5 @@ const describeCommand = (command: TimelineCommand): string => {
       ? `"${command.label}"`
       : `frame ${command.frame}`;
 
-  return `${command.play ? 'gotoAndPlay' : 'gotoAndStop'} ${where}${on}`;
+  return `${command.play ? "gotoAndPlay" : "gotoAndStop"} ${where}${on}`;
 };

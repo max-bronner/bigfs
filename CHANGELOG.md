@@ -3,6 +3,7 @@
 ## Unreleased
 
 - WND layout preview draws what the game draws: each window type's own image slots (check box, sliders, list box, combo box), `MappedImage` pictures from the game's textures with rotation, text through the string tables, an Enabled / Hilite / Disabled (+ Checked) switch, and engine-placed children kept inside their parent (ported from mint2's apt-viewer gadgets). A key stated twice reads as its last statement.
+- Fix: INI grammar. `AddEmotion` opens a block only as `AddEmotion = OVERRIDE`, `End` with trailing tokens closes its block, mint's hand-written block tables are in the schema (`StanceTemplate`, `FormationTemplate`, `LODPreset`, `BenchProfile`, `WebpageURL`, `OptionGroup`, `StrategicHUD`, horde `MeleeBehavior`, ...), `.inc` fragments read a keyword several contexts open as their union, and Generals' flat `ParticleSystem` blocks are one hint each.
 
 - Fix: APT scripts that goto each other overflowed the stack and broke the editor; frames entered by a goto now queue their scripts, a failing script is reported instead of thrown, and only clips scripts touched are checked each frame. The Engine panel overrides any variable the movie reads instead of only supplying unset ones.
 
