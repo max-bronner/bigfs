@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- WND layout preview draws what the game draws: each window type's own image slots (check box, sliders, list box, combo box), `MappedImage` pictures from the game's textures with rotation, text through the string tables, an Enabled / Hilite / Disabled (+ Checked) switch, and engine-placed children kept inside their parent (ported from mint2's apt-viewer gadgets). A key stated twice reads as its last statement.
+- Fix: INI grammar. `AddEmotion` opens a block only as `AddEmotion = OVERRIDE`, `End` with trailing tokens closes its block, mint's hand-written block tables are in the schema (`StanceTemplate`, `FormationTemplate`, `LODPreset`, `BenchProfile`, `WebpageURL`, `OptionGroup`, `StrategicHUD`, horde `MeleeBehavior`, ...), `.inc` fragments read a keyword several contexts open as their union, and Generals' flat `ParticleSystem` blocks are one hint each.
+
 - Fix: APT scripts that goto each other overflowed the stack and broke the editor; frames entered by a goto now queue their scripts, a failing script is reported instead of thrown, and only clips scripts touched are checked each frame. The Engine panel overrides any variable the movie reads instead of only supplying unset ones.
 
 - APT preview runs ActionScript in full (ported from mint2's AVM), and an Engine panel lists what the movie asks of the game: functions only the engine calls, with a Call button; values it reads but never sets, and extern keys, each settable; calls into the engine with their arguments and a settable return.
@@ -89,3 +92,5 @@
 - Missing game-text labels reported, with a fix that adds them.
 - CommandSet hover with the button icons, labels and commands.
 - Play audio events and sounds from INI files.
+
+- INI: sound and announcer fields resolve into the engine's one audio namespace (AudioEvent, DialogEvent, MusicTrack, AmbientStream, StreamedSound, Multisound) or the announcer one, and navigation, references, rename and the missing-name check see the name inside `EVA:`, `+SOUND:`, `Sound:` and `name:weight` forms. A block's own `Filename` is no longer read as a reference.

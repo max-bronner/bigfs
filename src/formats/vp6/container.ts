@@ -30,6 +30,7 @@ interface FrameChunks {
   colour: Uint8Array;
   isKey: boolean;
   alpha?: Uint8Array;
+  isAlphaKey?: boolean;
 }
 
 const tag = (bytes: Uint8Array, at: number) =>
@@ -66,6 +67,10 @@ const readHeader = (
 export const parseVp6 = (
   bytes: Uint8Array,
 ): { header: Vp6Header; hasAlpha: boolean; frames: FrameChunks[] } => {
+  if (bytes.length === 0) {
+    throw new Error('The file is empty');
+  }
+
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let at = 0;
   const hasAlpha = tag(bytes, 0) === 'AVP6';
@@ -84,6 +89,7 @@ export const parseVp6 = (
 
   const frames: FrameChunks[] = [];
   let alpha: Uint8Array | undefined;
+  let isAlphaKey = false;
 
   while (at + 8 <= bytes.length) {
     const kind = tag(bytes, at);
@@ -97,9 +103,16 @@ export const parseVp6 = (
 
     if (kind === 'AV0K' || kind === 'AV0F') {
       alpha = payload;
+      isAlphaKey = kind === 'AV0K';
     } else if (kind === 'MV0K' || kind === 'MV0F') {
-      frames.push({ colour: payload, isKey: kind === 'MV0K', alpha });
+      frames.push({
+        colour: payload,
+        isKey: kind === 'MV0K',
+        alpha,
+        isAlphaKey,
+      });
       alpha = undefined;
+      isAlphaKey = false;
     } else {
       throw new Error(`Unexpected chunk ${JSON.stringify(kind)} at ${at}`);
     }
@@ -166,6 +179,9 @@ export class Vp6Movie {
   private colour = new Vp6Decoder();
   private alpha = new Vp6Decoder();
   private next = 0;
+  /** First frames each decoder may decode: its own stream's key frames */
+  private colourFrom = 0;
+  private alphaFrom = 0;
   private lastAlpha?: Picture;
 
   public constructor(bytes: Uint8Array) {
@@ -192,19 +208,35 @@ export class Vp6Movie {
   public frame(index: number): Uint8ClampedArray {
     const target = Math.max(0, Math.min(this.frames.length - 1, index));
 
-    // Going back, or far ahead, starts again from the key frame before it
+    // Going back, or far ahead, starts again from key frames before it. The
+    // colour and alpha streams key independently, so decode forward from the
+    // earlier of the two, each decoder skipping frames before its own key.
     if (target < this.next || target - this.next > 60) {
-      let key = target;
+      let colourKey = target;
 
-      while (key > 0 && !this.frames[key].isKey) {
-        key--;
+      while (colourKey > 0 && !this.frames[colourKey].isKey) {
+        colourKey--;
       }
 
-      if (key >= this.next || target < this.next) {
+      let alphaKey = this.hasAlpha ? target : colourKey;
+
+      while (
+        this.hasAlpha &&
+        alphaKey > 0 &&
+        !(this.frames[alphaKey].alpha && this.frames[alphaKey].isAlphaKey)
+      ) {
+        alphaKey--;
+      }
+
+      const start = Math.min(colourKey, alphaKey);
+
+      if (start >= this.next || target < this.next) {
         this.colour = new Vp6Decoder();
         this.alpha = new Vp6Decoder();
         this.lastAlpha = undefined;
-        this.next = key;
+        this.next = start;
+        this.colourFrom = colourKey;
+        this.alphaFrom = alphaKey;
       }
     }
 
@@ -213,9 +245,10 @@ export class Vp6Movie {
     for (; this.next <= target; this.next++) {
       const chunks = this.frames[this.next];
 
-      picture = this.colour.decode(chunks.colour);
-
-      if (chunks.alpha) {
+      if (this.next >= this.colourFrom) {
+        picture = this.colour.decode(chunks.colour);
+      }
+      if (chunks.alpha && this.next >= this.alphaFrom) {
         this.lastAlpha = this.alpha.decode(chunks.alpha);
       }
     }
@@ -239,7 +272,13 @@ export interface Vp6Output {
   height: number;
   rateNumerator: number;
   rateDenominator: number;
-  frames: { colour: Uint8Array; isKey: boolean; alpha?: Uint8Array }[];
+  frames: {
+    colour: Uint8Array;
+    isKey: boolean;
+    alpha?: Uint8Array;
+    /** Whether the alpha chunk is a key frame; follows `isKey` when unset */
+    isAlphaKey?: boolean;
+  }[];
 }
 
 const latin1 = (text: string) =>
@@ -257,7 +296,14 @@ export const writeVp6 = (movie: Vp6Output): Uint8Array => {
     return out;
   };
   const body = movie.frames.flatMap((frame) => [
-    ...(frame.alpha ? [chunk(frame.isKey ? 'AV0K' : 'AV0F', frame.alpha)] : []),
+    ...(frame.alpha
+      ? [
+          chunk(
+            (frame.isAlphaKey ?? frame.isKey) ? 'AV0K' : 'AV0F',
+            frame.alpha,
+          ),
+        ]
+      : []),
     chunk(frame.isKey ? 'MV0K' : 'MV0F', frame.colour),
   ]);
   const largest = Math.max(0, ...body.map((part) => part.length));

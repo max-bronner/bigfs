@@ -6,6 +6,8 @@ import {
   encodeWindows1252,
   unencodableCharacters,
 } from '../common/windows1252';
+import { toUri } from '../common/commandTarget';
+import type { CommandTarget } from '../common/commandTarget';
 import { registerTranslationCheck } from './translationCheck';
 
 /**
@@ -151,13 +153,9 @@ export const registerSageStrLanguage = (
 
   vscode.workspace.textDocuments.forEach(refresh);
 
-  const convert = async (
-    target?: vscode.Uri | { resourceUri?: vscode.Uri },
-  ) => {
+  const convert = async (target?: CommandTarget) => {
     const source =
-      target instanceof vscode.Uri
-        ? target
-        : (target?.resourceUri ?? vscode.window.activeTextEditor?.document.uri);
+      toUri(target) ?? vscode.window.activeTextEditor?.document.uri;
 
     if (!source) {
       return;

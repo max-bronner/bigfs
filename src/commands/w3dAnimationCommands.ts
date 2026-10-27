@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { EASINGS } from '../common/expression';
 import { parseW3dAnimations } from '../formats/w3dAnimation';
 import type { W3dAnimation } from '../formats/w3dAnimation';
+import { toUri } from '../common/commandTarget';
 import {
   MAX_NAME,
   easeAnimation,
@@ -47,10 +48,7 @@ export const applyAnimationEdit = (
 };
 
 const targetOf = (target: unknown): vscode.Uri | undefined =>
-  target instanceof vscode.Uri
-    ? target
-    : ((target as { resourceUri?: vscode.Uri } | undefined)?.resourceUri ??
-      vscode.window.activeTextEditor?.document.uri);
+  toUri(target) ?? vscode.window.activeTextEditor?.document.uri;
 
 const number = async (prompt: string, value: number) => {
   const answer = await vscode.window.showInputBox({

@@ -1,27 +1,48 @@
 import * as vscode from 'vscode';
-import { readWorkspaceText } from './workspaceText';
+import { createParseCache } from './workspaceText';
 import type { EntryLocator } from '../formats/entryLocator';
 import { toPlayableAudio } from '../tools/audioTools';
 import { webviewPage } from '../providers/webviewPage';
 import { findAssetReferences } from './model/sageIniAssets';
+import { audioDefinitionOf, resolveAudio } from './model/sageAudioResolve';
+import type { AudioLookup, AudioVariant } from './model/sageAudioResolve';
+import { forEachBlock } from './model/sageIniParser';
 import type { SageDocument, SageToken } from './model/sageIniParser';
+import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 
 /**
- * Sounds played from the INI: a "Play" lens on every audio event, play
+ * Sounds played from the INI: a "Play" lens on every audio definition, play
  * links in the hover of a sound variant or of a value naming an event, and
  * one small player panel that plays what it is sent. A WAV stored as IMA
  * ADPCM is decoded first, as the audio preview does.
+ *
+ * Sound is opt-in: nothing here plays unless clicked, and one click plays
+ * one file. A name with several variants (an event's roles, a `Multisound`'s
+ * subsounds, an EVA event's sides) asks which; an attack is never chained
+ * to its body and decay.
+ *
+ * What a name plays follows the audio runtime of mint
+ * (`crates/sage/audio/src/runtime.rs`); see `sageAudioResolve.ts`.
  */
 
-/** Definitions whose `Sounds` or `Filename` name audio files */
+/** Definitions that name audio files, directly or through other events */
 export const AUDIO_KEYWORDS = [
   'AudioEvent',
   'DialogEvent',
   'MusicTrack',
   'AmbientStream',
   'StreamedSound',
+  'Multisound',
+  'NewEvaEvent',
+  'PredefinedEvaEvent',
 ];
+
+/** A movie's definition, followed to the events its file stem names */
+const VIDEO_KEYWORD = 'Video';
+
+const ROTWK_HINT =
+  "If this is The Rise of the Witch-king, add the BFME II install folder to the workspace; ROTWK's archives hold only its additions.";
 
 const SOUND_EXTENSIONS = ['wav', 'mp3'];
 
@@ -33,21 +54,6 @@ export const soundCandidates = (name: string): string[] => {
     ? [base]
     : SOUND_EXTENSIONS.map((extension) => `${base}.${extension}`);
 };
-
-/** The variants of an audio definition's own lines: `Sounds*` or `Filename` */
-export const soundVariants = (lines: string[]): string[] =>
-  lines.flatMap((line) => {
-    const match = /^\s*(Sounds\w*|Filename)\s*=\s*([^;]*)/i.exec(line);
-
-    if (!match) {
-      return [];
-    }
-    return match[2]
-      .trim()
-      .split(/\s+/)
-      .map((token) => token.replace(/^"|"$/g, '').replace(/:\d+$/, ''))
-      .filter(Boolean);
-  });
 
 class SoundPanel {
   private static current?: SoundPanel;
@@ -170,31 +176,65 @@ const playSound = async (
     return candidate;
   }
   void vscode.window.showWarningMessage(
-    `No ${soundCandidates(name).join(' or ')} in any archive or folder`,
+    `No ${soundCandidates(name).join(' or ')} in any archive or folder. ${ROTWK_HINT}`,
   );
   return undefined;
 };
 
-/** The lines of an audio event's definition, from its open editor if any */
-const definitionLines = async (
+/** How long a parsed file serves lookups before it is read again */
+const PARSE_REUSE_MS = 5000;
+
+/** Finds audio definitions by name through the index, reading them from their files */
+export const createAudioLookup = (
   index: SageIniIndex,
-  name: string,
-): Promise<string[] | undefined> => {
-  for (const keyword of AUDIO_KEYWORDS) {
-    const [place] = index.findDefinitions(keyword, name);
+  documents: SageIniDocuments,
+): AudioLookup => {
+  const cache = createParseCache(documents);
+  let cachedAt = Date.now();
 
-    if (place) {
-      const text = await readWorkspaceText(place.uri);
-
-      return text.split(/\r?\n/).slice(place.line + 1, place.endLine);
+  return async (name) => {
+    // Files are parsed once per burst of lookups, so an edit shows within seconds
+    if (Date.now() - cachedAt > PARSE_REUSE_MS) {
+      cache.clear();
+      cachedAt = Date.now();
     }
-  }
-  return undefined;
+    for (const keyword of [...AUDIO_KEYWORDS, VIDEO_KEYWORD]) {
+      const [place] = index.findDefinitions(keyword, name);
+      const parsed = place && (await cache.get(place.uri));
+
+      if (!place || !parsed) {
+        continue;
+      }
+
+      let found: ReturnType<typeof audioDefinitionOf> | undefined;
+
+      forEachBlock(parsed.blocks, (block) => {
+        if (!found && block.startLine === place.line) {
+          found = audioDefinitionOf(parsed, block);
+        }
+      });
+      if (found) {
+        return found;
+      }
+    }
+    return undefined;
+  };
 };
+
+/** The variants as a quick pick offers them: role, side or subsound, then file */
+const toPickItem = (variant: AudioVariant) => ({
+  label: variant.label,
+  description: variant.file,
+  detail: variant.weight === undefined ? undefined : `weight ${variant.weight}`,
+  variant,
+});
 
 /** INI text in markdown: it must not open a link or a code span of its own */
 const escapeMarkdown = (text: string) =>
   text.replace(/[\\`*_{}[\]()<>#+!|-]/g, '\\$&');
+/** Links a hover lists before pointing to the lens instead */
+const HOVER_LINKS = 12;
+
 const code = (text: string) => `\`${text.replace(/`/g, "'")}\``;
 
 const commandLink = (title: string, command: string, args: unknown[]) =>
@@ -205,7 +245,7 @@ const commandLink = (title: string, command: string, args: unknown[]) =>
  * an audio event lists its variants
  */
 export const describeSound = async (
-  index: SageIniIndex,
+  lookup: AudioLookup,
   parsed: SageDocument,
   line: number,
   token: SageToken,
@@ -229,60 +269,68 @@ export const describeSound = async (
     return text;
   }
 
-  const lines = await definitionLines(index, token.text);
+  const variants = await resolveAudio(token.text, lookup);
 
-  if (!lines) {
+  if (!variants.length) {
     return undefined;
   }
 
-  const variants = soundVariants(lines);
+  const shown = variants.slice(0, HOVER_LINKS);
 
   text.appendMarkdown(
     `${code(token.text)} — ${variants.length} sound${variants.length === 1 ? '' : 's'}\n\n` +
-      variants
-        .map((variant) =>
-          commandLink(`▶ ${variant}`, 'bigfs.playSound', [
-            variant,
-            documentUri.toString(),
-          ]),
+      shown
+        .map(
+          (variant) =>
+            `${variants.length > 1 ? `${escapeMarkdown(variant.label)}: ` : ''}${commandLink(`▶ ${variant.file}`, 'bigfs.playSound', [variant.file, documentUri.toString()])}`,
         )
-        .join(' · '),
+        .join(variants.length > 1 ? '\n\n' : ' · ') +
+      (variants.length > shown.length
+        ? `\n\n…and ${variants.length - shown.length} more; use the Play lens`
+        : ''),
   );
   return text;
 };
 
-/** A lens on every audio definition that plays one of its variants */
+/** A lens on every audio definition block that plays one of its variants */
 class SoundLensProvider implements vscode.CodeLensProvider {
-  public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
-    const lenses: vscode.CodeLens[] = [];
-    const pattern = new RegExp(
-      `^\\s*(${AUDIO_KEYWORDS.join('|')})\\s+(\\S+)`,
-      'i',
-    );
+  public constructor(private readonly documents: SageIniDocuments) {}
 
-    for (let line = 0; line < document.lineCount; line++) {
-      const match = pattern.exec(document.lineAt(line).text);
+  public async provideCodeLenses(
+    document: vscode.TextDocument,
+  ): Promise<vscode.CodeLens[]> {
+    const parsed = await this.documents.parse(document);
+    const keywords = AUDIO_KEYWORDS.map((keyword) => keyword.toLowerCase());
 
-      if (match) {
-        lenses.push(
-          new vscode.CodeLens(new vscode.Range(line, 0, line, 0), {
-            title: '▶ Play',
-            command: 'bigfs.playAudioEvent',
-            arguments: [match[2], document.uri.toString()],
-          }),
-        );
-      }
-    }
-    return lenses;
+    return parsed.blocks.flatMap((block) => {
+      const name = block.name?.split(/\s+/)[0];
+
+      return name && keywords.includes(block.keyword.toLowerCase())
+        ? [
+            new vscode.CodeLens(
+              new vscode.Range(block.startLine, 0, block.startLine, 0),
+              {
+                title: '▶ Play',
+                command: 'bigfs.playAudioEvent',
+                arguments: [name, document.uri.toString()],
+              },
+            ),
+          ]
+        : [];
+    });
   }
 }
 
 export const registerSoundPlayer = (
   selector: vscode.DocumentSelector,
+  documents: SageIniDocuments,
   index: SageIniIndex,
   locator: EntryLocator | undefined,
 ): vscode.Disposable[] => [
-  vscode.languages.registerCodeLensProvider(selector, new SoundLensProvider()),
+  vscode.languages.registerCodeLensProvider(
+    selector,
+    new SoundLensProvider(documents),
+  ),
   vscode.commands.registerCommand(
     'bigfs.playSound',
     (name: string, near?: string) =>
@@ -309,8 +357,9 @@ export const registerSoundPlayer = (
         name = picked;
       }
 
-      const variants = soundVariants(
-        (await definitionLines(index, name)) ?? [],
+      const variants = await resolveAudio(
+        name,
+        createAudioLookup(index, documents),
       );
 
       if (!variants.length) {
@@ -318,14 +367,24 @@ export const registerSoundPlayer = (
         return undefined;
       }
 
-      // The game picks one variant at random; so does this
-      const variant = variants[Math.floor(Math.random() * variants.length)];
+      // One click, one file: several variants ask which, never chain
+      const picked =
+        variants.length === 1
+          ? variants[0]
+          : (
+              await vscode.window.showQuickPick(variants.map(toPickItem), {
+                placeHolder: `${name}: which sound to play`,
+                matchOnDescription: true,
+              })
+            )?.variant;
 
-      return playSound(
-        locator,
-        variant,
-        near ? vscode.Uri.parse(near) : undefined,
-      );
+      return picked
+        ? playSound(
+            locator,
+            picked.file,
+            near ? vscode.Uri.parse(near) : undefined,
+          )
+        : undefined;
     },
   ),
 ];
