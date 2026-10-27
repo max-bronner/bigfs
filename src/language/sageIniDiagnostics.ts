@@ -80,7 +80,8 @@ const getReferenceDiagnostics = async (
       const diagnostic = new Diagnostic(
         new Range(line, start, line, end),
         `No ${namespaces.join(' or ')} named '${name}' is defined in the workspace`,
-        DiagnosticSeverity.Warning,
+        // The engine tolerates a name nothing defines, so it is a hint
+        DiagnosticSeverity.Information,
       );
 
       diagnostic.source = SOURCE;
