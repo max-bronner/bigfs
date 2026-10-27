@@ -1,5 +1,11 @@
 import * as assert from 'assert';
-import { parseCsf, writeCsf } from '../../formats/csf';
+import {
+  csfNameProblem,
+  keepLineBreaks,
+  parseCsf,
+  writeCsf,
+} from '../../formats/csf';
+import { unencodableCharacters } from '../../common/windows1252';
 import {
   parseStringRecords,
   quoteStringText,
@@ -81,5 +87,46 @@ suite('String tables', () => {
       () => parseCsf(bytes.subarray(0, bytes.length - 3)),
       /past the end/,
     );
+  });
+
+  test('a label or speech name outside Windows-1252 is refused when typed', () => {
+    assert.strictEqual(csfNameProblem('OBJECT:Café’s'), undefined);
+    assert.match(csfNameProblem('OBJECT:日本') ?? '', /"日"/);
+    assert.throws(
+      () =>
+        writeCsf({
+          version: 3,
+          reserved: 0,
+          language: 0,
+          labels: [{ name: 'A:日', strings: [{ text: 'x' }] }],
+        }),
+      /Windows-1252/,
+    );
+  });
+
+  test('text keeps the line breaks its cell was written with', () => {
+    assert.strictEqual(keepLineBreaks('a\r\nb', 'a\nb\nc'), 'a\r\nb\r\nc');
+    assert.strictEqual(keepLineBreaks('a\nb', 'a\nb\nc'), 'a\nb\nc');
+    assert.strictEqual(keepLineBreaks('', 'a\nb'), 'a\nb');
+    assert.strictEqual(keepLineBreaks('a\r\nb\nc', 'x\ny'), 'x\ny');
+
+    const file = parseCsf(
+      writeCsf({
+        version: 3,
+        reserved: 0,
+        language: 0,
+        labels: [{ name: 'A:B', strings: [{ text: 'one\r\ntwo' }] }],
+      }),
+    );
+
+    assert.strictEqual(file.labels[0].strings[0].text, 'one\r\ntwo');
+  });
+
+  test('characters a .str cannot hold are listed once each', () => {
+    assert.deepStrictEqual(unencodableCharacters('Café ’ “x” 日本 日'), [
+      '日',
+      '本',
+    ]);
+    assert.deepStrictEqual(unencodableCharacters('plain'), []);
   });
 });

@@ -57,8 +57,21 @@ export interface EngineHooks {
    * Every variable read, with what the movie holds (`found` says whether it
    * holds anything): the engine may override it. `counted` is false for
    * reads the preview makes itself, such as a text field's bound variable.
+   * `local` says a function's own local or parameter answered, which is
+   * never the game's to override.
    */
-  read(path: string, value: Value, found: boolean, counted: boolean): Value;
+  read(
+    path: string,
+    value: Value,
+    found: boolean,
+    counted: boolean,
+    local: boolean,
+  ): Value;
+  /**
+   * Called around each top-level script, with the machine idle: the engine
+   * writes its sticky values back into the movie
+   */
+  sync(): void;
   /** A function the movie stores where the engine can call it */
   defined(owner: AsObject, name: string, fn: AsObject): void;
   log(line: string): void;
@@ -99,6 +112,9 @@ export const DISPLAY_PROPERTIES = [
 ];
 
 class Halt extends Error {}
+
+/** Paths that name their start, so no local variable is the way in */
+const ROOTED = /^(\/|_root[.:]|_level\d+[.:]|_global[.:]|this[.:])/i;
 
 /** One running activation */
 interface Frame {
@@ -205,24 +221,64 @@ export class Vm implements NativeHost {
     if (!code) {
       return;
     }
-    this.guard(`block ${block}`, () =>
-      this.exec(code, {
-        movie: owner.movie,
-        scope: this.targetScope(clip),
-        pool: [],
-        self: this.objectOf(clip),
-        target: clip,
-        base: clip,
-        stack: [],
-        depth: 0,
-      }),
+    this.settled(() =>
+      this.guard(`block ${block}`, () =>
+        this.exec(code, {
+          movie: owner.movie,
+          scope: this.targetScope(clip),
+          pool: [],
+          self: this.objectOf(clip),
+          target: clip,
+          base: clip,
+          stack: [],
+          depth: 0,
+        }),
+      ),
     );
+  }
+
+  /** Runs a top-level script between the engine's sticky writes */
+  private settled<T>(run: () => T): T {
+    if (this.nesting > 0) {
+      return run();
+    }
+    this.engine.sync();
+    try {
+      return run();
+    } finally {
+      this.engine.sync();
+    }
+  }
+
+  /**
+   * Writes a value at a path from the root, as the engine's override of it:
+   * `side` is `_root.side`. Nothing is written where it already holds, or
+   * over a clip or object the movie keeps under the name.
+   */
+  public assertValue(path: string, value: Value): void {
+    const frame: Frame = {
+      movie: this.stage.root.movie,
+      scope: this.targetScope(this.stage.root),
+      pool: [],
+      self: this.objectOf(this.stage.root),
+      target: this.stage.root,
+      base: this.stage.root,
+      stack: [],
+      depth: 0,
+    };
+    const target = `_root.${path}`;
+    const held = this.lookupVariable(frame, target).value;
+
+    if (held instanceof AsObject || Object.is(held, value)) {
+      return;
+    }
+    this.setVariable(frame, target, value);
   }
 
   /** Calls a function value from outside, as the engine calls into a movie */
   public callFromEngine(callee: Value, self: Value, args: Value[]): Value {
-    return this.guard('a call', () =>
-      this.call(callee, self, args, 'engine'),
+    return this.settled(() =>
+      this.guard('a call', () => this.call(callee, self, args, 'engine')),
     ) as Value;
   }
 
@@ -401,7 +457,7 @@ export class Vm implements NativeHost {
     if (typeof object === 'string' && name.toLowerCase() === 'length') {
       return object.length;
     }
-    if (object === this.externObject && !object.has(name)) {
+    if (object === this.externObject) {
       return this.engine.extern(name);
     }
 
@@ -430,6 +486,7 @@ export class Vm implements NativeHost {
     }
     if (object === this.externObject) {
       this.engine.setExtern(name, value);
+      return;
     }
     if (object.kind.type === 'clip' && !object.has(name)) {
       const instance = object.kind.instance;
@@ -705,7 +762,10 @@ export class Vm implements NativeHost {
     };
   }
 
-  private resolve(frame: Frame, name: string): { value: Value; on?: AsObject } {
+  private resolve(
+    frame: Frame,
+    name: string,
+  ): { value: Value; on?: AsObject; local?: boolean } {
     if (name.toLowerCase() === 'this') {
       return { value: frame.self };
     }
@@ -715,7 +775,11 @@ export class Vm implements NativeHost {
       scope = scope.parent
     ) {
       if (this.hasProperty(scope.values, name)) {
-        return { value: this.member(scope.values, name), on: scope.values };
+        return {
+          value: this.member(scope.values, name),
+          on: scope.values,
+          local: scope.kind === 'local',
+        };
       }
     }
     return { value: undefined };
@@ -755,6 +819,7 @@ export class Vm implements NativeHost {
             found.value,
             found.on !== undefined,
             counted,
+            found.local === true,
           ),
           on: found.on,
         };
@@ -764,7 +829,7 @@ export class Vm implements NativeHost {
   private lookupVariable(
     frame: Frame,
     path: string,
-  ): { value: Value; on?: AsObject } {
+  ): { value: Value; on?: AsObject; local?: boolean } {
     const separator = Math.max(path.lastIndexOf(':'), path.lastIndexOf('.'));
 
     if (separator >= 0) {
@@ -782,7 +847,12 @@ export class Vm implements NativeHost {
         const object = this.resolvePath(frame, scope.values, target);
 
         if (object && this.hasProperty(object, name)) {
-          return { value: this.member(object, name), on: object };
+          return {
+            value: this.member(object, name),
+            on: object,
+            // A path from a function's own variable is not the movie's
+            local: scope.kind === 'local' && !ROOTED.test(path),
+          };
         }
       }
       return { value: undefined };

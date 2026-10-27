@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { toUri } from '../common/commandTarget';
+import type { CommandTarget } from '../common/commandTarget';
 import { decodeDds, decodeTga } from '../tools/textureTools';
 import type { DecodedTexture } from '../tools/textureTools';
 import {
@@ -15,12 +17,8 @@ import {
  * a game format. Each works on files loose or inside an archive.
  */
 
-type Target = vscode.Uri | { resourceUri?: vscode.Uri } | undefined;
-
-const uriOf = (target: Target): vscode.Uri | undefined =>
-  target instanceof vscode.Uri
-    ? target
-    : (target?.resourceUri ?? vscode.window.activeTextEditor?.document.uri);
+const uriOf = (target: CommandTarget): vscode.Uri | undefined =>
+  toUri(target) ?? vscode.window.activeTextEditor?.document.uri;
 
 const fileName = (uri: vscode.Uri) =>
   uri.path.slice(uri.path.lastIndexOf('/') + 1);
@@ -76,148 +74,155 @@ export const registerTextureCommands = (
   context: vscode.ExtensionContext,
 ): void => {
   context.subscriptions.push(
-    vscode.commands.registerCommand('bigfs.exportPng', (target: Target) =>
-      run(async () => {
-        const source = uriOf(target);
+    vscode.commands.registerCommand(
+      'bigfs.exportPng',
+      (target: CommandTarget) =>
+        run(async () => {
+          const source = uriOf(target);
 
-        if (!source) {
-          return;
-        }
+          if (!source) {
+            return;
+          }
 
-        const texture = decodeTexture(
-          source,
-          await vscode.workspace.fs.readFile(source),
-        );
-        const output = await pickOutput(
-          source,
-          fileName(source).replace(/\.[^.]+$/, '.png'),
-        );
+          const texture = decodeTexture(
+            source,
+            await vscode.workspace.fs.readFile(source),
+          );
+          const output = await pickOutput(
+            source,
+            fileName(source).replace(/\.[^.]+$/, '.png'),
+          );
 
-        if (output) {
+          if (output) {
+            await vscode.workspace.fs.writeFile(
+              output,
+              encodePng(texture.levels[0]),
+            );
+            void vscode.window.showInformationMessage(
+              `Exported ${fileName(output)}`,
+            );
+          }
+        })(),
+    ),
+    vscode.commands.registerCommand(
+      'bigfs.importImage',
+      (target: CommandTarget) =>
+        run(async () => {
+          const destination = uriOf(target);
+
+          if (!destination) {
+            return;
+          }
+
+          const original = decodeTexture(
+            destination,
+            await vscode.workspace.fs.readFile(destination),
+          );
+          const [picked] =
+            (await vscode.window.showOpenDialog({
+              canSelectMany: false,
+              filters: { 'PNG images': ['png'] },
+            })) ?? [];
+
+          if (!picked) {
+            return;
+          }
+
+          const image = decodePng(await vscode.workspace.fs.readFile(picked));
+          const [first] = original.levels;
+
+          if (
+            (image.width !== first.width || image.height !== first.height) &&
+            (await vscode.window.showWarningMessage(
+              `The image is ${image.width}×${image.height}; ${fileName(destination)} is ${first.width}×${first.height}. Replace it anyway?`,
+              { modal: true },
+              'Replace',
+            )) !== 'Replace'
+          ) {
+            return;
+          }
+
           await vscode.workspace.fs.writeFile(
-            output,
-            encodePng(texture.levels[0]),
+            destination,
+            encodeLike(image, original, /\.dds$/i.test(destination.path)),
           );
           void vscode.window.showInformationMessage(
-            `Exported ${fileName(output)}`,
+            `Replaced ${fileName(destination)} (${original.format})`,
           );
-        }
-      })(),
+        })(),
     ),
-    vscode.commands.registerCommand('bigfs.importImage', (target: Target) =>
-      run(async () => {
-        const destination = uriOf(target);
+    vscode.commands.registerCommand(
+      'bigfs.convertPng',
+      (target: CommandTarget) =>
+        run(async () => {
+          const source = uriOf(target);
 
-        if (!destination) {
-          return;
-        }
+          if (!source) {
+            return;
+          }
 
-        const original = decodeTexture(
-          destination,
-          await vscode.workspace.fs.readFile(destination),
-        );
-        const [picked] =
-          (await vscode.window.showOpenDialog({
-            canSelectMany: false,
-            filters: { 'PNG images': ['png'] },
-          })) ?? [];
-
-        if (!picked) {
-          return;
-        }
-
-        const image = decodePng(await vscode.workspace.fs.readFile(picked));
-        const [first] = original.levels;
-
-        if (
-          (image.width !== first.width || image.height !== first.height) &&
-          (await vscode.window.showWarningMessage(
-            `The image is ${image.width}×${image.height}; ${fileName(destination)} is ${first.width}×${first.height}. Replace it anyway?`,
-            { modal: true },
-            'Replace',
-          )) !== 'Replace'
-        ) {
-          return;
-        }
-
-        await vscode.workspace.fs.writeFile(
-          destination,
-          encodeLike(image, original, /\.dds$/i.test(destination.path)),
-        );
-        void vscode.window.showInformationMessage(
-          `Replaced ${fileName(destination)} (${original.format})`,
-        );
-      })(),
-    ),
-    vscode.commands.registerCommand('bigfs.convertPng', (target: Target) =>
-      run(async () => {
-        const source = uriOf(target);
-
-        if (!source) {
-          return;
-        }
-
-        const choice = await vscode.window.showQuickPick(
-          [
-            {
-              label: 'TGA 32-bit',
-              description: 'with alpha',
-              extension: 'tga',
-              encode: (image: Parameters<typeof encodePng>[0]) =>
-                encodeTga(image, true),
-            },
-            {
-              label: 'TGA 24-bit',
-              description: 'no alpha',
-              extension: 'tga',
-              encode: (image: Parameters<typeof encodePng>[0]) =>
-                encodeTga(image, false),
-            },
-            ...(['DXT1', 'DXT5', 'DXT3', 'RGBA'] as DdsFormat[]).map(
-              (format) => ({
-                label: `DDS ${format}`,
-                description:
-                  format === 'DXT1'
-                    ? 'no or 1-bit alpha, mipmaps'
-                    : format === 'RGBA'
-                      ? 'uncompressed, mipmaps'
-                      : 'with alpha, mipmaps',
-                extension: 'dds',
+          const choice = await vscode.window.showQuickPick(
+            [
+              {
+                label: 'TGA 32-bit',
+                description: 'with alpha',
+                extension: 'tga',
                 encode: (image: Parameters<typeof encodePng>[0]) =>
-                  encodeDds(image, format, true),
-              }),
-            ),
-          ],
-          { placeHolder: 'Convert to' },
-        );
-
-        if (!choice) {
-          return;
-        }
-
-        const image = decodePng(await vscode.workspace.fs.readFile(source));
-
-        if (
-          choice.extension === 'dds' &&
-          (image.width & (image.width - 1) || image.height & (image.height - 1))
-        ) {
-          void vscode.window.showWarningMessage(
-            'DDS textures should be a power of two on each side; the game may not load this one.',
+                  encodeTga(image, true),
+              },
+              {
+                label: 'TGA 24-bit',
+                description: 'no alpha',
+                extension: 'tga',
+                encode: (image: Parameters<typeof encodePng>[0]) =>
+                  encodeTga(image, false),
+              },
+              ...(['DXT1', 'DXT5', 'DXT3', 'RGBA'] as DdsFormat[]).map(
+                (format) => ({
+                  label: `DDS ${format}`,
+                  description:
+                    format === 'DXT1'
+                      ? 'no or 1-bit alpha, mipmaps'
+                      : format === 'RGBA'
+                        ? 'uncompressed, mipmaps'
+                        : 'with alpha, mipmaps',
+                  extension: 'dds',
+                  encode: (image: Parameters<typeof encodePng>[0]) =>
+                    encodeDds(image, format, true),
+                }),
+              ),
+            ],
+            { placeHolder: 'Convert to' },
           );
-        }
 
-        const output = await pickOutput(
-          source,
-          fileName(source).replace(/\.png$/i, `.${choice.extension}`),
-        );
+          if (!choice) {
+            return;
+          }
 
-        if (output) {
-          await vscode.workspace.fs.writeFile(output, choice.encode(image));
-          void vscode.window.showInformationMessage(
-            `Wrote ${fileName(output)}`,
+          const image = decodePng(await vscode.workspace.fs.readFile(source));
+
+          if (
+            choice.extension === 'dds' &&
+            (image.width & (image.width - 1) ||
+              image.height & (image.height - 1))
+          ) {
+            void vscode.window.showWarningMessage(
+              'DDS textures should be a power of two on each side; the game may not load this one.',
+            );
+          }
+
+          const output = await pickOutput(
+            source,
+            fileName(source).replace(/\.png$/i, `.${choice.extension}`),
           );
-        }
-      })(),
+
+          if (output) {
+            await vscode.workspace.fs.writeFile(output, choice.encode(image));
+            void vscode.window.showInformationMessage(
+              `Wrote ${fileName(output)}`,
+            );
+          }
+        })(),
     ),
   );
 };

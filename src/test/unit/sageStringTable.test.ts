@@ -50,6 +50,15 @@ suite('SAGE string tables', () => {
     );
   });
 
+  test('a text ending in an escaped backslash closes at its quote', () => {
+    const strings = parseStringTable(
+      ['A:Path', '"C:\\\\"', 'END', 'A:Next', '"next"', 'END'].join('\n'),
+    );
+
+    assert.strictEqual(strings.get('a:path')?.text, 'C:\\');
+    assert.strictEqual(strings.get('a:next')?.text, 'next');
+  });
+
   test('the first record of a label wins', () => {
     const strings = parseStringTable(
       ['A:Twice', '"first"', 'END', 'a:twice', '"second"', 'END'].join('\n'),

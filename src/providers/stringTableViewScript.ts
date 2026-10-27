@@ -31,7 +31,8 @@ const editCell = (element, value, multiline, commit) => {
     if (done) return;
     done = true;
     state.editing = undefined;
-    if (save && input.value !== value) commit(input.value);
+    // A text field reports every line break as LF, which is not an edit of CRLF text
+    if (save && input.value !== value.replace(/\\r\\n?/g, String.fromCharCode(10))) commit(input.value);
     else show();
   };
   input.addEventListener('keydown', (event) => {

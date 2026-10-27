@@ -1,16 +1,18 @@
 import * as vscode from 'vscode';
 import { createAptMovie } from '../formats/apt/aptCreate';
 import { APT_VIEW_TYPE } from '../providers/aptEditorProvider';
+import { toUri } from '../common/commandTarget';
+import type { CommandTarget } from '../common/commandTarget';
 
 /**
  * "New APT Movie": writes an empty movie's `.apt`, `.const` and `.dat` into
  * a folder, loose or inside an archive, and opens it in the APT editor.
  */
 
-type Target = vscode.Uri | { resourceUri?: vscode.Uri } | undefined;
+type Target = CommandTarget;
 
 const folderOf = async (target: Target): Promise<vscode.Uri | undefined> => {
-  const uri = target instanceof vscode.Uri ? target : target?.resourceUri;
+  const uri = toUri(target);
 
   if (!uri) {
     const picked = await vscode.window.showOpenDialog({

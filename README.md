@@ -27,6 +27,14 @@ your mod's archives.
 - **Override in Folder** copies archive files into a mod folder at the same
   path.
 - **Search in BIG Archives** finds text inside every archive.
+- **Load order** follows the game: a loose file beats every archive of its
+  install, archives go by their path below it (`___a.big` before `b.big`, the
+  first holding a file wins), and installs are layered by the marker file in
+  their folder: a mod, then ROTWK (`lotrbfme2ep1.exe`), then BFME II
+  (`lotrbfme2.exe`). `bigfs.baseGameFolder` (with `bigfs.underlyingGameFolder`
+  beneath it, found from the registry on Windows when empty) is the lowest
+  layer, so a mod-only workspace still resolves the base game's files. Folders
+  of one kind, such as two mods, keep their workspace folder order.
 - **Compare with Base Game** lists what the workspace adds and changes
   against an untouched install (`bigfs.baseGameFolder`), each side after
   the game's load order, with a diff for every changed text file, and
@@ -37,7 +45,7 @@ your mod's archives.
   against the base game, which files it overrides, which are new, and which
   a base archive would keep because it sorts before the archive's name (in
   the game folder the first archive by name wins; with `-mod` the mod always
-  does), plus the INI errors open for the folder. Hidden files and archives
+  does), plus the INI errors found by checking the folder's files. Hidden files and archives
   are left out.
 - **Check Translations** compares the workspace's string tables language by
   language (from `lang/german/…`-style paths, else a `.csf` header) and

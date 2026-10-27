@@ -408,6 +408,10 @@ export const render = (): void => {
     ctx.save();
     ctx.setTransform(...base);
     for (const mask of leaf.masks ?? []) {
+      // An empty mask clips to nothing; mint skips it (`allow_as_mask`)
+      if (!mask.length) {
+        continue;
+      }
       ctx.clip(maskArea(mask));
     }
     ctx.transform(...leaf.matrix);

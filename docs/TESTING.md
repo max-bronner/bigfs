@@ -217,17 +217,27 @@ Open an `.apt` (with its `.const` beside it).
   them.
 - [ ] **new** **Engine** panel (top of the right side) lists what the movie
   asks of the game, found while it runs, nothing hard-coded:
-  - *Called by the engine*: functions the movie stores but never calls
-    itself (the palantir's `SetPlayerFaction`, `SetPalantirFrameState`).
-    Type the arguments (`evil`, `2`, `true`, `"text"`) and press **Call**.
-  - *Values*: every variable the movie read, with what it held, and its
-    `GetExtern`/`extern.` keys; those it never sets are marked. Typing in
-    a value's field overrides it: the override wins over what the movie
-    holds from the next read, and matches the whole path or its last name
-    (`side` also covers `_root.side`). **Override** adds one for a name not
-    read yet. **Restart with these overrides** runs the movie again with
-    them; **Clear overrides** drops them. Overrides are kept per movie; the
-    filter narrows long lists.
+  - *Called by the engine*: functions the movie defines but never names
+    anywhere else (the palantir's `SetPlayerFaction`,
+    `SetPalantirFrameState`); one it also calls itself is under *Other
+    functions*. Type the arguments (`evil`, `2`, `true`, `"text"`) and press
+    **Call**.
+  - *Values*: every variable the movie read from the game's side, with what
+    it held, and its `GetExtern`/`extern.` keys; those it never sets are
+    marked. A function's own locals and parameters are not listed. Typing in
+    a value's field overrides it: the override matches the whole path from
+    the root (`side` is `_root.side`, `menu.side` is another value) and is
+    written into the movie before and after every script, so `_root.side`
+    and `this.side` read it even after the movie writes the name. Numbers
+    may be typed as `0x74808E`, `1e3`, `NaN` or `-Infinity`. **Override**
+    adds one for a path not read yet (`extern.Key` for an extern).
+    **Restart with these overrides** runs the movie again with them;
+    **Clear overrides** drops them, not the values calls return. Overrides
+    are kept per movie; the filter narrows long lists.
+  - *Extern writes*: what the movie itself writes with `extern.Key = v` or
+    `ToggleExtern`, shown read-only. They are never saved as overrides;
+    `GetExtern` answers your override, else the movie's write, else nothing,
+    and `ToggleExtern` flips each time it runs.
   - *Calls to the engine*: `GameCode`, `FSCommand:` and functions nothing
     defines, with a count and the last arguments; each can be given a
     value to return. They are also written to the log under the stage.

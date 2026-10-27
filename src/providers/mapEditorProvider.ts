@@ -24,9 +24,12 @@ class MapDocument implements vscode.CustomDocument {
   public constructor(
     public readonly uri: vscode.Uri,
     public map: MapFile,
+    private readonly onDispose: () => void,
   ) {}
 
-  public dispose(): void {}
+  public dispose(): void {
+    this.onDispose();
+  }
 }
 
 export const renderHtml = (): string => {
@@ -158,10 +161,13 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
   ): Promise<MapDocument> {
     const source = context.backupId ? vscode.Uri.parse(context.backupId) : uri;
 
-    return new MapDocument(
+    const document: MapDocument = new MapDocument(
       uri,
       parseMap(await vscode.workspace.fs.readFile(source)),
+      () => this.redraws.delete(document),
     );
+
+    return document;
   }
 
   private redraw(document: MapDocument): void {

@@ -15,6 +15,8 @@ import type { ArchiveModel } from '../model/archiveModel';
 import { getFileNodes } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
 import { getNodeUri } from '../model/nodeAddress';
+import { skippedFromPackage } from '../model/modPackage';
+import { recordPackedArchive } from '../model/packagedOutputs';
 import { formatCount } from '../common/messages';
 import { SCHEME } from '../constants';
 import type { RegisterNodeCommand } from './commandCenter';
@@ -66,7 +68,8 @@ export const listFiles = async (
 
 /**
  * Packs every file below a folder into a new BIG4 archive, named by its path
- * below the folder, and asks where to save it
+ * below the folder, and asks where to save it. Hidden files and folders such
+ * as `.git` and `.vscode`, and archives, are not part of a mod.
  */
 const packFolder = async (folder: Uri): Promise<void> => {
   if (folder.scheme !== 'file') {
@@ -88,7 +91,7 @@ const packFolder = async (folder: Uri): Promise<void> => {
       location: ProgressLocation.Notification,
       title: `Packing ${path.basename(target.fsPath)}`,
     },
-    () => packFolderInto(folder, target),
+    () => packFolderInto(folder, target, skippedFromPackage),
   );
 
   if (count) {
@@ -129,6 +132,7 @@ export const packFolderInto = async (
       { magic: 'BIG4', trailer: BIG4_TRAILER },
       entries,
     );
+    recordPackedArchive(target.fsPath);
   }
 
   return files.length;

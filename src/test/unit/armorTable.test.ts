@@ -2,9 +2,11 @@ import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
+  armorEdit,
   armorValue,
   damageTypes,
   readArmorRows,
+  shownArmor,
 } from '../../language/model/armorTable';
 import { parseSageIni } from '../../language/model/sageIniParser';
 import { createSageIniSchema } from '../../language/model/sageIniSchema';
@@ -56,5 +58,76 @@ suite('Armor table', () => {
       '12.5%',
       undefined,
     ]);
+  });
+
+  const rowsOf = (text: string) => {
+    const lines = text.split('\n');
+
+    return readArmorRows(parseSageIni(lines, schema), lines, 'file:///b.ini');
+  };
+
+  test('a type no line reaches lets everything through', () => {
+    const [row] = rowsOf('Armor NoDefault\n  Armor = CRUSH 50%\nEnd\n');
+
+    assert.deepStrictEqual(shownArmor(row, 'PIERCE'), {
+      value: '100%',
+      inherited: true,
+    });
+    assert.deepStrictEqual(shownArmor(row, 'DEFAULT'), {
+      value: '100%',
+      inherited: true,
+    });
+    assert.deepStrictEqual(shownArmor(row, 'CRUSH'), {
+      value: '50%',
+      inherited: false,
+    });
+  });
+
+  test('DEFAULT overwrites the types written before it, not after', () => {
+    const [row] = rowsOf(
+      'Armor Ordered\n  Armor = CRUSH 50%\n  Armor = DEFAULT 80%\n  Armor = PIERCE 20%\nEnd\n',
+    );
+
+    assert.deepStrictEqual(shownArmor(row, 'CRUSH'), {
+      value: '80%',
+      inherited: true,
+    });
+    assert.deepStrictEqual(shownArmor(row, 'PIERCE'), {
+      value: '20%',
+      inherited: false,
+    });
+    assert.deepStrictEqual(shownArmor(row, 'FLAME'), {
+      value: '80%',
+      inherited: true,
+    });
+  });
+
+  test('an edit lands where the game will read it', () => {
+    const [row] = rowsOf(
+      'Armor Ordered\n  Armor = CRUSH 50%\n  Armor = DEFAULT 80%\n  Armor = PIERCE 20%\nEnd\n',
+    );
+
+    assert.deepStrictEqual(armorEdit(row, 'PIERCE', '30%'), {
+      kind: 'replace',
+      line: 3,
+      start: 17,
+      end: 20,
+      old: '20%',
+    });
+    // CRUSH's line is overwritten by the DEFAULT below it: write a new one last
+    assert.deepStrictEqual(armorEdit(row, 'CRUSH', '10%', '\r\n'), {
+      kind: 'insert',
+      line: 4,
+      text: '  Armor = CRUSH 10%\r\n',
+    });
+
+    const [bare] = rowsOf('Armor Bare\n  Armor = CRUSH 50%\nEnd\n');
+
+    // A new DEFAULT goes first, or it would wipe CRUSH
+    assert.deepStrictEqual(armorEdit(bare, 'DEFAULT', '70%'), {
+      kind: 'insert',
+      line: 1,
+      text: '  Armor = DEFAULT 70%\n',
+    });
   });
 });

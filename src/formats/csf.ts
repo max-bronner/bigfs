@@ -1,4 +1,8 @@
-import { decodeWindows1252, encodeWindows1252 } from '../common/windows1252';
+import {
+  decodeWindows1252,
+  encodeWindows1252,
+  unencodableCharacters,
+} from '../common/windows1252';
 /**
  * The `.csf` compiled string table, ported from mint's
  * `crates/sage/str/src/csf.rs` (layout from `GameText.cpp`'s `parseCSF`):
@@ -40,6 +44,28 @@ const tag = (bytes: Uint8Array, at: number) =>
 
 const encodeCp1252 = (text: string): number[] =>
   Array.from(encodeWindows1252(text));
+
+/**
+ * Why a label or speech file name cannot be saved, if it cannot: a `.csf`
+ * stores both as Windows-1252 bytes
+ */
+export const csfNameProblem = (name: string): string | undefined => {
+  const missing = unencodableCharacters(name);
+
+  return missing.length
+    ? `${missing.map((char) => JSON.stringify(char)).join(' ')} cannot be stored in a .csf, which writes labels and speech names in Windows-1252`
+    : undefined;
+};
+
+/**
+ * A cell's new text with the line breaks the old one used. A page's text
+ * field reports every break as `\n`, so a cell written with `\r\n` would
+ * otherwise lose its carriage returns the first time it is edited.
+ */
+export const keepLineBreaks = (previous: string, typed: string): string =>
+  previous.includes('\r\n') && !/(?<!\r)\n/.test(previous)
+    ? typed.replace(/\r?\n/g, '\r\n')
+    : typed;
 
 /** Parses a `.csf`; every length is checked against the bytes present */
 export const parseCsf = (bytes: Uint8Array): CsfFile => {

@@ -5,10 +5,13 @@ import { getNodeUri } from '../model/nodeAddress';
 import {
   BaseIndex,
   ComparedFile,
+  ModFile,
   compareWithBase,
   indexBaseGame,
   readBaseEntry,
 } from '../model/modDiff';
+import { findBaseGameFolders } from '../model/baseGameFolders';
+import { packedArchives, useOutputStore } from '../model/packagedOutputs';
 import { webviewPage } from '../providers/webviewPage';
 import { registerPackageMod } from './packageModCommand';
 import { decodeIniText } from '../common/windows1252';
@@ -134,6 +137,7 @@ export const registerModDiffCommands = (
   const documents = new SageIniDocuments(context.extensionUri);
 
   context.subscriptions.push(documents);
+  useOutputStore(context.globalState);
 
   const baseFolder = async (): Promise<string | undefined> => {
     const configured = vscode.workspace
@@ -161,8 +165,156 @@ export const registerModDiffCommands = (
     return picked?.fsPath;
   };
 
+  /** The base game's installs, the highest layer first; asks for a folder when none is set */
+  const baseLayers = async (): Promise<string[]> =>
+    (await baseFolder()) ? findBaseGameFolders() : [];
+
+  const compare = (folders: string[]): Thenable<void> =>
+    vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Comparing with the base game',
+        cancellable: true,
+      },
+      async (progress, token) => {
+        progress.report({ message: 'reading the base game' });
+
+        const indexed = await indexBaseGame(folders, {
+          exclude: packedArchives(),
+        });
+        const folder = folders.join(', ');
+
+        base = { folder, index: indexed.index };
+
+        // What the mod gives the game: the winners of the view that are not
+        // the base game's own, whichever layer of it they sit in
+        const files = getGameFiles(await gameView.getRoot()).flatMap((node) => {
+          const winner = node.winner;
+
+          if (!winner || winner.ref.base) {
+            return [];
+          }
+
+          const uri =
+            winner.ref.kind === 'entry'
+              ? getNodeUri(winner.ref.node)
+              : winner.ref.uri;
+
+          return [{ entryPath: winner.entryPath.replace(/\\/g, '/'), uri }];
+        });
+        const sized: ModFile[] = [];
+
+        for (const file of files) {
+          try {
+            sized.push({
+              entryPath: file.entryPath,
+              size: (await vscode.workspace.fs.stat(file.uri)).size,
+              read: () => vscode.workspace.fs.readFile(file.uri),
+            });
+          } catch {
+            // Gone since the view was built, such as a loose file deleted
+            // meanwhile: it is no longer part of the mod
+          }
+        }
+
+        const results = await compareWithBase(
+          sized,
+          indexed.index,
+          (done) =>
+            progress.report({ message: `${done} of ${sized.length} files` }),
+          () => token.isCancellationRequested,
+        );
+
+        if (token.isCancellationRequested) {
+          return;
+        }
+
+        const byPath = new Map(files.map((file) => [file.entryPath, file.uri]));
+
+        progress.report({ message: 'comparing definitions' });
+
+        // What each changed INI file changes, definition by definition
+        const schema = await documents.getSchema();
+        const definitions = new Map<string, DefinitionDiff>();
+
+        for (const file of results) {
+          if (token.isCancellationRequested) {
+            return;
+          }
+
+          const entry = indexed.index.get(file.entryPath.toLowerCase());
+          const modUri = byPath.get(file.entryPath);
+
+          if (
+            file.change !== 'changed' ||
+            !entry ||
+            !modUri ||
+            !/\.ini$/i.test(file.entryPath)
+          ) {
+            continue;
+          }
+
+          const read = (bytes: Uint8Array) => {
+            const lines = decodeIniText(bytes).split(/\r?\n/);
+
+            return { document: parseSageIni(lines, schema), lines };
+          };
+
+          try {
+            definitions.set(
+              file.entryPath,
+              diffDefinitions(
+                read(await readBaseEntry(entry)),
+                read(await vscode.workspace.fs.readFile(modUri)),
+              ),
+            );
+          } catch {
+            // A file that does not read keeps its plain Diff button
+          }
+        }
+
+        const panel = vscode.window.createWebviewPanel(
+          'bigfs.modDiff',
+          'Mod against Base Game',
+          vscode.ViewColumn.Active,
+          { enableScripts: true, localResourceRoots: [] },
+        );
+
+        panel.webview.html = renderReport(
+          results,
+          folder,
+          indexed.archives,
+          indexed.unreadable,
+          definitions,
+        );
+        panel.webview.onDidReceiveMessage(
+          async (message: { action: string; path: string }) => {
+            const modUri = byPath.get(message.path);
+
+            if (!modUri) {
+              return;
+            }
+
+            if (message.action === 'diff') {
+              await vscode.commands.executeCommand(
+                'vscode.diff',
+                vscode.Uri.from({
+                  scheme: BASE_SCHEME,
+                  path: `/${message.path}`,
+                }),
+                modUri,
+                `${message.path.slice(message.path.lastIndexOf('/') + 1)} (base ↔ mod)`,
+              );
+            } else {
+              await vscode.commands.executeCommand('vscode.open', modUri);
+            }
+          },
+        );
+      },
+    );
+
   context.subscriptions.push(
-    registerPackageMod(baseFolder),
+    registerPackageMod(baseLayers, documents),
     vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, {
       provideTextDocumentContent: async (uri) => {
         const entry = base?.index.get(
@@ -173,131 +325,22 @@ export const registerModDiffCommands = (
       },
     }),
     vscode.commands.registerCommand('bigfs.compareWithBaseGame', async () => {
-      const folder = await baseFolder();
+      const folders = await baseLayers();
 
-      if (!folder) {
+      if (!folders.length) {
+        void vscode.window.showWarningMessage(
+          'No base game folder is set, or it cannot be read (bigfs.baseGameFolder).',
+        );
         return;
       }
 
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: 'Comparing with the base game',
-          cancellable: false,
-        },
-        async (progress) => {
-          progress.report({ message: 'reading the base game' });
-
-          const indexed = await indexBaseGame(folder);
-
-          base = { folder, index: indexed.index };
-
-          const files = getGameFiles(await gameView.getRoot()).flatMap(
-            (node) => {
-              const winner = node.winner;
-
-              if (!winner) {
-                return [];
-              }
-
-              const uri =
-                winner.ref.kind === 'entry'
-                  ? getNodeUri(winner.ref.node)
-                  : winner.ref.uri;
-
-              return [{ entryPath: winner.entryPath.replace(/\\/g, '/'), uri }];
-            },
-          );
-          const sized = await Promise.all(
-            files.map(async (file) => ({
-              ...file,
-              size: (await vscode.workspace.fs.stat(file.uri)).size,
-              read: () => vscode.workspace.fs.readFile(file.uri),
-            })),
-          );
-          const results = await compareWithBase(sized, indexed.index, (done) =>
-            progress.report({ message: `${done} of ${sized.length} files` }),
-          );
-          const byPath = new Map(
-            files.map((file) => [file.entryPath, file.uri]),
-          );
-          const panel = vscode.window.createWebviewPanel(
-            'bigfs.modDiff',
-            'Mod against Base Game',
-            vscode.ViewColumn.Active,
-            { enableScripts: true, localResourceRoots: [] },
-          );
-
-          progress.report({ message: 'comparing definitions' });
-
-          // What each changed INI file changes, definition by definition
-          const schema = await documents.getSchema();
-          const definitions = new Map<string, DefinitionDiff>();
-
-          for (const file of results) {
-            const entry = indexed.index.get(file.entryPath.toLowerCase());
-            const modUri = byPath.get(file.entryPath);
-
-            if (
-              file.change !== 'changed' ||
-              !entry ||
-              !modUri ||
-              !/\.ini$/i.test(file.entryPath)
-            ) {
-              continue;
-            }
-
-            const read = (bytes: Uint8Array) => {
-              const lines = decodeIniText(bytes).split(/\r?\n/);
-
-              return { document: parseSageIni(lines, schema), lines };
-            };
-
-            try {
-              definitions.set(
-                file.entryPath,
-                diffDefinitions(
-                  read(await readBaseEntry(entry)),
-                  read(await vscode.workspace.fs.readFile(modUri)),
-                ),
-              );
-            } catch {
-              // A file that does not read keeps its plain Diff button
-            }
-          }
-
-          panel.webview.html = renderReport(
-            results,
-            folder,
-            indexed.archives,
-            indexed.unreadable,
-            definitions,
-          );
-          panel.webview.onDidReceiveMessage(
-            async (message: { action: string; path: string }) => {
-              const modUri = byPath.get(message.path);
-
-              if (!modUri) {
-                return;
-              }
-
-              if (message.action === 'diff') {
-                await vscode.commands.executeCommand(
-                  'vscode.diff',
-                  vscode.Uri.from({
-                    scheme: BASE_SCHEME,
-                    path: `/${message.path}`,
-                  }),
-                  modUri,
-                  `${message.path.slice(message.path.lastIndexOf('/') + 1)} (base ↔ mod)`,
-                );
-              } else {
-                await vscode.commands.executeCommand('vscode.open', modUri);
-              }
-            },
-          );
-        },
-      );
+      try {
+        await compare(folders);
+      } catch (error) {
+        void vscode.window.showErrorMessage(
+          `Comparing with the base game failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }),
   );
 };

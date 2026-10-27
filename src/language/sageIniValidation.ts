@@ -31,8 +31,8 @@ import { assetNamesToCheck, getAssetDiagnostics } from './sageIniAssetCheck';
 /** INI files a validation reads */
 const INI_PATTERN = /\.(ini|inc|bhav)$/i;
 
-/** Builds the diagnostics of one file from its text */
-const diagnoseText = (
+/** Builds the diagnostics of one file from its text; assets are checked when their names are given */
+export const diagnoseText = (
   text: string,
   path: string,
   schema: Awaited<ReturnType<SageIniDocuments['getSchema']>>,

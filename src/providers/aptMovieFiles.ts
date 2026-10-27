@@ -5,6 +5,7 @@ import type { AptEdit } from '../formats/apt/aptWriter';
 import type { ArchiveModel } from '../model/archiveModel';
 import { findBeside, listBeside, workspaceMovies } from './aptAccess';
 import { movieKey } from './aptLibrary';
+import { toUri } from '../common/commandTarget';
 
 /**
  * A movie as a whole: its `.apt`, `.const` and `.dat`, its `_geometry`
@@ -147,12 +148,7 @@ const closeTabs = async (aptUri: vscode.Uri): Promise<boolean> => {
 
 /** The movie a command was given, or the one in the active editor */
 const targetOf = (target: unknown): vscode.Uri | undefined => {
-  if (target instanceof vscode.Uri) {
-    return target;
-  }
-
-  const given = (target as { resourceUri?: vscode.Uri } | undefined)
-    ?.resourceUri;
+  const given = toUri(target);
   const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 
   return (
