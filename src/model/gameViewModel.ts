@@ -139,7 +139,7 @@ export class GameViewModel implements Disposable {
             return {
               entryPath: node.entryPath,
               ref: { kind: 'entry' as const, node, base: source.base },
-              origin: `${source.label}: ${archive.pathInSource}`,
+              origin: archive.pathInSource,
             };
           }),
         });
