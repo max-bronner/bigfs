@@ -94,7 +94,7 @@ export interface HitArea {
  * red, green, blue and add terms, and the instance's own alpha, which a
  * script may have changed
  */
-const placedColor = (child: Instance): ColorTransform => {
+export const placedColor = (child: Instance): ColorTransform => {
   const depth = Number(child.path.split('/').pop());
   const placement =
     child.parent && !child.dynamic && Number.isInteger(depth)
@@ -105,7 +105,7 @@ const placedColor = (child: Instance): ColorTransform => {
             each.character === child.placed,
         )
       : undefined;
-  const { mult, add } = placement?.color ?? IDENTITY_COLOR;
+  const { mult, add } = child.tint ?? placement?.color ?? IDENTITY_COLOR;
 
   return { mult: [mult[0], mult[1], mult[2], child.alpha], add };
 };

@@ -203,6 +203,16 @@ Open an `.apt` (with its `.const` beside it).
   by scripts, `_visible`/`_x`/`_alpha` and the rest. Check a menu or the
   palantir behaves as in the game once the values below are overridden
   (#94).
+- [ ] **new** More of the script built-ins run as in the game (ported from
+  mint2's apt-player): `attachMovie`, `duplicateMovieClip` and
+  `createEmptyMovieClip` take depths from 0 (above anything the timeline
+  places) and copy an initial-values object; `swapDepths`,
+  `getNextHighestDepth` and `getInstanceAtDepth` agree with `getDepth`;
+  `removeMovieClip` leaves clips the timeline placed alone;
+  `localToGlobal`/`globalToLocal`, `hitTest` and `getBounds` use the clips'
+  boxes; `Color` (`setRGB`, `getRGB`, `setTransform`, `getTransform`) tints a
+  clip. Open a menu that tints or stacks clips by script and check the
+  colours and stacking match the game.
 - [ ] **new** Selecting characters, scrubbing and playing stay as quick
   with scripts respected as with them ignored, and nothing a script does
   breaks the editor: a script that fails or runs away is stopped and

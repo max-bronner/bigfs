@@ -273,4 +273,73 @@ suite('APT ActionScript machine', () => {
     assert.strictEqual(engine.overrides.size, 0);
     assert.strictEqual(engine.returns.get('gamecode'), '5');
   });
+
+  test('script depths sit above the timeline and swap', () => {
+    const { player, lines } = run(
+      {},
+      `a = _root.createEmptyMovieClip("a", 5);
+       b = _root.createEmptyMovieClip("b", 9);
+       trace(a.getDepth()); trace(_root.getNextHighestDepth());
+       a.swapDepths(b); trace(a.getDepth()); trace(b.getDepth());
+       a.swapDepths(20); trace(a.getDepth()); trace(_root.getNextHighestDepth());
+       trace(_root.getInstanceAtDepth(20) == a);
+       stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), [
+      '5',
+      '10',
+      '9',
+      '5',
+      '20',
+      '21',
+      'true',
+    ]);
+    assert.strictEqual(
+      [...player.root.children.values()].find((c) => c.name === 'a')!.path,
+      `${player.root.path}/${20 + 16384}`,
+    );
+  });
+
+  test('only a script-owned clip is removed by removeMovieClip', () => {
+    const { player } = run(
+      {},
+      `ring.removeMovieClip(); c = _root.createEmptyMovieClip("c", 1); c.removeMovieClip(); stop();`,
+    );
+
+    assert.ok(player.find('/1'), 'the timeline-placed ring stays');
+    assert.ok(![...player.root.children.values()].some((c) => c.name === 'c'));
+  });
+
+  test('attachMovie and duplicateMovieClip copy the initial object', () => {
+    const { lines } = run(
+      {},
+      `i = new Object(); i.n = 4; d = ring.duplicateMovieClip("d", 3, i); trace(d.n); trace(d.getDepth()); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['4', '3']);
+  });
+
+  test('localToGlobal and globalToLocal go through the clip chain and back', () => {
+    const { lines } = run(
+      {},
+      `ring._x = 10; ring._y = 20;
+       p = new Object(); p.x = 1; p.y = 2; ring.localToGlobal(p); trace(p.x); trace(p.y);
+       ring.globalToLocal(p); trace(p.x); trace(p.y); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['11', '22', '1', '2']);
+  });
+
+  test('Color sets and reads a clip tint through the colour transform', () => {
+    const { player, lines } = run(
+      {},
+      `c = new Color(ring); c.setRGB(0xFF8000); trace(c.getRGB());
+       o = new Object(); o.ra = 50; o.bb = 51; c.setTransform(o); t = c.getTransform();
+       trace(t.ra); trace(t.bb); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['16744448', '50', '51']);
+    assert.deepStrictEqual(player.find('/1')!.tint!.mult.slice(0, 1), [0.5]);
+  });
 });

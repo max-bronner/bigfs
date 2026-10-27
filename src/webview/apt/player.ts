@@ -13,6 +13,7 @@ import type {
 } from "../../formats/apt/aptMovie";
 import type { PageMovie } from "./protocol";
 import { displayList, framesOf } from "./timeline";
+import type { ColorTransform } from "./timeline";
 
 /**
  * A small APT player: every placed character is an instance, every
@@ -72,6 +73,8 @@ export interface Instance {
   clipDepth?: number;
   /** `onClipEvent` handlers its placement carries */
   clipActions?: { events: number; block: number }[];
+  /** The colour a script set with `Color`, over what the timeline places */
+  tint?: ColorTransform;
   /** False once a script hides it */
   visible?: boolean;
   /** A text field's text, once a script sets it */
