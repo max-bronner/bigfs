@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 import { webviewPage } from '../providers/webviewPage';
-import { armorValue, damageTypes, readArmorRows } from './model/armorTable';
+import {
+  armorEdit,
+  armorValue,
+  damageTypes,
+  readArmorRows,
+} from './model/armorTable';
 import type {
   ArmorRow,
   ArmorTableMessage,
@@ -147,6 +152,13 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
     return message;
   }
 
+  private async stale(): Promise<void> {
+    void vscode.window.showErrorMessage(
+      'The file changed since the table was built; it has been refreshed',
+    );
+    await this.refresh();
+  }
+
   public async receive(message: FromArmorPage): Promise<void> {
     if (message.kind === 'ready') {
       await this.refresh();
@@ -184,21 +196,42 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
       return;
     }
 
-    const cell = row.cells[message.type];
+    // The table may be up to 300 ms behind the file: the lines it would
+    // edit must still read as the table saw them
+    const document = await vscode.workspace.openTextDocument(uri);
+    const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+    const change = armorEdit(row, message.type.toUpperCase(), value, eol);
     const edit = new vscode.WorkspaceEdit();
 
-    if (cell) {
-      edit.replace(
-        uri,
-        new vscode.Range(cell.line, cell.start, cell.line, cell.end),
-        value,
+    if (change.kind === 'replace') {
+      const range = new vscode.Range(
+        change.line,
+        change.start,
+        change.line,
+        change.end,
       );
+
+      if (
+        change.line >= document.lineCount ||
+        document.getText(range) !== change.old
+      ) {
+        await this.stale();
+        return;
+      }
+      edit.replace(uri, range, value);
     } else {
-      edit.insert(
-        uri,
-        new vscode.Position(row.endLine, 0),
-        `${row.indent}Armor = ${message.type} ${value}\n`,
-      );
+      const anchor = Math.min(row.endLine, document.lineCount - 1);
+
+      if (
+        row.startLine >= document.lineCount ||
+        !/^\s*armor\b/i.test(document.lineAt(row.startLine).text) ||
+        (change.line === row.endLine &&
+          !/^\s*end\b/i.test(document.lineAt(anchor).text))
+      ) {
+        await this.stale();
+        return;
+      }
+      edit.insert(uri, new vscode.Position(change.line, 0), change.text);
     }
     await vscode.workspace.applyEdit(edit);
     await this.refresh();

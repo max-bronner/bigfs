@@ -3,6 +3,8 @@ import { parseW3dAnimations } from '../../formats/w3dAnimation';
 import type { W3dAnimation } from '../../formats/w3dAnimation';
 import {
   easeAnimation,
+  frameRateProblem,
+  rateAnimation,
   retimeAnimation,
   reverseAnimation,
   trimAnimation,
@@ -108,5 +110,31 @@ suite('W3D animation editing', () => {
     back.channels.forEach((channel, index) =>
       assert.deepStrictEqual(channel.values, source.channels[index].values),
     );
+  });
+
+  test('a rate is a whole number of frames a second', () => {
+    assert.strictEqual(rateAnimation(animation(), 24).frameRate, 24);
+    assert.strictEqual(frameRateProblem(30), undefined);
+
+    for (const bad of [12.5, 0.4, 0, -5, 1001, NaN, Infinity]) {
+      assert.throws(
+        () => rateAnimation(animation(), bad),
+        /whole number from 1 to 1000/,
+        String(bad),
+      );
+    }
+  });
+
+  test('a rate that would be rounded is not written', () => {
+    assert.throws(
+      () => writeW3dAnimation({ ...animation(), frameRate: 12.5 }),
+      /whole number/,
+    );
+
+    const [written] = parseW3dAnimations(
+      writeW3dAnimation({ ...animation(), frameRate: 12 }),
+    );
+
+    assert.strictEqual(written.frameRate, 12);
   });
 });

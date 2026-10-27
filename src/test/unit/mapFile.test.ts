@@ -286,6 +286,33 @@ suite('Maps', () => {
   });
 });
 
+suite('Map string values', () => {
+  const rename = (value: string) =>
+    parseMap(
+      writeMap(
+        applyMapEdit(parseMap(buildMap()), {
+          kind: 'dict',
+          owner: 'world',
+          key: 'mapName',
+          value: { type: 'string', value },
+        }),
+      ),
+    );
+
+  test('a curly apostrophe or euro sign is saved as its Windows-1252 byte', () => {
+    for (const text of ['Helm’s Deep', '€5 “quoted” – done', 'café']) {
+      const map = rename(text);
+
+      assert.deepStrictEqual(map.problems, []);
+      assert.strictEqual(map.worldInfo?.entries[0].value.value, text);
+    }
+  });
+
+  test('a character outside Windows-1252 is refused', () => {
+    assert.throws(() => rename('Fords of Isen 日本'), /Windows-1252/);
+  });
+});
+
 suite('Map scripts, teams and areas', () => {
   test('are read with their names, flags and calls', () => {
     const map = parseMap(buildMap());

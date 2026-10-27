@@ -1,7 +1,11 @@
 import * as vscode from 'vscode';
 import { parseCsf, writeCsf } from '../formats/csf';
 import { parseStringRecords, quoteStringText } from './model/sageStringRecords';
-import { decodeWindows1252, encodeWindows1252 } from '../common/windows1252';
+import {
+  decodeWindows1252,
+  encodeWindows1252,
+  unencodableCharacters,
+} from '../common/windows1252';
 import { registerTranslationCheck } from './translationCheck';
 
 /**
@@ -80,7 +84,7 @@ export const findStrProblems = (
 export const csfToStr = (
   bytes: Uint8Array,
   eol = '\r\n',
-): { text: string; dropped: number } => {
+): { text: string; dropped: number; unencodable: string[] } => {
   const file = parseCsf(bytes);
   let dropped = 0;
   const text = file.labels
@@ -100,7 +104,7 @@ export const csfToStr = (
     })
     .join(eol);
 
-  return { text, dropped };
+  return { text, dropped, unencodable: unencodableCharacters(text) };
 };
 
 /** A `.csf` from a `.str` file's text, every record in order */
@@ -182,12 +186,23 @@ export const registerSageStrLanguage = (
     const bytes = await vscode.workspace.fs.readFile(source);
 
     if (isCsf) {
-      const { text, dropped } = csfToStr(bytes);
+      const { text, dropped, unencodable } = csfToStr(bytes);
 
       await vscode.workspace.fs.writeFile(
         output,
         encodeWindows1252(text, 0x3f),
       );
+
+      if (unencodable.length) {
+        void vscode.window.showWarningMessage(
+          `The .str file is Windows-1252, which lacks ${unencodable
+            .slice(0, 8)
+            .map((char) => JSON.stringify(char))
+            .join(' ')}${unencodable.length > 8 ? ' and more' : ''}; ${
+            unencodable.length === 1 ? 'it was' : 'they were'
+          } written as ?.`,
+        );
+      }
 
       if (dropped) {
         void vscode.window.showInformationMessage(

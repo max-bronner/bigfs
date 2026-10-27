@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import { modelCandidates } from '../../formats/w3dModelFinder';
-import { parseW3dAnimations } from '../../formats/w3dAnimation';
+import { findAnimation, parseW3dAnimations } from '../../formats/w3dAnimation';
+import type { W3dAnimation } from '../../formats/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3dScene';
 import { createToolRegistry } from '../../tools/toolRegistry';
 import { chunk, concat, floats, hierarchy, name } from './w3d.test';
@@ -163,5 +164,37 @@ suite('W3D model for a skeleton', () => {
         'guarcher_atka.w3d',
       ],
     );
+  });
+
+  test('an INI line names an animation by skeleton and clip', () => {
+    const clip = (name: string, hierarchyName: string): W3dAnimation => ({
+      name,
+      hierarchyName,
+      frameCount: 1,
+      frameRate: 30,
+      channels: [],
+    });
+    const animations = [
+      clip('UNIT_IDLE', 'UNIT_SKL'),
+      clip('UNIT_RUN', 'UNIT_SKL'),
+    ];
+
+    assert.strictEqual(
+      findAnimation(animations, 'UNIT_SKL.UNIT_RUN'),
+      animations[1],
+    );
+    assert.strictEqual(
+      findAnimation(animations, 'unit_skl.unit_run'),
+      animations[1],
+    );
+    assert.strictEqual(
+      findAnimation(animations, 'OTHER_SKL.UNIT_RUN'),
+      animations[1],
+    );
+    assert.strictEqual(
+      findAnimation(animations, 'UNIT_SKL.MISSING'),
+      animations[0],
+    );
+    assert.strictEqual(findAnimation([], 'A.B'), undefined);
   });
 });

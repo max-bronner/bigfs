@@ -5,6 +5,8 @@ import type { W3dAnimation } from '../formats/w3dAnimation';
 import {
   MAX_NAME,
   easeAnimation,
+  frameRateProblem,
+  rateAnimation,
   retimeAnimation,
   reverseAnimation,
   trimAnimation,
@@ -40,10 +42,7 @@ export const applyAnimationEdit = (
     case 'trim':
       return trimAnimation(animation, edit.from, edit.to);
     case 'rate':
-      if (!(edit.frameRate > 0)) {
-        throw new Error('A frame rate above 0');
-      }
-      return { ...animation, frameRate: edit.frameRate };
+      return rateAnimation(animation, edit.frameRate);
   }
 };
 
@@ -121,9 +120,16 @@ const askEdit = async (
         : { op: 'trim', from: Math.round(from), to: Math.round(to) };
     }
     case 'rate': {
-      const frameRate = await number('Frames a second', animation.frameRate);
+      const answer = await vscode.window.showInputBox({
+        prompt: 'Frames a second',
+        value: String(animation.frameRate),
+        validateInput: (text) =>
+          text.trim() === '' ? 'A number' : frameRateProblem(Number(text)),
+      });
 
-      return frameRate === undefined ? undefined : { op: 'rate', frameRate };
+      return answer === undefined
+        ? undefined
+        : { op: 'rate', frameRate: Number(answer) };
     }
     default:
       return undefined;

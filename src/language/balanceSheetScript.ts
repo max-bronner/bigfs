@@ -36,14 +36,15 @@ const compare = (a, b) => {
 
 const editCell = (td, row, column, cell) => {
   const input = document.createElement('input');
-  input.value = cell.value;
+  const written = cell.written ?? cell.value;
+  input.value = written;
   let done = false;
   const finish = (save) => {
     if (done) return;
     done = true;
-    if (save && input.value.trim() && input.value.trim() !== cell.value) {
+    if (save && input.value.trim() && input.value.trim() !== written) {
       td.textContent = input.value.trim() + ' …';
-      vscode.postMessage({ kind: 'edit', row: row.name, column, old: cell.value, value: input.value.trim() });
+      vscode.postMessage({ kind: 'edit', row: row.name, column, old: written, value: input.value.trim() });
     } else {
       td.textContent = cell.value;
     }
@@ -93,6 +94,9 @@ const render = () => {
           td.title = 'From ' + cell.from + '; double-click to edit it there';
         } else if (cell.shared && cell.shared > 1) {
           td.title = 'Written in the weapon, which ' + cell.shared + ' templates fire';
+        }
+        if (cell.written) {
+          td.title = (td.title ? td.title + '. ' : '') + 'Written as ' + cell.written;
         }
         if (cell.uri) {
           td.classList.add('editable');

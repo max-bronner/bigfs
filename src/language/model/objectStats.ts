@@ -1,3 +1,9 @@
+import {
+  evaluateCall,
+  evaluateMacroBody,
+  formatValue,
+} from './sageIniPreprocessor';
+import type { LookupMacro } from './sageIniPreprocessor';
 import type { SageBlock, SageDocument, SageStatement } from './sageIniParser';
 
 /**
@@ -27,10 +33,19 @@ export type StatColumn = (typeof STAT_COLUMNS)[number];
 
 /** A value and the token it is written as */
 export interface StatValue {
+  /** The number a macro or `#ADD` call stands for, else the token itself */
   value: string;
+  /** The text at `start`..`end`, when it differs from `value` */
+  written?: string;
   line: number;
   start: number;
   end: number;
+}
+
+/** What evaluating a number needs: the file's lines and the macros defined */
+export interface StatEvaluation {
+  lines: string[];
+  lookupMacro: LookupMacro;
 }
 
 export interface ObjectStats {
@@ -46,7 +61,10 @@ export interface ObjectStats {
 }
 
 export interface WeaponStats {
+  /** The damage when one nugget writes it, so it can be edited in place */
   damage?: StatValue;
+  /** The sum of every damage nugget's damage, when more than one writes it */
+  damageTotal?: { value: string; nuggets: number };
   range?: StatValue;
   delay?: StatValue;
 }
@@ -59,20 +77,78 @@ const OBJECT_FIELDS: Record<string, StatColumn> = {
   visionrange: 'vision',
 };
 
+const parseNumber = (text: string): number | undefined =>
+  /^[+-]?(\d+\.?\d*|\.\d+)%?$/.test(text) ? parseFloat(text) : undefined;
+
+/** The number a call or a macro at a token stands for, if it is one */
+const evaluateToken = (
+  parsed: SageDocument,
+  statement: SageStatement,
+  token: { text: string; start: number },
+  lookupMacro: LookupMacro,
+): { value: string; end?: number } | undefined => {
+  const call = parsed.calls.find(
+    (each) => each.line === statement.line && each.start === token.start,
+  );
+
+  if (call) {
+    const result = evaluateCall(call, lookupMacro);
+
+    return 'value' in result
+      ? { value: formatValue(result.value), end: call.end }
+      : undefined;
+  }
+
+  const body = lookupMacro(token.text)?.trim();
+
+  if (body === undefined) {
+    return undefined;
+  }
+
+  const plain = parseNumber(body);
+  const result =
+    plain === undefined ? evaluateMacroBody(body, lookupMacro) : undefined;
+
+  if (plain !== undefined) {
+    return { value: formatValue(plain) };
+  }
+  return result && 'value' in result
+    ? { value: formatValue(result.value) }
+    : undefined;
+};
+
+/**
+ * A statement's token as a value. With `evaluation`, a macro or an `#ADD`
+ * call shows the number it stands for, and what is written stays on
+ * `written` so an edit can replace it.
+ */
 const valueOf = (
   statement: SageStatement,
   index = 0,
+  parsed?: SageDocument,
+  evaluation?: StatEvaluation,
 ): StatValue | undefined => {
   const token = statement.values[index];
 
-  return (
-    token && {
-      value: token.text,
-      line: statement.line,
-      start: token.start,
-      end: token.end,
-    }
-  );
+  if (!token) {
+    return undefined;
+  }
+
+  const evaluated =
+    parsed && evaluation
+      ? evaluateToken(parsed, statement, token, evaluation.lookupMacro)
+      : undefined;
+  const end = evaluated?.end ?? token.end;
+
+  return {
+    value: evaluated?.value ?? token.text,
+    written: evaluated
+      ? evaluation!.lines[statement.line]?.slice(token.start, end)
+      : undefined,
+    line: statement.line,
+    start: token.start,
+    end,
+  };
 };
 
 /** The innermost block of `root` holding a line, and the chain to it */
@@ -111,6 +187,7 @@ const fieldsIn = (parsed: SageDocument, root: SageBlock) =>
 export const readObjectStats = (
   parsed: SageDocument,
   block: SageBlock,
+  evaluation?: StatEvaluation,
 ): ObjectStats => {
   const [name, parent] = (block.name ?? '').split(/\s+/);
   const stats: ObjectStats = {
@@ -135,18 +212,26 @@ export const readObjectStats = (
 
     if (!chain.length) {
       if (OBJECT_FIELDS[key]) {
-        set(OBJECT_FIELDS[key], valueOf(statement));
+        set(
+          OBJECT_FIELDS[key],
+          valueOf(
+            statement,
+            0,
+            key === 'side' ? undefined : parsed,
+            evaluation,
+          ),
+        );
       } else if (key === 'kindof') {
         stats.selectable ||= statement.values.some(
           (value) => value.text.toUpperCase() === 'SELECTABLE',
         );
       }
     } else if (holder === 'body' && key === 'maxhealth') {
-      set('health', valueOf(statement));
+      set('health', valueOf(statement, 0, parsed, evaluation));
     } else if (holder === 'armorset' && key === 'armor') {
       set('armor', valueOf(statement));
     } else if (holder === 'locomotorset' && key === 'speed') {
-      set('speed', valueOf(statement));
+      set('speed', valueOf(statement, 0, parsed, evaluation));
     } else if (
       holder === 'weaponset' &&
       key === 'weapon' &&
@@ -158,26 +243,44 @@ export const readObjectStats = (
   return stats;
 };
 
-/** A weapon's damage (its first damage nugget), range and delay */
+/** A weapon's damage (summed over its damage nuggets), range and delay */
 export const readWeaponStats = (
   parsed: SageDocument,
   block: SageBlock,
+  evaluation?: StatEvaluation,
 ): WeaponStats => {
   const stats: WeaponStats = {};
+  const nuggets: StatValue[] = [];
 
   for (const { statement, chain } of fieldsIn(parsed, block)) {
     const key = statement.keyword.text.toLowerCase();
 
     if (!chain.length && key === 'attackrange') {
-      stats.range ??= valueOf(statement);
+      stats.range ??= valueOf(statement, 0, parsed, evaluation);
     } else if (!chain.length && key === 'delaybetweenshots') {
-      stats.delay ??= valueOf(statement);
+      stats.delay ??= valueOf(statement, 0, parsed, evaluation);
     } else if (
       chain[0]?.keyword.toLowerCase() === 'damagenugget' &&
       key === 'damage'
     ) {
-      stats.damage ??= valueOf(statement);
+      const damage = valueOf(statement, 0, parsed, evaluation);
+
+      if (damage) {
+        nuggets.push(damage);
+      }
     }
+  }
+  if (nuggets.length === 1) {
+    stats.damage = nuggets[0];
+  } else if (nuggets.length > 1) {
+    const numbers = nuggets.map((nugget) => parseNumber(nugget.value));
+
+    stats.damageTotal = {
+      value: numbers.every((number) => number !== undefined)
+        ? formatValue(numbers.reduce((sum, number) => sum! + number!, 0)!)
+        : nuggets.map((nugget) => nugget.value).join(' + '),
+      nuggets: nuggets.length,
+    };
   }
   return stats;
 };

@@ -11,7 +11,7 @@ import { forEachBlock } from './model/sageIniParser';
 import type { SageBlock, SageDocument } from './model/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
-import { createParseCache } from './workspaceText';
+import { createParseCache, readWorkspaceText } from './workspaceText';
 import type { ParseCache } from './workspaceText';
 
 /**
@@ -39,6 +39,8 @@ export interface SheetCell {
   shared?: number;
   /** How a computed value is worked out; it is not written anywhere */
   derived?: string;
+  /** What is written at the place, when the value is evaluated from it */
+  written?: string;
 }
 
 export interface SheetRow {
@@ -53,6 +55,7 @@ export interface SheetRow {
 
 const cellOf = (uri: string, value: StatValue, from?: string): SheetCell => ({
   value: value.value,
+  written: value.written,
   uri,
   line: value.line,
   start: value.start,
@@ -218,7 +221,10 @@ class BalanceSheet {
   private async blockAt(
     uri: vscode.Uri,
     line: number,
-  ): Promise<{ parsed: SageDocument; block: SageBlock } | undefined> {
+    texts: Map<string, Promise<string[]>>,
+  ): Promise<
+    { parsed: SageDocument; block: SageBlock; lines: string[] } | undefined
+  > {
     // The index can still list a file deleted a moment ago
     const parsed = await this.parses.get(uri);
 
@@ -232,22 +238,39 @@ class BalanceSheet {
         found ??= block;
       }
     });
-    return found && { parsed, block: found };
+    if (!found) {
+      return undefined;
+    }
+
+    const key = uri.toString();
+    let text = texts.get(key);
+
+    if (!text) {
+      text = readWorkspaceText(uri).then((all) => all.split(/\r?\n/));
+      texts.set(key, text);
+    }
+    return { parsed, block: found, lines: await text };
   }
 
   private async build(): Promise<SheetRow[]> {
     await this.index.whenReady();
 
     const objects = new Map<string, { stats: ObjectStats; uri: string }>();
+    const texts = new Map<string, Promise<string[]>>();
+    const lookupMacro = (name: string) => this.index.findMacro(name)?.value;
 
     for (const keyword of OBJECT_KEYWORDS) {
       for (const name of this.index.getNames(keyword)) {
         const [place] = this.index.findDefinitions(keyword, name);
-        const found = place && (await this.blockAt(place.uri, place.line));
+        const found =
+          place && (await this.blockAt(place.uri, place.line, texts));
 
         if (found && !objects.has(name.toLowerCase())) {
           objects.set(name.toLowerCase(), {
-            stats: readObjectStats(found.parsed, found.block),
+            stats: readObjectStats(found.parsed, found.block, {
+              lines: found.lines,
+              lookupMacro,
+            }),
             uri: place.uri.toString(),
           });
         }
@@ -314,13 +337,16 @@ class BalanceSheet {
     }
     for (const [weapon, count] of users) {
       const [place] = this.index.findDefinitions('Weapon', weapon);
-      const found = place && (await this.blockAt(place.uri, place.line));
+      const found = place && (await this.blockAt(place.uri, place.line, texts));
 
       if (!found) {
         continue;
       }
 
-      const stats = readWeaponStats(found.parsed, found.block);
+      const stats = readWeaponStats(found.parsed, found.block, {
+        lines: found.lines,
+        lookupMacro,
+      });
 
       for (const row of rows) {
         if (row.cells.weapon?.value.toLowerCase() !== weapon) {
@@ -336,9 +362,15 @@ class BalanceSheet {
             };
           }
         }
+        if (!stats.damage && stats.damageTotal) {
+          row.cells.damage = {
+            value: stats.damageTotal.value,
+            derived: `The sum of the weapon's ${stats.damageTotal.nuggets} damage nuggets; each is edited in the weapon`,
+          };
+        }
       }
     }
-    // Damage a second, from the weapon's damage and its delay in milliseconds
+    // Damage a second, from the weapon's total damage and its delay in milliseconds
     for (const row of rows) {
       const damage = Number(row.cells.damage?.value);
       const delay = Number(row.cells.delay?.value);

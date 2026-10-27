@@ -1,5 +1,5 @@
 import { compressEar, decompressEar, isEarWrapped } from '../refpack';
-import { decodeWindows1252 } from '../../common/windows1252';
+import { decodeWindows1252, encodeWindows1252 } from '../../common/windows1252';
 
 /**
  * SAGE `.map` and `.bse` files, ported from mint's `crates/sage/map` and
@@ -387,11 +387,18 @@ export const writeDict = (entries: DictEntry[]): Uint8Array => {
         out.push(...new Uint8Array(new Float32Array([value.value]).buffer));
         break;
       case 'string':
-        if (/[^\x00-\xff]/.test(value.value) || value.value.length > 0xffff) {
-          throw new Error('A map string holds up to 65,535 Latin-1 characters');
+        {
+          // Read as Windows-1252, so a curly quote is one byte, U+0080 none
+          const bytes = encodeWindows1252(value.value);
+
+          if (bytes.length > 0xffff) {
+            throw new Error(
+              'A map string holds up to 65,535 Windows-1252 characters',
+            );
+          }
+          u16(bytes.length);
+          out.push(...bytes);
         }
-        u16(value.value.length);
-        out.push(...Array.from(value.value, (char) => char.charCodeAt(0)));
         break;
       case 'wide':
         if (value.value.length > 0xffff) {

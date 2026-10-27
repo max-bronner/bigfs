@@ -14,6 +14,13 @@ export interface LineEdit {
   insert: string[];
 }
 
+/**
+ * The name a `CommandSet NAME` header line opens. A `CommandSet = NAME`
+ * field, as an Object lists its set, opens nothing.
+ */
+export const commandSetHeader = (line: string): string | undefined =>
+  /^\s*CommandSet\s+([^\s=;/]+)\s*(?:[;]|\/\/|$)/i.exec(line)?.[1];
+
 const slotOf = (line: string) => {
   const [key] = tokenize(stripComment(line));
 
@@ -56,6 +63,13 @@ export const slotEdits = (
     ...rest.map((line) => ({ line, remove: 1, insert: [] })),
   ];
 };
+
+/** Whether two slot maps hold the same buttons */
+export const sameSlots = (
+  a: ReadonlyMap<number, string>,
+  b: ReadonlyMap<number, string>,
+): boolean =>
+  a.size === b.size && [...a].every(([slot, button]) => b.get(slot) === button);
 
 /** A slot as the editor page shows it */
 export interface EditorSlot {
