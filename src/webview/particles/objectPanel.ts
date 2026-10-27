@@ -207,6 +207,29 @@ const renderElements = () => {
   );
 };
 
+/** The sounds the object names, each played only by its own button */
+const renderVoices = (scene: ObjectScene) => {
+  const list = $('objectVoices');
+
+  list.hidden = !scene.voices.length;
+  list.replaceChildren(
+    ...(scene.voices.length
+      ? [element('div', { className: 'muted', textContent: 'Voices' })]
+      : []),
+    ...scene.voices.map((voice) => {
+      const play = element('button', {
+        textContent: '▶',
+        title: `Play ${voice.name}`,
+      });
+      const line = element('div', { className: 'row' });
+
+      play.onclick = () => post({ kind: 'playSound', name: voice.name });
+      line.append(play, ` ${voice.field} = ${voice.name}`);
+      return line;
+    }),
+  );
+};
+
 /** Shows a state: asks for its model, plays its first animation */
 const pickState = (focus: SceneFocus) => {
   const scene = objectView.scene!;
@@ -252,6 +275,7 @@ export const showObject = (scene: ObjectScene, focus: SceneFocus): void => {
   $('pickModel').hidden = true;
   $('bone').hidden = true;
   $('title').textContent = scene.name;
+  renderVoices(scene);
   states.replaceChildren(
     new Option('Object', ''),
     ...scene.states.map(

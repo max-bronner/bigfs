@@ -7,6 +7,8 @@ import {
   parseMap,
   writeMap,
 } from '../formats/map/mapFile';
+import { withSoundParameters } from '../formats/map/mapScriptSounds';
+import type { MapScriptNode } from '../formats/map/mapFile';
 import { MAP_VIEW_SCRIPT } from './mapViewScript';
 import { webviewPage } from './webviewPage';
 
@@ -61,6 +63,7 @@ export const renderHtml = (): string => {
   .muted { opacity: 0.65; }
   .problems { color: var(--vscode-editorWarning-foreground); }
   .script { margin-left: 12px; } .script .calls { margin: 0 0 4px 22px; opacity: 0.8; font-family: var(--vscode-editor-font-family, monospace); font-size: 0.9em; }
+  button.play { padding: 0 4px; margin: 0 2px; font-size: 0.85em; cursor: pointer; }
   .script label { display: flex; gap: 4px; align-items: center; }
   .light { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 3px; align-items: center; }
   #notice { position: fixed; bottom: 8px; left: 310px; right: 310px; padding: 6px 10px; background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
@@ -86,6 +89,19 @@ export const renderHtml = (): string => {
   });
 };
 
+/** Every call of a script tree with the parameters that name a sound marked */
+const markSounds = (nodes: MapScriptNode[]): MapScriptNode[] =>
+  nodes.map((node) =>
+    node.kind === 'group'
+      ? { ...node, children: markSounds(node.children) }
+      : {
+          ...node,
+          conditions: node.conditions.map((and) => and.map(withSoundParameters)),
+          actions: node.actions.map(withSoundParameters),
+          actionsFalse: node.actionsFalse.map(withSoundParameters),
+        },
+  );
+
 const entriesOf = (dict: Dict | undefined) =>
   (dict?.entries ?? []).map(({ key, value }) => ({ key, value }));
 
@@ -98,7 +114,7 @@ const toMessage = (map: MapFile, withHeights: boolean) => ({
     timeOfDay: map.lighting?.timeOfDay,
     lights: map.lighting?.terrainSuns,
     teams: map.teams.map(entriesOf),
-    scripts: map.scripts,
+    scripts: map.scripts.map(markSounds),
     triggerAreas: map.triggerAreas,
     sides: map.sides.map(entriesOf),
     objects: map.objects.map((object) => ({
@@ -212,6 +228,15 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
           heightsSent = false;
         } else if (message?.kind === 'edit') {
           this.edit(document, message.edit as MapEdit);
+        } else if (message?.kind === 'playSound') {
+          // Only a click on a play button gets here; one name, one play
+          if (typeof message.name === 'string' && message.name) {
+            void vscode.commands.executeCommand(
+              'bigfs.playAudioEvent',
+              message.name,
+              document.uri.toString(),
+            );
+          }
         }
       } catch (error) {
         void panel.webview.postMessage({

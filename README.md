@@ -82,6 +82,9 @@ your mod's archives.
   the ability it unlocks (`NEED_UPGRADE` on an upgrade or science it buys).
 - Audio events get a **▶ Play** lens that plays one of their sounds, as the
   game picks one; hovering a sound or an event name gives play links.
+- **new** The object preview lists every `Voice*` and `Sound*` field of the
+  object, inherited ones included, each with its own **▶** button; the
+  preview stays muted otherwise.
 - Game-text labels such as `OBJECT:Name` that no string table defines are
   reported, with a quick fix that adds the record to the table the file
   already uses (`bigfs.ini.checkStrings`).
@@ -221,6 +224,10 @@ your mod's archives.
 - The map's scripts per player, with their conditions and actions, each
   switchable on or off; trigger areas drawn on the terrain. Compressed maps are saved compressed again; nothing an edit
   does not touch changes.
+- **new** A **▶** button after every script parameter that names a sound or
+  music track (`PLAY_SOUND_EFFECT`, `SPEECH_PLAY`, `AUDIO_PUSH_MUSIC`, ...)
+  plays it through the INI audio events of the workspace. Nothing plays
+  unless clicked.
 
 **Previews**
 

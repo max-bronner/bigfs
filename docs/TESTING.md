@@ -135,6 +135,11 @@ In an object's INI, for example Aragorn's:
   and Animation pickers switch what is shown.
 - [ ] A `ChildObject` shows what it inherits.
 - [ ] Previewing the same FX from `fxlist.ini` shows no model.
+- [ ] **new** A **Voices** list under the toggles shows every sound field of
+  the object (`VoiceSelect`, `VoiceMove`, `VoiceAttack`, `Sound*`, ...),
+  inherited ones included, each with a **▶** button. Opening the preview
+  plays nothing; one click plays one sound (a name with several variants
+  asks which). Needs the game's archives in the workspace.
 - Known gap: the panel does not follow edits; reopen it after changing the
   INI.
 
@@ -293,6 +298,10 @@ Open an `.apt` (with its `.const` beside it).
 - [ ] Maps (`.map`, `.bse`): relief with objects, world info, time of day,
   players, teams, object properties, scripts on and off, trigger areas,
   lighting. Saved maps load in the game.
+- [ ] **new** Maps, Scripts: a **▶** after the sound parameter of
+  `PLAY_SOUND_EFFECT`, `PLAY_SOUND_EFFECT_AT`, `SPEECH_PLAY`,
+  `MUSIC_PLAY_TRACK_FINITE_TIMES`, `AUDIO_PUSH_MUSIC` and
+  `HAS_FINISHED_AUDIO` plays that event; opening the map plays nothing.
 
 ## Textures, sound, video
 
