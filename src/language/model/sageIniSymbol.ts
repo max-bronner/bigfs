@@ -104,7 +104,10 @@ export const resolveSageSymbol = (
     (candidate) => character >= candidate.start && character <= candidate.end,
   );
 
-  if (inside?.isAudio) {
+  if (
+    inside &&
+    (inside.isAudio || inside.start !== token.start || inside.end !== token.end)
+  ) {
     return {
       token: { text: inside.name, start: inside.start, end: inside.end },
       line,

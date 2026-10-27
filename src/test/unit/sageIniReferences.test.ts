@@ -429,4 +429,114 @@ suite('SAGE INI reference checking', () => {
       'Weapon W',
     );
   });
+
+  test('only the Name: token of an FXEvent names an FX list', () => {
+    const lines = [
+      'Object Unit',
+      '  Draw = W3DModelDraw ModuleTag_Draw',
+      '    AnimationState = MOVING',
+      '      FXEvent = Frame:44 FireWhenSkipped Name:FxTorch FrameStop:50',
+      '      FXEvent = Name: FxSpark',
+      '      FXEvent = Frame:3',
+      '    End',
+      '  End',
+      'End',
+    ];
+
+    assert.deepStrictEqual(
+      referenced(lines).filter((name) => name.endsWith('@FXList')),
+      ['FxTorch@FXList', 'FxSpark@FXList'],
+    );
+
+    const torch = resolveSageSymbol(parse(lines), schema, 3, 48);
+
+    assert.deepStrictEqual([torch?.name, torch?.namespaces], ['FxTorch', ['FXList']]);
+  });
+
+  test('a RegionCampain Region SubObject is a model sub-object, not a Region', () => {
+    const lines = [
+      'RegionCampain Campaign',
+      '  Region RegionOne',
+      '    SubObject = LM_SELECT.T1',
+      '    Connection',
+      '      Region = RegionTwo',
+      '    End',
+      '  End',
+      'End',
+    ];
+
+    assert.deepStrictEqual(referenced(lines), ['RegionTwo@Region']);
+  });
+
+  test('a BlingUpgrades value drops its optional @ marker', () => {
+    const lines = [
+      'CreateAHeroSystem',
+      '  CreateAHeroClass Hero',
+      '    SubClass Sub',
+      '      BlingUpgrades = Upgrade_Hat @Upgrade_Boot @',
+      '    End',
+      '  End',
+      'End',
+    ];
+
+    assert.deepStrictEqual(
+      referenced(lines).filter((name) => name.endsWith('@Upgrade')),
+      ['Upgrade_Hat@Upgrade', 'Upgrade_Boot@Upgrade'],
+    );
+    assert.strictEqual(
+      referencedNames(parse(lines).statements[3], schema)[1].start,
+      35,
+    );
+  });
+
+  test('ChaseWeapon is a flag, not a Weapon', () => {
+    assert.deepStrictEqual(
+      referenced(['Weapon Axe', '  ChaseWeapon = Yes', 'End']),
+      [],
+    );
+  });
+
+  test('TaskAfterAudio Params are free-form text, not Regions', () => {
+    assert.deepStrictEqual(
+      referenced([
+        'LivingWorldCampaign Campaign',
+        '  Tutorial Intro',
+        '    Turn One',
+        '      Phase Start',
+        '        Session First',
+        '          TaskAfterAudio',
+        '            Task = SomeTask',
+        '            Params = RegionOne 5',
+        '          End',
+        '        End',
+        '      End',
+        '    End',
+        '  End',
+        'End',
+      ]),
+      [],
+    );
+  });
+
+  test('ExperienceLevel TargetNames are groups, which need not be defined', () => {
+    const files = {
+      'levels.ini': ['ExperienceLevel Level1', '  TargetNames = Men Elves', 'End'],
+    };
+
+    assert.deepStrictEqual(warningsIn(files, 'levels.ini'), []);
+  });
+
+  test('SelectPortrait and BonusName keep naming a MappedImage and a ModifierList', () => {
+    assert.deepStrictEqual(
+      referenced([
+        'Object Unit',
+        '  SelectPortrait = PortraitImage',
+        '  Behavior = AttributeModifierAuraUpdate ModuleTag_Aura',
+        '    BonusName = AuraBonus',
+        '  End',
+        'End',
+      ]),
+      ['PortraitImage@MappedImage', 'AuraBonus@ModifierList'],
+    );
+  });
 });

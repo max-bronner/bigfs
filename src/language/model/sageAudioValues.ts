@@ -9,6 +9,7 @@ import type { AudioReferenceKind } from './sageAudioFields';
 import type { SageStatement, SageToken } from './sageIniParser';
 import type { SageIniSchema } from './sageIniSchema';
 import { parentOf } from './sageIniNames';
+import { nameOffsetIn } from './sageReferenceFields';
 
 /**
  * The sound and announcer names written inside the values of an audio field,
@@ -227,8 +228,18 @@ export const referencedNames = (
       index,
     );
 
-    return namespaces.length
-      ? [{ name: text, start, end, namespaces, isAudio: false }]
+    const offset = nameOffsetIn(keyword.text, values, index);
+
+    return namespaces.length && offset !== undefined
+      ? [
+          {
+            name: text.slice(offset),
+            start: start + offset,
+            end,
+            namespaces,
+            isAudio: false,
+          },
+        ]
       : [];
   });
 };

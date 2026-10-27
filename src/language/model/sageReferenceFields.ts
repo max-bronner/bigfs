@@ -88,6 +88,19 @@ const SCOPED_REFERENCES: Record<string, readonly string[]> = {
   // `Weapon` there are not the file-scope `Armor` and `Weapon` definitions
   'autoresolvearmor/armor': [],
   'autoresolveweapon/weapon': [],
+  // A region's `SubObject` is a sub-object of the world-map model
+  // (`LM_GOODSLCT.T1`), which names a mesh and not a `Region`
+  'region/subobject': [],
+  // `ChaseWeapon` is a Yes/No flag, not the weapon a unit chases with
+  'weapon/chaseweapon': [],
+  // The scripted task's parameters are free-form text the task's own name
+  // interprets, not a list of regions
+  'taskafteraudio/params': [],
+  // An experience table is keyed by a group a template is filed under, which
+  // is any word the data picks (`Men`, a `#define`d list) rather than an
+  // object that must exist; mint's experience_record keys tables by the
+  // token as written
+  'experiencelevel/targetnames': [],
 };
 
 /**
@@ -144,3 +157,47 @@ export const namesTokenAt = (
  * name and `HUMAN_ARMOR` is not.
  */
 export const CONSTANT_NAME = /^[A-Z][A-Z0-9_]*$/;
+
+/** The key whose value is the name, for fields of flag words and `Key:value` pairs */
+const KEYED_NAME_FIELDS: Record<string, string> = {
+  // `FXEvent = Frame:44 FireWhenSkipped Name:FX_X`: only `Name:` is an FXList
+  // (mint's `anim_state::read_fx_event`); `Frame:` and the flag are not names
+  fxevent: 'name:',
+};
+
+/**
+ * Fields whose names may carry a leading `@`, which marks a choice as
+ * optional and is not part of the name (mint's `create_a_hero` reads
+ * `BlingUpgrades = Upgrade_Hat1 @Upgrade_Hat2` this way)
+ */
+const OPTIONAL_MARKER_FIELDS: ReadonlySet<string> = new Set(['blingupgrades']);
+
+/**
+ * Where the name begins inside the value token at `index` of a field, or
+ * undefined when the token names nothing. Zero for a field written as bare
+ * names. `Key: Name` with a space after the colon makes the next token the
+ * name.
+ */
+export const nameOffsetIn = (
+  field: string,
+  values: readonly { text: string }[],
+  index: number,
+): number | undefined => {
+  const name = field.toLowerCase();
+  const text = values[index]?.text ?? '';
+  const key = KEYED_NAME_FIELDS[name];
+
+  if (key) {
+    if (text.toLowerCase().startsWith(key)) {
+      return text.length > key.length ? key.length : undefined;
+    }
+
+    return values[index - 1]?.text.toLowerCase() === key ? 0 : undefined;
+  }
+
+  if (OPTIONAL_MARKER_FIELDS.has(name) && text.startsWith('@')) {
+    return text.length > 1 ? 1 : undefined;
+  }
+
+  return 0;
+};
