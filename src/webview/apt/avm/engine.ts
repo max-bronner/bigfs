@@ -47,13 +47,25 @@ export interface FunctionEntry {
 
 /** What the user set, kept per movie between sessions */
 export interface EngineValues {
-  /** Values that win over what the movie holds, by name or path */
+  /** Values that win over what the movie holds, by path from the root */
   overrides?: Record<string, string>;
+  /** Values `GetExtern`/`extern.` answer, by key */
+  externs?: Record<string, string>;
   /** What calls into the engine return, by function name */
   returns: Record<string, string>;
   /** Before overrides: values only for names nothing set */
   values?: Record<string, string>;
 }
+
+const parseNumber = (text: string): number => {
+  const sign = text.startsWith('-') ? -1 : 1;
+  const body = text.replace(/^[+-]/, '');
+
+  if (/^0x/i.test(body)) {
+    return sign * parseInt(body.slice(2), 16);
+  }
+  return /^nan$/i.test(body) ? NaN : sign * Number(body);
+};
 
 /** Reads typed text as a value: number, boolean, quoted or bare string */
 export const parseTyped = (text: string): Value => {
@@ -68,8 +80,12 @@ export const parseTyped = (text: string): Value => {
   if (trimmed === 'true' || trimmed === 'false') {
     return trimmed === 'true';
   }
-  if (/^[+-]?(\d+\.?\d*|\.\d+)$/.test(trimmed)) {
-    return Number(trimmed);
+  if (
+    /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(trimmed) ||
+    /^[+-]?0x[0-9a-f]+$/i.test(trimmed) ||
+    /^[+-]?(infinity|nan)$/i.test(trimmed)
+  ) {
+    return parseNumber(trimmed);
   }
 
   const quoted = /^"(.*)"$|^'(.*)'$/.exec(trimmed);
@@ -92,16 +108,23 @@ export const stringUses = (movie: PageMovie): Map<string, number> => {
   }
 
   const uses = new Map<string, number>();
+  // The name the previous instruction pushed last: a function stored by
+  // `name = function ...` is defined there, not used
+  let pushed: string | undefined;
   const count = (value: unknown) => {
     if (typeof value === 'string') {
       const key = value.toLowerCase();
 
       uses.set(key, (uses.get(key) ?? 0) + 1);
+      pushed = key;
     }
   };
   const consts = movie.consts ?? [];
   const walk = (code: AptInstruction[], pool: unknown[]) => {
     for (const { name, operand } of code) {
+      const before = pushed;
+
+      pushed = undefined;
       switch (name) {
         case 'ConstantPool':
           pool = (operand as number[]).map((at) => consts[at]);
@@ -127,9 +150,19 @@ export const stringUses = (movie: PageMovie): Map<string, number> => {
           count(operand);
           break;
         case 'DefineFunction':
-        case 'DefineFunction2':
-          walk((operand as { body: AptInstruction[] }).body, pool);
+        case 'DefineFunction2': {
+          const { body, name: own } = operand as {
+            body: AptInstruction[];
+            name: string;
+          };
+
+          if (!own && before) {
+            uses.set(before, (uses.get(before) ?? 1) - 1);
+          }
+          walk(body, pool);
+          pushed = undefined;
           break;
+        }
       }
     }
   };
@@ -172,13 +205,32 @@ const EVENT_HANDLERS = new Set(
 /** Variables listed at most, so a movie reading thousands stays quick */
 const MAX_READS = 2000;
 
-/** The last part of a path: `_root.menu.side` is `side` */
-const lastName = (path: string) =>
-  path.slice(Math.max(path.lastIndexOf('.'), path.lastIndexOf(':')) + 1);
+/**
+ * The key an override is kept and matched by: the whole path from the root,
+ * lowercased, with `:` as `.` and `_root.`/`_level0.` dropped, so `side`,
+ * `_root.side` and `_level0:side` are one. The last name alone is never a
+ * match: `menu.side` is not `side`.
+ */
+export const pathKey = (path: string): string =>
+  path
+    .trim()
+    .toLowerCase()
+    .replace(/(?<!:):(?!:)/g, '.')
+    .replace(/^(_root|_level0)\./, '');
+
+/** What `GetExtern` answers for a key: the key as the movie spells it, lowercased */
+const externKey = (name: string) => name.trim().toLowerCase();
 
 export class Engine implements EngineHooks {
-  /** Values that win over the movie's, typed as written, by lowercased name or path */
+  /** Values that win over the movie's, typed as written, by `pathKey` */
   public readonly overrides = new Map<string, string>();
+  /** Values `GetExtern` answers before anything the movie wrote, by extern key */
+  public readonly externOverrides = new Map<string, string>();
+  /** What the movie itself wrote to externs, shown read-only */
+  public readonly externWrites = new Map<
+    string,
+    { name: string; value: string }
+  >();
   public readonly returns = new Map<string, string>();
   public readonly reads = new Map<string, ReadValue>();
   public readonly externs = new Map<string, Seen>();
@@ -186,6 +238,8 @@ export class Engine implements EngineHooks {
   public readonly functions = new Map<string, FunctionEntry>();
   /** Overrides read back as values, made once per change */
   private parsed = new Map<string, Value>();
+  private written = new Map<string, Value>();
+  private parsedExterns = new Map<string, Value>();
   private vm?: Vm;
   private uses = new Map<string, number>();
   private pending = false;
@@ -207,14 +261,24 @@ export class Engine implements EngineHooks {
     this.externs.clear();
     this.calls.clear();
     this.functions.clear();
+    this.externWrites.clear();
+    this.written.clear();
     this.changed();
   }
 
   public load(saved: EngineValues | undefined): void {
     this.overrides.clear();
+    this.externOverrides.clear();
     this.returns.clear();
     Object.entries({ ...saved?.values, ...saved?.overrides }).forEach(
-      ([k, v]) => this.overrides.set(k.toLowerCase(), v),
+      ([k, v]) =>
+        // Keys saved before externs had their own table: `Game::Key` is one
+        k.includes('::')
+          ? this.externOverrides.set(externKey(k), v)
+          : this.override(k, v),
+    );
+    Object.entries(saved?.externs ?? {}).forEach(([k, v]) =>
+      this.externOverrides.set(externKey(k), v),
     );
     Object.entries(saved?.returns ?? {}).forEach(([k, v]) =>
       this.returns.set(k.toLowerCase(), v),
@@ -225,47 +289,65 @@ export class Engine implements EngineHooks {
   public save(): EngineValues {
     return {
       overrides: Object.fromEntries(this.overrides),
+      externs: Object.fromEntries(this.externOverrides),
       returns: Object.fromEntries(this.returns),
     };
   }
 
-  /** Drops every override and return value */
+  /** Drops every override; what calls return stays */
   public clear(): void {
     this.overrides.clear();
-    this.returns.clear();
+    this.externOverrides.clear();
     this.reparse();
   }
 
-  /** Sets or clears (empty text) an override */
+  /**
+   * Sets or clears (empty text) the override of a variable path, or of an
+   * extern when written `extern.Key`
+   */
   public override(name: string, text: string): void {
+    if (/^extern\./i.test(name.trim())) {
+      this.overrideExtern(name.trim().slice('extern.'.length), text);
+      return;
+    }
+    this.store(this.overrides, pathKey(name), text);
+  }
+
+  public overrideExtern(name: string, text: string): void {
+    this.store(this.externOverrides, externKey(name), text);
+  }
+
+  private store(table: Map<string, string>, key: string, text: string): void {
     if (text.trim()) {
-      this.overrides.set(name.toLowerCase(), text);
+      table.set(key, text);
     } else {
-      this.overrides.delete(name.toLowerCase());
+      table.delete(key);
     }
     this.reparse();
   }
 
   private reparse(): void {
-    this.parsed = new Map(
-      [...this.overrides].map(([key, text]) => [key, parseTyped(text)]),
-    );
+    const read = (table: Map<string, string>) =>
+      new Map([...table].map(([key, text]) => [key, parseTyped(text)]));
+
+    this.parsed = read(this.overrides);
+    this.parsedExterns = read(this.externOverrides);
   }
 
-  /** The override for a name or path, by the whole path or its last name */
-  private overridden(path: string): { value: Value } | undefined {
-    if (!this.parsed.size) {
-      return undefined;
+  /**
+   * Writes the overrides into the movie, as mint's apt-player does with its
+   * bound values: before and after each script, so `_root.side`,
+   * `this.side` and `kid.side` read the override whatever the movie wrote.
+   */
+  public sync(): void {
+    if (!this.vm || !this.parsed.size) {
+      return;
     }
-
-    const key = path.toLowerCase();
-
-    for (const each of [key, lastName(key)]) {
-      if (this.parsed.has(each)) {
-        return { value: this.parsed.get(each) };
+    for (const [key, value] of this.parsed) {
+      if (value !== undefined) {
+        this.vm.assertValue(key, value);
       }
     }
-    return undefined;
   }
 
   private changed(): void {
@@ -299,8 +381,14 @@ export class Engine implements EngineHooks {
     value: Value,
     found: boolean,
     counted: boolean,
+    local: boolean,
   ): Value {
-    const key = path.toLowerCase();
+    // A function's own variable is not the game's to set or list
+    if (local) {
+      return value;
+    }
+
+    const key = pathKey(path);
     let seen = this.reads.get(key);
 
     if (!seen && this.reads.size < MAX_READS) {
@@ -315,19 +403,27 @@ export class Engine implements EngineHooks {
         seen.count++;
       }
     }
-    const override = this.overridden(path);
-
-    return override ? override.value : value;
+    return this.parsed.has(key) ? this.parsed.get(key) : value;
   }
 
+  /** What the user set, else what the movie wrote, else nothing */
   public extern(name: string): Value {
+    const key = externKey(name);
+
     this.note(this.externs, name);
-    return this.overridden(name)?.value;
+    return this.parsedExterns.has(key)
+      ? this.parsedExterns.get(key)
+      : this.written.get(key);
   }
 
+  /** The movie's own write: kept for its reads, never an override */
   public setExtern(name: string, value: Value): void {
-    if (!this.overridden(name)) {
-      this.override(name, this.vm ? this.vm.string(value) : String(value));
+    const key = externKey(name);
+    const text = this.vm ? this.vm.string(value) : String(value);
+
+    this.written.set(key, value);
+    if (this.externWrites.get(key)?.value !== text) {
+      this.externWrites.set(key, { name, value: text });
       this.changed();
     }
   }
@@ -369,10 +465,10 @@ export class Engine implements EngineHooks {
       params: fn.kind.fn.def.params.map((param) => param.name),
       owner,
       fn,
-      // Named once, where it is stored: nothing in the movie calls it
+      // Nothing in the movie names it besides where it is defined
       engineOnly:
         !EVENT_HANDLERS.has(name.toLowerCase()) &&
-        (this.uses.get(name.toLowerCase()) ?? 0) <= 1,
+        (this.uses.get(name.toLowerCase()) ?? 0) === 0,
     });
   }
 

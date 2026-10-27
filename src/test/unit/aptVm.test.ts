@@ -4,7 +4,7 @@ import { compileScript } from '../../formats/apt/aptCompiler';
 import type { FrameItem } from '../../formats/apt/aptMovie';
 import { parseScript } from '../../formats/apt/aptScriptParser';
 import { AptImage } from '../../formats/apt/aptWriter';
-import { Engine } from '../../webview/apt/avm/engine';
+import { Engine, parseTyped } from '../../webview/apt/avm/engine';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
 
@@ -48,9 +48,9 @@ GameCode("PalantirReady", 1);
 stop();
 `;
 
-const build = () => {
+const build = (script = ROOT_SCRIPT) => {
   const image = new AptImage(new Uint8Array(64));
-  const block = compileScript(parseScript(ROOT_SCRIPT), image, []);
+  const block = compileScript(parseScript(script), image, []);
   // Each faction clip stops on its first frame
   const stop = compileScript(parseScript('stop();'), image, []);
   const faction = (): FrameItem[][] => [
@@ -93,8 +93,8 @@ const build = () => {
   } as unknown as PageMovie;
 };
 
-const run = (overrides: Record<string, string> = {}) => {
-  const movie = build();
+const run = (overrides: Record<string, string> = {}, script = ROOT_SCRIPT) => {
+  const movie = build(script);
   const lines: string[] = [];
   const engine = new Engine(
     () => {},
@@ -118,6 +118,14 @@ const run = (overrides: Record<string, string> = {}) => {
 
   return { player, engine, lines };
 };
+
+/** What the movie passed to `trace`, which the engine hears as a call */
+const traced = (lines: string[]) =>
+  lines.flatMap((line) => {
+    const match = /^engine: trace\("(.*)"\)$/.exec(line);
+
+    return match ? [match[1]] : [];
+  });
 
 suite('APT ActionScript machine', () => {
   test('what the movie asks of the engine is found while it runs', () => {
@@ -172,5 +180,97 @@ suite('APT ActionScript machine', () => {
     assert.strictEqual(ring.playing, false);
     engine.invoke(entry, ['good']);
     assert.strictEqual(ring.frame, 0);
+  });
+
+  test("a movie's extern write is its own, never a user override", () => {
+    const { engine, lines } = run(
+      {},
+      `extern.Flag = 7; flag = "mine"; trace(flag); trace(GetExtern("Flag")); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['mine', '7']);
+    assert.strictEqual(engine.overrides.size, 0);
+    assert.strictEqual(engine.externOverrides.size, 0);
+    assert.deepStrictEqual(
+      [...engine.externWrites.values()],
+      [{ name: 'Flag', value: '7' }],
+    );
+  });
+
+  test('a user value for an extern wins over what the movie wrote', () => {
+    const { lines } = run(
+      { 'extern.Flag': '9' },
+      `extern.Flag = 7; trace(GetExtern("Flag")); trace(extern.Flag); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['9', '9']);
+  });
+
+  test('ToggleExtern flips every time', () => {
+    const { lines } = run(
+      {},
+      `ToggleExtern("A"); trace(GetExtern("A")); ToggleExtern("A"); trace(GetExtern("A")); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['true', 'false']);
+  });
+
+  test('an override leaves a parameter of the same name alone', () => {
+    const { lines } = run(
+      { side: '"engine"' },
+      `function Pick(side) { trace(side); } Pick("arg"); trace(side); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['arg', 'engine']);
+  });
+
+  test('an override matches the whole path, not the last name', () => {
+    const { lines } = run(
+      { side: '"engine"' },
+      `ring.side = "own"; trace(ring.side); trace(_root.ring.side); stop();`,
+    );
+
+    assert.deepStrictEqual(traced(lines), ['own', 'own']);
+  });
+
+  test('member reads of an overridden name see it after the movie writes it', () => {
+    const { engine, lines } = run(
+      { side: '"engine"' },
+      `function Read() { trace(_root.side); trace(this.side); } side = "movie"; stop();`,
+    );
+
+    engine.invoke([...engine.functions.values()][0], []);
+    assert.deepStrictEqual(traced(lines), ['engine', 'engine']);
+  });
+
+  test('only the engine calls what the movie defines but never names', () => {
+    const { engine } = run(
+      {},
+      `function Init() {} Init(); function Entry() {} stop();`,
+    );
+
+    assert.deepStrictEqual(
+      [...engine.functions.values()]
+        .filter((each) => each.engineOnly)
+        .map((each) => each.name),
+      ['Entry'],
+    );
+  });
+
+  test('typed text reads hex, exponents, NaN and infinities as numbers', () => {
+    assert.strictEqual(parseTyped('0x74808E'), 7635086);
+    assert.strictEqual(parseTyped('1e3'), 1000);
+    assert.strictEqual(parseTyped('-Infinity'), -Infinity);
+    assert.ok(Number.isNaN(parseTyped('NaN') as number));
+    assert.strictEqual(parseTyped('abc'), 'abc');
+  });
+
+  test('clearing overrides keeps what calls return', () => {
+    const { engine } = run({ side: '1' });
+
+    engine.returns.set('gamecode', '5');
+    engine.clear();
+    assert.strictEqual(engine.overrides.size, 0);
+    assert.strictEqual(engine.returns.get('gamecode'), '5');
   });
 });
