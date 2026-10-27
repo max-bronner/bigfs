@@ -44,6 +44,8 @@ export interface SageBlock {
   moduleTag?: string;
   /** Where this block's children are looked up in the schema */
   context: string;
+  /** Whether the games read no block of this kind, so only its nesting is kept */
+  isLegacy?: boolean;
   startLine: number;
   /** Line of the closing `End`, or the last line when the block never closed */
   endLine: number;
@@ -290,7 +292,10 @@ export const parseSageIni = (
       calls.push(...scanCalls(content, index));
     }
 
-    if (END_PATTERN.test(keyword.text) && !values.length) {
+    // Retail compares only the first token against `End` and ignores the rest
+    // of the line (mint's reader.rs `Stmt::is_end`), so `End  StateName = X`
+    // closes a block as well
+    if (END_PATTERN.test(keyword.text)) {
       const closing = open.pop();
 
       if (closing) {
@@ -344,6 +349,7 @@ export const parseSageIni = (
       moduleType,
       moduleTag: moduleType === undefined ? undefined : values[1]?.text,
       context: resolution?.childContext ?? UNCHECKED_CONTEXT,
+      isLegacy: resolution?.isLegacy,
       startLine: index,
       endLine: index,
       isClosed: false,

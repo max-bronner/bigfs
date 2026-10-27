@@ -98,6 +98,16 @@ Open any `.ini`, `.inc` or `.bhav`.
   reported; the same for a `Sound` nugget's audio event (#83).
 - [ ] **new** Model, animation and texture names are links (Ctrl+click) that
   open the file in its viewer, wherever it lives (#88).
+- [ ] **new** Validate retail INI (BFME II or Rise of the Witch-king) and
+  compare the count of problems with before: the shipped data should now
+  come out nearly clean. Spot-check that `AddEmotion = Name` lines in an
+  `EmotionTrackerUpdate` no longer cascade, `End  StateName = Sword` closes
+  its block, `StanceTemplate`, `StrategicHUD`, `LODPreset`, `BenchProfile`,
+  `OptionGroup` and `WebpageURL` raise nothing, regions in a
+  `RegionCampain` `.inc` are accepted, and each `ParticleSystem` block in
+  `particlesystem.ini` shows one information note instead of a warning per
+  line (until the diagnostics file maps the new `hint` severity it reads as a
+  warning). A misspelt field in a known block must still be reported.
 
 ## Object preview (new, #87)
 
