@@ -473,6 +473,10 @@ export class SageIniIndex implements Disposable {
 
   /** Replaces what a document contributed with what the editor holds now */
   private async readOpenDocument(document: TextDocument): Promise<void> {
+    const schema = await this.getSchema();
+
+    // Checked and applied with no await between, so two reads of the same
+    // document cannot both purge and then both add
     if (
       document.isClosed ||
       this.openVersions.get(document.uri.toString()) === document.version
@@ -482,12 +486,7 @@ export class SageIniIndex implements Disposable {
 
     this.openVersions.set(document.uri.toString(), document.version);
     this.purge(document.uri.path.toLowerCase());
-    this.indexText(
-      document.uri,
-      document.uri.path,
-      document.getText(),
-      await this.getSchema(),
-    );
+    this.indexText(document.uri, document.uri.path, document.getText(), schema);
   }
 
   /**
