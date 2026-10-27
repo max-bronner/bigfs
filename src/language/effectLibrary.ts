@@ -135,7 +135,7 @@ export class EffectLibrary {
     for (const list of Object.values(fxLists)) {
       if (list.skipped.length) {
         notes.add(
-          `${list.name}: ${list.skipped.join(', ')} not previewed; only ParticleSystem nuggets play`,
+          `${list.name}: ${list.skipped.join(', ')} not previewed; only ParticleSystem and Sound nuggets play`,
         );
       }
     }

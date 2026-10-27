@@ -13,6 +13,10 @@ import { $, library, post, state, world } from './page';
  * Each particle nugget can be muted or played alone, which restarts the
  * list without it, and its bar dragged to move its delay, previewed like
  * a slider. Nuggets the preview does not play are listed, greyed.
+ *
+ * `Sound` nuggets get a row of their own with a play button, which plays
+ * the audio event once per click. A "Play sounds" checkbox, off until
+ * ticked, also plays each at its delay as the effect runs.
  */
 
 const container = $('timeline');
@@ -102,7 +106,7 @@ export const drawTimeline = (): void => {
 
   const ratio = window.devicePixelRatio || 1;
   const width = canvas.clientWidth;
-  const rows = list.nuggets.length + list.skipped.length;
+  const rows = list.nuggets.length + list.sounds.length + list.skipped.length;
   const height = PAD * 2 + Math.max(1, rows) * ROW + 12;
 
   if (canvas.width !== width * ratio || canvas.height !== height * ratio) {
@@ -175,12 +179,30 @@ export const drawTimeline = (): void => {
       ctx.fillText('→', width - PAD - 12, top + ROW / 2);
     }
   });
-  list.skipped.forEach((name, index) => {
+  list.sounds.forEach((sound, index) => {
     const top = PAD + (list.nuggets.length + index) * ROW;
+    const at = x(delayFrames(sound.initialDelay.low));
+
+    ctx.fillStyle = '#8f8';
+    ctx.fillText('▶', 4, top + ROW / 2);
+    ctx.fillStyle = '#ddd';
+    ctx.fillText(
+      sound.name,
+      4 + PLAY_ZONE,
+      top + ROW / 2,
+      LABEL - 8 - PLAY_ZONE,
+    );
+    ctx.fillStyle = 'rgba(136, 255, 136, 0.9)';
+    ctx.fillRect(at, top + 4, 2, ROW - 8);
+  });
+  list.skipped.forEach((name, index) => {
+    const top = PAD + (list.nuggets.length + list.sounds.length + index) * ROW;
 
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fillText(`${name} (not previewed)`, 4, top + ROW / 2);
   });
+
+  playDueSounds(list);
 
   const head = x(world.frame);
 
@@ -197,7 +219,42 @@ const rowAt = (y: number) => {
     : undefined;
 };
 
+/** The sound nugget under a point, if a sound row */
+const soundAt = (y: number) => {
+  const index =
+    Math.floor((y - PAD) / ROW) - (original ? original.nuggets.length : 0);
+
+  return original && index >= 0 && index < original.sounds.length
+    ? index
+    : undefined;
+};
+
 let clearButton: HTMLButtonElement | undefined;
+let soundsBox: HTMLInputElement | undefined;
+/** The frame sounds were last due at, so each plays once per pass */
+let soundFrame = 0;
+
+const PLAY_ZONE = 18;
+
+/** Plays the sounds that fell due since the last frame, when opted in */
+const playDueSounds = (list: FxListDef): void => {
+  if (!soundsBox?.checked) {
+    soundFrame = world.frame;
+    return;
+  }
+  if (world.frame < soundFrame) {
+    // The effect started over
+    soundFrame = -1;
+  }
+  for (const sound of list.sounds) {
+    const due = delayFrames(sound.initialDelay.low);
+
+    if (due > soundFrame && due <= world.frame) {
+      post({ kind: 'playSound', name: sound.name });
+    }
+  }
+  soundFrame = world.frame;
+};
 
 /**
  * Builds the timeline for an FX list once, or empties it for a system;
@@ -230,7 +287,7 @@ export const renderTimeline = (restart: () => void): void => {
   view.className = 'curve';
   view.style.width = '100%';
   view.title =
-    'Click a name to mute it, shift-click to play it alone; drag a bar to move its InitialDelay';
+    'Click a name to mute it, click ▶ on a sound row to hear it, shift-click to play it alone; drag a bar to move its InitialDelay';
   heading.className = 'curve-heading';
   heading.textContent = 'Timeline ';
   clear.textContent = 'Play all';
@@ -241,8 +298,29 @@ export const renderTimeline = (restart: () => void): void => {
   };
   heading.append(clear);
 
+  const soundsLabel = document.createElement('label');
+  const sounds = document.createElement('input');
+
+  sounds.type = 'checkbox';
+  sounds.checked = false;
+  soundsLabel.title =
+    'Play each Sound nugget at its delay while the effect runs; off by default';
+  soundsLabel.append(sounds, ' Play sounds');
+  soundsBox = sounds;
+  heading.append(' ', soundsLabel);
+
   view.addEventListener('pointerdown', (event) => {
     const box = view.getBoundingClientRect();
+    const sound = soundAt(event.clientY - box.top);
+
+    if (sound !== undefined) {
+      // A click on the button plays one sound; nothing else on the row acts
+      if (event.clientX - box.left < LABEL) {
+        post({ kind: 'playSound', name: original!.sounds[sound].name });
+      }
+      return;
+    }
+
     const index = rowAt(event.clientY - box.top);
 
     if (index === undefined) {

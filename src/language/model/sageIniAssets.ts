@@ -103,7 +103,10 @@ export const findAssetReferences = (parsed: SageDocument): AssetReference[] => {
       case 'sounds':
       case 'soundsmorning':
       case 'soundsevening':
-      case 'soundsnight': {
+      case 'soundsnight':
+      // Played before and after the body, the same kind of file list
+      case 'attack':
+      case 'decay': {
         if (
           !/^audioevent$/i.test(
             topBlockAt(parsed.blocks, statement.line)?.keyword ?? '',

@@ -56,4 +56,6 @@ export type FromPage =
   | { kind: 'apply' }
   /** Rewrites every colour or alpha key at once, with the values pending */
   | { kind: 'keys'; keyKind: KeyKind; keys: KeyValue[] }
-  | { kind: 'reveal'; line: number };
+  | { kind: 'reveal'; line: number }
+  /** An FX list's `Sound` nugget played from a click; by audio event name */
+  | { kind: 'playSound'; name: string };

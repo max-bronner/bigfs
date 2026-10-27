@@ -214,6 +214,16 @@ class ParticlePreview {
           await this.apply({ kind: message.keyKind, keys: message.keys });
         }
         break;
+      case 'playSound':
+        // Only a click or the page's opt-in checkbox gets here; one name, one play
+        if (message.name) {
+          await vscode.commands.executeCommand(
+            'bigfs.playAudioEvent',
+            String(message.name),
+            this.uri.toString(),
+          );
+        }
+        break;
       case 'reveal': {
         const editor = await vscode.window.showTextDocument(this.uri, {
           viewColumn: vscode.ViewColumn.One,

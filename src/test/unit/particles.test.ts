@@ -147,7 +147,7 @@ suite('Particle systems', () => {
     });
   });
 
-  test('an FX list keeps each particle nugget and names the rest', () => {
+  test('an FX list keeps each particle and sound nugget and names the rest', () => {
     const list = readFxList(definitionsOf(FX)[0]);
 
     assert.deepStrictEqual(
@@ -162,7 +162,10 @@ suite('Particle systems', () => {
         ['TestFlat', 2, [0, 0, 0], 0],
       ],
     );
-    assert.deepStrictEqual(list.skipped, ['Sound']);
+    assert.deepStrictEqual(list.sounds, [
+      { name: 'SomeSound', module: 1, initialDelay: { low: 0, high: 0 } },
+    ]);
+    assert.deepStrictEqual(list.skipped, []);
   });
 
   test('slider values are written back over the tokens they came from', () => {

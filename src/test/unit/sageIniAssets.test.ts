@@ -78,4 +78,32 @@ suite('INI asset references', () => {
       ],
     );
   });
+
+  test('Attack and Decay of an audio event are sound files, weights stripped', () => {
+    const references = findAssetReferences(
+      parseSageIni(
+        [
+          'AudioEvent TestGun',
+          '  Sounds = tugun',
+          '  Attack = tuwind:100 tuwind2',
+          '  Decay = tutail',
+          'End',
+          'FXList TestFx',
+          '  Attack = notasound',
+          'End',
+        ],
+        schema,
+      ),
+    );
+
+    assert.deepStrictEqual(
+      references.map((reference) => [reference.name, reference.line]),
+      [
+        ['tugun', 1],
+        ['tuwind', 2],
+        ['tuwind2', 2],
+        ['tutail', 3],
+      ],
+    );
+  });
 });

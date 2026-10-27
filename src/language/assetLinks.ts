@@ -5,9 +5,10 @@ import { findAssetReferences } from './model/sageIniAssets';
 import type { SageIniDocuments } from './sageIniDocuments';
 
 /**
- * Every model, animation and texture an INI file names is a link that
+ * Every model, animation, texture and sound an INI file names is a link that
  * opens the file in its viewer, wherever it lives: an animation opens on
- * the model drawn on its skeleton.
+ * the model drawn on its skeleton, a sound in the audio preview, whose
+ * player starts only on a click.
  */
 
 const OPEN_ASSET = 'bigfs.openAsset';
@@ -20,26 +21,24 @@ class AssetLinkProvider implements vscode.DocumentLinkProvider {
   ): Promise<vscode.DocumentLink[]> {
     const parsed = await this.documents.parse(document);
 
-    return findAssetReferences(parsed)
-      .filter((reference) => reference.kind !== 'sound')
-      .map((reference) => {
-        const link = new vscode.DocumentLink(
-          new vscode.Range(
-            reference.line,
-            reference.start,
-            reference.line,
-            reference.end,
-          ),
-          vscode.Uri.parse(
-            `command:${OPEN_ASSET}?${encodeURIComponent(
-              JSON.stringify([reference.candidates, document.uri.toString()]),
-            )}`,
-          ),
-        );
+    return findAssetReferences(parsed).map((reference) => {
+      const link = new vscode.DocumentLink(
+        new vscode.Range(
+          reference.line,
+          reference.start,
+          reference.line,
+          reference.end,
+        ),
+        vscode.Uri.parse(
+          `command:${OPEN_ASSET}?${encodeURIComponent(
+            JSON.stringify([reference.candidates, document.uri.toString()]),
+          )}`,
+        ),
+      );
 
-        link.tooltip = `Open ${reference.candidates[0]}`;
-        return link;
-      });
+      link.tooltip = `Open ${reference.candidates[0]}`;
+      return link;
+    });
   }
 }
 
