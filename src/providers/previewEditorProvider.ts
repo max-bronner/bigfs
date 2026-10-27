@@ -5,6 +5,7 @@ import { playableAudioTool } from '../tools/audioTools';
 import { buildW3dScene } from '../formats/w3dScene';
 import { parseW3dAnimations } from '../formats/w3dAnimation';
 import { findModelForSkeleton } from '../formats/w3dModelFinder';
+import { decompressEar, isEarWrapped } from '../formats/refpack';
 import { Vp6Movie } from '../formats/vp6/container';
 import type { ModelScene } from '../formats/w3dScene';
 import type { EntryLocator } from '../formats/entryLocator';
@@ -68,10 +69,13 @@ const buildMessage = async (
   locator: EntryLocator,
   openMovie: (movie: Vp6Movie) => void,
 ): Promise<PreviewMessage> => {
-  const bytes = await vscode.workspace.fs.readFile(uri);
   const extension = uri.path.slice(uri.path.lastIndexOf('.')).toLowerCase();
 
   try {
+    const read = await vscode.workspace.fs.readFile(uri);
+    // Retail files are sometimes RefPack-compressed in an EAR wrapper
+    const bytes = isEarWrapped(read) ? decompressEar(read) : read;
+
     switch (extension) {
       case '.tga':
         return { kind: 'texture', ...(await tools.use(decodeTgaTool)(bytes)) };
@@ -111,10 +115,9 @@ const buildMessage = async (
         // the one an object's INI plays it on, else found by the skeleton
         if (!scene.meshes.length && scene.animation && scene.skeleton) {
           const fromIni = await vscode.commands
-            .executeCommand<string | undefined>(
-              'bigfs.findModelForAnimation',
-              basename(uri),
-            )
+            .executeCommand<
+              string | undefined
+            >('bigfs.findModelForAnimation', basename(uri))
             .then(
               (found) => found,
               () => undefined,
@@ -523,10 +526,9 @@ export class PreviewEditorProvider
           await panel.webview.postMessage({
             kind: 'uses',
             uses: await vscode.commands
-              .executeCommand<unknown[]>(
-                'bigfs.findFileUses',
-                basename(document.uri),
-              )
+              .executeCommand<
+                unknown[]
+              >('bigfs.findFileUses', basename(document.uri))
               .then(
                 (uses) => uses ?? [],
                 () => [],

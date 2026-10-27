@@ -7,6 +7,7 @@ import {
   encodePng,
   encodeTga,
 } from '../../formats/textureEncode';
+import { compressEar } from '../../formats/refpack';
 
 /** A 8×4 gradient with varying alpha */
 const image = () => {
@@ -136,5 +137,67 @@ suite('Texture encoding', () => {
 
     assert.deepStrictEqual(decodePng(png), source);
     assert.throws(() => decodePng(Uint8Array.of(1, 2, 3)), /Not a PNG/);
+  });
+
+  test('DXT endpoints are rounded, so a solid colour comes back close', () => {
+    const pixels = new Uint8Array(4 * 4 * 4);
+
+    for (let index = 0; index < 16; index++) {
+      pixels.set([200, 100, 50, 255], index * 4);
+    }
+
+    for (const format of ['DXT1', 'DXT3', 'DXT5'] as const) {
+      const shown = decodeDds(
+        encodeDds({ width: 4, height: 4, pixels }, format, false),
+      ).levels[0].pixels;
+
+      for (let index = 0; index < 16; index++) {
+        [200, 100, 50].forEach((expected, channel) =>
+          assert.ok(
+            Math.abs(shown[index * 4 + channel] - expected) <= 4,
+            `${format} channel ${channel} is ${shown[index * 4 + channel]}`,
+          ),
+        );
+      }
+    }
+  });
+
+  test('a DXT1 gradient keeps a high PSNR', () => {
+    const [width, height] = [64, 64];
+    const pixels = new Uint8Array(width * height * 4);
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        pixels.set([x * 4, y * 4, (x + y) * 2, 255], (y * width + x) * 4);
+      }
+    }
+
+    const shown = decodeDds(encodeDds({ width, height, pixels }, 'DXT1', true))
+      .levels[0].pixels;
+    let error = 0;
+
+    for (let index = 0; index < width * height; index++) {
+      for (let channel = 0; channel < 3; channel++) {
+        error +=
+          (shown[index * 4 + channel] - pixels[index * 4 + channel]) ** 2;
+      }
+    }
+
+    const psnr = 10 * Math.log10((255 * 255) / (error / (width * height * 3)));
+
+    assert.ok(psnr > 35, `PSNR ${psnr}`);
+  });
+
+  test('an EAR-wrapped TGA and DDS decode', () => {
+    const source = image();
+
+    assert.deepStrictEqual(
+      decodeTga(compressEar(encodeTga(source, true))).levels[0].pixels,
+      source.pixels,
+    );
+    assert.strictEqual(
+      decodeDds(compressEar(encodeDds(source, 'DXT5', false))).format,
+      'DXT5',
+    );
   });
 });
