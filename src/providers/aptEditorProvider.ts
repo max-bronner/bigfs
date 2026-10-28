@@ -29,6 +29,8 @@ import {
   replaceBlock,
 } from '../formats/apt/aptScript';
 import { AptScripts } from './aptScripts';
+import { AptTextView } from './aptTextView';
+import { isEditable } from '../language/archiveText';
 import { checkMovie } from '../formats/apt/aptIntegrity';
 import { referencesTo } from '../formats/apt/aptManage';
 import type { Problem } from '../formats/apt/aptIntegrity';
@@ -780,6 +782,9 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
   /** Action blocks opened as tabs */
   private scriptTabs?: AptScripts;
 
+  /** Movies opened as text */
+  private textView?: AptTextView;
+
   /** What the integrity check found, on each movie's `.apt` */
   private readonly problems =
     vscode.languages.createDiagnosticCollection('apt');
@@ -823,6 +828,25 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         provider.editScript(document, block, text),
     });
 
+    provider.textView = new AptTextView({
+      document: (movie) => provider.open.get(movie),
+      load: (movie) => AptDocument.open(movie, locator, tools),
+      async commit(document, saved) {
+        await provider.record(document, 'text', async () =>
+          document.restore({
+            apt: saved.apt,
+            constBytes: saved.constBytes,
+            files: document.files,
+          }),
+        );
+        // Saving the text saves the movie, so the editor is not left dirty
+        if (!(await vscode.workspace.save(document.uri))) {
+          await document.save();
+        }
+      },
+      isReadOnly: (movie) => !isEditable(archiveModel, movie),
+    });
+
     const movieHost: MovieHost = {
       archiveModel,
       async editOpen(uri, edit) {
@@ -846,6 +870,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
 
     return vscode.Disposable.from(
       provider.scriptTabs,
+      provider.textView,
       provider.problems,
       vscode.commands.registerCommand('bigfs.checkAptMovies', () =>
         provider.checkWorkspace(archiveModel),
@@ -1075,6 +1100,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     const redraw = async () => {
       await this.redrawAll();
       this.scriptTabs?.changed(document);
+      this.textView?.changed(document.uri);
     };
 
     this.onDidChangeEmitter.fire({
@@ -1698,6 +1724,8 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
           await this.record(document, 'constant', async () =>
             document.changeConstItem(message.change as ConstItemChange),
           );
+        } else if (message?.kind === 'openTextView') {
+          await this.textView?.open(document.uri);
         } else if (message?.kind === 'removeCharacter') {
           await this.removeCharacter(document, Number(message.id));
         } else if (message?.kind === 'manageMovie') {
@@ -1820,6 +1848,8 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       subscription.dispose();
       this.redraws.delete(document);
       this.open.delete(document.uri.toString());
+      // A text view showed this editor's unsaved state; it reads the files again
+      this.textView?.changed(document.uri);
       this.pagesReady.delete(document);
       this.shownImports.delete(document);
     });

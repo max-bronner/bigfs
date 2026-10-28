@@ -362,6 +362,18 @@ your mod's archives.
   the movie record's word at +36, import slots and every `.const` item. An
   unedited movie still saves byte for byte, and an edit touches only its
   own fields or appends.
+- **new** A text view of the whole movie, `.apt` and `.const` together, for
+  people who prefer text: **bigFS: Open APT as Text** (editor title,
+  palette or the `.apt` context menu) switches to it and **Reopen as Visual
+  Editor** switches back. One record a line, indented by what holds it,
+  character ids explicit, numbers exact, and every script decompiled in a
+  fence; see [docs/apt-text-format.md](docs/apt-text-format.md). Highlighting
+  (scripts too), an outline, folding, and hover and go to definition on
+  character ids. Saving turns the differences into the editor's own edits,
+  so only the edited fields change and an unedited text leaves the movie
+  byte for byte; a text that does not parse or cannot be saved is
+  underlined and the movie is left as it was. Works for loose movies and
+  movies in writable archives; base game movies open read-only.
 - **Check APT Movies** checks every movie of the workspace, loose or in an
   archive, for integrity problems and reports what it found; **Rename APT Movie…** and
   **Delete APT Movie…** (on an `.apt`, in the Explorer or an archive) rename
@@ -461,6 +473,7 @@ row, file or editor they act on.
 | Convert to VP6 Movie… | video, image or folder menu | VP6 |
 | Edit W3D Animation… | `.w3d` menu | Bone animations |
 | New APT Movie…, Rename APT Movie…, Delete APT Movie… | folder or `.apt` menu | APT movies |
+| **new** Open APT as Text, Reopen as Visual Editor | APT editor title, `.apt` menu, text view title | APT text view |
 | Preview Particle System, Preview Object Here, New Particle System from Template…, Bulk Edit INI Values…, Show Effective Definition, New Unit, Hero or Building…, Duplicate Definition…, Edit CommandSet Slots, Play Audio Event | INI editor menu and lenses | INI tools |
 
 | Setting | Default | Does |
@@ -483,7 +496,8 @@ row, file or editor they act on.
 | bigFS Script File | `.scb` |
 
 Languages: `sage-ini` (`.ini`, `.inc`, `.bhav`), `sage-str`, `sage-wnd`,
-`apt-script` (`.aptscript`).
+`apt-script` (`.aptscript`), **new** `apt-text` (`.apttext`, the APT text
+view).
 
 ## Game language
 
