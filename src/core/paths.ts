@@ -1,6 +1,11 @@
-﻿import path from 'path';
-
+﻿
 /** Helpers for '/' separated paths, never the platform's separator */
+
+/** Extension of a file name with its dot, empty for none; a leading dot does not start one */
+const lastExtension = (name: string): string => {
+  const dotIndex = name.lastIndexOf('.');
+  return dotIndex <= 0 || name === '..' ? '' : name.slice(dotIndex);
+};
 
 /** Gets the parent path, empty for a path that has no parent */
 export const getParentPath = (nodePath: string): string => {
@@ -58,7 +63,7 @@ export const getAvailableName = (
     return name;
   }
 
-  const extension = path.posix.extname(name);
+  const extension = lastExtension(name);
   const baseName = name.slice(0, name.length - extension.length);
 
   let availableName = `${baseName} copy${extension}`;
