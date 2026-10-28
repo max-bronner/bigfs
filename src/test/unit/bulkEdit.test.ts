@@ -6,8 +6,8 @@ import {
   bulkChanges,
   bulkChangesAcross,
   compileBulkQuery,
-} from '../../language/model/bulkEdit';
-import type { BulkQuery, BulkSource } from '../../language/model/bulkEdit';
+} from '../../game/ini-tools/bulkEdit';
+import type { BulkQuery, BulkSource } from '../../game/ini-tools/bulkEdit';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 

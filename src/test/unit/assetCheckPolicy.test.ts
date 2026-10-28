@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import {
   AUTO_MINIMUM_MODELS,
   decideAssetCheck,
-} from '../../language/model/assetCheckPolicy';
+} from '../../game/ini-tools/assetCheckPolicy';
 
 suite('Asset check policy', () => {
   test('auto switches itself off, with a reason, without a base game folder', () => {

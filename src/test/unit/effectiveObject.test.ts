@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { composeLineage } from '../../language/model/effectiveObject';
-import type { LineageStep } from '../../language/model/effectiveObject';
+import { composeLineage } from '../../game/objects/effectiveObject';
+import type { LineageStep } from '../../game/objects/effectiveObject';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 

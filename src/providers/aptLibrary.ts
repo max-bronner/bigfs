@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ArchiveModel } from '../model/archiveModel';
-import { archiveOrderKey } from '../model/gameView';
+import { archiveOrderKey } from '../game/install/gameView';
 import { getNodeUri } from '../model/nodeAddress';
 import { findChild } from '../model/virtualNode';
 

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { composeLineage } from './model/effectiveObject';
-import type { LineageStep } from './model/effectiveObject';
+import { composeLineage } from '../game/objects/effectiveObject';
+import type { LineageStep } from '../game/objects/effectiveObject';
 import { parseSageIni, stripComment, tokenize } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';

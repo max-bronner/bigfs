@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { hotkeyClashes, hotkeyOf } from '../../language/model/hotkeys';
+import { hotkeyClashes, hotkeyOf } from '../../game/ini-tools/hotkeys';
 
 suite('Hotkey clashes', () => {
   test('the character after a single & is the key', () => {

@@ -2,8 +2,8 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import { SCHEME } from '../constants';
 import { BASE_SETTING, UNDERLYING_SETTING } from '../model/baseGameFolders';
-import { findInstalls, systemHost } from '../model/installDiscovery';
-import type { FoundInstall } from '../model/installDiscovery';
+import { findInstalls, systemHost } from '../node/installDiscovery';
+import type { FoundInstall } from '../node/installDiscovery';
 
 /** Remembers that the quick pick was shown, so it is offered once */
 const OFFERED_KEY = `${SCHEME}.installsOffered`;

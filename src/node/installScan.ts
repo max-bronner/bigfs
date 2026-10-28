@@ -1,8 +1,8 @@
 import { readdir, stat } from 'fs/promises';
 import * as path from 'path';
-import { readArchiveIndexTable } from '../node/archiveFile';
-import { orderInstallFiles } from './gameView';
-import type { GameFile, InstallFiles } from './gameView';
+import { readArchiveIndexTable } from './archiveFile';
+import { orderInstallFiles } from '../game/install/gameView';
+import type { GameFile, InstallFiles } from '../game/install/gameView';
 
 /**
  * Reads an install folder from disk the way the game finds its files: the

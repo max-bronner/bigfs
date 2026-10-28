@@ -6,7 +6,7 @@ import {
   confirmDelete,
   resolveConflicts,
 } from '../ui/dialogs';
-import { findConflicts, planTransfer } from '../model/transferPlan';
+import { findConflicts, planTransfer } from '../game/install/transferPlan';
 import {
   findChild,
   getTopLevelNodes,
@@ -15,7 +15,7 @@ import {
 } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
-import type { ConflictChoice } from '../model/transferPlan';
+import type { ConflictChoice } from '../game/install/transferPlan';
 
 /**
  * Gets the directory an operation on a node applies to: the node itself for a

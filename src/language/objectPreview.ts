@@ -5,7 +5,7 @@ import { buildW3dScene } from '../formats/w3d/w3dScene';
 import { createToolRegistry } from '../services/toolRegistry';
 import { EffectLibrary } from './effectLibrary';
 import { composeEffective } from './effectiveObjectView';
-import { focusAt, readObjectScene } from './model/objectScene';
+import { focusAt, readObjectScene } from '../game/objects/objectScene';
 import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageDocument } from '../formats/ini/sageIniParser';
 import { particlePageHtml } from './particlePreview';

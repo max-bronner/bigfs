@@ -3,8 +3,8 @@ import {
   BulkQueryError,
   bulkChangesAcross,
   compileBulkQuery,
-} from './model/bulkEdit';
-import type { BulkQuery, BulkSource } from './model/bulkEdit';
+} from '../game/ini-tools/bulkEdit';
+import type { BulkQuery, BulkSource } from '../game/ini-tools/bulkEdit';
 import { isFragmentPath, parseSageIni } from '../formats/ini/sageIniParser';
 import { resolveIncludeUri } from './sageIniInclude';
 import {

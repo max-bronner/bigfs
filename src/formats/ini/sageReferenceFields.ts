@@ -20,7 +20,7 @@
  * This file knows nothing of the editor, so it runs in the unit tests.
  */
 
-import { lastContextSegment } from '../../language/model/sageAudioFields';
+import { lastContextSegment } from '../../game/audio/sageAudioFields';
 
 /** The namespace the three object-defining keywords share */
 export const OBJECT_NAMESPACE = 'Object';

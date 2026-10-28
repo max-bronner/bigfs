@@ -1,8 +1,8 @@
-import { shownArmor } from '../../language/model/armorTable';
+import { shownArmor } from '../../game/objects/armorTable';
 import type {
   ArmorTableMessage,
   FromArmorPage,
-} from '../../language/model/armorTable';
+} from '../../game/objects/armorTable';
 
 /**
  * The armor table's page: armors down, damage types across, a cell an

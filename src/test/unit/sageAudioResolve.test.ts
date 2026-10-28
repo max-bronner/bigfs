@@ -7,8 +7,8 @@ import {
   audioDefinitionOf,
   resolveAudio,
   stripAudioPrefix,
-} from '../../language/model/sageAudioResolve';
-import type { AudioLookup } from '../../language/model/sageAudioResolve';
+} from '../../game/audio/sageAudioResolve';
+import type { AudioLookup } from '../../game/audio/sageAudioResolve';
 
 const schema = createSageIniSchema(
   JSON.parse(

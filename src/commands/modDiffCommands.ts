@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getGameFiles } from '../model/gameView';
+import { getGameFiles } from '../game/install/gameView';
 import type { GameViewModel } from '../model/gameViewModel';
 import { getNodeUri } from '../model/nodeAddress';
 import {
@@ -9,14 +9,14 @@ import {
   compareWithBase,
   indexBaseGame,
   readBaseEntry,
-} from '../model/modDiff';
+} from '../node/modDiff';
 import { findBaseGameFolders } from '../model/baseGameFolders';
 import { packedArchives, useOutputStore } from '../model/packagedOutputs';
 import { webviewPage } from '../providers/webviewPage';
 import { registerPackageMod } from './packageModCommand';
 import { decodeIniText } from '../core/windows1252';
-import { diffDefinitions } from '../language/model/definitionDiff';
-import type { DefinitionDiff } from '../language/model/definitionDiff';
+import { diffDefinitions } from '../game/objects/definitionDiff';
+import type { DefinitionDiff } from '../game/objects/definitionDiff';
 import { parseSageIni } from '../formats/ini/sageIniParser';
 import { SageIniDocuments } from '../language/sageIniDocuments';
 

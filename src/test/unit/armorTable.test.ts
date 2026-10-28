@@ -7,7 +7,7 @@ import {
   damageTypes,
   readArmorRows,
   shownArmor,
-} from '../../language/model/armorTable';
+} from '../../game/objects/armorTable';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 

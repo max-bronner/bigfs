@@ -7,7 +7,7 @@ import {
   serializeIndexTable,
 } from '../../formats/big/bigFormat';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
-import { compareWithBase, indexBaseGame } from '../../model/modDiff';
+import { compareWithBase, indexBaseGame } from '../../node/modDiff';
 
 const buildArchive = (files: [string, string][]): Buffer => {
   const entries = new Map<string, BigFileEntry>();

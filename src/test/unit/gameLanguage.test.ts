@@ -3,7 +3,7 @@ import {
   chooseLanguage,
   installedLanguages,
   languageOfArchive,
-} from '../../language/model/gameLanguage';
+} from '../../game/text/gameLanguage';
 import {
   collectTextKeys,
   resolveAptText,

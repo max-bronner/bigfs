@@ -5,7 +5,7 @@ import {
   AUTO_LANGUAGE,
   chooseLanguage,
   installedLanguages,
-} from './model/gameLanguage';
+} from '../game/text/gameLanguage';
 import type { SageIniIndex } from './sageIniIndex';
 
 /**

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { readObjectScene } from './model/objectScene';
+import { readObjectScene } from '../game/objects/objectScene';
 import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { FILE_USES } from './sageIniIndex';

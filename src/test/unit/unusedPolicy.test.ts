@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { isModFile, isReportableKind } from '../../language/model/unusedPolicy';
+import { isModFile, isReportableKind } from '../../game/ini-tools/unusedPolicy';
 
 suite('Unused definition policy', () => {
   test('kinds that maps, scripts or the engine name are never reported', () => {

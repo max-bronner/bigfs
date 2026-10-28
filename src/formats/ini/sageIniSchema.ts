@@ -21,7 +21,7 @@ import {
   audioReferenceKind,
   isAudioNamespace,
   namespacesOfKind,
-} from '../../language/model/sageAudioFields';
+} from '../../game/audio/sageAudioFields';
 import {
   NOT_REFERENCE_FIELDS,
   NOT_REFERENCE_NAMESPACES,

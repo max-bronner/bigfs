@@ -1,5 +1,5 @@
 import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/sageIniParser';
-import { audioReferenceKind } from './sageAudioFields';
+import { audioReferenceKind } from '../audio/sageAudioFields';
 import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
 
 /**

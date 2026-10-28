@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 import os from 'os';
 import path from 'path';
-import { listBaseArchives } from '../model/modDiff';
+import { listBaseArchives } from '../node/modDiff';
 import {
   defaultPackageFolder,
   overrideReport,
   reportMarkdown,
   skippedFromPackage,
-} from '../model/modPackage';
-import type { Delivery, OverrideReport } from '../model/modPackage';
+} from '../node/modPackage';
+import type { Delivery, OverrideReport } from '../node/modPackage';
 import { packedArchives } from '../model/packagedOutputs';
 import { decodeWindows1252 } from '../core/windows1252';
 import { diagnoseText } from '../language/sageIniValidation';

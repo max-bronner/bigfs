@@ -18,7 +18,7 @@ import { keyEdits } from '../formats/particles/particleKeys';
 import type { ModelScene } from '../formats/w3d/w3dScene';
 import { buildW3dScene } from '../formats/w3d/w3dScene';
 import { createToolRegistry } from '../services/toolRegistry';
-import { duplicateDefinition } from './model/duplicateDefinition';
+import { duplicateDefinition } from '../game/objects/duplicateDefinition';
 import type { KeyKind, KeyValue } from '../formats/particles/particleKeys';
 import { webviewPage } from '../providers/webviewPage';
 import type { SageIniIndex } from './sageIniIndex';

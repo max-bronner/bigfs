@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { overrideReport, skippedFromPackage } from '../../model/modPackage';
+import { overrideReport, skippedFromPackage } from '../../node/modPackage';
 
 const BASE = [
   {
