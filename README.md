@@ -182,7 +182,14 @@ your mod's archives.
 - An FX list's preview has a **Timeline**: a bar per nugget from its
   `InitialDelay` for as long as it emits and its particles live, lit while
   it runs, with the playhead. Click a name to mute it, shift-click to play
-  it alone, drag a bar to move its delay.
+  it alone, drag a bar to move its delay. `Sound` nuggets get a play button
+  (nothing plays unless asked). The other nuggets are listed with their
+  delay and key fields: `LightPulse` is approximated as a screen flash,
+  `ViewShake` and `CameraShakerVolume` as a camera shake, `TerrainScorch` as
+  a ring on the ground, and `FXListAtBonePos`, `BuffNugget`,
+  `AttachedModel`, `DynamicDecal` and the rest are labelled only, as in
+  mint's FX viewer. The approximations show when and roughly how big, not
+  the game's own look.
 - **Load**: live particles and systems now, at peak and on average, per
   system, how much of the view the billboards cover, and the peak against
   each `MaxParticleCount` the mod's `StaticGameLOD` blocks allow.

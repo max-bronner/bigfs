@@ -1,3 +1,4 @@
+import { effectsAt } from '../../formats/particles/fxEffects';
 import { scaleEffect } from '../../formats/particles/particleScale';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
 import {
@@ -12,7 +13,7 @@ import { renderCurves } from './curves';
 import { renderFields } from './fields';
 import { attachHandles, drawHandles } from './handles';
 import { resetStats, sampleStats, showStats } from './stats';
-import { drawTimeline, renderTimeline } from './timeline';
+import { drawTimeline, listEffects, renderTimeline } from './timeline';
 import {
   beginFrame,
   canvas,
@@ -36,7 +37,7 @@ import {
 import { poseAt } from '../../formats/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3dPose';
 import type { ToPage } from './protocol';
-import { GRID, reach, volumeLines } from './volume';
+import { GRID, pushRing, reach, volumeLines } from './volume';
 
 /**
  * The particle preview page: runs the simulation at 30 Hz, draws it, and
@@ -120,10 +121,34 @@ const stepOnce = () => {
   state.time += 1 / STEP_HZ;
 };
 
+const flash = $('flash');
+
 const draw = () => {
   beginFrame(selected('sky'));
 
+  // LightPulse, ViewShake and TerrainScorch nuggets, approximated
+  const effects = objectView.scene
+    ? effectsAt([], 0, STEP_HZ)
+    : effectsAt(listEffects(), world.frame, STEP_HZ);
+  const swing = (effects.shake * Math.PI) / 180;
+
+  if (effects.flash) {
+    const [red, green, blue] = effects.flash.color.map((channel) =>
+      Math.round(channel * 255),
+    );
+
+    flash.style.background = `rgba(${red}, ${green}, ${blue}, ${effects.flash.alpha})`;
+  } else {
+    flash.style.background = 'transparent';
+  }
+
+  state.yaw += swing;
+  state.pitch += swing * 0.6;
+
   const basis = cameraBasis();
+
+  state.yaw -= swing;
+  state.pitch -= swing * 0.6;
   const matrix = viewProjection(basis, canvas);
 
   if (checked('showGrid')) {
@@ -141,6 +166,15 @@ const draw = () => {
     state.playing ? Math.min(1, state.accumulator * STEP_HZ) : 1,
     checked('keys'),
   );
+  if (effects.scorches.length) {
+    const lines: number[] = [];
+    const [x, y, z] = rootOrigin();
+
+    for (const radius of effects.scorches) {
+      pushRing(lines, [x, y, z], radius, [0.85, 0.5, 0.2, 1]);
+    }
+    drawLines(lines, matrix, false);
+  }
   if (checked('showVolume')) {
     const lines: number[] = [];
 

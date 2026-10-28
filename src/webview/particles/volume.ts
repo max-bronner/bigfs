@@ -13,6 +13,26 @@ export const pushLine = (
   out.push(...a, ...color, ...b, ...color);
 };
 
+/** A circle flat on the ground around a point */
+export const pushRing = (
+  out: number[],
+  center: Vec3,
+  radius: number,
+  color: Color,
+): void => {
+  const SEGMENTS = 32;
+
+  for (let step = 0; step < SEGMENTS; step++) {
+    const point = (index: number): Vec3 => [
+      center[0] + Math.cos((index / SEGMENTS) * Math.PI * 2) * radius,
+      center[1] + Math.sin((index / SEGMENTS) * Math.PI * 2) * radius,
+      center[2],
+    ];
+
+    pushLine(out, point(step), point(step + 1), color);
+  }
+};
+
 /** A rough size for the camera to frame a system */
 export const reach = (def: ParticleDef | undefined): number => {
   if (!def) {
