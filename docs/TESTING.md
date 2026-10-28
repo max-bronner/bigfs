@@ -337,6 +337,12 @@ Open an `.apt` (with its `.const` beside it).
 
 - [ ] `.str` language (outline, folding, problems) and **Open as Table**;
   `.csf` opens as a table and saves byte for byte; **Convert String Table**.
+- [ ] **new** `.cah`: a loose `MyHero_*.cah` and one inside an archive open
+  in the hero form. Name, class, subclass, colours, powers and bling show the
+  game's text once the INI is indexed. Edit the name and a colour, undo and
+  redo, save, and load the hero in the game: it still lists (the checksum was
+  recomputed). A file from the install is read-only and Save As writes a copy.
+  A truncated `.cah` fails to open with a message.
 - [ ] `.wnd`: completion, problems, **Show Layout Preview** (click a window
   to jump to it).
 - [ ] Maps (`.map`, `.bse`): relief with objects, world info, time of day,

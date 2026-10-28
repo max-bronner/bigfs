@@ -27,6 +27,8 @@ import { registerInstallDetectCommands } from './commands/installDetectCommands'
 import { registerLaunchCommands } from './commands/launchCommands';
 import { registerModDiffCommands } from './commands/modDiffCommands';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
+import { CahEditorProvider } from './providers/cahEditorProvider';
+import { SageIniDocuments } from './language/sageIniDocuments';
 import { AptEditorProvider } from './providers/aptEditorProvider';
 import { MapEditorProvider } from './providers/mapEditorProvider';
 import {
@@ -80,6 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
+  const cahDocuments = new SageIniDocuments(context.extensionUri);
   const gameLanguage = new GameLanguage(
     archiveModel,
     context.workspaceState,
@@ -91,6 +94,13 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(`${SCHEME}.chooseLanguage`, () =>
       gameLanguage.choose(),
     ),
+    cahDocuments,
+    CahEditorProvider.register({
+      documents: cahDocuments,
+      index: iniIndex,
+      gameLanguage,
+      locator,
+    }),
     AptEditorProvider.register(
       tools,
       locator,

@@ -215,6 +215,20 @@ your mod's archives.
 - `.csf` files open as the same table and save back byte for byte.
 - **Convert String Table** turns a `.str` into a `.csf` and back.
 
+**Create-a-Hero files** (`.cah`)
+
+- **new** `MyHero_<id>.cah` files, loose or inside a BIG archive, open in a
+  form showing the hero's name, id, class and subclass, the three colours, the
+  15 power slots, the bling and upgrade choices, and the attribute points
+  spent. Class, subclass, bling, power and special-power names resolve through
+  the `CreateAHeroSystem`, `Upgrade`, `CommandButton` and `SpecialPower`
+  definitions and the string labels of the chosen game language; whatever does
+  not resolve is shown as stored.
+- **new** Name, id, class, subclass, colours, powers and bling are editable
+  with undo and redo. Saving recomputes the CRC-32 trailer exactly as mint's
+  `mint-sage-cah` does (the game drops a hero whose checksum is wrong) and
+  writes record version 8. Files from a game install are read-only; use Save As.
+
 **Window layouts** (`.wnd`)
 
 - Highlighting, outline of windows, folding, completion of keys, window
