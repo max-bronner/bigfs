@@ -1,7 +1,7 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
 import { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import { CahEditorProvider } from '../../providers/cahEditorProvider';
+import { CahEditorProvider } from './cahEditorProvider';
 
 /** Registers the Create-a-Hero editor */
 export const registerCah = (

@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
-import type { ToolBox } from '../services/toolRegistry';
-import { decodeDdsTool, decodeTgaTool } from '../formats/texture/textureTools';
-import { playableAudioTool } from '../formats/audio/audioTools';
-import { buildW3dScene } from '../formats/w3d/w3dScene';
-import { parseW3dAnimations } from '../formats/w3d/w3dAnimation';
-import { findModelForSkeleton } from '../formats/w3d/w3dModelFinder';
-import { decompressEar, isEarWrapped } from '../formats/refpack/refpack';
-import { Vp6Movie } from '../formats/vp6/container';
-import type { ModelScene } from '../formats/w3d/w3dScene';
-import type { EntryLocator } from '../services/entryLocator';
-import { createNonce } from '../platform/webview/webviewNonce';
+import type { ToolBox } from '../../services/toolRegistry';
+import { decodeDdsTool, decodeTgaTool } from '../../formats/texture/textureTools';
+import { playableAudioTool } from '../../formats/audio/audioTools';
+import { buildW3dScene } from '../../formats/w3d/w3dScene';
+import { parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
+import { findModelForSkeleton } from '../../formats/w3d/w3dModelFinder';
+import { decompressEar, isEarWrapped } from '../../formats/refpack/refpack';
+import { Vp6Movie } from '../../formats/vp6/container';
+import type { ModelScene } from '../../formats/w3d/w3dScene';
+import type { EntryLocator } from '../../services/entryLocator';
+import { createNonce } from '../../platform/webview/webviewNonce';
 
 /** The file's name, as the INI files write it */
 const basename = (uri: vscode.Uri) =>

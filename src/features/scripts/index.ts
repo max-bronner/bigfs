@@ -1,6 +1,6 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { ScriptFileEditorProvider } from '../../providers/scriptFileEditorProvider';
+import { ScriptFileEditorProvider } from './scriptFileEditorProvider';
 
 /** Registers the read-only viewer for map script files */
 export const registerScripts = (

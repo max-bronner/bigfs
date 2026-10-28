@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
-import { parseCsf, writeCsf } from '../formats/csf/csf';
-import { parseStringRecords, quoteStringText } from '../formats/str/sageStringRecords';
+import { parseCsf, writeCsf } from '../../formats/csf/csf';
+import { parseStringRecords, quoteStringText } from '../../formats/str/sageStringRecords';
 import {
   decodeIniText,
   encodeWindows1252,
   unencodableCharacters,
-} from '../core/windows1252';
-import { toUri } from '../services/archives/commandTarget';
-import type { CommandTarget } from '../services/archives/commandTarget';
-import type { ArchiveModel } from '../services/archives/archiveModel';
-import { registerTranslationCheck } from './translationCheck';
+} from '../../core/windows1252';
+import { toUri } from '../../services/archives/commandTarget';
+import type { CommandTarget } from '../../services/archives/commandTarget';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import { registerTranslationCheck } from '../../language/translationCheck';
 
 /**
  * Language support for `.str` string tables: problems, an outline of labels,

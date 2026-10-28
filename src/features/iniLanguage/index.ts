@@ -16,7 +16,7 @@ import {
 } from '../../language/sageIniHierarchy';
 import { registerDuplicateDefinition } from '../../language/duplicateDefinition';
 import { createAudioLookup, describeSound } from '../../language/soundPlayer';
-import { createMappedImagePreview } from '../../language/mappedImagePreview';
+import { createMappedImagePreview } from '../preview/mappedImagePreview';
 import {
   SAGE_INI_CODE_ACTION_KINDS,
   createSageIniCodeActionProvider,

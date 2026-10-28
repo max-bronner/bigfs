@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { MapFile, parseMap } from '../formats/map/mapFile';
-import { markSounds } from '../formats/map/mapScriptSounds';
+import { MapFile, parseMap } from '../../formats/map/mapFile';
+import { markSounds } from '../../formats/map/mapScriptSounds';
 import { SCRIPT_FILE_VIEW_SCRIPT } from './scriptTreeScript';
-import { webviewPage } from '../platform/webview/webviewPage';
+import { webviewPage } from '../../platform/webview/webviewPage';
 
 /**
  * Viewer for standalone `.scb` script files: the same player, group and

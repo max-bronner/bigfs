@@ -1,6 +1,6 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { registerTextureCommands } from '../../commands/textureCommands';
+import { registerTextureCommands } from './textureCommands';
 
 /** Registers the texture export, import and conversion commands */
 export const registerTextures = (

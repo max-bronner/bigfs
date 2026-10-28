@@ -1,16 +1,16 @@
 import * as vscode from 'vscode';
-import { openDocument } from '../services/ini/workspaceText';
-import { parseWnd, toBoxes } from '../formats/wnd/wndLayout';
-import type { WndBox, WndWindow } from '../formats/wnd/wndLayout';
-import { imageExtent, isRotated, mappedUv } from '../formats/mappedImage/mappedImage';
-import type { UvRect } from '../formats/mappedImage/mappedImage';
-import type { EntryLocator } from '../services/entryLocator';
-import { encodePng } from '../node/png';
-import { loadMappedTexture, readMappedImage } from './mappedImagePreview';
-import type { GameLanguage } from '../services/ini/gameLanguage';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { openDocument } from '../../services/ini/workspaceText';
+import { parseWnd, toBoxes } from '../../formats/wnd/wndLayout';
+import type { WndBox, WndWindow } from '../../formats/wnd/wndLayout';
+import { imageExtent, isRotated, mappedUv } from '../../formats/mappedImage/mappedImage';
+import type { UvRect } from '../../formats/mappedImage/mappedImage';
+import type { EntryLocator } from '../../services/entryLocator';
+import { encodePng } from '../../node/png';
+import { loadMappedTexture, readMappedImage } from '../preview/mappedImagePreview';
+import type { GameLanguage } from '../../services/ini/gameLanguage';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
-import { webviewPage } from '../platform/webview/webviewPage';
+import { webviewPage } from '../../platform/webview/webviewPage';
 
 /**
  * Language support for `.wnd` window layouts: problems, an outline of the

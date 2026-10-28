@@ -6,25 +6,25 @@ import {
   parseCah,
   POWER_SLOTS,
   writeCah,
-} from "../formats/cah/cah";
-import type { CahRecord, ParsedCah } from "../formats/cah/cah";
-import type { EntryLocator } from "../services/entryLocator";
-import { decodeIniText } from "../core/windows1252";
-import type { GameLanguage } from "../services/ini/gameLanguage";
+} from "../../formats/cah/cah";
+import type { CahRecord, ParsedCah } from "../../formats/cah/cah";
+import type { EntryLocator } from "../../services/entryLocator";
+import { decodeIniText } from "../../core/windows1252";
+import type { GameLanguage } from "../../services/ini/gameLanguage";
 import {
   blingOptions,
   blockAtLine,
   readHeroSystem,
   spentPoints,
   topBlocks,
-} from "../game/objects/cahSystem";
-import type { HeroSystem } from "../game/objects/cahSystem";
-import { isFragmentPath, parseSageIni } from "../formats/ini/sageIniParser";
-import type { SageIniDocuments } from "../services/ini/sageIniDocuments";
-import type { SageIniIndex } from "../services/ini/sageIniIndex";
-import { createParseCache } from "../services/ini/workspaceText";
+} from "../../game/objects/cahSystem";
+import type { HeroSystem } from "../../game/objects/cahSystem";
+import { isFragmentPath, parseSageIni } from "../../formats/ini/sageIniParser";
+import type { SageIniDocuments } from "../../services/ini/sageIniDocuments";
+import type { SageIniIndex } from "../../services/ini/sageIniIndex";
+import { createParseCache } from "../../services/ini/workspaceText";
 import { CAH_SCRIPT } from "./cahViewScript";
-import { webviewPage } from "../platform/webview/webviewPage";
+import { webviewPage } from "../../platform/webview/webviewPage";
 
 /**
  * The editor for Create-a-Hero files (`MyHero_<id>.cah`), loose or inside a

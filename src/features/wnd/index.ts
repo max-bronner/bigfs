@@ -1,6 +1,6 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { registerSageWndLanguage } from '../../language/sageWndLanguage';
+import { registerSageWndLanguage } from './sageWndLanguage';
 
 /** Registers the WND language and the window preview */
 export const registerWnd = (
