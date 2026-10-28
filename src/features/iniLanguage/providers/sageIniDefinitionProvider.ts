@@ -1,9 +1,9 @@
 import { Position, Range } from 'vscode';
 import type { DefinitionProvider, LocationLink } from 'vscode';
-import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
-import { includeExists, resolveIncludeUri } from '../../services/ini/sageIniInclude';
+import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
+import { resolveSageSymbol } from '../../../formats/ini/sageIniSymbol';
+import { includeExists, resolveIncludeUri } from '../../../services/ini/sageIniInclude';
 
 /**
  * Follows a reference to the block that declares it, across every open

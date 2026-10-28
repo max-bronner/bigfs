@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
-import { createParseCache } from '../services/ini/workspaceText';
-import type { EntryLocator } from '../services/entryLocator';
-import { toPlayableAudio } from '../formats/audio/audioTools';
-import { webviewPage } from '../platform/webview/webviewPage';
-import { findAssetReferences } from '../formats/ini/sageIniAssets';
-import { audioDefinitionOf, resolveAudio } from '../game/audio/sageAudioResolve';
-import type { AudioLookup, AudioVariant } from '../game/audio/sageAudioResolve';
-import { forEachBlock } from '../formats/ini/sageIniParser';
-import type { SageDocument, SageToken } from '../formats/ini/sageIniParser';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { createParseCache } from '../../services/ini/workspaceText';
+import type { EntryLocator } from '../../services/entryLocator';
+import { toPlayableAudio } from '../../formats/audio/audioTools';
+import { webviewPage } from '../../platform/webview/webviewPage';
+import { findAssetReferences } from '../../formats/ini/sageIniAssets';
+import { audioDefinitionOf, resolveAudio } from '../../game/audio/sageAudioResolve';
+import type { AudioLookup, AudioVariant } from '../../game/audio/sageAudioResolve';
+import { forEachBlock } from '../../formats/ini/sageIniParser';
+import type { SageDocument, SageToken } from '../../formats/ini/sageIniParser';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 
 /**
  * Sounds played from the INI: a "Play" lens on every audio definition, play

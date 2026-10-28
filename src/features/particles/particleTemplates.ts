@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { findParticleDefinitions } from '../formats/particles/particleIni';
+import { findParticleDefinitions } from '../../formats/particles/particleIni';
 import {
   PARTICLE_TEMPLATES,
   templateSnippet,
-} from '../formats/particles/particleTemplates';
+} from '../../formats/particles/particleTemplates';
 
 /** The command that inserts a particle system template into an INI file */
 

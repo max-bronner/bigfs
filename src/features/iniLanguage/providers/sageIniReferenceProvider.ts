@@ -1,8 +1,8 @@
 import { Location, Position, Range } from 'vscode';
 import type { ReferenceProvider } from 'vscode';
-import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
+import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
+import { resolveSageSymbol } from '../../../formats/ini/sageIniSymbol';
 
 /**
  * Answers "what uses this", across every open archive.

@@ -1,8 +1,8 @@
 import { SemanticTokensLegend, SemanticTokensBuilder } from 'vscode';
 import type { DocumentSemanticTokensProvider } from 'vscode';
-import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
-import type { SageStatement, SageToken } from '../../formats/ini/sageIniParser';
+import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
+import type { SageIniSchema } from '../../../formats/ini/sageIniSchema';
+import type { SageStatement, SageToken } from '../../../formats/ini/sageIniParser';
 
 /**
  * Marks the tokens a TextMate grammar cannot decide.

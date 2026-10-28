@@ -1,6 +1,6 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { registerBalanceSheet as registerBalanceSheetCommand } from '../../language/balanceSheet';
+import { registerBalanceSheet as registerBalanceSheetCommand } from './balanceSheet';
 
 /** Registers the balance sheet that compares units side by side */
 export const registerBalanceSheet = (

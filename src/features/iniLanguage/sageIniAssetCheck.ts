@@ -6,17 +6,17 @@ import {
   window,
   workspace,
 } from 'vscode';
-import type { EntryLocator } from '../services/entryLocator';
-import { BASE_SETTING } from '../services/archives/baseGameFolders';
-import { decideAssetCheck } from '../game/ini-tools/assetCheckPolicy';
-import type { AssetCheckMode } from '../game/ini-tools/assetCheckPolicy';
-import { closestNames } from '../formats/ini/sageIniFormat';
+import type { EntryLocator } from '../../services/entryLocator';
+import { BASE_SETTING } from '../../services/archives/baseGameFolders';
+import { decideAssetCheck } from '../../game/ini-tools/assetCheckPolicy';
+import type { AssetCheckMode } from '../../game/ini-tools/assetCheckPolicy';
+import { closestNames } from '../../formats/ini/sageIniFormat';
 import {
   findAssetReferences,
   missingAssetMessage,
-} from '../formats/ini/sageIniAssets';
-import type { AssetKind } from '../formats/ini/sageIniAssets';
-import type { SageDocument } from '../formats/ini/sageIniParser';
+} from '../../formats/ini/sageIniAssets';
+import type { AssetKind } from '../../formats/ini/sageIniAssets';
+import type { SageDocument } from '../../formats/ini/sageIniParser';
 
 /**
  * Reports models, animations, textures and sounds an INI file names that no

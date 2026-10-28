@@ -1,29 +1,29 @@
 import * as vscode from 'vscode';
-import { parseCsf } from '../formats/csf/csf';
-import { strRecord } from '../formats/str/sageStringRecords';
-import { parseStringTable } from '../formats/str/sageStringTable';
-import { labelsInText } from '../game/text/gameTextLabels';
-import { languageOfArchive } from '../game/text/gameLanguage';
+import { parseCsf } from '../../formats/csf/csf';
+import { strRecord } from '../../formats/str/sageStringRecords';
+import { parseStringTable } from '../../formats/str/sageStringTable';
+import { labelsInText } from '../../game/text/gameTextLabels';
+import { languageOfArchive } from '../../game/text/gameLanguage';
 import {
   languageOf,
   translationGaps,
   undefinedLabels,
-} from '../game/text/translations';
+} from '../../game/text/translations';
 import type {
   LanguageGap,
   StringTable,
   UndefinedLabel,
-} from '../game/text/translations';
+} from '../../game/text/translations';
 import {
   isArchiveUri,
   listArchiveEntries,
   offerOverride,
   readEntryText,
   saveEntryTexts,
-} from '../services/ini/archiveText';
-import { decodeIniText } from '../core/windows1252';
-import { readWorkspaceText } from '../services/ini/workspaceText';
-import type { ArchiveModel } from '../services/archives/archiveModel';
+} from '../../services/ini/archiveText';
+import { decodeIniText } from '../../core/windows1252';
+import { readWorkspaceText } from '../../services/ini/workspaceText';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
 
 /**
  * **Check Translations**: compares the workspace's string tables language

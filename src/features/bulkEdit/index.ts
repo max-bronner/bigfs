@@ -1,6 +1,6 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { registerBulkEdit as registerBulkEditCommand } from '../../language/bulkEditCommand';
+import { registerBulkEdit as registerBulkEditCommand } from './bulkEditCommand';
 
 /** Registers the command that edits one field across many INI blocks */
 export const registerBulkEdit = (

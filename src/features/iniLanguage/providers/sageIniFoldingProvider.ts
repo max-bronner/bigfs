@@ -1,7 +1,7 @@
 import { FoldingRange, FoldingRangeKind } from 'vscode';
 import type { FoldingRangeProvider } from 'vscode';
-import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageBlock } from '../../formats/ini/sageIniParser';
+import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
+import type { SageBlock } from '../../../formats/ini/sageIniParser';
 
 /**
  * Folds each block from its header to its closing `End`, and each embedded

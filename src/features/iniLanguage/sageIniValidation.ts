@@ -9,16 +9,16 @@ import {
   workspace,
 } from 'vscode';
 import type { Disposable, Uri } from 'vscode';
-import type { ArchiveModel } from '../services/archives/archiveModel';
-import { getFileNodes } from '../services/archives/virtualNode';
-import { getNodeUri } from '../services/archives/nodeAddress';
-import { formatCount } from '../core/messages';
-import { SCHEME } from '../constants';
-import { isFragmentPath, parseSageIni } from '../formats/ini/sageIniParser';
-import { findSageIniProblems } from '../formats/ini/sageIniProblems';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
-import { decodeIniText } from '../core/windows1252';
-import type { EntryLocator } from '../services/entryLocator';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import { getFileNodes } from '../../services/archives/virtualNode';
+import { getNodeUri } from '../../services/archives/nodeAddress';
+import { formatCount } from '../../core/messages';
+import { SCHEME } from '../../constants';
+import { isFragmentPath, parseSageIni } from '../../formats/ini/sageIniParser';
+import { findSageIniProblems } from '../../formats/ini/sageIniProblems';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import { decodeIniText } from '../../core/windows1252';
+import type { EntryLocator } from '../../services/entryLocator';
 import { assetNamesToCheck, getAssetDiagnostics } from './sageIniAssetCheck';
 
 /**

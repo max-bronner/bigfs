@@ -1,27 +1,27 @@
 import * as vscode from 'vscode';
-import { webviewPage } from '../platform/webview/webviewPage';
-import type { EntryLocator } from '../services/entryLocator';
+import { webviewPage } from '../../platform/webview/webviewPage';
+import type { EntryLocator } from '../../services/entryLocator';
 import {
   commandSetSlots,
   createLineReader,
   resolveSlots,
 } from './commandSetPreview';
-import { createMappedImagePreview } from './mappedImagePreview';
-import { hotkeyClashes } from '../game/ini-tools/hotkeys';
+import { createMappedImagePreview } from '../../language/mappedImagePreview';
+import { hotkeyClashes } from '../../game/ini-tools/hotkeys';
 import {
   commandSetHeader,
   moveSlot,
   sameSlots,
   slotEdits,
-} from '../game/objects/commandSetEdit';
+} from '../../game/objects/commandSetEdit';
 import type {
   CommandSetMessage,
   FromCommandSetPage,
-} from '../game/objects/commandSetEdit';
-import { parseSageIni } from '../formats/ini/sageIniParser';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
-import { readWorkspaceText } from '../services/ini/workspaceText';
+} from '../../game/objects/commandSetEdit';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../../services/ini/workspaceText';
 
 /**
  * The CommandSet editor: a set's buttons in their slots, as the player sees

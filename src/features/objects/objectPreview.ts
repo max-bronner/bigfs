@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
-import type { EntryLocator } from '../services/entryLocator';
-import { findAnimation, parseW3dAnimations } from '../formats/w3d/w3dAnimation';
-import { buildW3dScene } from '../formats/w3d/w3dScene';
-import { createToolRegistry } from '../services/toolRegistry';
-import { EffectLibrary } from './effectLibrary';
+import type { EntryLocator } from '../../services/entryLocator';
+import { findAnimation, parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
+import { buildW3dScene } from '../../formats/w3d/w3dScene';
+import { createToolRegistry } from '../../services/toolRegistry';
+import { EffectLibrary } from '../particles/effectLibrary';
 import { composeEffective } from './effectiveObjectView';
-import { focusAt, readObjectScene } from '../game/objects/objectScene';
-import { parseSageIni } from '../formats/ini/sageIniParser';
-import type { SageDocument } from '../formats/ini/sageIniParser';
-import { particlePageHtml } from './particlePreview';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
-import { readWorkspaceText } from '../services/ini/workspaceText';
-import type { FromPage, ToPage } from '../webview/particles/protocol';
+import { focusAt, readObjectScene } from '../../game/objects/objectScene';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import type { SageDocument } from '../../formats/ini/sageIniParser';
+import { particlePageHtml } from '../particles/particlePreview';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../../services/ini/workspaceText';
+import type { FromPage, ToPage } from '../../webview/particles/protocol';
 
 /**
  * The object preview: an object as the game composes it, on the particle

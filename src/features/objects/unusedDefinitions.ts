@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
-import { AUDIO_NAMESPACES, EVA_NAMESPACES } from '../game/audio/sageAudioFields';
-import { isModFile, isReportableKind } from '../game/ini-tools/unusedPolicy';
-import { findBaseGameFolders } from '../services/archives/baseGameFolders';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import { AUDIO_NAMESPACES, EVA_NAMESPACES } from '../../game/audio/sageAudioFields';
+import { isModFile, isReportableKind } from '../../game/ini-tools/unusedPolicy';
+import { findBaseGameFolders } from '../../services/archives/baseGameFolders';
 
 /**
  * "Find Unused Definitions": every definition in the workspace's own files

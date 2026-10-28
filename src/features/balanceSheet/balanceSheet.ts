@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
-import { webviewPage } from '../platform/webview/webviewPage';
+import { webviewPage } from '../../platform/webview/webviewPage';
 import { BALANCE_SHEET_SCRIPT } from './balanceSheetScript';
 import {
   STAT_COLUMNS,
   readObjectStats,
   readWeaponStats,
-} from '../game/objects/objectStats';
-import type { ObjectStats, StatColumn, StatValue } from '../game/objects/objectStats';
-import { forEachBlock } from '../formats/ini/sageIniParser';
-import type { SageBlock, SageDocument } from '../formats/ini/sageIniParser';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
-import { createParseCache, readWorkspaceText } from '../services/ini/workspaceText';
-import type { ParseCache } from '../services/ini/workspaceText';
+} from '../../game/objects/objectStats';
+import type { ObjectStats, StatColumn, StatValue } from '../../game/objects/objectStats';
+import { forEachBlock } from '../../formats/ini/sageIniParser';
+import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import { createParseCache, readWorkspaceText } from '../../services/ini/workspaceText';
+import type { ParseCache } from '../../services/ini/workspaceText';
 
 /**
  * The balance sheet: every unit and building with its cost, build time,

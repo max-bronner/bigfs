@@ -1,7 +1,7 @@
 import { DocumentSymbol, Range, SymbolKind } from 'vscode';
 import type { DocumentSymbolProvider, TextDocument } from 'vscode';
-import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageBlock } from '../../formats/ini/sageIniParser';
+import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
+import type { SageBlock } from '../../../formats/ini/sageIniParser';
 
 /**
  * Builds the outline: root blocks at the top, their modules and nested blocks

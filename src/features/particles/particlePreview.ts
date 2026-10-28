@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { readWorkspaceText } from '../services/ini/workspaceText';
-import type { EntryLocator } from '../services/entryLocator';
+import { readWorkspaceText } from '../../services/ini/workspaceText';
+import type { EntryLocator } from '../../services/entryLocator';
 import {
   applyValueEdits,
   findParticleDefinitions,
@@ -8,20 +8,20 @@ import {
   readFxList,
   readParticleDef,
   valueEdits,
-} from '../formats/particles/particleIni';
+} from '../../formats/particles/particleIni';
 import type {
   FxListDef,
   IniDefinition,
   ParticleDef,
-} from '../formats/particles/particleIni';
-import { keyEdits } from '../formats/particles/particleKeys';
-import type { ModelScene } from '../formats/w3d/w3dScene';
-import { buildW3dScene } from '../formats/w3d/w3dScene';
-import { createToolRegistry } from '../services/toolRegistry';
-import { duplicateDefinition } from '../game/objects/duplicateDefinition';
-import type { KeyKind, KeyValue } from '../formats/particles/particleKeys';
-import { webviewPage } from '../platform/webview/webviewPage';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
+} from '../../formats/particles/particleIni';
+import { keyEdits } from '../../formats/particles/particleKeys';
+import type { ModelScene } from '../../formats/w3d/w3dScene';
+import { buildW3dScene } from '../../formats/w3d/w3dScene';
+import { createToolRegistry } from '../../services/toolRegistry';
+import { duplicateDefinition } from '../../game/objects/duplicateDefinition';
+import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
+import { webviewPage } from '../../platform/webview/webviewPage';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { EffectLibrary } from './effectLibrary';
 
 /**

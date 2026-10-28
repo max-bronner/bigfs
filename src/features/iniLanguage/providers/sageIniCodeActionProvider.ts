@@ -7,20 +7,20 @@ import {
 } from 'vscode';
 import type { Uri } from 'vscode';
 import type { CodeActionProvider, Diagnostic, TextDocument } from 'vscode';
-import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { closestNames, missingEndLine } from '../../formats/ini/sageIniFormat';
+import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
+import { closestNames, missingEndLine } from '../../../formats/ini/sageIniFormat';
 import {
   findGameTextLabels,
   labelOfMissingText,
   placeholderText,
-} from '../../game/text/gameTextLabels';
-import { strRecord } from '../../formats/str/sageStringRecords';
-import type { SageDocument } from '../../formats/ini/sageIniParser';
+} from '../../../game/text/gameTextLabels';
+import { strRecord } from '../../../formats/str/sageStringRecords';
+import type { SageDocument } from '../../../formats/ini/sageIniParser';
 import {
   isMissingAssetMessage,
   suggestedAssetNames,
-} from '../../formats/ini/sageIniAssets';
+} from '../../../formats/ini/sageIniAssets';
 
 /**
  * Quick fixes for the problems the diagnostics report: add a missing `End`,

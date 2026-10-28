@@ -1,18 +1,18 @@
 import { Hover, MarkdownString, Range } from 'vscode';
 import type { HoverProvider, Position, TextDocument, Uri } from 'vscode';
-import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
+import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
+import type { SageIniSchema } from '../../../formats/ini/sageIniSchema';
 import type {
   SageDocument,
   SageStatement,
   SageToken,
-} from '../../formats/ini/sageIniParser';
+} from '../../../formats/ini/sageIniParser';
 import {
   evaluateCall,
   evaluateMacroBody,
   formatValue,
-} from '../../formats/ini/sageIniPreprocessor';
-import type { SageDefinition, SageIniIndex } from '../../services/ini/sageIniIndex';
+} from '../../../formats/ini/sageIniPreprocessor';
+import type { SageDefinition, SageIniIndex } from '../../../services/ini/sageIniIndex';
 
 /**
  * Explains what is under the cursor: whether the engine defines it, what type

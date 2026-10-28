@@ -1,6 +1,6 @@
-import { readWorkspaceText } from '../services/ini/workspaceText';
-import type { SageDefinition, SageIniIndex } from '../services/ini/sageIniIndex';
-import { hotkeyClashes, hotkeyOf } from '../game/ini-tools/hotkeys';
+import { readWorkspaceText } from '../../services/ini/workspaceText';
+import type { SageDefinition, SageIniIndex } from '../../services/ini/sageIniIndex';
+import { hotkeyClashes, hotkeyOf } from '../../game/ini-tools/hotkeys';
 
 /**
  * A CommandSet as the player sees it: its numbered slots in order, each

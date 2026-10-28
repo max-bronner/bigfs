@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { strRecord } from '../game/objects/duplicateDefinition';
+import { strRecord } from '../../game/objects/duplicateDefinition';
 import {
   buttonName,
   copiedButton,
@@ -9,22 +9,22 @@ import {
   isLoadedObjectPath,
   newObjectEntryPath,
   slotLine,
-} from '../game/objects/newObject';
-import type { NewObjectMode, PlannedBlock } from '../game/objects/newObject';
-import { parseSageIni, stripComment, tokenize } from '../formats/ini/sageIniParser';
-import type { SageBlock } from '../formats/ini/sageIniParser';
-import { insertLines, lineEndOf } from '../formats/ini/iniTextEdits';
-import type { LineInsertion } from '../formats/ini/iniTextEdits';
+} from '../../game/objects/newObject';
+import type { NewObjectMode, PlannedBlock } from '../../game/objects/newObject';
+import { parseSageIni, stripComment, tokenize } from '../../formats/ini/sageIniParser';
+import type { SageBlock } from '../../formats/ini/sageIniParser';
+import { insertLines, lineEndOf } from '../../formats/ini/iniTextEdits';
+import type { LineInsertion } from '../../formats/ini/iniTextEdits';
 import {
   isArchiveUri,
   isEditable,
   readEntryText,
   saveEntryTexts,
-} from '../services/ini/archiveText';
-import type { ArchiveModel } from '../services/archives/archiveModel';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
-import { readWorkspaceText } from '../services/ini/workspaceText';
+} from '../../services/ini/archiveText';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../../services/ini/workspaceText';
 
 /**
  * "New Unit, Hero or Building…": makes a new object from an existing one

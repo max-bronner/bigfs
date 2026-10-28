@@ -1,9 +1,9 @@
 import type { ExtensionContext } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../../constants';
 import type { Services } from '../../services/createServices';
-import { registerEffectiveObjects } from '../../language/effectiveObjectView';
-import { registerObjectPreview } from '../../language/objectPreview';
-import { registerNewObjectWizard } from '../../language/newObjectWizard';
+import { registerEffectiveObjects } from './effectiveObjectView';
+import { registerObjectPreview } from './objectPreview';
+import { registerNewObjectWizard } from './newObjectWizard';
 
 /**
  * Registers the object features: the effective object view, the object

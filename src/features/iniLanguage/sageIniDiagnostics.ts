@@ -1,4 +1,4 @@
-import { findScriptProblems } from '../formats/ini/sageIniScripts';
+import { findScriptProblems } from '../../formats/ini/sageIniScripts';
 import {
   Diagnostic,
   DiagnosticSeverity,
@@ -7,17 +7,17 @@ import {
   workspace,
 } from 'vscode';
 import type { Disposable, TextDocument } from 'vscode';
-import { SAGE_INI_LANGUAGE } from '../constants';
-import { findUnresolvedReferences } from '../formats/ini/sageIniReferenceCheck';
-import { findSageIniProblems } from '../formats/ini/sageIniProblems';
-import { findGameTextLabels, missingTextMessage } from '../game/text/gameTextLabels';
-import type { SageProblem } from '../formats/ini/sageIniProblems';
-import type { SageDocument } from '../formats/ini/sageIniParser';
-import type { SageIniSchema } from '../formats/ini/sageIniSchema';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
-import { includeExists, resolveIncludeUri } from '../services/ini/sageIniInclude';
-import type { EntryLocator } from '../services/entryLocator';
+import { SAGE_INI_LANGUAGE } from '../../constants';
+import { findUnresolvedReferences } from '../../formats/ini/sageIniReferenceCheck';
+import { findSageIniProblems } from '../../formats/ini/sageIniProblems';
+import { findGameTextLabels, missingTextMessage } from '../../game/text/gameTextLabels';
+import type { SageProblem } from '../../formats/ini/sageIniProblems';
+import type { SageDocument } from '../../formats/ini/sageIniParser';
+import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import { includeExists, resolveIncludeUri } from '../../services/ini/sageIniInclude';
+import type { EntryLocator } from '../../services/entryLocator';
 import {
   CHECK_ASSETS_SETTING,
   checkedAssetDiagnostics,
