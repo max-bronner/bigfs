@@ -7,8 +7,18 @@ import {
 import type { BulkQuery, BulkSource } from './model/bulkEdit';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { resolveIncludeUri } from './sageIniInclude';
+import {
+  isArchiveUri,
+  listArchiveEntries,
+  offerOverride,
+  readEntryText,
+  restoreEntries,
+  saveEntryTexts,
+} from './archiveText';
+import { replaceInLines } from './model/iniTextEdits';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { readWorkspaceText } from './workspaceText';
+import type { ArchiveModel } from '../model/archiveModel';
 
 /**
  * "Bulk Edit INI Values…": asks for blocks, conditions, a field and a
@@ -16,8 +26,11 @@ import { readWorkspaceText } from './workspaceText';
  * and opens the change as a refactor preview, where each value can be
  * looked at as a diff and unticked before it is applied. A value written as
  * a macro, in an included file or inherited from a parent object is edited
- * where it is defined; one that cannot be is reported. Files inside archives
- * are left alone.
+ * where it is defined; one that cannot be is reported. INI files inside
+ * writable archives are edited too, through the archive model: each archive
+ * is saved once for all its values, and the save can be undone. A value
+ * defined in a base game archive is never written; the files are offered for
+ * "Override in Folder" instead.
  */
 
 const LAST_QUERY = 'bigfs.bulkEdit.lastQuery';
@@ -101,6 +114,7 @@ const askQuery = async (
 export const registerBulkEdit = (
   context: vscode.ExtensionContext,
   documents: SageIniDocuments,
+  archiveModel: ArchiveModel,
 ): vscode.Disposable =>
   vscode.commands.registerCommand(
     'bigfs.bulkEditIni',
@@ -176,7 +190,9 @@ export const registerBulkEdit = (
           title: 'Finding values to change',
         },
         async () => {
-          for (const uri of files) {
+          const entries = await listArchiveEntries(archiveModel, /\.ini$/i);
+
+          for (const uri of [...files, ...entries.map((entry) => entry.uri)]) {
             const source = await read(uri);
 
             if (source) {
@@ -197,12 +213,29 @@ export const registerBulkEdit = (
         },
         compiled,
       );
-      const changed = result.changes.length;
+      // A value in a base game archive is not written: it is offered for an override
+      const unwritable = result.changes.filter(
+        (change) =>
+          isArchiveUri(vscode.Uri.parse(change.uri)) &&
+          archiveModel.isReadOnlyUri(vscode.Uri.parse(change.uri)),
+      );
+      const writable = result.changes.filter(
+        (change) => !unwritable.includes(change),
+      );
+      const inArchives = writable.filter((change) =>
+        isArchiveUri(vscode.Uri.parse(change.uri)),
+      );
+      const changed = writable.length;
       const blocks = result.blocks;
       const skipped = result.skipped;
-      const touched = new Set(result.changes.map((change) => change.uri)).size;
+      const touched = new Set(writable.map((change) => change.uri)).size;
+      const readOnlyFiles = [
+        ...new Set(unwritable.map((change) => change.uri)),
+      ];
 
-      for (const change of result.changes) {
+      for (const change of writable.filter(
+        (each) => !inArchives.includes(each),
+      )) {
         edit.replace(
           vscode.Uri.parse(change.uri),
           new vscode.Range(change.line, change.start, change.line, change.end),
@@ -224,18 +257,84 @@ export const registerBulkEdit = (
         (skipped ? `; ${skipped} left alone, not being numbers` : '') +
         (result.unresolved.length
           ? `; ${result.unresolved.length} cannot be edited: ${result.unresolved.slice(0, 3).join('; ')}`
+          : '') +
+        (unwritable.length
+          ? `; ${unwritable.length} in base game archives, which are read-only`
           : '');
 
+      if (unwritable.length) {
+        void offerOverride(
+          archiveModel,
+          readOnlyFiles.map((uri) => vscode.Uri.parse(uri)),
+          `${unwritable.length} value${unwritable.length === 1 ? '' : 's'} are defined in ${readOnlyFiles.length} base game file${readOnlyFiles.length === 1 ? '' : 's'}, which are never changed. Override them in a folder of your mod, then run the edit again.`,
+        );
+      }
       if (!changed) {
         void vscode.window.showInformationMessage(
           `Nothing to change: ${summary}`,
         );
         return 0;
       }
+
+      const archives = new Set(
+        inArchives.map((change) => {
+          const resolved = vscode.Uri.parse(change.uri);
+
+          return archiveModel.getNode(resolved)?.archive.name ?? change.uri;
+        }),
+      );
+
       if (confirm) {
         void vscode.window.showInformationMessage(
           `${summary}. Review them in the refactor preview, then apply.`,
         );
+      }
+      if (
+        confirm &&
+        inArchives.length &&
+        (await vscode.window.showWarningMessage(
+          `Save ${inArchives.length} value${inArchives.length === 1 ? '' : 's'} into ${archives.size} archive${archives.size === 1 ? '' : 's'}?`,
+          {
+            modal: true,
+            detail: `${[...archives].join(', ')}. Each archive is rewritten once; you can undo it afterwards.`,
+          },
+          'Save',
+        )) !== 'Save'
+      ) {
+        return 0;
+      }
+      if (inArchives.length) {
+        const byEntry = new Map<string, typeof inArchives>();
+
+        for (const change of inArchives) {
+          byEntry.set(change.uri, [...(byEntry.get(change.uri) ?? []), change]);
+        }
+
+        const texts = await Promise.all(
+          [...byEntry].map(async ([uri, changes]) => {
+            const target = vscode.Uri.parse(uri);
+
+            return {
+              uri: target,
+              text: replaceInLines(await readEntryText(target), changes),
+            };
+          }),
+        );
+        const saved = await saveEntryTexts(archiveModel, texts);
+
+        void vscode.window
+          .showInformationMessage(
+            `Saved ${inArchives.length} value${inArchives.length === 1 ? '' : 's'} into ${archives.size} archive${archives.size === 1 ? '' : 's'}.`,
+            'Undo',
+          )
+          .then(async (answer) => {
+            if (answer === 'Undo') {
+              await restoreEntries(archiveModel, saved);
+            }
+          });
+      }
+      if (!edit.size) {
+        return changed;
       }
       await vscode.workspace.applyEdit(edit, { isRefactoring: true });
       return changed;

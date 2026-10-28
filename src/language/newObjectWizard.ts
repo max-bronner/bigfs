@@ -6,11 +6,22 @@ import {
   copiedObject,
   displayLabel,
   inheritingObject,
+  isLoadedObjectPath,
+  newObjectEntryPath,
   slotLine,
 } from './model/newObject';
 import type { NewObjectMode, PlannedBlock } from './model/newObject';
 import { parseSageIni, stripComment, tokenize } from './model/sageIniParser';
 import type { SageBlock } from './model/sageIniParser';
+import { insertLines, lineEndOf } from './model/iniTextEdits';
+import type { LineInsertion } from './model/iniTextEdits';
+import {
+  isArchiveUri,
+  isEditable,
+  readEntryText,
+  saveEntryTexts,
+} from './archiveText';
+import type { ArchiveModel } from '../model/archiveModel';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 import { readWorkspaceText } from './workspaceText';
@@ -24,10 +35,13 @@ import { readWorkspaceText } from './workspaceText';
  * own text), the button in the next free slot of that set, and the new
  * game text in the string table the original's comes from.
  *
- * Definitions are written next to the original when it is a file in the
- * workspace, else into the INI file open in the editor or a new one. A
- * command set or string table that lives inside an archive is not edited;
- * the summary says what is left to do by hand.
+ * Definitions are written next to the original when it is a file the game
+ * loads, in the workspace or in a writable archive; else into a file of
+ * their own in `Data\INI\Object`, which the game reads, in the original's
+ * archive or in a folder of the workspace. A command set or string table in
+ * a base game archive is not edited, since those are never written; the
+ * summary says what is left to do, and that Override in Folder makes the
+ * file editable.
  */
 
 const TEMPLATES = ['Object', 'ChildObject', 'ObjectReskin'];
@@ -53,9 +67,20 @@ interface Located {
 
 const firstName = (block: SageBlock) => block.name?.split(/\s+/)[0] ?? '';
 
+/** Text added to an entry of an archive, applied when its archive is saved */
+interface EntryAdditions {
+  uri: vscode.Uri;
+  insertions: LineInsertion[];
+  /** Appended as is, for string table records that carry their own line ends */
+  raw: string[];
+}
+
+const OBJECT_ENTRY = /^(.*\/)?(data\/ini\/object\/(?:.+\/)?[^/]+\.ini)$/i;
+
 export const registerNewObjectWizard = (
   documents: SageIniDocuments,
   index: SageIniIndex,
+  archiveModel: ArchiveModel,
 ): vscode.Disposable => {
   /** The block a definition or reference sits in, parsed from its file */
   const blockAt = async (
@@ -200,17 +225,69 @@ export const registerNewObjectWizard = (
     return { source, name, mode: mode.mode, text, commandSet: set.set };
   };
 
-  /** Where new definitions go: beside the original, or the open INI file */
-  const targetFor = (original: Located): vscode.Uri | undefined => {
-    if (original.uri.scheme === 'file') {
-      return original.uri;
+  /**
+   * Where the new definitions go, always at a path the game loads: the
+   * original's own file when that is one, else `Data\INI\Object\<name>.ini`
+   * beside it in the same archive or mod folder. Nothing is written to a base
+   * game archive, so a new file for one goes to a folder of the workspace.
+   */
+  const targetFor = async (
+    original: Located,
+    name: string,
+    left: string[],
+  ): Promise<{ uri: vscode.Uri; sameFile: boolean } | undefined> => {
+    const uri = original.uri;
+
+    if (isArchiveUri(uri) && !archiveModel.isReadOnlyUri(uri)) {
+      const node = archiveModel.getNode(uri);
+
+      if (node) {
+        const entry = newObjectEntryPath(node.entryPath, name);
+
+        return {
+          uri:
+            entry.toLowerCase() === node.entryPath.toLowerCase()
+              ? uri
+              : uri.with({ path: `${node.archive.rootPath}/${entry}` }),
+          sameFile: entry.toLowerCase() === node.entryPath.toLowerCase(),
+        };
+      }
     }
 
-    const open = vscode.window.activeTextEditor?.document;
+    const loaded = !isArchiveUri(uri) && OBJECT_ENTRY.exec(uri.path);
 
-    return open?.languageId === 'sage-ini' && open.uri.scheme === 'file'
-      ? open.uri
-      : undefined;
+    if (loaded && isLoadedObjectPath(loaded[2])) {
+      return { uri, sameFile: true };
+    }
+
+    const folder =
+      (!isArchiveUri(uri) && vscode.workspace.getWorkspaceFolder(uri)?.uri) ||
+      (vscode.workspace.workspaceFolders?.length === 1
+        ? vscode.workspace.workspaceFolders[0].uri
+        : (
+            await vscode.window.showOpenDialog({
+              canSelectFiles: false,
+              canSelectFolders: true,
+              openLabel: 'Write Here',
+              title: `Folder of the mod to write ${name} into`,
+            })
+          )?.[0]);
+
+    if (!folder) {
+      return undefined;
+    }
+    if (isArchiveUri(uri)) {
+      left.push(
+        `${original.name} is in a base game archive, which is never changed: ${name} was written to ${newObjectEntryPath(undefined, name)} in ${folder.fsPath}`,
+      );
+    }
+    return {
+      uri: vscode.Uri.joinPath(
+        folder,
+        ...newObjectEntryPath(undefined, name).split('/'),
+      ),
+      sameFile: false,
+    };
   };
 
   const create = async (request: NewObjectRequest) => {
@@ -224,6 +301,14 @@ export const registerNewObjectWizard = (
 
     const left: string[] = [];
     const edit = new vscode.WorkspaceEdit();
+    const additions = new Map<string, EntryAdditions>();
+    const additionsTo = (uri: vscode.Uri) => {
+      const key = uri.toString();
+      const found = additions.get(key) ?? { uri, insertions: [], raw: [] };
+
+      additions.set(key, found);
+      return found;
+    };
     const blocks: PlannedBlock[] = [
       request.mode === 'inherit'
         ? inheritingObject(request.name, original.name)
@@ -262,7 +347,7 @@ export const registerNewObjectWizard = (
           request.name,
         ),
       );
-      if (builder.set.uri.scheme === 'file') {
+      if (isEditable(archiveModel, builder.set.uri)) {
         const slot = slotLine(
           builder.set.lines.slice(
             builder.set.block.startLine,
@@ -270,15 +355,23 @@ export const registerNewObjectWizard = (
           ),
           newButton,
         );
+        const line = builder.set.block.startLine + slot.line;
 
-        edit.insert(
-          builder.set.uri,
-          new vscode.Position(builder.set.block.startLine + slot.line, 0),
-          `${slot.text}\n`,
-        );
+        if (isArchiveUri(builder.set.uri)) {
+          additionsTo(builder.set.uri).insertions.push({
+            line,
+            lines: [slot.text],
+          });
+        } else {
+          edit.insert(
+            builder.set.uri,
+            new vscode.Position(line, 0),
+            `${slot.text}\n`,
+          );
+        }
       } else {
         left.push(
-          `add ${newButton} to ${builder.set.name}, which is inside an archive`,
+          `add ${newButton} to ${builder.set.name}, which is in a base game archive (Override in Folder makes it editable)`,
         );
       }
     }
@@ -317,7 +410,7 @@ export const registerNewObjectWizard = (
 
       if (
         table &&
-        table.uri.scheme === 'file' &&
+        isEditable(archiveModel, table.uri) &&
         /\.str$/i.test(table.uri.path)
       ) {
         const key = table.uri.toString();
@@ -330,39 +423,101 @@ export const registerNewObjectWizard = (
       }
     }
     for (const { uri, text } of records.values()) {
+      if (isArchiveUri(uri)) {
+        additionsTo(uri).raw.push(...text);
+        continue;
+      }
+
       const document = await vscode.workspace.openTextDocument(uri);
       const end = document.lineAt(document.lineCount - 1);
 
       edit.insert(uri, end.range.end, (end.text ? '\n' : '') + text.join(''));
     }
 
-    const target = targetFor(original);
-    const text = blocks.map((block) => block.lines.join('\n')).join('\n\n');
+    const target = await targetFor(original, request.name, left);
 
-    if (target) {
-      const document = await vscode.workspace.openTextDocument(target);
-      const at =
-        target.toString() === original.uri.toString()
-          ? document.lineAt(original.block.endLine).range.end
-          : document.lineAt(document.lineCount - 1).range.end;
-
-      edit.insert(target, at, `\n\n${text}`);
-    } else {
-      const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
-      const file = await vscode.window.showSaveDialog({
-        title: `Where to write ${request.name}`,
-        defaultUri:
-          folder && vscode.Uri.joinPath(folder, `${request.name}.ini`),
-        filters: { INI: ['ini'] },
-      });
-
-      if (!file) {
-        return undefined;
-      }
-      edit.createFile(file, { overwrite: false, ignoreIfExists: true });
-      edit.insert(file, new vscode.Position(0, 0), `${text}\n`);
+    if (!target) {
+      return undefined;
     }
 
+    const text = blocks.map((block) => block.lines.join('\n')).join('\n\n');
+
+    if (isArchiveUri(target.uri)) {
+      additionsTo(target.uri).insertions.push(
+        target.sameFile
+          ? {
+              line: original.block.endLine + 1,
+              lines: ['', ...text.split('\n')],
+            }
+          : { lines: text.split('\n') },
+      );
+    } else if (target.sameFile) {
+      const document = await vscode.workspace.openTextDocument(target.uri);
+
+      edit.insert(
+        target.uri,
+        document.lineAt(original.block.endLine).range.end,
+        `\n\n${text}`,
+      );
+    } else {
+      let exists = true;
+
+      try {
+        await vscode.workspace.fs.stat(target.uri);
+      } catch {
+        exists = false;
+      }
+      if (exists) {
+        const document = await vscode.workspace.openTextDocument(target.uri);
+
+        edit.insert(
+          target.uri,
+          document.lineAt(document.lineCount - 1).range.end,
+          `\n\n${text}`,
+        );
+      } else {
+        edit.createFile(target.uri, { overwrite: false, ignoreIfExists: true });
+        edit.insert(target.uri, new vscode.Position(0, 0), `${text}\n`);
+      }
+    }
+
+    // Every changed entry of an archive is built here and saved with its archive once
+    const saves: { uri: vscode.Uri; text: string }[] = [];
+
+    for (const { uri, insertions, raw } of additions.values()) {
+      let before = '';
+
+      try {
+        before = await readEntryText(uri);
+      } catch {
+        // A new entry in the archive
+      }
+
+      const eol = lineEndOf(before);
+      const inserted = insertions.length
+        ? insertLines(before, insertions)
+        : before;
+
+      saves.push({
+        uri,
+        text: raw.length
+          ? inserted +
+            (inserted && !/\n$/.test(inserted) ? eol : '') +
+            raw.join('').replace(/\r?\n/g, eol)
+          : inserted,
+      });
+    }
+    if (saves.length) {
+      await saveEntryTexts(archiveModel, saves);
+    }
+    if (!edit.size) {
+      if (left.length) {
+        void vscode.window.showWarningMessage(
+          `${request.name} created. Left to do: ${left.join('; ')}.`,
+        );
+      }
+      return { name: request.name, left };
+    }
     if (!(await vscode.workspace.applyEdit(edit))) {
       throw new Error(`${request.name} could not be written`);
     }

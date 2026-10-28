@@ -142,3 +142,30 @@ export const slotLine = (
     text: `${indent}${highest + 1} = ${button}`,
   };
 };
+
+/**
+ * The folder whose `.ini` files the game loads object definitions from: the
+ * `Data\INI\Object` directory is read file by file, subfolders included,
+ * while an `.ini` anywhere else is read only when the boot legend names it
+ * and an `.inc` only when an `#include` pulls it in
+ */
+export const OBJECT_FOLDER = 'data/ini/object';
+
+/** Whether the game reads the entry at an archive-relative path for its objects */
+export const isLoadedObjectPath = (entryPath: string): boolean =>
+  /^data\/ini\/object\/(?:.+\/)?[^/]+\.ini$/i.test(
+    entryPath.replace(/\\/g, '/'),
+  );
+
+/**
+ * The entry a new object is written to: beside its source when that file is
+ * one the game loads, else a file of its own in the object folder, which a
+ * file at the root of a mod or in a folder the game never reads is not
+ */
+export const newObjectEntryPath = (
+  sourceEntryPath: string | undefined,
+  name: string,
+): string =>
+  sourceEntryPath && isLoadedObjectPath(sourceEntryPath)
+    ? sourceEntryPath.replace(/\\/g, '/')
+    : `${OBJECT_FOLDER}/${name}.ini`;

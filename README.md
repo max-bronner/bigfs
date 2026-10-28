@@ -61,7 +61,11 @@ your mod's archives.
 - **Check Translations** compares the workspace's string tables language by
   language (from `lang/german/…`-style paths, else a `.csf` header) and
   lists the labels each lacks; for a `.str` table it can add them with
-  another language's text standing in until they are translated.
+  another language's text standing in until they are translated. Tables
+  inside archives are compared too (a `.str` in a writable archive is filled
+  and saved with it; one in a base game archive is only reported, with
+  Override in Folder offered), and the labels that INI files, loose or in
+  archives, use but no table defines are listed.
 - **Game view** (`bigfs.explorer.view`): one merged tree of only the files the
   game loads, after its own priority rules, beside the default per-archive
   view.
@@ -109,7 +113,11 @@ your mod's archives.
   inherit (`ChildObject`) or copy, its own display name, and a copy of the
   button that builds the original, added to the next free slot of that
   command set. The new game text goes into the string table the original's
-  comes from; what lives inside an archive is listed to do by hand.
+  comes from. It works on objects inside writable archives too, and a copy is
+  always written to a file the game loads (`Data\INI\Object\<name>.ini`, or
+  beside the original when that is one), never to a stray file; for an
+  original in a base game archive, which is never changed, the new file goes to
+  a folder of the workspace and what else would need editing is listed.
 - **Edit slots** lens on every `CommandSet`: its buttons in their slots as
   the player sees them, with icon, game text and hotkey, clashes marked.
   Drag a button to another slot (it swaps with what is there), clear a
@@ -123,7 +131,10 @@ your mod's archives.
   (`Object *Archer*`), conditions (`Side = Rohan; KindOf ~ INFANTRY`), a
   field (`ActiveBody/MaxHealth`) and a formula of `x` and the block's own
   fields (`round(x * 1.1)`). Every change opens in the refactor preview as a
-  diff to review and untick before applying. Loose INI files only. A value
+  diff to review and untick before applying. INI files inside writable
+  archives are edited as well, each archive saved once and undoable; values
+  defined in base game archives are never written, and Override in Folder is
+  offered for those files. A value
   written as a `#define` macro, in an `#include`d file or inherited by a
   `ChildObject` from its parent is edited where it is defined (the preview
   says so); one that cannot be, such as an `#ADD` call, is reported.

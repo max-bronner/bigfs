@@ -73,7 +73,10 @@ deserves one load in the game as well.
 - [ ] **Package Mod…**: the report lists overridden, new and shadowed files
   and open INI errors, then packs one archive without hidden files.
 - [ ] **Check Translations**: the labels each language lacks; for a `.str`,
-  adding them with another language's text standing in.
+  adding them with another language's text standing in. Also compares
+  tables inside archives (a `.str` in a writable archive is filled and saved
+  with it; a base game table is only reported, with an Override in Folder
+  offer), and lists labels INI files use that no table defines. **new**
 
 ## INI language
 
@@ -105,10 +108,17 @@ Open any `.ini`, `.inc` or `.bhav`.
 - [ ] **Duplicate Definition…** (context menu): new name, game text copied.
 - [ ] **New Unit, Hero or Building…**: inherit or copy, display name, build
   button in the next free slot, text in the original's string table.
+  With an original in a writable archive the object, button, slot and text
+  are saved into the archive; a copy lands in `data/ini/object/<name>.ini`
+  (or the original's file when that is under `data/ini/object`), never at the
+  workspace root; with a base game original the new file goes to a workspace
+  folder and the rest is listed. **new**
 - [ ] **Bulk Edit INI Values…**: blocks, conditions, a field and a formula
   (`round(x * 1.1)`), reviewed as a diff in the refactor preview. Values from
   a `#define`, an `#include`d file or a `ChildObject`'s parent are edited
-  where defined; an `#ADD` operand is reported as not editable. **new**
+  where defined; an `#ADD` operand is reported as not editable. INI inside
+  writable archives is edited too (one undoable save per archive); values in
+  a base game archive are offered for Override in Folder instead. **new**
 - [ ] **Effective definition** lens on `ChildObject` / `ObjectReskin`: the
   composed object, each line marked with its source; follows edits.
 - [ ] **Edit slots** lens on a `CommandSet`: drag buttons between slots,

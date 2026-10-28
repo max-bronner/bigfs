@@ -129,3 +129,23 @@ export const translationGaps = (tables: StringTable[]): LanguageGap[] => {
         .sort((a, b) => a.label.localeCompare(b.label)),
     }));
 };
+
+/** A label some INI uses that no string table defines, and the first file using it */
+export interface UndefinedLabel {
+  label: string;
+  usedIn: string;
+}
+
+/**
+ * The labels INI files use that none of the tables define in any language.
+ * A label defined in one language only is a translation gap, not a missing
+ * string, so it is left to `translationGaps`.
+ */
+export const undefinedLabels = (
+  used: ReadonlyMap<string, { label: string; usedIn: string }>,
+  tables: readonly StringTable[],
+): UndefinedLabel[] =>
+  [...used]
+    .filter(([key]) => !tables.some((table) => table.labels.has(key)))
+    .map(([, entry]) => entry)
+    .sort((a, b) => a.label.localeCompare(b.label));

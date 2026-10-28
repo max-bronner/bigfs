@@ -38,6 +38,8 @@ const STRINGS = [
   '',
 ].join('\n');
 
+const LOADED = 'data/ini/object';
+
 suite('New unit wizard', () => {
   let folder: string;
 
@@ -48,8 +50,14 @@ suite('New unit wizard', () => {
       vscode.workspace.workspaceFolders![0].uri.fsPath,
       'newunit',
     );
-    await mkdir(folder, { recursive: true });
-    await writeFile(path.join(folder, 'units.ini'), UNITS);
+    // Under Data/INI/Object, the folder the game loads objects from
+    await mkdir(path.join(folder, LOADED), { recursive: true });
+    await mkdir(path.join(folder, 'stray'), { recursive: true });
+    await writeFile(path.join(folder, LOADED, 'units.ini'), UNITS);
+    await writeFile(
+      path.join(folder, 'stray', 'units.ini'),
+      UNITS.replace(/Wizard/g, 'Stray'),
+    );
     await writeFile(path.join(folder, 'strings.str'), STRINGS);
   });
 
@@ -83,7 +91,7 @@ suite('New unit wizard', () => {
       (await vscode.workspace.openTextDocument(path.join(folder, name)))
         .getText()
         .replace(/\r\n/g, '\n');
-    const units = await text('units.ini');
+    const units = await text(`${LOADED}/units.ini`);
     const strings = await text('strings.str');
 
     assert.match(
@@ -100,5 +108,34 @@ suite('New unit wizard', () => {
       strings,
       /CONTROLBAR:ConstructWizardRanger\n"Recruit Archer"\nEND/,
     );
+  });
+
+  test('an object beside a file the game never loads is written to a loaded file', async function () {
+    this.timeout(60_000);
+
+    const timeoutAt = Date.now() + 40_000;
+    let result: { left: string[] } | undefined;
+
+    while (!result && Date.now() < timeoutAt) {
+      result = await vscode.commands.executeCommand('bigfs.newObject', {
+        source: 'StrayArcher',
+        name: 'StrayRanger',
+        mode: 'copy',
+        text: 'Ranger',
+      });
+      if (!result) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+    assert.ok(result);
+
+    const created = (
+      await vscode.workspace.openTextDocument(
+        path.join(folder, '..', LOADED, 'StrayRanger.ini'),
+      )
+    ).getText();
+
+    assert.match(created, /Object StrayRanger/);
+    await rm(path.join(folder, '..', 'data'), { recursive: true, force: true });
   });
 });
