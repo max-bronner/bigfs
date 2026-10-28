@@ -34,7 +34,8 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onFileSystem:bigfs"
+    "onFileSystem:bigfs",
+    "onFileSystem:bigfs-apt-text"
   ],
   "main": "./dist/extension.mjs",
   "contributes": {
@@ -297,6 +298,18 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.openAptText",
+        "title": "Open APT as Text",
+        "category": "bigFS",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "bigfs.reopenAptVisual",
+        "title": "Reopen as Visual Editor",
+        "category": "bigFS",
+        "icon": "$(preview)"
+      },
+      {
         "command": "bigfs.editW3dAnimation",
         "title": "Edit W3D Animation…",
         "category": "BIG"
@@ -445,9 +458,18 @@
           "command": "bigfs.deleteAptMovie",
           "group": "7_modification@16",
           "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+        },
+        {
+          "command": "bigfs.openAptText",
+          "group": "navigation@30",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.apt$/i"
         }
       ],
       "commandPalette": [
+        {
+          "command": "bigfs.reopenAptVisual",
+          "when": "resourceScheme == bigfs-apt-text"
+        },
         {
           "command": "bigfs.editCommandSet",
           "when": "false"
@@ -592,9 +614,24 @@
           "command": "bigfs.deleteAptMovie",
           "group": "7_modification@16",
           "when": "resourceExtname =~ /^\\.apt$/i"
+        },
+        {
+          "command": "bigfs.openAptText",
+          "group": "navigation@30",
+          "when": "resourceExtname =~ /^\\.apt$/i"
         }
       ],
       "editor/title": [
+        {
+          "command": "bigfs.openAptText",
+          "group": "navigation",
+          "when": "activeCustomEditorId == bigfs.aptEditor"
+        },
+        {
+          "command": "bigfs.reopenAptVisual",
+          "group": "navigation",
+          "when": "resourceScheme == bigfs-apt-text"
+        },
         {
           "command": "bigfs.openStringTable",
           "group": "navigation",
@@ -924,6 +961,16 @@
           ".aptscript"
         ],
         "configuration": "./apt-script-language-configuration.json"
+      },
+      {
+        "id": "apt-text",
+        "aliases": [
+          "APT Text"
+        ],
+        "extensions": [
+          ".apttext"
+        ],
+        "configuration": "./apt-text-language-configuration.json"
       }
     ],
     "grammars": [
@@ -949,6 +996,14 @@
         "language": "apt-script",
         "scopeName": "source.apt-script",
         "path": "./syntaxes/aptScript.tmLanguage.json"
+      },
+      {
+        "language": "apt-text",
+        "scopeName": "source.apt-text",
+        "path": "./syntaxes/aptText.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.apt-script": "apt-script"
+        }
       }
     ],
     "configurationDefaults": {

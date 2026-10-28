@@ -1,0 +1,117 @@
+{
+  "name": "APT Text",
+  "scopeName": "source.apt-text",
+  "patterns": [
+    { "include": "#fence" },
+    { "include": "#comment" },
+    {
+      "match": "^\\s*(apt-text)\\s+(\\d+)",
+      "captures": {
+        "1": { "name": "keyword.other.header.apt-text" },
+        "2": { "name": "constant.numeric.apt-text" }
+      }
+    },
+    {
+      "match": "^\\s*(character)\\s+(\\d+)\\s+([a-z]+)",
+      "captures": {
+        "1": { "name": "keyword.other.character.apt-text" },
+        "2": { "name": "entity.name.type.character-id.apt-text" },
+        "3": { "name": "storage.type.character.apt-text" }
+      }
+    },
+    {
+      "match": "^\\s*(frame)\\s+(\\d+)",
+      "captures": {
+        "1": { "name": "keyword.control.frame.apt-text" },
+        "2": { "name": "constant.numeric.frame.apt-text" }
+      }
+    },
+    {
+      "match": "^\\s*(import|export)\\s+(\\d+)",
+      "captures": {
+        "1": { "name": "keyword.other.apt-text" },
+        "2": { "name": "entity.name.type.character-id.apt-text" }
+      }
+    },
+    {
+      "name": "keyword.other.apt-text",
+      "match": "^\\s*(const|place|remove|label|action|initaction|bg|record|run|unknown)\\b"
+    },
+    {
+      "match": "\\b(char|font|sprite|start|end)(=)(\\d+)",
+      "captures": {
+        "1": { "name": "variable.parameter.apt-text" },
+        "2": { "name": "keyword.operator.assignment.apt-text" },
+        "3": { "name": "entity.name.type.character-id.apt-text" }
+      }
+    },
+    {
+      "match": "\\b([a-z][a-z0-9-]*)(=)",
+      "captures": {
+        "1": { "name": "variable.parameter.apt-text" },
+        "2": { "name": "keyword.operator.assignment.apt-text" }
+      }
+    },
+    {
+      "name": "keyword.other.transform.apt-text",
+      "match": "(?<=\\s)(move|at|scale|rot|matrix|color|unknown|pen)(?=\\s|$)"
+    },
+    { "name": "constant.other.color.apt-text", "match": "#[0-9a-fA-F]{8}\\b" },
+    { "name": "constant.other.color.apt-text", "match": "[*+]\\d+(,\\d+){3}" },
+    { "include": "#string" },
+    {
+      "name": "constant.language.apt-text",
+      "match": "\\b(up|over|down|hit|none|nan|inf)\\b"
+    },
+    {
+      "name": "constant.numeric.apt-text",
+      "match": "-?\\b(0x[0-9a-fA-F]+|\\d+(\\.\\d+)?(e[-+]?\\d+)?)\\b"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.semicolon.apt-text",
+      "match": ";.*$"
+    },
+    "string": {
+      "name": "string.quoted.double.apt-text",
+      "begin": "\"",
+      "end": "\"|$",
+      "patterns": [
+        {
+          "name": "constant.character.escape.apt-text",
+          "match": "\\\\(x[0-9a-fA-F]{2}|[\"\\\\ntr])"
+        }
+      ]
+    },
+    "fence": {
+      "patterns": [
+        {
+          "begin": "^(\\s*)(```)(as|asm)\\s*$",
+          "beginCaptures": {
+            "2": { "name": "punctuation.definition.fence.apt-text" },
+            "3": { "name": "entity.name.section.language.apt-text" }
+          },
+          "end": "^\\1(```)\\s*$",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.fence.apt-text" }
+          },
+          "contentName": "meta.embedded.block.apt-script",
+          "patterns": [{ "include": "source.apt-script" }]
+        },
+        {
+          "begin": "^(\\s*)(```)(listing)?\\s*$",
+          "beginCaptures": {
+            "2": { "name": "punctuation.definition.fence.apt-text" },
+            "3": { "name": "entity.name.section.language.apt-text" }
+          },
+          "end": "^\\1(```)\\s*$",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.fence.apt-text" }
+          },
+          "contentName": "markup.raw.block.apt-text"
+        }
+      ]
+    }
+  }
+}

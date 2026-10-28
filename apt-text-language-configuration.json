@@ -1,0 +1,13 @@
+{
+  "comments": { "lineComment": ";" },
+  "autoClosingPairs": [
+    { "open": "\"", "close": "\"", "notIn": ["string"] }
+  ],
+  "surroundingPairs": [["\"", "\""]],
+  "folding": { "offSide": true },
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(character|frame|const|place|action|initaction)\\b.*$|^\\s*```\\w+\\s*$",
+    "decreaseIndentPattern": "^\\s*```\\s*$"
+  },
+  "wordPattern": "(-?\\d*\\.\\d\\w*)|([^\\s,=\"*+;]+)"
+}

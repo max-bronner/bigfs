@@ -29,6 +29,7 @@ import { PreviewEditorProvider } from './providers/previewEditorProvider';
 import { CahEditorProvider } from './providers/cahEditorProvider';
 import { SageIniDocuments } from './language/sageIniDocuments';
 import { AptEditorProvider } from './providers/aptEditorProvider';
+import { registerAptTextLanguage } from './providers/aptTextLanguage';
 import { MapEditorProvider } from './providers/mapEditorProvider';
 import { ScriptFileEditorProvider } from './providers/scriptFileEditorProvider';
 import {
@@ -111,6 +112,7 @@ export function activate(context: vscode.ExtensionContext) {
       context.extensionUri,
       { gameLanguage, index: iniIndex, state: context.workspaceState },
     ),
+    registerAptTextLanguage(),
   );
 
   // Settled once the archives are indexed, so hovers and diagnostics read

@@ -314,6 +314,23 @@ Movie**.
   and redoes with Ctrl+Y; save an unedited movie and it is byte for byte the
   same.
 - [ ] **new** ActionScript tabs: edit, compile, add and remove scripts.
+- [ ] **new** **Text view.** In an open movie run **bigFS: Open APT as
+  Text** (editor title button, palette, or right-click the `.apt`; the page's
+  own text-view button once it has one): the visual editor is replaced by a
+  `.apttext` tab holding the whole movie, `.const` items, imports, exports
+  and every character, with frames, placements and scripts in fences.
+  Check the highlighting (keywords, ids, numbers, colours, strings, and the
+  ActionScript inside fences), the outline (characters with their frames),
+  folding of characters, frames and fences, and hover / F12 on a `char=`,
+  `font=` or `sprite=` id. Add a comment and save: the `.apt` and `.const`
+  are byte for byte the same. Change a placement's `at`, a label, an
+  edittext `text=` and a script (every copy of a shared one) and save: the
+  movie shows the changes, and **Reopen as Visual Editor** shows them on the
+  stage. Write `depth=x` or delete a fence's closing line: the line is
+  underlined, saving fails with the message, and the movie is untouched.
+  With the visual editor open and edited, the text shows the unsaved state
+  and saving it saves the movie (one undo step there). Repeat inside a
+  writable archive; a movie of a base game source opens read-only.
 - [ ] **new** **New APT Movie…** (folder): `.apt`, `.const`, `.dat`.
   **Rename APT Movie…** renames every file of the movie and the imports that
   name it (a dirty tab stops it); **Delete APT Movie…** asks first.

@@ -123,6 +123,8 @@ export type FromPage =
   | { kind: 'openMovie'; name: string }
   /** Removes a character nothing refers to, with its own files */
   | { kind: 'removeCharacter'; id: number }
+  /** Switches to the text view of the whole movie */
+  | { kind: 'openTextView' }
   /** Changes one item of the movie's `.const` */
   | { kind: 'constEdit'; change: ConstItemChange }
   | { kind: 'manageMovie'; action: 'rename' | 'delete' }
