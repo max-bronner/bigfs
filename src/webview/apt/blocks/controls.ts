@@ -1,5 +1,5 @@
 import type { PlacementChange } from '../../../formats/apt/aptWriter';
-import { describe } from '../details';
+import { describeCharacter } from '../describeCharacter';
 import { movie } from '../state';
 import {
   cssColour,
@@ -250,7 +250,7 @@ export const characterPicker = (
     id === undefined
       ? '—'
       : characters[id]
-        ? describe(characters[id])
+        ? describeCharacter(characters[id])
         : `#${id} (none)`;
   let popup: HTMLDivElement | undefined;
 
@@ -284,7 +284,7 @@ export const characterPicker = (
 
     const paint = () => {
       shown = characters
-        .filter((each) => matchesSearch(describe(each), search.value))
+        .filter((each) => matchesSearch(describeCharacter(each), search.value))
         .map((each) => each.id);
       active = Math.max(0, Math.min(active, shown.length - 1));
       list.replaceChildren(
@@ -293,7 +293,7 @@ export const characterPicker = (
 
           option.className = 'bk-option' + (index === active ? ' active' : '');
           option.setAttribute('role', 'option');
-          option.textContent = describe(characters[id]);
+          option.textContent = describeCharacter(characters[id]);
           option.onmousedown = (event) => {
             event.preventDefault();
             pick(id);

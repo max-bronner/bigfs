@@ -1,7 +1,10 @@
 import { PLACE_FLAGS } from '../../formats/apt/aptMovie';
 import type { FrameItem, Matrix2 } from '../../formats/apt/aptMovie';
 import type { PlacementChange } from '../../formats/apt/aptWriter';
-import { send, vscode } from './details';
+import { send } from './details';
+import { getVsCodeApi } from '../shared/vscodeApi';
+import type { FromPage } from './protocol';
+
 import { CLIP_EVENTS, bitNames, bitSelect } from './scriptSites';
 import { byId } from './dom';
 import { blockCard } from './blocks/blockCard';
@@ -19,6 +22,8 @@ import { DOWN, OVER, UP, describe } from './player';
 import type { Instance } from './player';
 import { currentPlayer, inspected, render } from './stage';
 import { state } from './state';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * The inspector: the instance picked on the stage, like an element in a

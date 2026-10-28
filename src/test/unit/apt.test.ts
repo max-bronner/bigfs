@@ -207,4 +207,15 @@ suite('APT movies', () => {
     });
     assert.deepStrictEqual(entries.get(4), { kind: 'atlas', page: 1 });
   });
+
+  test('a truncated constant file fails with a message', () => {
+    const magic = Uint8Array.from('Apt constant file\x1a\0\0', (char) =>
+      char.charCodeAt(0),
+    );
+
+    assert.throws(
+      () => parseConst(magic),
+      /Read of 4 bytes at 20 is outside the 20 byte file/,
+    );
+  });
 });

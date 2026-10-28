@@ -251,4 +251,11 @@ suite('RefPack', () => {
       /copies from/,
     );
   });
+
+  test('a truncated map fails with a message', () => {
+    const body = buildMap();
+
+    assert.throws(() => parseMap(body.slice(0, 6)), /Map data ends early at 4/);
+    assert.throws(() => parseMap(body.slice(0, 20)), /Map data ends early/);
+  });
 });

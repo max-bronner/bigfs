@@ -274,4 +274,16 @@ suite("Create-a-Hero file", () => {
     assert.strictEqual(emptyCahRecord().powers.length, POWER_SLOTS);
     assert.strictEqual(cahRecordProblem(emptyCahRecord()), undefined);
   });
+
+  test("every truncation of a file fails with a message naming the offset", () => {
+    const good = writeCah(sample());
+
+    for (let length = 0; length < good.length; length++) {
+      assert.throws(
+        () => parseCah(good.slice(0, length)),
+        /runs past the end of the file|claims \d+ entries|bad container/,
+        `${length} bytes`,
+      );
+    }
+  });
 });

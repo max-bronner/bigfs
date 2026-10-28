@@ -14,6 +14,11 @@
  * names the offset, never a read past the buffer.
  */
 
+import { createByteReader, type ByteReader } from '../../core/byteReader';
+
+const outsideTheFile = (offset: number, length: number, size: number): string =>
+  `Read of ${length} bytes at ${offset} is outside the ${size} byte file`;
+
 /** The word every character, and the Movie record, carries after its type */
 export const CHARACTER_SIGNATURE = 0x09876543;
 
@@ -22,60 +27,59 @@ const CONST_MAGIC = 'Apt constant file\x1a\0\0';
 
 /** Little-endian, bounds-checked reads over one file */
 export class AptReader {
-  private readonly view: DataView;
+  private readonly cursor: ByteReader;
 
   public constructor(public readonly bytes: Uint8Array) {
-    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    this.cursor = createByteReader(bytes, true, {
+      describeOverrun: outsideTheFile,
+    });
   }
 
-  private check(offset: number, length: number): void {
-    if (
-      !Number.isInteger(offset) ||
-      offset < 0 ||
-      offset + length > this.bytes.length
-    ) {
-      throw new Error(
-        `Read of ${length} bytes at ${offset} is outside the ${this.bytes.length} byte file`,
-      );
+  private at<T>(offset: number, length: number, read: (cursor: ByteReader) => T): T {
+    if (!Number.isInteger(offset) || offset < 0 || offset > this.bytes.length) {
+      throw new Error(outsideTheFile(offset, length, this.bytes.length));
     }
+    this.cursor.seek(offset);
+    return read(this.cursor);
   }
 
   public u8(offset: number): number {
-    this.check(offset, 1);
-    return this.bytes[offset];
+    return this.at(offset, 1, (cursor) => cursor.u8());
   }
 
   public u16(offset: number): number {
-    this.check(offset, 2);
-    return this.view.getUint16(offset, true);
+    return this.at(offset, 2, (cursor) => cursor.u16());
   }
 
   public u32(offset: number): number {
-    this.check(offset, 4);
-    return this.view.getUint32(offset, true);
+    return this.at(offset, 4, (cursor) => cursor.u32());
   }
 
   public i32(offset: number): number {
-    this.check(offset, 4);
-    return this.view.getInt32(offset, true);
+    return this.at(offset, 4, (cursor) => cursor.i32());
   }
 
   public f32(offset: number): number {
-    this.check(offset, 4);
-    return this.view.getFloat32(offset, true);
+    return this.at(offset, 4, (cursor) => cursor.f32());
   }
 
   /** A NUL-terminated string, decoded as Latin-1 so every byte survives */
   public cstr(offset: number, maxLength = 65536): string {
-    this.check(offset, 1);
+    this.u8(offset);
+    this.cursor.seek(offset);
 
-    const end = this.bytes.indexOf(0, offset);
+    let text: string;
 
-    if (end < 0 || end - offset > maxLength) {
+    try {
+      text = this.cursor.cstring();
+    } catch {
+      throw new Error(`Unterminated string at ${offset}`);
+    }
+    if (text.length > maxLength) {
       throw new Error(`Unterminated string at ${offset}`);
     }
 
-    return String.fromCharCode(...this.bytes.subarray(offset, end));
+    return text;
   }
 
   /** A string a pointer names, or nothing for the null pointer */

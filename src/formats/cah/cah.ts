@@ -16,6 +16,8 @@
  * a file written back keeps every byte it was read with.
  */
 
+import { createByteReader } from "../../core/byteReader";
+
 export const POWER_SLOTS = 15;
 
 const MAGIC = "ALAE";
@@ -172,87 +174,61 @@ export const computeCahCrc = (record: CahRecord): number => {
 };
 
 /** Reads little-endian values, refusing any that run past the bytes present */
-class Reader {
-  private readonly view: DataView;
-  public at = 0;
+const createCahReader = (bytes: Uint8Array) => {
+  let what = "";
+  const reader = createByteReader(bytes, true, {
+    describeOverrun: (offset) =>
+      `The ${what} at byte ${offset} runs past the end of the file`,
+  });
+  const take = (label: string, length: number): Uint8Array => {
+    what = label;
+    return reader.bytes(length);
+  };
+  const u8 = (label: string): number => {
+    what = label;
+    return reader.u8();
+  };
+  const u32 = (label: string): number => {
+    what = label;
+    return reader.u32();
+  };
+  const length = (label: string): number => {
+    const short = u8(label);
 
-  public constructor(private readonly bytes: Uint8Array) {
-    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  }
+    return short === LONG_STRING ? u32(label) : short;
+  };
 
-  public get remaining(): number {
-    return this.bytes.length - this.at;
-  }
+  return {
+    get at() {
+      return reader.offset;
+    },
+    get remaining() {
+      return reader.remaining;
+    },
+    u8,
+    u32,
+    tag: (label: string): string => String.fromCharCode(...take(label, 4)),
+    ascii: (label: string): string =>
+      String.fromCharCode(...take(label, length(label))),
+    wide: (label: string): string => {
+      const units = length(label);
+      const raw = take(label, units * 2);
+      const text: string[] = [];
 
-  private need(length: number, what: string): void {
-    if (length > this.remaining) {
-      throw new Error(
-        `The ${what} at byte ${this.at} runs past the end of the file`,
-      );
-    }
-  }
-
-  public take(length: number, what: string): Uint8Array {
-    this.need(length, what);
-
-    const slice = this.bytes.subarray(this.at, this.at + length);
-
-    this.at += length;
-    return slice;
-  }
-
-  public u8(what: string): number {
-    return this.take(1, what)[0];
-  }
-
-  public u32(what: string): number {
-    this.need(4, what);
-
-    const value = this.view.getUint32(this.at, true);
-
-    this.at += 4;
-    return value;
-  }
-
-  public tag(what: string): string {
-    return String.fromCharCode(...this.take(4, what));
-  }
-
-  private length(what: string): number {
-    const short = this.u8(what);
-
-    return short === LONG_STRING ? this.u32(what) : short;
-  }
-
-  public ascii(what: string): string {
-    const length = this.length(what);
-
-    return String.fromCharCode(...this.take(length, what));
-  }
-
-  public wide(what: string): string {
-    const length = this.length(what);
-
-    if (length > this.remaining / 2) {
-      this.need(length * 2, what);
-    }
-
-    const bytes = this.take(length * 2, what);
-    const units: string[] = [];
-
-    for (let at = 0; at < bytes.length; at += 2) {
-      units.push(String.fromCharCode(bytes[at] | (bytes[at + 1] << 8)));
-    }
-    return units.join("");
-  }
-}
+      for (let at = 0; at < raw.length; at += 2) {
+        text.push(String.fromCharCode(raw[at] | (raw[at + 1] << 8)));
+      }
+      return text.join("");
+    },
+  };
+};
 
 /**
  * Parses a hero file; every length is checked against the bytes present, and
  * a file that cannot be read throws an error saying why
  */
 export const parseCah = (bytes: Uint8Array): ParsedCah => {
-  const reader = new Reader(bytes);
+  const reader = createCahReader(bytes);
 
   if (reader.tag("container magic") !== MAGIC) {
     throw new Error("Not a hero file: bad container magic");

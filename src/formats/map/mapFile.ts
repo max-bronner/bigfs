@@ -1,5 +1,6 @@
 import { compressEar, decompressEar, isEarWrapped } from '../refpack/refpack';
 import { decodeWindows1252, encodeWindows1252 } from '../../core/windows1252';
+import { createByteReader, type ByteReader } from '../../core/byteReader';
 
 /**
  * SAGE `.map` and `.bse` files, ported from mint's `crates/sage/map` and
@@ -176,85 +177,38 @@ const PREFIXED = new Set(['ScriptGroup', 'Script']);
 
 const latin1 = { decode: decodeWindows1252 };
 
-class MapReader {
-  public readonly view: DataView;
+/** Reads a window of the body, failing with the map's own message when a read runs past it */
+const createMapReader = (
+  bytes: Uint8Array,
+  start = 0,
+  end = bytes.length,
+): ByteReader =>
+  createByteReader(bytes, true, {
+    start,
+    end,
+    describeOverrun: (offset) => `Map data ends early at ${offset}`,
+  });
 
-  public constructor(
-    public readonly bytes: Uint8Array,
-    public at = 0,
-    public end = bytes.length,
-  ) {
-    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+/** Reads a string with a 16-bit byte length */
+const readString = (reader: ByteReader): string =>
+  latin1.decode(reader.bytes(reader.u16()));
+
+/** Reads a UTF-16 string with a 16-bit character count */
+const readWide = (reader: ByteReader): string => {
+  const raw = reader.bytes(reader.u16() * 2);
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  let text = '';
+
+  for (let index = 0; index < raw.length; index += 2) {
+    text += String.fromCharCode(view.getUint16(index, true));
   }
 
-  public need(count: number): void {
-    if (count < 0 || this.at + count > this.end) {
-      throw new Error(`Map data ends early at ${this.at}`);
-    }
-  }
-
-  public u8(): number {
-    this.need(1);
-
-    return this.bytes[this.at++];
-  }
-
-  public u16(): number {
-    this.need(2);
-    this.at += 2;
-
-    return this.view.getUint16(this.at - 2, true);
-  }
-
-  public u32(): number {
-    this.need(4);
-    this.at += 4;
-
-    return this.view.getUint32(this.at - 4, true);
-  }
-
-  public i32(): number {
-    return this.u32() | 0;
-  }
-
-  public f32(): number {
-    this.need(4);
-    this.at += 4;
-
-    return this.view.getFloat32(this.at - 4, true);
-  }
-
-  public string(): string {
-    const length = this.u16();
-
-    this.need(length);
-    this.at += length;
-
-    return latin1.decode(this.bytes.subarray(this.at - length, this.at));
-  }
-
-  public wide(): string {
-    const length = this.u16();
-
-    this.need(length * 2);
-
-    let text = '';
-
-    for (let index = 0; index < length; index++) {
-      text += String.fromCharCode(
-        this.view.getUint16(this.at + index * 2, true),
-      );
-    }
-
-    this.at += length * 2;
-
-    return text;
-  }
-}
+  return text;
+};
 
 /** Skips a script or group's own fields, leaving the reader at its children */
-const skipScriptFields = (reader: MapReader, name: string, version: number) => {
-  reader.string();
+const skipScriptFields = (reader: ByteReader, name: string, version: number) => {
+  readString(reader);
 
   if (name === 'ScriptGroup') {
     reader.u8();
@@ -263,37 +217,36 @@ const skipScriptFields = (reader: MapReader, name: string, version: number) => {
     return;
   }
 
-  reader.string();
-  reader.string();
-  reader.string();
-  reader.need(6 + 4);
-  reader.at += 6 + 4;
+  readString(reader);
+  readString(reader);
+  readString(reader);
+  reader.skip(6 + 4);
 
   if (version >= 3) {
-    reader.need(2 + 4 + 1);
-    reader.at += 2 + 4 + 1;
-    reader.string();
+    reader.skip(2 + 4 + 1);
+    readString(reader);
 
     if (version >= 4) {
-      reader.string();
+      readString(reader);
     }
   }
 };
 
 const readChunks = (
-  reader: MapReader,
+  body: Uint8Array,
+  reader: ByteReader,
   names: Map<number, string>,
   end: number,
   depth: number,
 ): MapChunk[] => {
   const chunks: MapChunk[] = [];
 
-  while (reader.at < end) {
-    const header = reader.at;
+  while (reader.offset < end) {
+    const header = reader.offset;
     const index = reader.u32();
     const version = reader.u16();
     const length = reader.u32();
-    const start = reader.at;
+    const start = reader.offset;
 
     if (length > end - start) {
       throw new Error(
@@ -314,30 +267,31 @@ const readChunks = (
     try {
       if (CONTAINERS.has(name) && depth < 64) {
         chunk.children = readChunks(
-          new MapReader(reader.bytes, start, start + length),
+          body,
+          createMapReader(body, start, start + length),
           names,
           start + length,
           depth + 1,
         );
       } else if (PREFIXED.has(name) && depth < 64) {
-        const fields = new MapReader(reader.bytes, start, start + length);
+        const fields = createMapReader(body, start, start + length);
 
         skipScriptFields(fields, name, version);
-        chunk.children = readChunks(fields, names, start + length, depth + 1);
+        chunk.children = readChunks(body, fields, names, start + length, depth + 1);
       }
     } catch {
       chunk.children = undefined;
     }
 
-    reader.at = start + length;
+    reader.seek(start + length);
     chunks.push(chunk);
   }
 
   return chunks;
 };
 
-const readDict = (reader: MapReader, names: Map<number, string>): Dict => {
-  const start = reader.at;
+const readDict = (reader: ByteReader, names: Map<number, string>): Dict => {
+  const start = reader.offset;
   const count = reader.u16();
   const entries: DictEntry[] = [];
 
@@ -358,21 +312,21 @@ const readDict = (reader: MapReader, names: Map<number, string>): Dict => {
         value = { type: 'real', value: reader.f32() };
         break;
       case 3:
-        value = { type: 'string', value: reader.string() };
+        value = { type: 'string', value: readString(reader) };
         break;
       case 4:
-        value = { type: 'wide', value: reader.wide() };
+        value = { type: 'wide', value: readWide(reader) };
         break;
       default:
         throw new Error(
-          `Dictionary value of unknown type ${word & 255} at ${reader.at - 4}`,
+          `Dictionary value of unknown type ${word & 255} at ${reader.offset - 4}`,
         );
     }
 
     entries.push({ key, keyIndex, value });
   }
 
-  return { start, end: reader.at, entries };
+  return { start, end: reader.offset, entries };
 };
 
 /** Serialises a dictionary in the form `readDict` reads */
@@ -444,22 +398,19 @@ export const parseMapBody = (
     throw new Error('Not a map: the body does not start with CkMp');
   }
 
-  const reader = new MapReader(body, 4);
+  const reader = createMapReader(body, 4);
   const names = new Map<number, string>();
 
   for (let count = reader.u32(); count > 0; count--) {
     const length = reader.u8();
 
-    reader.need(length);
+    const name = latin1.decode(reader.bytes(length));
 
-    const name = latin1.decode(body.subarray(reader.at, reader.at + length));
-
-    reader.at += length;
     names.set(reader.u32(), name);
   }
 
-  const namesEnd = reader.at;
-  const chunks = readChunks(reader, names, body.length, 0);
+  const namesEnd = reader.offset;
+  const chunks = readChunks(body, reader, names, body.length, 0);
   const map: MapFile = {
     compression,
     body,
@@ -484,7 +435,7 @@ export const parseMapBody = (
     }
   };
   const payload = (chunk: MapChunk) =>
-    new MapReader(body, chunk.start, chunk.end);
+    createMapReader(body, chunk.start, chunk.end);
 
   const worldInfo = findChunk(chunks, 'WorldInfo');
 
@@ -511,19 +462,20 @@ export const parseMapBody = (
       const count = data.u32();
       const sampleBytes = heightMap.version >= 5 ? 2 : 1;
 
-      data.need(count * sampleBytes);
+      const raw = data.bytes(count * sampleBytes);
 
       if (count !== width * height) {
         throw new Error(`${count} samples for ${width}×${height} cells`);
       }
 
+      const rawView = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
       const samples = new Uint16Array(count);
 
       for (let index = 0; index < count; index++) {
         samples[index] =
           sampleBytes === 2
-            ? data.view.getUint16(data.at + index * 2, true)
-            : body[data.at + index];
+            ? rawView.getUint16(index * 2, true)
+            : raw[index];
       }
 
       map.heights = { width, height, border, boundaries, samples, sampleBytes };
@@ -570,9 +522,9 @@ export const parseMapBody = (
       const z = data.f32();
       const angle = data.f32();
       const flags = data.i32();
-      const templateStart = data.at;
-      const template = data.string();
-      const templateSpan: [number, number] = [templateStart, data.at];
+      const templateStart = data.offset;
+      const template = readString(data);
+      const templateSpan: [number, number] = [templateStart, data.offset];
 
       map.objects.push({
         index: map.objects.length,
@@ -604,15 +556,13 @@ export const parseMapBody = (
 
         // A side's build list follows its dictionary
         for (let entries = data.u32(); entries > 0; entries--) {
-          data.string();
-          data.string();
-          data.need(4 * 4 + 1 + 4);
-          data.at += 4 * 4 + 1 + 4;
+          readString(data);
+          readString(data);
+          data.skip(4 * 4 + 1 + 4);
           if (sides.version >= 3) {
-            data.string();
+            readString(data);
           }
-          data.need(4 + 3);
-          data.at += 4 + 3;
+          data.skip(4 + 3);
         }
       }
     });
@@ -638,8 +588,8 @@ export const parseMapBody = (
       const found: MapTriggerArea[] = [];
 
       for (let count = data.u32(); count > 0; count--) {
-        const name = data.string();
-        const layerName = data.string();
+        const name = readString(data);
+        const layerName = readString(data);
         const id = data.u32();
         const points: [number, number][] = [];
 
@@ -651,7 +601,7 @@ export const parseMapBody = (
       }
 
       map.triggerAreas = found;
-      map.triggerAreaSpan = [areas.start, data.at];
+      map.triggerAreaSpan = [areas.start, data.offset];
     });
   }
 
@@ -693,7 +643,7 @@ const readCall = (
   body: Uint8Array,
   names: Map<number, string>,
 ): MapScriptCall => {
-  const data = new MapReader(body, chunk.start, chunk.end);
+  const data = createMapReader(body, chunk.start, chunk.end);
 
   data.u32();
 
@@ -710,7 +660,7 @@ const readCall = (
     } else {
       const int = data.i32();
       const real = data.f32();
-      const text = data.string();
+      const text = readString(data);
 
       parameters.push(
         text || (real ? String(Math.round(real * 1000) / 1000) : String(int)),
@@ -727,11 +677,11 @@ const readScriptNodes = (
   names: Map<number, string>,
 ): MapScriptNode[] =>
   chunks.flatMap((chunk): MapScriptNode[] => {
-    const data = new MapReader(body, chunk.start, chunk.end);
+    const data = createMapReader(body, chunk.start, chunk.end);
 
     if (chunk.name === 'ScriptGroup') {
-      const name = data.string();
-      const activeAt = data.at;
+      const name = readString(data);
+      const activeAt = data.offset;
       const active = data.u8() !== 0;
       const subroutine = data.u8() !== 0;
 
@@ -751,13 +701,13 @@ const readScriptNodes = (
       return [];
     }
 
-    const name = data.string();
-    const comment = data.string();
+    const name = readString(data);
+    const comment = readString(data);
 
-    data.string();
-    data.string();
+    readString(data);
+    readString(data);
 
-    const activeAt = data.at;
+    const activeAt = data.offset;
     const [active, oneShot, easy, normal, hard, subroutine] = [
       0, 1, 2, 3, 4, 5,
     ].map(() => data.u8() !== 0);

@@ -1,14 +1,16 @@
 import { fitRunTo, runBounds } from '../../formats/apt/aptGeometry';
 import type { RuRun } from '../../formats/apt/aptGeometry';
 import type { Character } from '../../formats/apt/aptMovie';
-import { vscode } from './details';
+import { getVsCodeApi } from '../shared/vscodeApi';
 import { button, byId, heading, row } from './dom';
-import type { PageMovie } from './protocol';
+import type { FromPage, PageMovie } from './protocol';
 import { resolve } from './resolve';
 import { apply, textureOf } from './scene';
 import type { Affine } from './scene';
 import { inspected, render } from './stage';
 import { movie, state } from './state';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * The texture behind a shape or image, whole: the region the shape samples

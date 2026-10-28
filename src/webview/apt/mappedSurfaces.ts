@@ -1,6 +1,8 @@
-import { vscode } from './details';
+import { getVsCodeApi } from '../shared/vscodeApi';
 import { storeTextures } from './movieLoads';
-import type { PageMappedImage, ToPage } from './protocol';
+import type { FromPage, PageMappedImage, ToPage } from './protocol';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * The `MappedImage`s image surfaces name, asked of the editor once each and

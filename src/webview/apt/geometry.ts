@@ -1,5 +1,7 @@
 import type { RuRun } from '../../formats/apt/aptGeometry';
-import { vscode } from './details';
+import { getVsCodeApi } from '../shared/vscodeApi';
+import type { FromPage } from './protocol';
+
 import { absoluteOf } from './edit';
 import type { Instance } from './player';
 import { apply, invert, multiply } from './scene';
@@ -14,6 +16,8 @@ import {
   view,
 } from './stage';
 import { state } from './state';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * Geometry on the stage. With the wireframe on (W) the triangles and lines
