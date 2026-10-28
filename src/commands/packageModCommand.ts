@@ -10,7 +10,7 @@ import {
 } from '../model/modPackage';
 import type { Delivery, OverrideReport } from '../model/modPackage';
 import { packedArchives } from '../model/packagedOutputs';
-import { decodeWindows1252 } from '../common/windows1252';
+import { decodeWindows1252 } from '../core/windows1252';
 import { diagnoseText } from '../language/sageIniValidation';
 import type { SageIniDocuments } from '../language/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';

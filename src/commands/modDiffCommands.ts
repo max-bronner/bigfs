@@ -14,7 +14,7 @@ import { findBaseGameFolders } from '../model/baseGameFolders';
 import { packedArchives, useOutputStore } from '../model/packagedOutputs';
 import { webviewPage } from '../providers/webviewPage';
 import { registerPackageMod } from './packageModCommand';
-import { decodeIniText } from '../common/windows1252';
+import { decodeIniText } from '../core/windows1252';
 import { diffDefinitions } from '../language/model/definitionDiff';
 import type { DefinitionDiff } from '../language/model/definitionDiff';
 import { parseSageIni } from '../language/model/sageIniParser';

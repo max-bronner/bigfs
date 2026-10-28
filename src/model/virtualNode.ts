@@ -1,5 +1,5 @@
 ﻿import { FileType } from 'vscode';
-import { getParentPath, splitPath } from '../common/paths';
+import { getParentPath, splitPath } from '../core/paths';
 import type { Archive } from './archive';
 
 /**

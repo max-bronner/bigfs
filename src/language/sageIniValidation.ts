@@ -12,12 +12,12 @@ import type { Disposable, Uri } from 'vscode';
 import type { ArchiveModel } from '../model/archiveModel';
 import { getFileNodes } from '../model/virtualNode';
 import { getNodeUri } from '../model/nodeAddress';
-import { formatCount } from '../common/messages';
+import { formatCount } from '../core/messages';
 import { SCHEME } from '../constants';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { findSageIniProblems } from './model/sageIniProblems';
 import type { SageIniDocuments } from './sageIniDocuments';
-import { decodeIniText } from '../common/windows1252';
+import { decodeIniText } from '../core/windows1252';
 import type { EntryLocator } from '../formats/entryLocator';
 import { assetNamesToCheck, getAssetDiagnostics } from './sageIniAssetCheck';
 

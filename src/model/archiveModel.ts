@@ -13,7 +13,7 @@ import path from 'path';
 import { BIG_PATTERN } from '../constants';
 import { NotAnArchiveError } from '../binary/bigFormat';
 import type { BigFileEntry } from '../binary/bigFormat';
-import { isContainedPath, isPathBelow } from '../common/paths';
+import { isContainedPath, isPathBelow } from '../core/paths';
 import { findConflicts, planTransfer } from './transferPlan';
 import type { ConflictChoice, TransferItem } from './transferPlan';
 import { Archive } from './archive';

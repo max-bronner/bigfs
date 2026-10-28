@@ -1,4 +1,4 @@
-import { compileExpression } from '../../common/expression';
+import { compileExpression } from '../../core/expression';
 import { forEachBlock } from './sageIniParser';
 import type {
   SageBlock,

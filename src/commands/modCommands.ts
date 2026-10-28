@@ -17,10 +17,10 @@ import type { VirtualNode } from '../model/virtualNode';
 import { getNodeUri } from '../model/nodeAddress';
 import { skippedFromPackage } from '../model/modPackage';
 import { recordPackedArchive } from '../model/packagedOutputs';
-import { formatCount } from '../common/messages';
+import { formatCount } from '../core/messages';
 import { SCHEME } from '../constants';
 import type { RegisterNodeCommand } from './commandCenter';
-import { decodeWindows1252 } from '../common/windows1252';
+import { decodeWindows1252 } from '../core/windows1252';
 
 /**
  * The commands a mod is made with: pack a folder into a `.big`, copy files

@@ -22,7 +22,7 @@ import {
   isNotAName,
 } from '../../language/model/sageIniReferenceCheck';
 import { canonicalNamespace } from '../../language/model/sageReferenceFields';
-import { decodeIniText } from '../../common/windows1252';
+import { decodeIniText } from '../../core/windows1252';
 
 const schema = createSageIniSchema(
   JSON.parse(

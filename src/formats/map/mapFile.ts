@@ -1,5 +1,5 @@
 import { compressEar, decompressEar, isEarWrapped } from '../refpack';
-import { decodeWindows1252, encodeWindows1252 } from '../../common/windows1252';
+import { decodeWindows1252, encodeWindows1252 } from '../../core/windows1252';
 
 /**
  * SAGE `.map` and `.bse` files, ported from mint's `crates/sage/map` and

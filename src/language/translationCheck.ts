@@ -21,7 +21,7 @@ import {
   readEntryText,
   saveEntryTexts,
 } from './archiveText';
-import { decodeIniText } from '../common/windows1252';
+import { decodeIniText } from '../core/windows1252';
 import { readWorkspaceText } from './workspaceText';
 import type { ArchiveModel } from '../model/archiveModel';
 

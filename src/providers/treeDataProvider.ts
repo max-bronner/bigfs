@@ -8,7 +8,7 @@ import {
   TreeItemCollapsibleState,
   FileType,
 } from 'vscode';
-import { formatCount } from '../common/messages';
+import { formatCount } from '../core/messages';
 import { countFileNodes, isArchiveRoot } from '../model/virtualNode';
 import { getNodePath, getNodeUri } from '../model/nodeAddress';
 import type { ArchiveModel } from '../model/archiveModel';

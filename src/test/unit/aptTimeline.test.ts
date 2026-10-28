@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { compileExpression, ExpressionError } from '../../common/expression';
+import { compileExpression, ExpressionError } from '../../core/expression';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
 import {
   animate,

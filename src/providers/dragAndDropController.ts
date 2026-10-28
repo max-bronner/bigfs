@@ -1,7 +1,7 @@
 ﻿import { Uri, DataTransfer, DataTransferItem, FileType, window } from 'vscode';
 import type { TreeDragAndDropController } from 'vscode';
 import { importFromDisk, transferNodes } from '../actions/fileActions';
-import { formatCount } from '../common/messages';
+import { formatCount } from '../core/messages';
 import type { ArchiveModel } from '../model/archiveModel';
 import type { VirtualNode } from '../model/virtualNode';
 import { isVirtualNode } from './explorerNode';

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { decodeIniText } from '../common/windows1252';
+import { decodeIniText } from '../core/windows1252';
 import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import type { SageDocument } from './model/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';

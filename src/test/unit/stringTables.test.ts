@@ -5,7 +5,7 @@ import {
   parseCsf,
   writeCsf,
 } from '../../formats/csf';
-import { unencodableCharacters } from '../../common/windows1252';
+import { unencodableCharacters } from '../../core/windows1252';
 import {
   parseStringRecords,
   quoteStringText,

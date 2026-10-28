@@ -58,7 +58,7 @@ import type { SageIniIndex } from '../language/sageIniIndex';
 import type { EngineValues } from '../webview/apt/avm/engine';
 import { resolveMappedImages } from './aptMappedImages';
 import { createNonce } from './webviewNonce';
-import { decodeWindows1252 } from '../common/windows1252';
+import { decodeWindows1252 } from '../core/windows1252';
 
 /**
  * Custom editor for `.apt` movies: a list of every character, a stage that

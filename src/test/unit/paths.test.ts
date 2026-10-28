@@ -4,7 +4,7 @@ import {
   isContainedPath,
   isPathBelow,
   movePath,
-} from '../../common/paths';
+} from '../../core/paths';
 
 suite('Path helpers', () => {
   test('isPathBelow matches the path itself and its descendants only', () => {

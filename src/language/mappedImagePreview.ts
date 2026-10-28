@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { decodeIniText } from '../common/windows1252';
+import { decodeIniText } from '../core/windows1252';
 import type { EntryLocator } from '../formats/entryLocator';
 import { isRotated, parseMappedImage } from '../formats/mappedImage';
 import type { MappedImage } from '../formats/mappedImage';
