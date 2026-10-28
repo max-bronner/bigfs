@@ -122,16 +122,24 @@ export const alignLists = <T>(
 ): [number | undefined, number | undefined][] => {
   const a = before.map(key);
   const b = after.map(key);
-  const lengths = Array.from({ length: a.length + 1 }, () =>
-    new Array<number>(b.length + 1).fill(0),
-  );
+  // Entries alike from the start pair as they stand, so the table below only
+  // spans what follows them: a list that did not change costs a single pass
+  let head = 0;
 
-  for (let i = a.length - 1; i >= 0; i--) {
-    for (let j = b.length - 1; j >= 0; j--) {
-      lengths[i][j] =
+  while (head < a.length && head < b.length && a[head] === b[head]) {
+    head++;
+  }
+
+  const columns = b.length - head + 1;
+  const lengths = new Uint32Array((a.length - head + 1) * columns);
+  const at = (i: number, j: number) => (i - head) * columns + (j - head);
+
+  for (let i = a.length - 1; i >= head; i--) {
+    for (let j = b.length - 1; j >= head; j--) {
+      lengths[at(i, j)] =
         a[i] === b[j]
-          ? lengths[i + 1][j + 1] + 1
-          : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+          ? lengths[at(i + 1, j + 1)] + 1
+          : Math.max(lengths[at(i + 1, j)], lengths[at(i, j + 1)]);
     }
   }
 
@@ -168,7 +176,7 @@ export const alignLists = <T>(
       pairs.push([i++, j++]);
     } else if (
       j >= b.length ||
-      (i < a.length && lengths[i + 1][j] >= lengths[i][j + 1])
+      (i < a.length && lengths[at(i + 1, j)] >= lengths[at(i, j + 1)])
     ) {
       gapA.push(i++);
     } else {
@@ -212,6 +220,8 @@ class TextSaver {
   public constBytes: Uint8Array;
   private readonly movieOffset: number;
   private parsed?: AptMovie;
+  /** The text of the movie as it stands, until an edit or a script changes it */
+  private text?: MovieText;
   /** Every block's script as last known, which a cheap read of the movie reuses */
   private readonly known = new Map<number, ScriptText>();
   private readonly sites: ScriptSite[] = [];
@@ -260,18 +270,20 @@ class TextSaver {
 
   /** The movie as it now stands, scripts as last known */
   public current(): MovieText {
-    return movieToText(
+    this.text ??= movieToText(
       this.image.bytes,
       this.constBytes,
       (block) => this.known.get(block) ?? { mode: 'listing', text: '', block },
       { movie: this.movie, constFile: parseConst(this.constBytes) },
     );
+    return this.text;
   }
 
   public apply(edit: AptEdit): EditResult {
     const result = applyAptEdit(this.image, this.movieOffset, edit);
 
     this.parsed = undefined;
+    this.text = undefined;
     this.edits.push(edit);
     return result;
   }
@@ -279,6 +291,7 @@ class TextSaver {
   private addConstants(items: ConstItem[]): void {
     if (items.length) {
       this.constBytes = appendConstItems(this.constBytes, items);
+      this.text = undefined;
       this.constAdded.push(...items);
     }
   }
@@ -300,6 +313,7 @@ class TextSaver {
       );
 
       this.parsed = undefined;
+      this.text = undefined;
       this.addConstants(added);
       this.known.set(start, { ...script, block: start });
       return start;
@@ -335,6 +349,7 @@ class TextSaver {
         const change = { index, value: item.value };
 
         this.constBytes = changeConstItem(this.constBytes, change);
+        this.text = undefined;
         this.constChanges.push(change);
       }
     });
@@ -1314,6 +1329,7 @@ class TextSaver {
         );
 
         this.parsed = undefined;
+        this.text = undefined;
         this.addConstants(added);
         this.known.set(start, { ...changed.after, block: start });
         this.scripts.push({ block, start });
