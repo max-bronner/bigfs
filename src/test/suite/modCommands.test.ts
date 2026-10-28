@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
-import { readArchiveIndexTable } from '../../binary/archiveFile';
+import { readArchiveIndexTable } from '../../node/archiveFile';
 import { ArchiveModel } from '../../model/archiveModel';
 import { packFolderInto } from '../../commands/modCommands';
 

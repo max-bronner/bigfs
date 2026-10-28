@@ -1,4 +1,4 @@
-import { compressEar, decompressEar, isEarWrapped } from '../refpack';
+import { compressEar, decompressEar, isEarWrapped } from '../refpack/refpack';
 import { decodeWindows1252, encodeWindows1252 } from '../../core/windows1252';
 
 /**

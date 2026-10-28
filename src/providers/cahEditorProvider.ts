@@ -6,9 +6,9 @@ import {
   parseCah,
   POWER_SLOTS,
   writeCah,
-} from "../formats/cah";
-import type { CahRecord, ParsedCah } from "../formats/cah";
-import type { EntryLocator } from "../formats/entryLocator";
+} from "../formats/cah/cah";
+import type { CahRecord, ParsedCah } from "../formats/cah/cah";
+import type { EntryLocator } from "../services/entryLocator";
 import { decodeIniText } from "../core/windows1252";
 import type { GameLanguage } from "../language/gameLanguage";
 import {

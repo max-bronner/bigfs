@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { webviewPage } from '../providers/webviewPage';
-import type { EntryLocator } from '../formats/entryLocator';
+import type { EntryLocator } from '../services/entryLocator';
 import {
   commandSetSlots,
   createLineReader,

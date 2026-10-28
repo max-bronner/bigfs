@@ -1,13 +1,13 @@
 import { deflateSync } from 'zlib';
 import * as assert from 'assert';
-import { decodeDds, decodeTga } from '../../tools/textureTools';
+import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
 import {
   decodePng,
   encodeDds,
   encodePng,
   encodeTga,
-} from '../../formats/textureEncode';
-import { compressEar } from '../../formats/refpack';
+} from '../../formats/texture/textureEncode';
+import { compressEar } from '../../formats/refpack/refpack';
 
 /** A 8×4 gradient with varying alpha */
 const image = () => {

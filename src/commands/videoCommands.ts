@@ -2,13 +2,13 @@ import * as vscode from 'vscode';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { decodePng } from '../formats/textureEncode';
+import { decodePng } from '../formats/texture/textureEncode';
 import { Vp6Movie } from '../formats/vp6/container';
 import { MAX_SIDE, encodeMovie, resizeRgba } from '../formats/vp6/encodeMovie';
 import type { FrameSource } from '../formats/vp6/encodeMovie';
 import { webviewPage } from '../providers/webviewPage';
-import { ffmpegSource, probe, run } from '../tools/ffmpeg';
-import { decodeDds, decodeTga } from '../tools/textureTools';
+import { ffmpegSource, probe, run } from '../node/ffmpeg';
+import { decodeDds, decodeTga } from '../formats/texture/textureTools';
 import { toUri } from '../platform/commandTarget';
 import type { CommandTarget } from '../platform/commandTarget';
 

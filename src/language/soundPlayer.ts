@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { createParseCache } from './workspaceText';
-import type { EntryLocator } from '../formats/entryLocator';
-import { toPlayableAudio } from '../tools/audioTools';
+import type { EntryLocator } from '../services/entryLocator';
+import { toPlayableAudio } from '../formats/audio/audioTools';
 import { webviewPage } from '../providers/webviewPage';
 import { findAssetReferences } from './model/sageIniAssets';
 import { audioDefinitionOf, resolveAudio } from './model/sageAudioResolve';

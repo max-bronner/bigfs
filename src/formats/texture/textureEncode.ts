@@ -1,5 +1,5 @@
 import { deflateSync, inflateSync } from 'zlib';
-import type { RgbaImage } from '../tools/textureTools';
+import type { RgbaImage } from './textureTools';
 
 /**
  * Encoders for texture round trips: PNG both ways (for editing in any image

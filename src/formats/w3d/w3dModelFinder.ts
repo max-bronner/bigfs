@@ -1,5 +1,5 @@
-import type { ToolBox } from '../tools/toolRegistry';
-import { parseW3dTool } from '../tools/w3dTools';
+import type { ToolBox } from '../../services/toolRegistry';
+import { parseW3dTool } from './w3dTools';
 import type { LoadFile } from './w3dScene';
 
 /**

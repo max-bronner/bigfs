@@ -9,8 +9,8 @@ import {
 } from 'vscode';
 import type { Disposable, QuickPickItem } from 'vscode';
 import path from 'path';
-import { writeArchiveFile } from '../binary/archiveFile';
-import type { BigFileEntry } from '../binary/bigFormat';
+import { writeArchiveFile } from '../node/archiveFile';
+import type { BigFileEntry } from '../formats/big/bigFormat';
 import type { ArchiveModel } from '../model/archiveModel';
 import { getFileNodes } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';

@@ -7,8 +7,8 @@ import {
   parseIndexTable,
   computeArchiveLayout,
   serializeIndexTable,
-} from './bigFormat';
-import type { ArchiveLayout, BigFileEntry, ParsedArchive } from './bigFormat';
+} from '../formats/big/bigFormat';
+import type { ArchiveLayout, BigFileEntry, ParsedArchive } from '../formats/big/bigFormat';
 
 /** How much of an entry is held in memory at a time while its data is copied */
 const COPY_CHUNK_SIZE = 256 * 1024;

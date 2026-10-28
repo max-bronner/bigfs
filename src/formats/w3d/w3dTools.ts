@@ -1,4 +1,4 @@
-import type { Tool } from "./toolRegistry";
+import type { Tool } from "../../services/toolRegistry";
 
 /**
  * Parser for the parts of a W3D model a preview draws: meshes with their

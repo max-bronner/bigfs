@@ -2,14 +2,14 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
-import { readArchiveIndexTable } from '../../binary/archiveFile';
+import { readArchiveIndexTable } from '../../node/archiveFile';
 import {
   computeArchiveLayout,
   serializeIndexTable,
-} from '../../binary/bigFormat';
-import type { BigFileEntry } from '../../binary/bigFormat';
+} from '../../formats/big/bigFormat';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
-import { encodeTga } from '../../formats/textureEncode';
+import { encodeTga } from '../../formats/texture/textureEncode';
 
 /**
  * The modding flows end to end, through the commands and editors a user

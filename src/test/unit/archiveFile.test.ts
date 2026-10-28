@@ -7,7 +7,7 @@ import {
   readEntryData,
   writeArchiveFile,
   writeEntryInPlace,
-} from '../../binary/archiveFile';
+} from '../../node/archiveFile';
 
 /** A path with no file behind it, so a read that touches disk fails loudly */
 const MISSING_ARCHIVE = path.join(tmpdir(), 'bigfs-does-not-exist.big');

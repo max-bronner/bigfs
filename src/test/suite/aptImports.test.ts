@@ -5,8 +5,8 @@ import { mkdir, rm, writeFile } from 'fs/promises';
 import {
   computeArchiveLayout,
   serializeIndexTable,
-} from '../../binary/bigFormat';
-import type { BigFileEntry } from '../../binary/bigFormat';
+} from '../../formats/big/bigFormat';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { createAptMovie } from '../../formats/apt/aptCreate';
 import { parseConst } from '../../formats/apt/aptMovie';
 import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';

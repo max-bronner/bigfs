@@ -5,8 +5,8 @@ import * as path from 'path';
 import {
   computeArchiveLayout,
   serializeIndexTable,
-} from '../../binary/bigFormat';
-import type { BigFileEntry } from '../../binary/bigFormat';
+} from '../../formats/big/bigFormat';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { compareWithBase, indexBaseGame } from '../../model/modDiff';
 
 const buildArchive = (files: [string, string][]): Buffer => {

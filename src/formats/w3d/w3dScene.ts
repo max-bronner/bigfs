@@ -1,7 +1,7 @@
-import type { ToolBox } from "../tools/toolRegistry";
-import { decodeDdsTool, decodeTgaTool } from "../tools/textureTools";
-import type { RgbaImage } from "../tools/textureTools";
-import { parseW3dTool } from "../tools/w3dTools";
+import type { ToolBox } from "../../services/toolRegistry";
+import { decodeDdsTool, decodeTgaTool } from "../texture/textureTools";
+import type { RgbaImage } from "../texture/textureTools";
+import { parseW3dTool } from "./w3dTools";
 import type {
   W3dBlend,
   W3dBox,
@@ -9,7 +9,7 @@ import type {
   W3dHierarchy,
   W3dHlodArray,
   W3dMesh,
-} from "../tools/w3dTools";
+} from "./w3dTools";
 import { parseW3dAnimations } from "./w3dAnimation";
 import type { W3dAnimation } from "./w3dAnimation";
 

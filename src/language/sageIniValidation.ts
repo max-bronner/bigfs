@@ -18,7 +18,7 @@ import { isFragmentPath, parseSageIni } from './model/sageIniParser';
 import { findSageIniProblems } from './model/sageIniProblems';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { decodeIniText } from '../core/windows1252';
-import type { EntryLocator } from '../formats/entryLocator';
+import type { EntryLocator } from '../services/entryLocator';
 import { assetNamesToCheck, getAssetDiagnostics } from './sageIniAssetCheck';
 
 /**
