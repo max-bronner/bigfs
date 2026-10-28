@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { parseMovieText, textBlocks } from '../formats/apt/movieText';
-import type { CharacterText, FrameText } from '../formats/apt/movieText';
+import { parseMovieText, textBlocks } from '../../formats/apt/movieText';
+import type { CharacterText, FrameText } from '../../formats/apt/movieText';
 
 /**
  * Editor features of the `apt-text` language: an outline of the movie's

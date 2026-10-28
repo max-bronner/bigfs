@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { createAptMovie } from '../formats/apt/aptCreate';
-import { APT_VIEW_TYPE } from '../providers/aptEditorProvider';
-import { toUri } from '../services/archives/commandTarget';
-import type { CommandTarget } from '../services/archives/commandTarget';
+import { createAptMovie } from '../../formats/apt/aptCreate';
+import { APT_VIEW_TYPE } from './viewTypes';
+import { toUri } from '../../services/archives/commandTarget';
+import type { CommandTarget } from '../../services/archives/commandTarget';
 
 /**
  * "New APT Movie": writes an empty movie's `.apt`, `.const` and `.dat` into
