@@ -5,7 +5,7 @@ import type { WndBox, WndWindow } from './model/wndLayout';
 import { imageExtent, isRotated, mappedUv } from '../formats/mappedImage/mappedImage';
 import type { UvRect } from '../formats/mappedImage/mappedImage';
 import type { EntryLocator } from '../services/entryLocator';
-import { encodePng } from '../formats/texture/textureEncode';
+import { encodePng } from '../node/png';
 import { loadMappedTexture, readMappedImage } from './mappedImagePreview';
 import type { GameLanguage } from './gameLanguage';
 import type { SageIniIndex } from './sageIniIndex';

@@ -1,4 +1,3 @@
-import { deflateSync, inflateSync } from 'zlib';
 import type { RgbaImage } from './textureTools';
 
 /**
@@ -37,8 +36,17 @@ const crc32 = (bytes: Uint8Array) => {
 
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
+/** Compresses bytes with zlib; injected so this module stays free of Node built-ins. */
+export type Deflate = (data: Uint8Array) => Uint8Array;
+
+/** Decompresses zlib bytes, failing when the output would exceed `maxOutputLength`. */
+export type Inflate = (
+  data: Uint8Array,
+  maxOutputLength: number,
+) => Uint8Array;
+
 /** A PNG of RGBA pixels, 8 bits a channel */
-export const encodePng = (image: RgbaImage): Uint8Array => {
+export const encodePng = (image: RgbaImage, deflate: Deflate): Uint8Array => {
   const { width, height, pixels } = image;
   const raw = new Uint8Array((width * 4 + 1) * height);
 
@@ -71,7 +79,7 @@ export const encodePng = (image: RgbaImage): Uint8Array => {
   view.setUint32(4, height);
   header.set([8, 6, 0, 0, 0], 8);
   chunk('IHDR', header);
-  chunk('IDAT', deflateSync(raw));
+  chunk('IDAT', deflate(raw));
   chunk('IEND', new Uint8Array(0));
 
   return concat(chunks);
@@ -90,7 +98,10 @@ const concat = (parts: Uint8Array[]) => {
 };
 
 /** Reads a PNG: 8-bit greyscale, RGB, palette, grey+alpha or RGBA, not interlaced */
-export const decodePng = (bytes: Uint8Array): RgbaImage => {
+export const decodePng = (
+  bytes: Uint8Array,
+  inflate: Inflate,
+): RgbaImage => {
   if (!PNG_SIGNATURE.every((byte, index) => bytes[index] === byte)) {
     throw new Error('Not a PNG file');
   }
@@ -151,9 +162,7 @@ export const decodePng = (bytes: Uint8Array): RgbaImage => {
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colourType] as number;
   const stride = width * channels;
   // A filter byte per row; anything larger is a compression bomb, not an image
-  const raw = inflateSync(concat(data), {
-    maxOutputLength: height * (stride + 1),
-  });
+  const raw = inflate(concat(data), height * (stride + 1));
   const pixels = new Uint8Array(width * height * 4);
   let previous = new Uint8Array(stride);
 

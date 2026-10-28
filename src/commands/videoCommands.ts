@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { decodePng } from '../formats/texture/textureEncode';
+import { decodePng } from '../node/png';
 import { Vp6Movie } from '../formats/vp6/container';
 import { MAX_SIDE, encodeMovie, resizeRgba } from '../formats/vp6/encodeMovie';
 import type { FrameSource } from '../formats/vp6/encodeMovie';

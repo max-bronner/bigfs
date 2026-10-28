@@ -11,7 +11,7 @@ import type {
   IniDefinition,
   ParticleDef,
 } from '../formats/particles/particleIni';
-import { encodePng } from '../formats/texture/textureEncode';
+import { encodePng } from '../node/png';
 import { decodeDds, decodeTga } from '../formats/texture/textureTools';
 import type { SageIniIndex } from './sageIniIndex';
 import { readWorkspaceText } from './workspaceText';
