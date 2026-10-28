@@ -108,6 +108,8 @@ export type ToPage =
 
 export type FromPage =
   | { kind: 'ready' }
+  /** The toolbar's text view button: the whole movie as text, in an editor of its own */
+  | { kind: 'openTextView' }
   /** Image surfaces name `MappedImage`s; the editor finds them in the game's INI */
   | { kind: 'mappedImages'; names: string[] }
   | { kind: 'script'; block: number }
@@ -123,8 +125,6 @@ export type FromPage =
   | { kind: 'openMovie'; name: string }
   /** Removes a character nothing refers to, with its own files */
   | { kind: 'removeCharacter'; id: number }
-  /** Switches to the text view of the whole movie */
-  | { kind: 'openTextView' }
   /** Changes one item of the movie's `.const` */
   | { kind: 'constEdit'; change: ConstItemChange }
   | { kind: 'manageMovie'; action: 'rename' | 'delete' }

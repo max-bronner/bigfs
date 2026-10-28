@@ -170,8 +170,13 @@ export type AptEdit =
       depth: number;
       matrix?: Matrix2;
       translate?: [number, number];
+      /** Multiply colour, floats R, G, B, A; white when absent */
+      color?: [number, number, number, number];
+      unknown?: [number, number, number, number];
     }
   | { kind: 'removeButtonRecord'; id: number; index: number }
+  /** Moves a button record to another position, which changes what draws over what */
+  | { kind: 'moveButtonRecord'; id: number; from: number; to: number }
   /** Empties a character's slot, as an import slot is; ids after it keep theirs */
   | { kind: 'removeCharacter'; id: number }
   | {
@@ -187,6 +192,14 @@ export type AptEdit =
   | { kind: 'removeObject'; timeline: number; frame: number; depth: number }
   | { kind: 'addFrameLabel'; timeline: number; frame: number; label: string }
   | { kind: 'removeItem'; timeline: number; frame: number; offset: number }
+  /** Moves a frame item to another position in its frame; items run in that order */
+  | {
+      kind: 'moveItem';
+      timeline: number;
+      frame: number;
+      from: number;
+      to: number;
+    }
   | { kind: 'addFrame'; timeline: number }
   /** Runs a compiled block when a frame of a timeline is shown */
   | { kind: 'addFrameScript'; timeline: number; frame: number; block: number }
@@ -402,7 +415,8 @@ const editRecords = (
   change:
     | { add: number[] }
     | { index: number; set: number[] }
-    | { index: number; remove: true },
+    | { index: number; remove: true }
+    | { index: number; moveTo: number },
 ): void => {
   const count = image.u32(countAt);
 
@@ -425,6 +439,26 @@ const editRecords = (
 
   const at = image.growArray(pointerAt, count * size, 0);
 
+  if ('moveTo' in change) {
+    if (
+      !Number.isInteger(change.moveTo) ||
+      change.moveTo < 0 ||
+      change.moveTo >= count
+    ) {
+      throw new Error(`There is no record ${change.moveTo}`);
+    }
+
+    const records = Array.from({ length: count }, (_, index) =>
+      Array.from({ length: size }, (_, word) =>
+        image.u32(at + (index * size + word) * 4),
+      ),
+    );
+    const [moved] = records.splice(change.index, 1);
+
+    records.splice(change.moveTo, 0, moved);
+    records.flat().forEach((word, index) => image.setU32(at + index * 4, word));
+    return;
+  }
   if ('set' in change) {
     change.set.forEach((word, index) =>
       image.setU32(at + (change.index * size + index) * 4, word >>> 0),
@@ -1126,6 +1160,21 @@ export const applyAptEdit = (
       image.setU32(frameAt, count - 1);
       return {};
     }
+    case 'moveItem': {
+      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+
+      if (edit.frame < 0 || edit.frame >= image.u32(countAt)) {
+        throw new Error(`#${edit.timeline} has no frame ${edit.frame}`);
+      }
+
+      const frameAt = image.u32(pointerAt) + edit.frame * 8;
+
+      editRecords(image, frameAt, frameAt + 4, 1, {
+        index: edit.from,
+        moveTo: edit.to,
+      });
+      return {};
+    }
     case 'removeCharacter': {
       if (
         !Number.isInteger(edit.id) ||
@@ -1143,6 +1192,7 @@ export const applyAptEdit = (
       return {};
     }
     case 'addButtonRecord':
+    case 'moveButtonRecord':
     case 'removeButtonRecord': {
       const button = movie.characters[edit.id];
 
@@ -1168,17 +1218,13 @@ export const applyAptEdit = (
                 edit.depth,
                 ...(edit.matrix ?? [1, 0, 0, 1]).map(f),
                 ...(edit.translate ?? [0, 0]).map(f),
-                f(1),
-                f(1),
-                f(1),
-                f(1),
-                0,
-                0,
-                0,
-                0,
+                ...(edit.color ?? [1, 1, 1, 1]).map(f),
+                ...(edit.unknown ?? [0, 0, 0, 0]).map(f),
               ],
             }
-          : { index: edit.index, remove: true },
+          : edit.kind === 'moveButtonRecord'
+            ? { index: edit.from, moveTo: edit.to }
+            : { index: edit.index, remove: true },
       );
       return {};
     }
