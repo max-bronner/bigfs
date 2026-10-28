@@ -1,4 +1,4 @@
-import type { SageToken } from '../../language/model/sageIniParser';
+import type { SageToken } from '../ini/sageIniParser';
 import type { Range, Vec3 } from './particleIni';
 
 /**

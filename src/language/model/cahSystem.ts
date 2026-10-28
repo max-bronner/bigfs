@@ -1,4 +1,4 @@
-import type { SageBlock, SageDocument } from "./sageIniParser";
+import type { SageBlock, SageDocument } from "../../formats/ini/sageIniParser";
 
 /**
  * What the `CreateAHeroSystem` block says about classes, subclasses, bling

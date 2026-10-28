@@ -11,10 +11,10 @@ import {
   slotLine,
 } from './model/newObject';
 import type { NewObjectMode, PlannedBlock } from './model/newObject';
-import { parseSageIni, stripComment, tokenize } from './model/sageIniParser';
-import type { SageBlock } from './model/sageIniParser';
-import { insertLines, lineEndOf } from './model/iniTextEdits';
-import type { LineInsertion } from './model/iniTextEdits';
+import { parseSageIni, stripComment, tokenize } from '../formats/ini/sageIniParser';
+import type { SageBlock } from '../formats/ini/sageIniParser';
+import { insertLines, lineEndOf } from '../formats/ini/iniTextEdits';
+import type { LineInsertion } from '../formats/ini/iniTextEdits';
 import {
   isArchiveUri,
   isEditable,

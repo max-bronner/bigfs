@@ -2,9 +2,9 @@ import {
   evaluateCall,
   evaluateMacroBody,
   formatValue,
-} from './sageIniPreprocessor';
-import type { LookupMacro } from './sageIniPreprocessor';
-import type { SageBlock, SageDocument, SageStatement } from './sageIniParser';
+} from '../../formats/ini/sageIniPreprocessor';
+import type { LookupMacro } from '../../formats/ini/sageIniPreprocessor';
+import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/sageIniParser';
 
 /**
  * The numbers a balance pass compares across units: cost, build time,

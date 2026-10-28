@@ -4,7 +4,7 @@ import {
   labelled,
   parseWnd,
   toBoxes,
-} from '../../language/model/wndLayout';
+} from '../../formats/wnd/wndLayout';
 
 const LAYOUT = [
   'FILE_VERSION = 2;',

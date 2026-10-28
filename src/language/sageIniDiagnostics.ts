@@ -1,4 +1,4 @@
-import { findScriptProblems } from './model/sageIniScripts';
+import { findScriptProblems } from '../formats/ini/sageIniScripts';
 import {
   Diagnostic,
   DiagnosticSeverity,
@@ -8,12 +8,12 @@ import {
 } from 'vscode';
 import type { Disposable, TextDocument } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../constants';
-import { findUnresolvedReferences } from './model/sageIniReferenceCheck';
-import { findSageIniProblems } from './model/sageIniProblems';
+import { findUnresolvedReferences } from '../formats/ini/sageIniReferenceCheck';
+import { findSageIniProblems } from '../formats/ini/sageIniProblems';
 import { findGameTextLabels, missingTextMessage } from './model/gameTextLabels';
-import type { SageProblem } from './model/sageIniProblems';
-import type { SageDocument } from './model/sageIniParser';
-import type { SageIniSchema } from './model/sageIniSchema';
+import type { SageProblem } from '../formats/ini/sageIniProblems';
+import type { SageDocument } from '../formats/ini/sageIniParser';
+import type { SageIniSchema } from '../formats/ini/sageIniSchema';
 import type { SageIniIndex } from './sageIniIndex';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { includeExists, resolveIncludeUri } from './sageIniInclude';

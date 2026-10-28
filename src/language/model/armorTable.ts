@@ -1,4 +1,4 @@
-import type { SageDocument } from './sageIniParser';
+import type { SageDocument } from '../../formats/ini/sageIniParser';
 
 /**
  * Every `Armor` definition as one row of a table: how much of each damage

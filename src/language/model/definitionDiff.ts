@@ -1,5 +1,5 @@
-import { stripComment } from './sageIniParser';
-import type { SageBlock, SageDocument } from './sageIniParser';
+import { stripComment } from '../../formats/ini/sageIniParser';
+import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
 
 /**
  * What a mod changed in an INI file, definition by definition and field by

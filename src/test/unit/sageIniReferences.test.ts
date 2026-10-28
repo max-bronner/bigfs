@@ -1,27 +1,27 @@
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { createSageIniSchema } from '../../language/model/sageIniSchema';
-import { parseSageIni } from '../../language/model/sageIniParser';
+import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { referencedNames } from '../../language/model/sageAudioValues';
-import { resolveSageSymbol } from '../../language/model/sageIniSymbol';
+import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 import {
   collectEntries,
   reachedThroughMacros,
-} from '../../language/model/sageIniEntries';
+} from '../../formats/ini/sageIniEntries';
 import type {
   EntryBodyToken,
   FileEntries,
-} from '../../language/model/sageIniEntries';
+} from '../../formats/ini/sageIniEntries';
 import {
   evaluateCall,
   scanCalls,
-} from '../../language/model/sageIniPreprocessor';
+} from '../../formats/ini/sageIniPreprocessor';
 import {
   findUnresolvedReferences,
   isNotAName,
-} from '../../language/model/sageIniReferenceCheck';
-import { canonicalNamespace } from '../../language/model/sageReferenceFields';
+} from '../../formats/ini/sageIniReferenceCheck';
+import { canonicalNamespace } from '../../formats/ini/sageReferenceFields';
 import { decodeIniText } from '../../core/windows1252';
 
 const schema = createSageIniSchema(

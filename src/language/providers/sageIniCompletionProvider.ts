@@ -1,9 +1,9 @@
 import { CompletionItem, CompletionItemKind, Range } from 'vscode';
 import type { CompletionItemProvider, Position, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
-import type { SageIniSchema } from '../model/sageIniSchema';
-import { stripComment, tokenize } from '../model/sageIniParser';
-import type { SageBlock, SageDocument } from '../model/sageIniParser';
+import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
+import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
+import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
 import type { SageIniIndex } from '../sageIniIndex';
 
 /**

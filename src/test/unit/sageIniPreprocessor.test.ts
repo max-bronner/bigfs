@@ -3,7 +3,7 @@ import {
   evaluateCall,
   evaluateMacroBody,
   scanCalls,
-} from '../../language/model/sageIniPreprocessor';
+} from '../../formats/ini/sageIniPreprocessor';
 
 const macros: Record<string, string> = {
   hero_health: '1500',

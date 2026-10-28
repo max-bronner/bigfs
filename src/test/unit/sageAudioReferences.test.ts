@@ -4,10 +4,10 @@ import { join } from 'path';
 import {
   ROOT_CONTEXT,
   createSageIniSchema,
-} from '../../language/model/sageIniSchema';
-import { parseSageIni } from '../../language/model/sageIniParser';
-import { findSageIniProblems } from '../../language/model/sageIniProblems';
-import { resolveSageSymbol } from '../../language/model/sageIniSymbol';
+} from '../../formats/ini/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { findSageIniProblems } from '../../formats/ini/sageIniProblems';
+import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 import {
   AUDIO_NAMESPACES,
   EVA_NAMESPACES,

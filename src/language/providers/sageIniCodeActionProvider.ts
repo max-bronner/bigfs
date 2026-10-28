@@ -9,18 +9,18 @@ import type { Uri } from 'vscode';
 import type { CodeActionProvider, Diagnostic, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniIndex } from '../sageIniIndex';
-import { closestNames, missingEndLine } from '../model/sageIniFormat';
+import { closestNames, missingEndLine } from '../../formats/ini/sageIniFormat';
 import {
   findGameTextLabels,
   labelOfMissingText,
   placeholderText,
 } from '../model/gameTextLabels';
-import { strRecord } from '../model/sageStringRecords';
-import type { SageDocument } from '../model/sageIniParser';
+import { strRecord } from '../../formats/str/sageStringRecords';
+import type { SageDocument } from '../../formats/ini/sageIniParser';
 import {
   isMissingAssetMessage,
   suggestedAssetNames,
-} from '../model/sageIniAssets';
+} from '../../formats/ini/sageIniAssets';
 
 /**
  * Quick fixes for the problems the diagnostics report: add a missing `End`,

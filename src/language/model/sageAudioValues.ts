@@ -6,10 +6,10 @@ import {
   namespacesOfKind,
 } from './sageAudioFields';
 import type { AudioReferenceKind } from './sageAudioFields';
-import type { SageStatement, SageToken } from './sageIniParser';
-import type { SageIniSchema } from './sageIniSchema';
-import { parentOf } from './sageIniNames';
-import { nameOffsetIn } from './sageReferenceFields';
+import type { SageStatement, SageToken } from '../../formats/ini/sageIniParser';
+import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
+import { parentOf } from '../../formats/ini/sageIniNames';
+import { nameOffsetIn } from '../../formats/ini/sageReferenceFields';
 
 /**
  * The sound and announcer names written inside the values of an audio field,

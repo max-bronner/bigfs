@@ -18,7 +18,7 @@ import type {
   CommandSetMessage,
   FromCommandSetPage,
 } from './model/commandSetEdit';
-import { parseSageIni } from './model/sageIniParser';
+import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 import { readWorkspaceText } from './workspaceText';

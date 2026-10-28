@@ -5,7 +5,7 @@ import {
   compileBulkQuery,
 } from './model/bulkEdit';
 import type { BulkQuery, BulkSource } from './model/bulkEdit';
-import { isFragmentPath, parseSageIni } from './model/sageIniParser';
+import { isFragmentPath, parseSageIni } from '../formats/ini/sageIniParser';
 import { resolveIncludeUri } from './sageIniInclude';
 import {
   isArchiveUri,
@@ -15,7 +15,7 @@ import {
   restoreEntries,
   saveEntryTexts,
 } from './archiveText';
-import { replaceInLines } from './model/iniTextEdits';
+import { replaceInLines } from '../formats/ini/iniTextEdits';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { readWorkspaceText } from './workspaceText';
 import type { ArchiveModel } from '../model/archiveModel';

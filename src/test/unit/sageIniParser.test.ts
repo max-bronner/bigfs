@@ -7,14 +7,14 @@ import {
   ROOT_CONTEXT,
   UNCHECKED_CONTEXT,
   createSageIniSchema,
-} from '../../language/model/sageIniSchema';
-import type { SageIniSchema } from '../../language/model/sageIniSchema';
+} from '../../formats/ini/sageIniSchema';
+import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
 import {
   parseSageIni,
   stripComment,
   tokenize,
-} from '../../language/model/sageIniParser';
-import type { SageBlock } from '../../language/model/sageIniParser';
+} from '../../formats/ini/sageIniParser';
+import type { SageBlock } from '../../formats/ini/sageIniParser';
 
 /**
  * The schema ships as data, so the tests read the same file the extension

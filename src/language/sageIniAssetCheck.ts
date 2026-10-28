@@ -10,13 +10,13 @@ import type { EntryLocator } from '../formats/entryLocator';
 import { BASE_SETTING } from '../model/baseGameFolders';
 import { decideAssetCheck } from './model/assetCheckPolicy';
 import type { AssetCheckMode } from './model/assetCheckPolicy';
-import { closestNames } from './model/sageIniFormat';
+import { closestNames } from '../formats/ini/sageIniFormat';
 import {
   findAssetReferences,
   missingAssetMessage,
-} from './model/sageIniAssets';
-import type { AssetKind } from './model/sageIniAssets';
-import type { SageDocument } from './model/sageIniParser';
+} from '../formats/ini/sageIniAssets';
+import type { AssetKind } from '../formats/ini/sageIniAssets';
+import type { SageDocument } from '../formats/ini/sageIniParser';
 
 /**
  * Reports models, animations, textures and sounds an INI file names that no

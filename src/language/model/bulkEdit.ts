@@ -1,12 +1,12 @@
 import { compileExpression } from '../../core/expression';
-import { forEachBlock } from './sageIniParser';
+import { forEachBlock } from '../../formats/ini/sageIniParser';
 import type {
   SageBlock,
   SageDocument,
   SageMacroDefinition,
   SageStatement,
   SageToken,
-} from './sageIniParser';
+} from '../../formats/ini/sageIniParser';
 
 /**
  * Changing many INI values at once by a formula: "every Object whose name

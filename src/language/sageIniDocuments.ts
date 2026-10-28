@@ -1,9 +1,9 @@
 import { EventEmitter, Uri, workspace } from 'vscode';
 import type { Disposable, TextDocument } from 'vscode';
-import { createSageIniSchema } from './model/sageIniSchema';
-import type { SageGame, SageIniSchema } from './model/sageIniSchema';
-import { isFragmentPath, parseSageIni } from './model/sageIniParser';
-import type { SageDocument } from './model/sageIniParser';
+import { createSageIniSchema } from '../formats/ini/sageIniSchema';
+import type { SageGame, SageIniSchema } from '../formats/ini/sageIniSchema';
+import { isFragmentPath, parseSageIni } from '../formats/ini/sageIniParser';
+import type { SageDocument } from '../formats/ini/sageIniParser';
 
 /**
  * Reads the schema once and parses each open document once per edit, so every

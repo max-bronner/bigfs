@@ -1,5 +1,5 @@
 import { declarationOf, parentOf } from './sageIniNames';
-import { referencedNames } from './sageAudioValues';
+import { referencedNames } from '../../language/model/sageAudioValues';
 import type { SageIniSchema } from './sageIniSchema';
 import type { SageDocument, SageStatement, SageToken } from './sageIniParser';
 

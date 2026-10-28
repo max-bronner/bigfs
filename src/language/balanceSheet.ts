@@ -7,8 +7,8 @@ import {
   readWeaponStats,
 } from './model/objectStats';
 import type { ObjectStats, StatColumn, StatValue } from './model/objectStats';
-import { forEachBlock } from './model/sageIniParser';
-import type { SageBlock, SageDocument } from './model/sageIniParser';
+import { forEachBlock } from '../formats/ini/sageIniParser';
+import type { SageBlock, SageDocument } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 import { createParseCache, readWorkspaceText } from './workspaceText';

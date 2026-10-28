@@ -1,8 +1,8 @@
 import { Range, TextEdit } from 'vscode';
 import type { DocumentFormattingEditProvider } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
-import { formatSageIniStable } from '../model/sageIniFormat';
-import { isFragmentPath, parseSageIni } from '../model/sageIniParser';
+import { formatSageIniStable } from '../../formats/ini/sageIniFormat';
+import { isFragmentPath, parseSageIni } from '../../formats/ini/sageIniParser';
 
 /** Re-indents a file from its block structure; only whitespace changes */
 export const createSageIniFormattingProvider = (

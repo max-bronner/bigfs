@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { parseCsf, writeCsf } from '../formats/csf';
-import { parseStringRecords, quoteStringText } from './model/sageStringRecords';
+import { parseStringRecords, quoteStringText } from '../formats/str/sageStringRecords';
 import {
   decodeIniText,
   encodeWindows1252,

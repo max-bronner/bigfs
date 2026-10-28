@@ -19,7 +19,7 @@ import {
   topBlocks,
 } from "../language/model/cahSystem";
 import type { HeroSystem } from "../language/model/cahSystem";
-import { isFragmentPath, parseSageIni } from "../language/model/sageIniParser";
+import { isFragmentPath, parseSageIni } from "../formats/ini/sageIniParser";
 import type { SageIniDocuments } from "../language/sageIniDocuments";
 import type { SageIniIndex } from "../language/sageIniIndex";
 import { createParseCache } from "../language/workspaceText";

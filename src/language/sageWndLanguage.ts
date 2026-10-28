@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { openDocument } from './workspaceText';
-import { parseWnd, toBoxes } from './model/wndLayout';
-import type { WndBox, WndWindow } from './model/wndLayout';
+import { parseWnd, toBoxes } from '../formats/wnd/wndLayout';
+import type { WndBox, WndWindow } from '../formats/wnd/wndLayout';
 import { imageExtent, isRotated, mappedUv } from '../formats/mappedImage';
 import type { UvRect } from '../formats/mappedImage';
 import type { EntryLocator } from '../formats/entryLocator';

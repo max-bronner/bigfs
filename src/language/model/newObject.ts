@@ -1,6 +1,6 @@
 import { duplicateDefinition, renameLabels } from './duplicateDefinition';
 import type { LabelRename } from './duplicateDefinition';
-import { stripComment, tokenize } from './sageIniParser';
+import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
 
 /**
  * The text a new unit, hero or building is made of, planned from an
