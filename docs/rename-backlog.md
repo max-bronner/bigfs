@@ -22,7 +22,7 @@ skill already has a precedent for (`BigTreeNode` → `BigTreeItem`).
 | explorer row union | `providers/explorerNode.ts` | `ExplorerNode`, `SourceNode`, `FolderNode`, `isSourceNode`, `isFolderNode`, file `explorerNode.ts` | `ExplorerRow`, `SourceRow`, `FolderRow`, `isSourceRow`, `isFolderRow`, file `explorerRow.ts` | `node` means `VirtualNode` in the vocabulary table, and two of the three members have no node behind them. `treeDataProvider` already says `compareRows`/`sortRows`/`rowName`, so the code speaks the right word everywhere except the type names. Keep `isVirtualNode` as is. | `ExplorerNode` 28, `FolderNode` 5, `isSourceNode` 5, `isFolderNode` 4, `SourceNode` 3, specifier 8 |
 | method | `model/archiveModel.ts` | `apply` | `applyToArchive` | Reads as `Function.prototype.apply` at every use site, and hides that it also logs failure and fires the view event | 7 + decl |
 | method | `model/archiveModel.ts` | `getArchiveContext` | `requireResolvedUri` | Returns `ResolvedUri`, not a "context"; `Context` is one of the empty words. Also hides that it throws `FileNotFound` rather than returning undefined, which is the only thing separating it from `resolveUri` | 4 + decl |
-| function | `model/virtualNode.ts` | `isInside` | `isBelow` | Reads as a synonym of `common/paths`' `isPathBelow`, but is exclusive where that one is deliberately inclusive. Two near-identical names with opposite edge behaviour — see the bug note below | 1 use + 1 import + 1 internal |
+| function | `model/virtualNode.ts` | `isInside` | `isBelow` | Reads as a synonym of `common/paths`' `isPathBelow`, but is exclusive where that one is deliberately inclusive. Two near-identical names with opposite edge behaviour | 1 use + 1 import + 1 internal |
 | function | `model/virtualNode.ts` | `buildVirtualTree` | `createArchiveRoot` | "Virtual tree" is not in the vocabulary table, and the sole caller passes no entries — it builds a root node, and files arrive later through `syncFiles` | 1 use + 1 import |
 
 ## Layer violations and wrong vocabulary
@@ -34,7 +34,6 @@ skill already has a precedent for (`BigTreeNode` → `BigTreeItem`).
 | local | `commands/clipboardCommands.ts` | `getEntryPath` | `getStoredEntryPath` | The vocabulary table defines an entry path as `/` separated; this returns the backslash form. A reader who knows the term guesses wrong | 2 |
 | local | `commands/clipboardCommands.ts` | `getAbsolutePath` | `getArchiveQualifiedPath` | Returns `…\textures.big\data\ini\x.ini`, which no fs call can open. "Absolute path" promises something openable | 1 |
 | local | `actions/fileActions.ts` | `readFiles` | `readFilesFromDisk` | `ArchiveModel.readFiles` reads content *out of* archives; this reads files *from disk* on the way in. Same name, opposite direction, both in the `importFromDisk` call graph | 1 |
-| property | `formats/formatRegistry.ts` | `EntryRef.path` | `entryPath` | Two paths in the vocabulary table and this picks the ambiguous word; the node beside it spells `entryPath` out | 1 decl + 4 |
 
 ## Shape: nouns that should be verbs, hidden constants
 
@@ -72,24 +71,6 @@ Collected while reading. None were acted on.
 
 ## Likely bugs
 
-**`isInside` never matches an archive root** — `model/virtualNode.ts:28`.
-Entry paths carry no leading slash, so when `other` is an archive root
-(`entryPath === ''`) the prefix built is `"/"` and `startsWith` can never
-match. Consequences: `getTopLevelNodes` does not collapse a selection holding
-an archive root plus its own descendants, and `fileActions.canMoveInto` does
-not stop an archive root being dropped into one of its own folders. Masked
-today only because `groupByArchive` rejects archive roots outright.
-
-**`FormatContext.sibling` resolves the wrong entry** —
-`formats/formatRegistry.ts`. It calls `listIn(getParentPath(entry.path))`,
-which uses `getFileNodes` (recursive), then matches on **name only**. So
-`movies/sub/unit.const` is returned as a sibling of `movies/unit.apt`. For a
-top-level entry it is worse: `getParentPath('unit.apt')` is `''`,
-`findChild(root, '')` returns the root, and the whole archive is scanned for a
-name match. The suite's fixture is flat, so nothing catches it. This matters
-before the `.apt` work, which is precisely the case that finds `.const` and
-`.dat` by name.
-
 **`ArchiveSource.id` is not stable across sessions** — its doc says it is, but
 when two workspace folders share a slug, which one gets the bare slug and which
 gets the hash suffix depends on workspace-folder order. Reordering the folders
@@ -105,9 +86,6 @@ swaps their ids, and with them every stored uri.
   archive root, which is a `Directory` and returns itself. The four
   `if (!directory) return;` guards in `fileCommands.ts` and
   `clipboardCommands.ts` are unreachable.
-- `formatRegistry.createContext` guards `if (!archive) return undefined` for
-  the same reason, and its `FormatContext | undefined` makes every caller
-  null-check for nothing.
 - `buildVirtualTree`'s `entryPaths` parameter — the sole call passes `[]`.
 - After the lazy-read refactor nothing in `runScan` reads an index table, so
   its `Promise.allSettled` can only reject from `known.reload()`. The

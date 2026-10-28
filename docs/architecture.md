@@ -31,79 +31,80 @@ the casing an entry was stored with.
 
 ## 2. The layers
 
+The extension began as an archive explorer and has grown a language service,
+several editors and previews on top of it. The layers are the same ones, with
+the later features built on `model/` and `formats/` rather than beside them.
+
 ```mermaid
 flowchart TD
   VS["VS Code"]
 
-  subgraph providers["providers - VS Code adapters"]
-    FSP["fileSystemProvider"]
-    TDP["treeDataProvider"]
-    DND["dragAndDropController"]
-    EXN["explorerNode"]
+  subgraph entry["extension.ts - wires everything at activation"]
   end
 
-  subgraph cmd["commands"]
-    CC["commandCenter"]
-    FC["fileCommands"]
-    CLC["clipboardCommands"]
-    EC["extractCommands"]
+  subgraph surface["VS Code surface"]
+    CMD["commands - palette and context menu"]
+    PRV["providers - explorer, file system, custom editors"]
+    LANG["language - INI, STR and WND support, previews, checks"]
+    UI["ui, actions - prompts, shared operations"]
   end
 
-  ACT["actions - fileActions"]
-  UI["ui - dialogs"]
+  subgraph pages["webview/ - page code, bundled for the browser"]
+    WP["particles, apt, model, armor, commandset"]
+    WS["scene - orbit camera, model renderer"]
+  end
 
   subgraph model["model - owns the rules"]
-    AM["archiveModel"]
-    AR["archive"]
-    VN["virtualNode"]
-    NA["nodeAddress"]
-    AS["archiveSource"]
+    AM["archiveModel, archive, virtualNode"]
+    NA["nodeAddress, archiveSource"]
+    GV["gameView, gameViewModel, install*, modDiff, modPackage"]
   end
 
-  subgraph plugins["plug-in surface"]
-    TR["tools - toolRegistry"]
-    FR["formats - formatRegistry"]
+  subgraph pure["no vscode import"]
+    LM["language/model - the INI dialect"]
+    FMT["formats - w3d, apt, map, csf, vp6, particles, refpack"]
+    TLS["tools - decoders behind a registry"]
+    BIN["binary - the BIG format"]
+    COM["common - paths, expression, windows1252"]
   end
 
-  subgraph binary["binary - no vscode import"]
-    AF["archiveFile"]
-    BF["bigFormat"]
-  end
-
-  COM["common - paths, messages"]
-
-  VS --> FSP & TDP & DND & CC
-  CC --> FC & CLC & EC
-  FC & CLC --> ACT
-  DND --> ACT
-  ACT --> UI
-  ACT --> AM
-  FSP & TDP --> AM
-  EC --> AM
-  FR --> AM
-  FR --> TR
-  AM --> AR & VN & NA & AS
-  AR --> VN & AF
-  AF --> BF
-  ACT -.-> COM
-  AM -.-> COM
+  VS --> entry
+  entry --> CMD & PRV & LANG
+  CMD --> UI
+  CMD & PRV & LANG --> model
+  LANG --> LM
+  PRV & LANG --> FMT
+  FMT --> TLS
+  PRV & LANG -. "page script, messages" .-> pages
+  pages --> FMT
+  pages --> LM
+  model --> BIN
 ```
 
-The rule the arrows follow: **`binary` knows nothing about VS Code, `model`
-knows nothing about commands or views, `common` knows nothing about this
-extension at all.** Everything above the model works with nodes.
+The arrows that matter: **`binary` and `language/model` know nothing about VS
+Code, `model` knows nothing about commands or views, and the code in
+`webview/` runs in a browser, so it imports only the pure layers.** The pure
+layers are what the unit tests in `src/test/unit` reach without starting VS
+Code. This is checked by review, not by tooling, and the dependency graph is
+not clean: `model/` and `formats/` import `vscode` for `Uri` and `FileType`,
+and a few modules import across layers: `common/commandTarget` from
+`providers/`, `formats/entryLocator` from `model/`, and `formats/particles`
+from `language/model` for the INI lexer.
 
 | directory | holds |
 | --- | --- |
 | `binary/` | the BIG file format: parse, serialize, read, write |
-| `model/` | archives, the virtual tree, addressing, sources |
-| `providers/` | the three VS Code adapters |
+| `model/` | archives, the virtual tree, addressing, sources; the game view (which file the engine loads), install discovery and layering, mod diff and packaging |
+| `providers/` | the explorer tree, drag and drop, the `bigfs` file system, and the custom editors: preview, APT, map, string table, Create-a-Hero |
 | `commands/` | what the palette and context menu invoke |
-| `actions/` | operations shared by commands and drag and drop |
-| `ui/` | prompts and confirmations |
-| `tools/`, `formats/` | the plug-in surface |
-| `language/` | the SAGE INI dialect: schema, parser, providers |
+| `actions/`, `ui/` | operations shared by commands and drag and drop; prompts and confirmations |
+| `tools/` | pure decoders and parsers (TGA/DDS, WAV, W3D) behind a registry, and the FFmpeg wrapper |
+| `formats/` | parsers and writers that need no host: W3D animation and pose, APT (`apt/`), maps (`map/`), particles (`particles/`), VP6 (`vp6/`), CSF, CAH, RefPack, texture encoding, mapped images; and `entryLocator`, which finds a file the way the game would |
+| `language/` | the SAGE INI, STR and WND languages: `model/` is the dialect (lexer, parser, schema, references, checks) with no editor dependency, `providers/` adapts it to VS Code, and the files beside them are the features built on it (previews, balance sheet, armor table, bulk edit, asset and translation checks) |
+| `webview/` | the code that runs inside each webview page, bundled per page by `esbuild.mjs` into `dist/webview/` |
 | `common/` | generic helpers, no domain knowledge |
+
+---
 
 ---
 
@@ -115,6 +116,9 @@ classDiagram
     +id: string
     +label: string
     +baseUri: Uri
+    +kind: InstallKind
+    +base: boolean
+    +external: boolean
   }
 
   class Archive {
@@ -230,7 +234,7 @@ sequenceDiagram
   participant BIN as binary
 
   Note over AM: activation
-  AM->>AM: createWorkspaceSources
+  AM->>AM: createSources
   AM->>AM: findFiles(**/*.big)
   AM->>AR: create, one per archive, nothing read
   Note over AM: tree is usable here
@@ -296,53 +300,40 @@ watcher cannot land in the middle of a save.
 
 ---
 
-## 7. The plug-in surface
+## 7. Tools, formats and the game view
 
-Two kinds of contribution, told apart by what they are allowed to know.
+Two kinds of reusable code sit under the features, told apart by what they are
+allowed to know.
 
-```mermaid
-flowchart LR
-  subgraph tools["tools - pure"]
-    T1["decode a texture"]
-    T2["parse a movie"]
-    T3["encode an image"]
-  end
-
-  subgraph formats["formats - bound to archive and editor"]
-    F1["open a dds"]
-    F2["open an apt"]
-  end
-
-  CORE["model"]
-
-  F1 --> T1
-  F2 --> T2
-  F2 --> T1
-  F1 & F2 --> CORE
-  CMDS["commands"] --> T3
-```
-
-| | tool | format |
+| | `tools/` | `formats/` |
 | --- | --- | --- |
-| answers | transform this data | open this entry |
-| knows about archives | no | yes |
-| knows about VS Code | no | yes |
-| testable without a host | yes | no |
+| answers | transform this data | read or write this file format |
+| knows about archives | no | no (except `entryLocator`) |
+| knows about VS Code | no | no (except `entryLocator`) |
+| testable without a host | yes | yes |
 
-A tool is a pure function with an id. A format is handed a context that can
-find a sibling by extension, list a directory, and read entries in a batch. It
-gets a **reader**, not pre-resolved buffers, because a format cannot always
-declare what it needs in advance: an `.apt` finds its `.const` and `.dat` by
-name, then asks for textures it only discovers while parsing.
+A tool is a pure function with an id, registered once in `extension.ts`
+through `createToolRegistry` and reached through the `ToolBox` the preview
+editor is handed. A format module is simply imported by what needs it; there is
+no registry between them, and the registry that once stood for it was removed
+as dead code (nothing ever registered a format).
 
-Both registries exist and are empty. Registering either is one line in
-`extension.ts`.
+Anything that needs "the file the game would load" asks the game view, not the
+archive it happens to hold. `model/gameView` is the engine's rule (loose files
+first, archives in path order with the first holding a path winning, installs
+layered mod over ROTWK over BFME II), `gameViewModel` keeps it current as
+archives change, and `formats/entryLocator` is the lookup viewers use for a
+skeleton or texture named by file name only.
 
-**Not yet decided:** a format that needs its own viewer also needs a
-`contributes.customEditors` entry in `package.json`, whose file pattern is
-static. Either each format adds a manifest entry, or one editor registers at
-`priority: "option"` so it is reachable through *Reopen With* without
-hijacking anything.
+Editors and previews that draw in a webview follow one shape: the extension
+side owns the data and the file, the page code in `webview/` draws and sends
+messages, and each page is its own esbuild bundle. A page never touches the
+file; it sends an edit and is sent the result back.
+
+A format that needs its own viewer also needs a `contributes.customEditors`
+entry in `package.json`, whose file pattern is static. The existing editors
+(`bigfs.preview`, `bigfs.aptEditor`, `bigfs.strTable`, `bigfs.csfEditor`,
+`bigfs.cahEditor`, `bigfs.mapEditor`) each have one.
 
 ---
 
@@ -395,21 +386,19 @@ more than an order of magnitude.
   widened into a transaction over several. Ordering belongs in the runner:
   write the target before removing the source, so a failure leaves a duplicate
   rather than a hole.
-- **The merged game view**: one index per source, entries resolved by load
-  order, with the hover showing which archive wins. Needed before INI cross
-  referencing, since a reference from a mod into the base game has to resolve.
-- **Archives added by hand** from outside the workspace. The source layer takes
-  this without changing: it is a source implementation, a command, and
-  persistence.
+- **Archives added by hand** are partly there: `external` sources are read from
+  the folder rather than found by the workspace search, which is how the base
+  game folders the settings name, and installs found by `installDiscovery`,
+  enter the tree. What is open is a command to add an arbitrary folder and
+  persistence for it.
 
-**Plug-ins**
+**Features**
 
-- `.dds` decoder and viewer, `.apt` parser and writer. The `.apt` tools depend
-  on nothing here and can be written against fixtures whenever.
-- Language support for `.ini` and `.inc`: folding, outline and highlighting are
-  in `language/`. What is still open is the cross-file half — go to definition,
-  find references, duplicate module tags — which needs the merged view and a
-  cache of parsed results keyed by archive version.
+- The INI language service covers folding, outline, highlighting, completion,
+  go to definition, references, rename and diagnostics (`language/`, indexed
+  across archives by `sageIniIndex`). What is open is mostly depth: more
+  field types checked, and a cache of parsed results keyed by archive version
+  so a large workspace re-checks only what changed.
 
 **Known gaps**
 
