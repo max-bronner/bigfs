@@ -10,7 +10,7 @@ import type { Disposable, TextDocument } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../constants';
 import { findUnresolvedReferences } from '../formats/ini/sageIniReferenceCheck';
 import { findSageIniProblems } from '../formats/ini/sageIniProblems';
-import { findGameTextLabels, missingTextMessage } from './model/gameTextLabels';
+import { findGameTextLabels, missingTextMessage } from '../game/text/gameTextLabels';
 import type { SageProblem } from '../formats/ini/sageIniProblems';
 import type { SageDocument } from '../formats/ini/sageIniParser';
 import type { SageIniSchema } from '../formats/ini/sageIniSchema';

@@ -4,7 +4,7 @@ import { join } from 'path';
 import {
   readObjectStats,
   readWeaponStats,
-} from '../../language/model/objectStats';
+} from '../../game/objects/objectStats';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 

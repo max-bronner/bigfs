@@ -6,7 +6,7 @@ import type {
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
-import type { ObjectScene, SceneFocus } from '../../language/model/objectScene';
+import type { ObjectScene, SceneFocus } from '../../game/objects/objectScene';
 
 /** Messages between the particle preview and its page */
 

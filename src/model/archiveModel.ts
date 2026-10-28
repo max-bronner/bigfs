@@ -14,12 +14,12 @@ import { BIG_PATTERN } from '../constants';
 import { NotAnArchiveError } from '../formats/big/bigFormat';
 import type { BigFileEntry } from '../formats/big/bigFormat';
 import { isContainedPath, isPathBelow } from '../core/paths';
-import { findConflicts, planTransfer } from './transferPlan';
-import type { ConflictChoice, TransferItem } from './transferPlan';
+import { findConflicts, planTransfer } from '../game/install/transferPlan';
+import type { ConflictChoice, TransferItem } from '../game/install/transferPlan';
 import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
 import { createSources, findSourceFor, getPathInSource } from './archiveSource';
-import { findArchives } from './installScan';
+import { findArchives } from '../node/installScan';
 import { BASE_SETTING, UNDERLYING_SETTING } from './baseGameFolders';
 import type { ArchiveSource } from './archiveSource';
 import {

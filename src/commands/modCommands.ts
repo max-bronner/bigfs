@@ -15,7 +15,7 @@ import type { ArchiveModel } from '../model/archiveModel';
 import { getFileNodes } from '../model/virtualNode';
 import type { VirtualNode } from '../model/virtualNode';
 import { getNodeUri } from '../model/nodeAddress';
-import { skippedFromPackage } from '../model/modPackage';
+import { skippedFromPackage } from '../node/modPackage';
 import { recordPackedArchive } from '../model/packagedOutputs';
 import { formatCount } from '../core/messages';
 import { SCHEME } from '../constants';

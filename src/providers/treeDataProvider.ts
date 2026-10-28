@@ -21,7 +21,7 @@ import {
 } from './explorerNode';
 import type { ExplorerNode, FolderNode, GameRow } from './explorerNode';
 import { GameViewModel } from '../model/gameViewModel';
-import { getGameFiles } from '../model/gameView';
+import { getGameFiles } from '../game/install/gameView';
 
 /** Compares names as an explorer does: `a2` before `a10`, casing ignored */
 const nameCollator = new Intl.Collator(undefined, {

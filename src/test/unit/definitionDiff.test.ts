@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { diffDefinitions } from '../../language/model/definitionDiff';
+import { diffDefinitions } from '../../game/objects/definitionDiff';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 

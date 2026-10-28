@@ -14,7 +14,7 @@ import {
   findGameTextLabels,
   labelOfMissingText,
   placeholderText,
-} from '../model/gameTextLabels';
+} from '../../game/text/gameTextLabels';
 import { strRecord } from '../../formats/str/sageStringRecords';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
 import {

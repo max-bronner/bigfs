@@ -7,17 +7,17 @@ import {
   resolveSlots,
 } from './commandSetPreview';
 import { createMappedImagePreview } from './mappedImagePreview';
-import { hotkeyClashes } from './model/hotkeys';
+import { hotkeyClashes } from '../game/ini-tools/hotkeys';
 import {
   commandSetHeader,
   moveSlot,
   sameSlots,
   slotEdits,
-} from './model/commandSetEdit';
+} from '../game/objects/commandSetEdit';
 import type {
   CommandSetMessage,
   FromCommandSetPage,
-} from './model/commandSetEdit';
+} from '../game/objects/commandSetEdit';
 import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';

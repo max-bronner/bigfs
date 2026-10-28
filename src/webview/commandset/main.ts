@@ -2,7 +2,7 @@ import type {
   CommandSetMessage,
   EditorSlot,
   FromCommandSetPage,
-} from '../../language/model/commandSetEdit';
+} from '../../game/objects/commandSetEdit';
 
 /**
  * The CommandSet editor's page: slots in rows of five, each a button with

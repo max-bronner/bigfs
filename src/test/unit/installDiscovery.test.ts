@@ -6,8 +6,8 @@ import {
   parseWineRegistry,
   windowsCandidates,
   winePrefixRoots,
-} from '../../model/installDiscovery';
-import type { DiscoveryHost, Machine } from '../../model/installDiscovery';
+} from '../../node/installDiscovery';
+import type { DiscoveryHost, Machine } from '../../node/installDiscovery';
 
 const game = (id: string) => GAMES.find((each) => each.id === id)!;
 

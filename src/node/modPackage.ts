@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { archiveOrderKey } from './gameView';
+import { archiveOrderKey } from '../game/install/gameView';
 
 /**
  * What shipping a mod as one archive does to the game's files. Inside one

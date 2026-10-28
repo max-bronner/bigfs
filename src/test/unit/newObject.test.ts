@@ -5,7 +5,7 @@ import {
   copiedObject,
   inheritingObject,
   slotLine,
-} from '../../language/model/newObject';
+} from '../../game/objects/newObject';
 
 const OBJECT = [
   'Object TestArcher',

@@ -1,4 +1,4 @@
-import { AUDIO_NAMESPACES } from '../../language/model/sageAudioFields';
+import { AUDIO_NAMESPACES } from '../../game/audio/sageAudioFields';
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';

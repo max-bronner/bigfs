@@ -5,8 +5,8 @@ import {
   STAT_COLUMNS,
   readObjectStats,
   readWeaponStats,
-} from './model/objectStats';
-import type { ObjectStats, StatColumn, StatValue } from './model/objectStats';
+} from '../game/objects/objectStats';
+import type { ObjectStats, StatColumn, StatValue } from '../game/objects/objectStats';
 import { forEachBlock } from '../formats/ini/sageIniParser';
 import type { SageBlock, SageDocument } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';

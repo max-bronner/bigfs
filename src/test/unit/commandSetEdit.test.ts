@@ -4,7 +4,7 @@ import {
   moveSlot,
   sameSlots,
   slotEdits,
-} from '../../language/model/commandSetEdit';
+} from '../../game/objects/commandSetEdit';
 
 const apply = (lines: string[], edits: ReturnType<typeof slotEdits>) => {
   const out = [...lines];

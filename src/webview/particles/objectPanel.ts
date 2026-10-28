@@ -6,7 +6,7 @@ import type {
   ObjectScene,
   SceneFocus,
   SceneState,
-} from '../../language/model/objectScene';
+} from '../../game/objects/objectScene';
 import { $, post } from './page';
 
 /**

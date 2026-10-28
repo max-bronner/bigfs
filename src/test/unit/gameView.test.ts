@@ -3,8 +3,8 @@ import {
   archiveOrderKey,
   buildGameTree,
   getGameFiles,
-} from '../../model/gameView';
-import type { GameFile } from '../../model/gameView';
+} from '../../game/install/gameView';
+import type { GameFile } from '../../game/install/gameView';
 
 /** Candidate files from archives, in the order the caller ranks them */
 const file = (entryPath: string, origin: string): GameFile<string> => ({

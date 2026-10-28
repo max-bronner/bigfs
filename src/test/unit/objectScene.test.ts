@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
-import { focusAt, readObjectScene } from '../../language/model/objectScene';
+import { focusAt, readObjectScene } from '../../game/objects/objectScene';
 
 const schema = createSageIniSchema(
   JSON.parse(

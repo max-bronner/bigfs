@@ -10,7 +10,7 @@ import {
   readHeroSystem,
   spentPoints,
   topBlocks,
-} from "../../language/model/cahSystem";
+} from "../../game/objects/cahSystem";
 
 const schema = createSageIniSchema(
   JSON.parse(

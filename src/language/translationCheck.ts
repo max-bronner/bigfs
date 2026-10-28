@@ -2,18 +2,18 @@ import * as vscode from 'vscode';
 import { parseCsf } from '../formats/csf/csf';
 import { strRecord } from '../formats/str/sageStringRecords';
 import { parseStringTable } from '../formats/str/sageStringTable';
-import { labelsInText } from './model/gameTextLabels';
-import { languageOfArchive } from './model/gameLanguage';
+import { labelsInText } from '../game/text/gameTextLabels';
+import { languageOfArchive } from '../game/text/gameLanguage';
 import {
   languageOf,
   translationGaps,
   undefinedLabels,
-} from './model/translations';
+} from '../game/text/translations';
 import type {
   LanguageGap,
   StringTable,
   UndefinedLabel,
-} from './model/translations';
+} from '../game/text/translations';
 import {
   isArchiveUri,
   listArchiveEntries,

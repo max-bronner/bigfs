@@ -13,16 +13,16 @@ import { decodeIniText } from '../../core/windows1252';
 import {
   bulkChangesAcross,
   compileBulkQuery,
-} from '../../language/model/bulkEdit';
-import { labelsInText } from '../../language/model/gameTextLabels';
+} from '../../game/ini-tools/bulkEdit';
+import { labelsInText } from '../../game/text/gameTextLabels';
 import { insertLines, replaceInLines } from '../../formats/ini/iniTextEdits';
 import {
   isLoadedObjectPath,
   newObjectEntryPath,
-} from '../../language/model/newObject';
+} from '../../game/objects/newObject';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
-import { undefinedLabels } from '../../language/model/translations';
+import { undefinedLabels } from '../../game/text/translations';
 
 const schema = createSageIniSchema(
   JSON.parse(

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { strRecord } from './model/duplicateDefinition';
+import { strRecord } from '../game/objects/duplicateDefinition';
 import {
   buttonName,
   copiedButton,
@@ -9,8 +9,8 @@ import {
   isLoadedObjectPath,
   newObjectEntryPath,
   slotLine,
-} from './model/newObject';
-import type { NewObjectMode, PlannedBlock } from './model/newObject';
+} from '../game/objects/newObject';
+import type { NewObjectMode, PlannedBlock } from '../game/objects/newObject';
 import { parseSageIni, stripComment, tokenize } from '../formats/ini/sageIniParser';
 import type { SageBlock } from '../formats/ini/sageIniParser';
 import { insertLines, lineEndOf } from '../formats/ini/iniTextEdits';

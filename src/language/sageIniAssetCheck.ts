@@ -8,8 +8,8 @@ import {
 } from 'vscode';
 import type { EntryLocator } from '../services/entryLocator';
 import { BASE_SETTING } from '../model/baseGameFolders';
-import { decideAssetCheck } from './model/assetCheckPolicy';
-import type { AssetCheckMode } from './model/assetCheckPolicy';
+import { decideAssetCheck } from '../game/ini-tools/assetCheckPolicy';
+import type { AssetCheckMode } from '../game/ini-tools/assetCheckPolicy';
 import { closestNames } from '../formats/ini/sageIniFormat';
 import {
   findAssetReferences,

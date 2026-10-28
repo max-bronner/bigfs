@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { duplicateDefinition, strRecord } from './model/duplicateDefinition';
+import { duplicateDefinition, strRecord } from '../game/objects/duplicateDefinition';
 import type { SageBlock } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';

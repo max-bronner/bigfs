@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { findConflicts, planTransfer } from '../../model/transferPlan';
+import { findConflicts, planTransfer } from '../../game/install/transferPlan';
 
 const items = (...paths: string[]) => paths.map((path) => ({ path }));
 const content = (files: string[], directories: string[] = []) => ({

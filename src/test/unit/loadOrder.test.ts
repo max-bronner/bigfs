@@ -5,15 +5,15 @@ import * as path from 'path';
 import { writeArchiveFile } from '../../node/archiveFile';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { createDebouncer } from '../../core/debounce';
-import { buildGameTree, getGameFiles, indexByName } from '../../model/gameView';
+import { buildGameTree, getGameFiles, indexByName } from '../../game/install/gameView';
 import {
   detectInstallKind,
   orderLayers,
   parseRegistryPath,
-} from '../../model/installLayers';
-import { scanInstall, scanInstalls } from '../../model/installScan';
-import { compareWithBase, indexBaseGame } from '../../model/modDiff';
-import { defaultPackageFolder, overrideReport } from '../../model/modPackage';
+} from '../../game/install/installLayers';
+import { scanInstall, scanInstalls } from '../../node/installScan';
+import { compareWithBase, indexBaseGame } from '../../node/modDiff';
+import { defaultPackageFolder, overrideReport } from '../../node/modPackage';
 
 /** Writes a tiny archive holding the given files, entry path to content */
 const writeArchive = async (

@@ -17,8 +17,8 @@ import {
   readHeroSystem,
   spentPoints,
   topBlocks,
-} from "../language/model/cahSystem";
-import type { HeroSystem } from "../language/model/cahSystem";
+} from "../game/objects/cahSystem";
+import type { HeroSystem } from "../game/objects/cahSystem";
 import { isFragmentPath, parseSageIni } from "../formats/ini/sageIniParser";
 import type { SageIniDocuments } from "../language/sageIniDocuments";
 import type { SageIniIndex } from "../language/sageIniIndex";

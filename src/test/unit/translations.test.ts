@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { languageOf, translationGaps } from '../../language/model/translations';
+import { languageOf, translationGaps } from '../../game/text/translations';
 
 const table = (path: string, language: string, labels: [string, string][]) => ({
   path,

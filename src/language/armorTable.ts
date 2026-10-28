@@ -5,12 +5,12 @@ import {
   armorValue,
   damageTypes,
   readArmorRows,
-} from './model/armorTable';
+} from '../game/objects/armorTable';
 import type {
   ArmorRow,
   ArmorTableMessage,
   FromArmorPage,
-} from './model/armorTable';
+} from '../game/objects/armorTable';
 import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';

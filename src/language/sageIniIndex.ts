@@ -5,7 +5,7 @@ import type { VirtualNode } from "../model/virtualNode";
 import { getFileNodes } from "../model/virtualNode";
 import { getNodeUri } from "../model/nodeAddress";
 import type { SageIniSchema } from "../formats/ini/sageIniSchema";
-import { languageOfArchive } from "./model/gameLanguage";
+import { languageOfArchive } from "../game/text/gameLanguage";
 import {
   FILE_USES,
   collectEntries,

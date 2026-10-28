@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { SageIniIndex } from './sageIniIndex';
-import { AUDIO_NAMESPACES, EVA_NAMESPACES } from './model/sageAudioFields';
-import { isModFile, isReportableKind } from './model/unusedPolicy';
+import { AUDIO_NAMESPACES, EVA_NAMESPACES } from '../game/audio/sageAudioFields';
+import { isModFile, isReportableKind } from '../game/ini-tools/unusedPolicy';
 import { findBaseGameFolders } from '../model/baseGameFolders';
 
 /**
