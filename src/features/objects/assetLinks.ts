@@ -13,13 +13,12 @@ import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 
 const OPEN_ASSET = 'bigfs.openAsset';
 
-class AssetLinkProvider implements vscode.DocumentLinkProvider {
-  public constructor(private readonly documents: SageIniDocuments) {}
-
-  public async provideDocumentLinks(
-    document: vscode.TextDocument,
-  ): Promise<vscode.DocumentLink[]> {
-    const parsed = await this.documents.parse(document);
+/** Creates the links from every asset an INI file names to its viewer */
+const createAssetLinkProvider = (
+  documents: SageIniDocuments,
+): vscode.DocumentLinkProvider => ({
+  async provideDocumentLinks(document) {
+    const parsed = await documents.parse(document);
 
     return findAssetReferences(parsed).map((reference) => {
       const link = new vscode.DocumentLink(
@@ -39,8 +38,8 @@ class AssetLinkProvider implements vscode.DocumentLinkProvider {
       link.tooltip = `Open ${reference.candidates[0]}`;
       return link;
     });
-  }
-}
+  },
+});
 
 export const registerAssetLinks = (
   selector: vscode.DocumentSelector,
@@ -49,7 +48,7 @@ export const registerAssetLinks = (
 ): vscode.Disposable[] => [
   vscode.languages.registerDocumentLinkProvider(
     selector,
-    new AssetLinkProvider(documents),
+    createAssetLinkProvider(documents),
   ),
   vscode.commands.registerCommand(
     OPEN_ASSET,

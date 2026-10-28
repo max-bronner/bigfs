@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import type { EntryLocator } from '../../services/entryLocator';
 import {
   commandSetSlots,
@@ -32,77 +33,38 @@ import { readWorkspaceText } from '../../services/ini/workspaceText';
 
 const COLUMNS = 5;
 
-class CommandSetEditor {
-  private static readonly open = new Map<string, CommandSetEditor>();
-  private readonly panel: vscode.WebviewPanel;
-  private readonly disposables: vscode.Disposable[] = [];
-  private readonly icon?: ReturnType<typeof createMappedImagePreview>;
-  private slots = new Map<number, string>();
+/** Creates the editor of one CommandSet; `onClose` runs when its panel is closed */
+const createCommandSetEditor = (
+  context: vscode.ExtensionContext,
+  documents: SageIniDocuments,
+  index: SageIniIndex,
+  locator: EntryLocator | undefined,
+  uri: vscode.Uri,
+  name: string,
+  onClose: () => void,
+) => {
+  const icon = locator && createMappedImagePreview(locator);
+  const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
+  let slots = new Map<number, string>();
 
-  public static show(
-    context: vscode.ExtensionContext,
-    documents: SageIniDocuments,
-    index: SageIniIndex,
-    locator: EntryLocator | undefined,
-    uri: vscode.Uri,
-    name: string,
-  ): CommandSetEditor {
-    const key = `${uri.toString()}#${name.toLowerCase()}`;
-    const existing = CommandSetEditor.open.get(key);
-
-    if (existing) {
-      existing.panel.reveal();
-      return existing;
-    }
-
-    const editor = new CommandSetEditor(
-      context,
-      documents,
-      index,
-      locator,
-      uri,
-      name,
-      key,
-    );
-
-    CommandSetEditor.open.set(key, editor);
-    return editor;
-  }
-
-  private constructor(
-    context: vscode.ExtensionContext,
-    private readonly documents: SageIniDocuments,
-    private readonly index: SageIniIndex,
-    locator: EntryLocator | undefined,
-    private readonly uri: vscode.Uri,
-    private readonly name: string,
-    key: string,
-  ) {
-    const scripts = vscode.Uri.joinPath(
-      context.extensionUri,
-      'dist',
-      'webview',
-    );
-
-    this.icon = locator && createMappedImagePreview(locator);
-    this.panel = vscode.window.createWebviewPanel(
-      'bigfs.commandSet',
-      `CommandSet: ${name}`,
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        localResourceRoots: [scripts],
-        retainContextWhenHidden: true,
-      },
-    );
-    this.panel.webview.html = webviewPage({
-      allow: { img: 'data:', script: this.panel.webview.cspSource },
-      scriptFiles: [
-        this.panel.webview
-          .asWebviewUri(vscode.Uri.joinPath(scripts, 'commandset.js'))
-          .toString(),
-      ],
-      style: `
+  const panel = createSingletonPanel<FromCommandSetPage, CommandSetMessage>({
+    viewType: 'bigfs.commandSet',
+    title: `CommandSet: ${name}`,
+    column: vscode.ViewColumn.Beside,
+    options: {
+      enableScripts: true,
+      localResourceRoots: [scripts],
+      retainContextWhenHidden: true,
+    },
+    render: ({ webview }) => {
+      webview.html = webviewPage({
+        allow: { img: 'data:', script: webview.cspSource },
+        scriptFiles: [
+          webview
+            .asWebviewUri(vscode.Uri.joinPath(scripts, 'commandset.js'))
+            .toString(),
+        ],
+        style: `
 body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); padding: 8px 12px; }
 #grid { display: grid; grid-template-columns: repeat(${COLUMNS}, 112px); gap: 6px; }
 .slot { border: 1px solid var(--vscode-panel-border, #555); border-radius: 3px; min-height: 92px; padding: 4px; position: relative; font-size: 11px; text-align: center; }
@@ -118,43 +80,36 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
 .clash { color: var(--vscode-editorWarning-foreground, #cca700); font-weight: 600; }
 .muted { opacity: 0.7; }
 `,
-      body: '<p class="muted">Drag a button to another slot to move it (it swaps with what is there); click an empty slot to add one; click a name to open it.</p><div id="grid"></div>',
-    });
-    this.disposables.push(
-      this.panel.webview.onDidReceiveMessage((message: FromCommandSetPage) =>
-        this.receive(message),
-      ),
-      vscode.workspace.onDidChangeTextDocument((event) => {
-        if (event.document.uri.toString() === this.uri.toString()) {
-          void this.refresh();
-        }
-      }),
-    );
-    this.panel.onDidDispose(() => {
-      CommandSetEditor.open.delete(key);
-      this.disposables.forEach((each) => each.dispose());
-    });
-  }
+        body: '<p class="muted">Drag a button to another slot to move it (it swaps with what is there); click an empty slot to add one; click a name to open it.</p><div id="grid"></div>',
+      });
+      return [
+        vscode.workspace.onDidChangeTextDocument((event) => {
+          if (event.document.uri.toString() === uri.toString()) {
+            void refresh();
+          }
+        }),
+      ];
+    },
+    onMessage: (message) => receive(message),
+    onDispose: onClose,
+  });
 
   /** The set's block as the file has it now */
-  private async block() {
-    const lines = (await readWorkspaceText(this.uri)).split(/\r?\n/);
-    const block = parseSageIni(
-      lines,
-      await this.documents.getSchema(),
-    ).blocks.find(
+  const block = async () => {
+    const lines = (await readWorkspaceText(uri)).split(/\r?\n/);
+    const block = parseSageIni(lines, await documents.getSchema()).blocks.find(
       (each) =>
         each.keyword.toLowerCase() === 'commandset' &&
-        each.name?.split(/\s+/)[0].toLowerCase() === this.name.toLowerCase(),
+        each.name?.split(/\s+/)[0].toLowerCase() === name.toLowerCase(),
     );
 
     return block && { lines, block };
-  }
+  };
 
-  public async refresh(): Promise<CommandSetMessage | undefined> {
-    await this.index.whenReady();
+  const refresh = async (): Promise<CommandSetMessage | undefined> => {
+    await index.whenReady();
 
-    const found = await this.block();
+    const found = await block();
 
     if (!found) {
       return undefined;
@@ -164,20 +119,20 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
     const own = commandSetSlots(
       found.lines.slice(found.block.startLine + 1, found.block.endLine),
     );
-    const resolved = await resolveSlots(this.index, own, linesOf);
+    const resolved = await resolveSlots(index, own, linesOf);
     const clashes = hotkeyClashes(resolved);
 
-    this.slots = new Map(own.map(({ slot, button }) => [slot, button]));
+    slots = new Map(own.map(({ slot, button }) => [slot, button]));
 
     const message: CommandSetMessage = {
       kind: 'set',
-      name: this.name,
+      name: name,
       slots: await Promise.all(
         resolved.map(async (slot) => {
           const [image] = slot.imageName
-            ? this.index.findDefinitions('MappedImage', slot.imageName)
+            ? index.findDefinitions('MappedImage', slot.imageName)
             : [];
-          const picture = image && this.icon && (await this.icon(image));
+          const picture = image && icon && (await icon(image));
 
           return {
             slot: slot.slot,
@@ -195,16 +150,16 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
       ),
     };
 
-    await this.panel.webview.postMessage(message);
+    await panel.post(message);
     return message;
-  }
+  };
 
   /** Writes the slots as the set's numbered lines */
-  private async write(
+  const write = async (
     before: ReadonlyMap<number, string>,
-    slots: Map<number, string>,
-  ): Promise<void> {
-    const found = await this.block();
+    newSlots: Map<number, string>,
+  ): Promise<void> => {
+    const found = await block();
 
     if (!found) {
       return;
@@ -219,12 +174,12 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
     );
 
     if (!sameSlots(current, before)) {
-      await this.stale();
+      await stale();
       return;
     }
 
     const edit = new vscode.WorkspaceEdit();
-    const document = await vscode.workspace.openTextDocument(this.uri);
+    const document = await vscode.workspace.openTextDocument(uri);
 
     for (
       let line = found.block.startLine;
@@ -232,7 +187,7 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
       line++
     ) {
       if (document.lineAt(line).text !== found.lines[line]) {
-        await this.stale();
+        await stale();
         return;
       }
     }
@@ -243,65 +198,56 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
       found.lines,
       found.block.startLine,
       found.block.endLine,
-      slots,
+      newSlots,
     )) {
       edit.replace(
-        this.uri,
+        uri,
         new vscode.Range(change.line, 0, change.line + change.remove, 0),
         change.insert.map((line) => line + eol).join(''),
       );
     }
     await vscode.workspace.applyEdit(edit);
-    await this.refresh();
-  }
+    await refresh();
+  };
 
-  private async stale(): Promise<void> {
+  const stale = async (): Promise<void> => {
     void vscode.window.showErrorMessage(
       'The file changed since the editor was drawn; it has been refreshed',
     );
-    await this.refresh();
-  }
+    await refresh();
+  };
 
-  public async receive(message: FromCommandSetPage): Promise<void> {
+  const receive = async (message: FromCommandSetPage): Promise<void> => {
     switch (message.kind) {
       case 'ready':
-        await this.refresh();
+        await refresh();
         return;
       case 'move':
-        await this.write(
-          this.slots,
-          moveSlot(this.slots, message.from, message.to),
-        );
+        await write(slots, moveSlot(slots, message.from, message.to));
         return;
       case 'clear': {
-        const next = new Map(this.slots);
+        const next = new Map(slots);
 
         next.delete(message.slot);
-        await this.write(this.slots, next);
+        await write(slots, next);
         return;
       }
       case 'add': {
         const button =
           message.button ??
-          (await vscode.window.showQuickPick(
-            this.index.getNames('CommandButton'),
-            {
-              placeHolder: `The button for slot ${message.slot}`,
-            },
-          ));
+          (await vscode.window.showQuickPick(index.getNames('CommandButton'), {
+            placeHolder: `The button for slot ${message.slot}`,
+          }));
 
         if (button) {
-          await this.write(
-            this.slots,
-            new Map(this.slots).set(message.slot, button),
-          );
+          await write(slots, new Map(slots).set(message.slot, button));
         }
         return;
       }
       case 'reveal': {
-        const button = this.slots.get(message.slot);
+        const button = slots.get(message.slot);
         const [place] = button
-          ? this.index.findDefinitions('CommandButton', button)
+          ? index.findDefinitions('CommandButton', button)
           : [];
 
         if (place) {
@@ -315,12 +261,14 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
         }
       }
     }
-  }
-}
+  };
 
-/** A lens over every CommandSet header */
-class CommandSetLensProvider implements vscode.CodeLensProvider {
-  public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+  return { show: panel.show, refresh, receive };
+};
+
+/** Creates a lens over every CommandSet header */
+const createCommandSetLensProvider = (): vscode.CodeLensProvider => ({
+  provideCodeLenses(document) {
     const lenses: vscode.CodeLens[] = [];
 
     for (let line = 0; line < document.lineCount; line++) {
@@ -337,8 +285,8 @@ class CommandSetLensProvider implements vscode.CodeLensProvider {
       }
     }
     return lenses;
-  }
-}
+  },
+});
 
 export const registerCommandSetEditor = (
   context: vscode.ExtensionContext,
@@ -346,35 +294,52 @@ export const registerCommandSetEditor = (
   documents: SageIniDocuments,
   index: SageIniIndex,
   locator: EntryLocator | undefined,
-): vscode.Disposable[] => [
-  vscode.languages.registerCodeLensProvider(
-    selector,
-    new CommandSetLensProvider(),
-  ),
-  vscode.commands.registerCommand(
-    'bigfs.editCommandSet',
-    /** With `message`, acts as the page does, for automation */
-    async (uri?: vscode.Uri, name?: string, message?: FromCommandSetPage) => {
-      if (!uri || !name) {
-        void vscode.window.showInformationMessage(
-          'Use the Edit slots lens on a CommandSet',
-        );
-        return undefined;
-      }
+): vscode.Disposable[] => {
+  const open = new Map<string, ReturnType<typeof createCommandSetEditor>>();
 
-      const editor = CommandSetEditor.show(
+  const showEditor = (uri: vscode.Uri, name: string) => {
+    const key = `${uri.toString()}#${name.toLowerCase()}`;
+    let editor = open.get(key);
+
+    if (!editor) {
+      editor = createCommandSetEditor(
         context,
         documents,
         index,
         locator,
         uri,
         name,
+        () => open.delete(key),
       );
+      open.set(key, editor);
+    }
+    editor.show();
+    return editor;
+  };
 
-      if (message) {
-        await editor.receive(message);
-      }
-      return editor.refresh();
-    },
-  ),
-];
+  return [
+    vscode.languages.registerCodeLensProvider(
+      selector,
+      createCommandSetLensProvider(),
+    ),
+    vscode.commands.registerCommand(
+      'bigfs.editCommandSet',
+      /** With `message`, acts as the page does, for automation */
+      async (uri?: vscode.Uri, name?: string, message?: FromCommandSetPage) => {
+        if (!uri || !name) {
+          void vscode.window.showInformationMessage(
+            'Use the Edit slots lens on a CommandSet',
+          );
+          return undefined;
+        }
+
+        const editor = showEditor(uri, name);
+
+        if (message) {
+          await editor.receive(message);
+        }
+        return editor.refresh();
+      },
+    ),
+  ];
+};

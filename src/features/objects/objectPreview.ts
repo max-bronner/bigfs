@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
 import type { EntryLocator } from '../../services/entryLocator';
-import { findAnimation, parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
+import { createDebouncer } from '../../core/debounce';
+import { createSingletonPanel } from '../../platform/webview/singletonPanel';
+import {
+  findAnimation,
+  parseW3dAnimations,
+} from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
 import { createToolRegistry } from '../../services/toolRegistry';
 import { EffectLibrary } from '../particles/effectLibrary';
@@ -49,169 +54,107 @@ const objectNamed = (parsed: SageDocument, name: string) =>
 /** How long after an edit the preview is drawn again */
 const REDRAW_DELAY = 300;
 
-class ObjectPreview {
-  private static readonly panels = new Map<string, ObjectPreview>();
+const noticeOf = (error: unknown): ToPage => ({
+  kind: 'notice',
+  message: error instanceof Error ? error.message : String(error),
+});
 
-  private readonly panel: vscode.WebviewPanel;
-  private readonly library: EffectLibrary;
-  private readonly tools = createToolRegistry();
-
-  public static async show(
-    context: vscode.ExtensionContext,
-    documents: SageIniDocuments,
-    index: SageIniIndex,
-    locator: EntryLocator | undefined,
-    uri: vscode.Uri,
-    line: number,
-  ): Promise<void> {
-    const parsed = parseSageIni(
-      (await readWorkspaceText(uri)).split(/\r?\n/),
-      await documents.getSchema(),
-    );
-    const object = objectAt(parsed, line);
-
-    if (!object) {
-      void vscode.window.showInformationMessage(
-        'Put the cursor inside an Object, ChildObject or ObjectReskin',
-      );
-      return;
-    }
-
-    const name = object.name?.split(/\s+/)[0] ?? 'Object';
-    const key = `${uri.toString()}#${name.toLowerCase()}`;
-    const preview =
-      ObjectPreview.panels.get(key) ??
-      new ObjectPreview(context, documents, index, locator, uri, name, key);
-
-    ObjectPreview.panels.set(key, preview);
-    preview.focusOffset = line - object.startLine;
-    preview.panel.reveal(undefined, true);
-    if (preview.isReady) {
-      await preview.send();
-    }
-  }
-
+/** Creates the preview of one object; `onClose` runs when its panel is closed */
+const createObjectPreview = (
+  context: vscode.ExtensionContext,
+  documents: SageIniDocuments,
+  index: SageIniIndex,
+  locator: EntryLocator | undefined,
+  uri: vscode.Uri,
+  name: string,
+  onClose: () => void,
+) => {
+  const library = new EffectLibrary(index, locator, uri);
+  const tools = createToolRegistry();
+  const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
   /** Lines below the object's header the preview opens on */
-  private focusOffset = 0;
-  private isReady = false;
-  private redrawTimer?: ReturnType<typeof setTimeout>;
+  let focusOffset = 0;
+  let isReady = false;
 
-  private constructor(
-    context: vscode.ExtensionContext,
-    private readonly documents: SageIniDocuments,
-    private readonly index: SageIniIndex,
-    private readonly locator: EntryLocator | undefined,
-    private readonly uri: vscode.Uri,
-    private readonly name: string,
-    key: string,
-  ) {
-    this.library = new EffectLibrary(index, locator, uri);
+  const redrawSoon = createDebouncer(() => {
+    send().catch((error: unknown) => panel.post(noticeOf(error)));
+  }, REDRAW_DELAY);
 
-    const scripts = vscode.Uri.joinPath(
-      context.extensionUri,
-      'dist',
-      'webview',
-    );
-
-    this.panel = vscode.window.createWebviewPanel(
-      'bigfs.objectPreview',
-      `Object: ${name}`,
-      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [scripts],
-      },
-    );
-    this.panel.webview.html = particlePageHtml(
-      this.panel.webview.cspSource,
-      this.panel.webview
-        .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
-        .toString(),
-    );
-
-    const listening = this.panel.webview.onDidReceiveMessage(
-      (message: FromPage) =>
-        this.receive(message).catch((error: unknown) =>
-          this.post({
-            kind: 'notice',
-            message: error instanceof Error ? error.message : String(error),
-          }),
-        ),
-    );
-
-    // The object may be anywhere in the lineage of files: any INI edit
-    // can change what it composes to
-    const editing = vscode.workspace.onDidChangeTextDocument((event) => {
-      if (this.isReady && event.document.languageId === 'sage-ini') {
-        this.redrawSoon();
-      }
-    });
-
-    this.panel.onDidDispose(() => {
-      ObjectPreview.panels.delete(key);
-      clearTimeout(this.redrawTimer);
-      listening.dispose();
-      editing.dispose();
-    });
-  }
-
-  private redrawSoon(): void {
-    clearTimeout(this.redrawTimer);
-    this.redrawTimer = setTimeout(() => {
-      this.send().catch((error: unknown) =>
-        this.post({
-          kind: 'notice',
-          message: error instanceof Error ? error.message : String(error),
-        }),
+  const panel = createSingletonPanel<FromPage, ToPage>({
+    viewType: 'bigfs.objectPreview',
+    title: `Object: ${name}`,
+    column: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+    options: {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [scripts],
+    },
+    render: ({ webview }) => {
+      webview.html = particlePageHtml(
+        webview.cspSource,
+        webview
+          .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
+          .toString(),
       );
-    }, REDRAW_DELAY);
-  }
+      return [
+        // The object may be anywhere in the lineage of files: any INI edit
+        // can change what it composes to
+        vscode.workspace.onDidChangeTextDocument((event) => {
+          if (isReady && event.document.languageId === 'sage-ini') {
+            redrawSoon.schedule();
+          }
+        }),
+        { dispose: redrawSoon.cancel },
+      ];
+    },
+    onMessage: (message): Promise<unknown> =>
+      receive(message).catch((error: unknown) => panel.post(noticeOf(error))),
+    onDispose: () => {
+      isReady = false;
+      onClose();
+    },
+  });
 
-  private post(message: ToPage): Thenable<boolean> {
-    return this.panel.webview.postMessage(message);
-  }
-
-  private async receive(message: FromPage): Promise<void> {
+  const receive = async (message: FromPage): Promise<void> => {
     switch (message.kind) {
       case 'ready':
-        this.isReady = true;
-        await this.send();
+        isReady = true;
+        await send();
         break;
       case 'loadModel':
-        await this.sendModel(message.name);
+        await sendModel(message.name);
         break;
       case 'loadAnimation':
-        await this.sendAnimation(message.name);
+        await sendAnimation(message.name);
         break;
     }
-  }
+  };
 
   /** The object, the effects on it, and where to open it */
-  private async send(): Promise<void> {
-    const schema = await this.documents.getSchema();
+  const send = async (): Promise<void> => {
+    const schema = await documents.getSchema();
     const source = parseSageIni(
-      (await readWorkspaceText(this.uri)).split(/\r?\n/),
+      (await readWorkspaceText(uri)).split(/\r?\n/),
       schema,
     );
-    const header = objectNamed(source, this.name)?.startLine;
+    const header = objectNamed(source, name)?.startLine;
     const composed =
       header === undefined
         ? undefined
-        : await composeEffective(this.documents, this.index, this.uri, header);
+        : await composeEffective(documents, index, uri, header);
 
     if (header === undefined || composed === undefined) {
-      await this.post({
+      await panel.post({
         kind: 'notice',
         message: 'The object is no longer where it was',
       });
       return;
     }
-    await this.index.whenReady();
+    await index.whenReady();
 
     const isDefined = (keywords: string[]) => (name: string) =>
       keywords.some(
-        (keyword) => this.index.findDefinitions(keyword, name).length > 0,
+        (keyword) => index.findDefinitions(keyword, name).length > 0,
       );
     const scene = readObjectScene(
       parseSageIni(composed.split('\n'), schema),
@@ -224,7 +167,7 @@ class ObjectPreview {
       return;
     }
 
-    const effects = await this.library.collect(
+    const effects = await library.collect(
       [],
       [
         ...scene.fx.map(({ name }) => ({ name, list: true })),
@@ -240,7 +183,7 @@ class ObjectPreview {
       MAX_EFFECT_REFERENCES,
     );
 
-    await this.post({
+    await panel.post({
       kind: 'scene',
       restart: true,
       ...effects,
@@ -249,51 +192,101 @@ class ObjectPreview {
       comparing: false,
       budgets: [],
     });
-    await this.post({
+    await panel.post({
       kind: 'object',
       object: scene,
-      focus: focusAt(source, header + this.focusOffset, scene),
+      focus: focusAt(source, header + focusOffset, scene),
     });
-  }
+  };
 
-  private async sendModel(name: string): Promise<void> {
+  const sendModel = async (name: string): Promise<void> => {
     const file = `${name.replace(/\.w3d$/i, '')}.w3d`;
-    const bytes = await this.locator?.read(file, this.uri);
+    const bytes = await locator?.read(file, uri);
 
     if (!bytes) {
-      await this.post({ kind: 'notice', message: `${file} was not found` });
+      await panel.post({ kind: 'notice', message: `${file} was not found` });
       return;
     }
-    await this.post({
+    await panel.post({
       kind: 'model',
       model: {
         name: file,
         scene: await buildW3dScene(
           bytes,
-          (fileName) => this.locator!.read(fileName, this.uri),
-          this.tools,
+          (fileName) => locator!.read(fileName, uri),
+          tools,
         ),
       },
     });
-  }
+  };
 
   /** `SKELETON.CLIP` lives in the clip's file */
-  private async sendAnimation(name: string): Promise<void> {
-    const clip = name.slice(name.lastIndexOf('.') + 1);
-    const bytes = await this.locator?.read(`${clip}.w3d`, this.uri);
+  const sendAnimation = async (clipName: string): Promise<void> => {
+    const clip = clipName.slice(clipName.lastIndexOf('.') + 1);
+    const bytes = await locator?.read(`${clip}.w3d`, uri);
     const animations = bytes ? parseW3dAnimations(bytes) : [];
 
-    await this.post({
+    await panel.post({
       kind: 'animation',
-      name,
-      animation: findAnimation(animations, name),
+      name: clipName,
+      animation: findAnimation(animations, clipName),
     });
-  }
-}
+  };
 
-/** "Preview object" over every template, and "Preview" over every state */
-class ObjectLensProvider implements vscode.CodeLensProvider {
-  public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+  /** Opens the preview, or brings it forward, on the line `focusOffset` lines below the header */
+  const show = async (offset: number): Promise<void> => {
+    focusOffset = offset;
+    panel.show({ preserveFocus: true });
+    if (isReady) {
+      await send();
+    }
+  };
+
+  return { show };
+};
+
+const openObjectPreviews = new Map<
+  string,
+  ReturnType<typeof createObjectPreview>
+>();
+
+/** Opens the preview of the object around `line`, or says there is none */
+const showObjectPreview = async (
+  context: vscode.ExtensionContext,
+  documents: SageIniDocuments,
+  index: SageIniIndex,
+  locator: EntryLocator | undefined,
+  uri: vscode.Uri,
+  line: number,
+): Promise<void> => {
+  const parsed = parseSageIni(
+    (await readWorkspaceText(uri)).split(/\r?\n/),
+    await documents.getSchema(),
+  );
+  const object = objectAt(parsed, line);
+
+  if (!object) {
+    void vscode.window.showInformationMessage(
+      'Put the cursor inside an Object, ChildObject or ObjectReskin',
+    );
+    return;
+  }
+
+  const name = object.name?.split(/\s+/)[0] ?? 'Object';
+  const key = `${uri.toString()}#${name.toLowerCase()}`;
+  const preview =
+    openObjectPreviews.get(key) ??
+    createObjectPreview(context, documents, index, locator, uri, name, () =>
+      openObjectPreviews.delete(key),
+    );
+
+  openObjectPreviews.set(key, preview);
+  await preview.show(line - object.startLine);
+};
+
+/** Creates "Preview object" over every template, and "Preview" over every state */
+const createObjectLensProvider = (): vscode.CodeLensProvider => ({
+  provideCodeLenses(document) {
     const lenses: vscode.CodeLens[] = [];
     let inObject = false;
 
@@ -318,19 +311,16 @@ class ObjectLensProvider implements vscode.CodeLensProvider {
       }
     }
     return lenses;
-  }
-}
+  },
+});
 
 /** Fields an object preview opens on: animations, FX, bone systems */
 const PREVIEWABLE =
   /^\s*(AnimationName|Animation|ParticleSysBone|\w*FX\w*|FXList)\s*=/i;
 
-/** "Preview on the object" on a line naming an animation or an effect */
-class ObjectActionProvider implements vscode.CodeActionProvider {
-  public provideCodeActions(
-    document: vscode.TextDocument,
-    range: vscode.Range,
-  ): vscode.CodeAction[] {
+/** Creates "Preview on the object" on a line naming an animation or an effect */
+const createObjectActionProvider = (): vscode.CodeActionProvider => ({
+  provideCodeActions(document, range) {
     const line = range.start.line;
 
     if (!PREVIEWABLE.test(document.lineAt(line).text)) {
@@ -348,8 +338,8 @@ class ObjectActionProvider implements vscode.CodeActionProvider {
       arguments: [document.uri, line],
     };
     return [action];
-  }
-}
+  },
+});
 
 export const registerObjectPreview = (
   context: vscode.ExtensionContext,
@@ -358,10 +348,13 @@ export const registerObjectPreview = (
   index: SageIniIndex,
   locator: EntryLocator | undefined,
 ): vscode.Disposable[] => [
-  vscode.languages.registerCodeLensProvider(selector, new ObjectLensProvider()),
+  vscode.languages.registerCodeLensProvider(
+    selector,
+    createObjectLensProvider(),
+  ),
   vscode.languages.registerCodeActionsProvider(
     selector,
-    new ObjectActionProvider(),
+    createObjectActionProvider(),
   ),
   vscode.commands.registerCommand(
     'bigfs.previewObject',
@@ -371,7 +364,7 @@ export const registerObjectPreview = (
       uri ??= editor?.document.uri;
       line ??= editor?.selection.active.line;
       if (uri && line !== undefined) {
-        await ObjectPreview.show(context, documents, index, locator, uri, line);
+        await showObjectPreview(context, documents, index, locator, uri, line);
       }
     },
   ),

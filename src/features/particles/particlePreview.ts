@@ -23,6 +23,7 @@ import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 import { webviewPage } from '../../platform/webview/webviewPage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { EffectLibrary } from './effectLibrary';
+import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 
 /**
  * The particle preview: a "Preview" lens on every `FXParticleSystem`,
@@ -40,178 +41,131 @@ const findDefinitionAt = (
     (definition) => definition.startLine <= line && line <= definition.endLine,
   );
 
-class ParticlePreview {
-  private static readonly panels = new Map<string, ParticlePreview>();
+/** What the page sends; loose, since automation sends the same shapes */
+interface FromParticlePage {
+  kind?: string;
+  id?: string;
+  value?: number;
+  line?: number;
+  frame?: number;
+  systems?: number;
+  particles?: number;
+  keyKind?: KeyKind;
+  values?: Record<string, number>;
+  on?: boolean;
+  name?: string;
+  keys?: KeyValue[];
+}
 
-  private readonly panel: vscode.WebviewPanel;
-  private readonly values = new Map<string, number>();
-  private readonly library: EffectLibrary;
-  private readonly disposables: vscode.Disposable[] = [];
-  private restartNext = true;
+/** Creates the preview of one block; `onClose` runs when its panel is closed */
+const createParticlePreview = (
+  context: vscode.ExtensionContext,
+  index: SageIniIndex,
+  locator: EntryLocator | undefined,
+  uri: vscode.Uri,
+  name: string,
+  onClose: () => void,
+) => {
+  const values = new Map<string, number>();
+  const library = new EffectLibrary(index, locator, uri);
+  const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
+  let restartNext = true;
   /** Showing the block as written, slider values held back, to compare */
-  private comparing = false;
-  private updating: Promise<void> = Promise.resolve();
+  let comparing = false;
+  let updating: Promise<void> = Promise.resolve();
   /** Whether an update is waiting; slider drags coalesce into it */
-  private queued = false;
+  let queued = false;
   /** The last scene sent to the page */
-  public lastScene?: Record<string, unknown>;
+  let lastScene: Record<string, unknown> | undefined;
   /** What the page last said it is running */
-  public lastStatus?: { frame: number; systems: number; particles: number };
+  let lastStatus:
+    | { frame: number; systems: number; particles: number }
+    | undefined;
 
-  public static show(
-    context: vscode.ExtensionContext,
-    index: SageIniIndex,
-    locator: EntryLocator | undefined,
-    uri: vscode.Uri,
-    name: string,
-  ): ParticlePreview {
-    const key = `${uri.toString()}#${name.toLowerCase()}`;
-    const existing = ParticlePreview.panels.get(key);
+  const panel = createSingletonPanel<FromParticlePage>({
+    viewType: 'bigfs.particlePreview',
+    title: `Particles: ${name}`,
+    column: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+    options: {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [scripts],
+    },
+    render: ({ webview }) => {
+      webview.html = particlePageHtml(
+        webview.cspSource,
+        webview
+          .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
+          .toString(),
+      );
+      return [
+        vscode.workspace.onDidChangeTextDocument((event) => {
+          if (event.document.uri.toString() === uri.toString()) {
+            update();
+          }
+        }),
+      ];
+    },
+    onMessage: (message) => receive(message),
+    onDispose: onClose,
+  });
 
-    if (existing) {
-      existing.panel.reveal(undefined, true);
-      existing.restart();
-      return existing;
-    }
+  const restart = (): void => {
+    restartNext = true;
+    update();
+  };
 
-    const preview = new ParticlePreview(
-      context,
-      index,
-      locator,
-      uri,
-      name,
-      key,
-    );
-
-    ParticlePreview.panels.set(key, preview);
-    return preview;
-  }
-
-  /** Resolves once every update asked for so far has been sent */
-  public settled(): Promise<void> {
-    return this.updating;
-  }
-
-  public dispose(): void {
-    this.panel.dispose();
-  }
-
-  private constructor(
-    private readonly context: vscode.ExtensionContext,
-    private readonly index: SageIniIndex,
-    private readonly locator: EntryLocator | undefined,
-    private readonly uri: vscode.Uri,
-    private readonly name: string,
-    key: string,
-  ) {
-    this.library = new EffectLibrary(index, locator, uri);
-    const scripts = vscode.Uri.joinPath(
-      context.extensionUri,
-      'dist',
-      'webview',
-    );
-
-    this.panel = vscode.window.createWebviewPanel(
-      'bigfs.particlePreview',
-      `Particles: ${name}`,
-      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [scripts],
-      },
-    );
-    this.panel.webview.html = particlePageHtml(
-      this.panel.webview.cspSource,
-      this.panel.webview
-        .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
-        .toString(),
-    );
-    this.disposables.push(
-      this.panel.webview.onDidReceiveMessage((message) =>
-        this.receive(message),
-      ),
-      vscode.workspace.onDidChangeTextDocument((event) => {
-        if (event.document.uri.toString() === this.uri.toString()) {
-          this.update();
-        }
-      }),
-    );
-    this.panel.onDidDispose(() => {
-      ParticlePreview.panels.delete(key);
-      this.disposables.forEach((disposable) => disposable.dispose());
-    });
-  }
-
-  private restart(): void {
-    this.restartNext = true;
-    this.update();
-  }
-
-  /** Handles a message from the page; public so automation can act as it */
-  public async receive(message: {
-    kind?: string;
-    id?: string;
-    value?: number;
-    line?: number;
-    frame?: number;
-    systems?: number;
-    particles?: number;
-    keyKind?: KeyKind;
-    values?: Record<string, number>;
-    on?: boolean;
-    name?: string;
-    keys?: KeyValue[];
-  }): Promise<void> {
+  /** Handles a message from the page; also what automation calls to act as it */
+  const receive = async (message: FromParticlePage): Promise<void> => {
     switch (message?.kind) {
       case 'status':
-        this.lastStatus = {
+        lastStatus = {
           frame: Number(message.frame),
           systems: Number(message.systems),
           particles: Number(message.particles),
         };
         break;
       case 'ready':
-        this.restart();
+        restart();
         break;
       case 'set':
         if (message.id && Number.isFinite(message.value)) {
-          this.values.set(message.id, Number(message.value));
-          this.update();
+          values.set(message.id, Number(message.value));
+          update();
         }
         break;
       case 'setMany':
         for (const [id, value] of Object.entries(message.values ?? {})) {
           if (Number.isFinite(value)) {
-            this.values.set(id, Number(value));
+            values.set(id, Number(value));
           }
         }
-        this.update();
+        update();
         break;
       case 'compare':
-        this.comparing = !!message.on;
-        this.restartNext = true;
-        this.update();
+        comparing = !!message.on;
+        restartNext = true;
+        update();
         break;
       case 'pickModel':
-        await this.pickModel();
+        await pickModel();
         break;
       case 'variant':
-        await this.saveVariant(message.name);
+        await saveVariant(message.name);
         break;
       case 'reset':
-        this.values.clear();
-        this.update();
+        values.clear();
+        update();
         break;
       case 'apply':
-        await this.apply();
+        await apply();
         break;
       case 'keys':
         if (
           (message.keyKind === 'Color' || message.keyKind === 'Alpha') &&
           Array.isArray(message.keys)
         ) {
-          await this.apply({ kind: message.keyKind, keys: message.keys });
+          await apply({ kind: message.keyKind, keys: message.keys });
         }
         break;
       case 'playSound':
@@ -220,12 +174,12 @@ class ParticlePreview {
           await vscode.commands.executeCommand(
             'bigfs.playAudioEvent',
             String(message.name),
-            this.uri.toString(),
+            uri.toString(),
           );
         }
         break;
       case 'reveal': {
-        const editor = await vscode.window.showTextDocument(this.uri, {
+        const editor = await vscode.window.showTextDocument(uri, {
           viewColumn: vscode.ViewColumn.One,
         });
         const position = new vscode.Position(Number(message.line) || 0, 0);
@@ -235,31 +189,31 @@ class ParticlePreview {
         break;
       }
     }
-  }
+  };
 
   /** The previewed definition as the file now has it */
-  private async rootDefinition(): Promise<
+  const rootDefinition = async (): Promise<
     { definition: IniDefinition; text: string } | undefined
-  > {
-    const text = await readWorkspaceText(this.uri);
+  > => {
+    const text = await readWorkspaceText(uri);
     const definition = findParticleDefinitions(text).find(
-      (candidate) => candidate.name.toLowerCase() === this.name.toLowerCase(),
+      (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
     );
 
     return definition && { definition, text };
-  }
+  };
 
   /**
    * Writes the slider values; with `keys`, also rewrites that kind's key
    * lines, which renumbers them, so the values are written in the same edit
    */
-  private async apply(keys?: {
+  const apply = async (keys?: {
     kind: KeyKind;
     keys: KeyValue[];
-  }): Promise<void> {
-    const root = await this.rootDefinition();
+  }): Promise<void> => {
+    const root = await rootDefinition();
 
-    if (!root || (!this.values.size && !keys)) {
+    if (!root || (!values.size && !keys)) {
       return;
     }
 
@@ -276,31 +230,31 @@ class ParticlePreview {
 
     for (const change of rewritten) {
       edit.replace(
-        this.uri,
+        uri,
         new vscode.Range(change.line, 0, change.line + change.remove, 0),
         change.insert.map((line) => line + newline).join(''),
       );
     }
-    for (const change of valueEdits(root.definition, this.values).filter(
+    for (const change of valueEdits(root.definition, values).filter(
       (each) => !replaced.has(each.line),
     )) {
       edit.replace(
-        this.uri,
+        uri,
         new vscode.Range(change.line, change.start, change.line, change.end),
         change.text,
       );
     }
-    this.values.clear();
+    values.clear();
     await vscode.workspace.applyEdit(edit);
-  }
+  };
 
   /** Asks for a model to show the effect on, and sends it to the page */
-  private async pickModel(): Promise<void> {
-    if (!this.locator) {
+  const pickModel = async (): Promise<void> => {
+    if (!locator) {
       return;
     }
 
-    const names = await this.locator.findNames(
+    const names = await locator.findNames(
       (name) => name.endsWith('.w3d') && !name.endsWith('_skl.w3d'),
       '**/*.w3d',
     );
@@ -319,7 +273,7 @@ class ParticlePreview {
     let model: { name: string; scene: ModelScene } | undefined;
 
     if (picked.name) {
-      const bytes = await this.locator.read(picked.name, this.uri);
+      const bytes = await locator.read(picked.name, uri);
 
       if (!bytes) {
         throw new Error(`${picked.name} could not be read`);
@@ -328,93 +282,93 @@ class ParticlePreview {
         name: picked.name,
         scene: await buildW3dScene(
           bytes,
-          (fileName) => this.locator!.read(fileName, this.uri),
+          (fileName) => locator!.read(fileName, uri),
           createToolRegistry(),
         ),
       };
     }
-    await this.panel.webview.postMessage({ kind: 'model', model });
-  }
+    await panel.post({ kind: 'model', model });
+  };
 
   /**
    * Writes the block, with its slider values, as a new definition after
    * it, and leaves the block itself as it was: a variant to keep
    */
-  private async saveVariant(given?: string): Promise<void> {
-    const root = await this.rootDefinition();
+  const saveVariant = async (given?: string): Promise<void> => {
+    const root = await rootDefinition();
 
     if (!root) {
       return;
     }
 
-    const name =
+    const variantName =
       given ??
       (await vscode.window.showInputBox({
-        prompt: `Name of the variant of ${this.name}, with the values in the preview`,
-        value: `${this.name}_Variant`,
+        prompt: `Name of the variant of ${name}, with the values in the preview`,
+        value: `${name}_Variant`,
         validateInput: (value) =>
           /^[A-Za-z0-9_]+$/.test(value)
             ? undefined
             : 'One word: letters, digits and _',
       }));
 
-    if (!name) {
+    if (!variantName) {
       return;
     }
 
     const lines = applyValueEdits(
       root.text,
-      valueEdits(root.definition, this.values),
+      valueEdits(root.definition, values),
     ).split(/\r?\n/);
     const copy = duplicateDefinition(
       lines,
       root.definition.startLine,
       root.definition.endLine,
-      name,
+      variantName,
     );
-    const document = await vscode.workspace.openTextDocument(this.uri);
+    const document = await vscode.workspace.openTextDocument(uri);
     const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
     const edit = new vscode.WorkspaceEdit();
 
     edit.insert(
-      this.uri,
+      uri,
       document.lineAt(root.definition.endLine).range.end,
       `${eol}${eol}${copy.lines.join(eol)}`,
     );
-    this.values.clear();
+    values.clear();
     await vscode.workspace.applyEdit(edit);
     void vscode.window.showInformationMessage(
-      `${name} written after ${this.name}; ${this.name} keeps its values`,
+      `${variantName} written after ${name}; ${name} keeps its values`,
     );
-  }
+  };
 
-  private update(): void {
-    if (this.queued) {
+  const update = (): void => {
+    if (queued) {
       return;
     }
-    this.queued = true;
-    this.updating = this.updating
+    queued = true;
+    updating = updating
       .then(() => {
-        this.queued = false;
-        return this.send();
+        queued = false;
+        return send();
       })
       .catch(async (error: unknown) => {
-        await this.panel.webview.postMessage({
+        await panel.post({
           kind: 'notice',
           message: error instanceof Error ? error.message : String(error),
         });
       });
-  }
+  };
 
   /**
    * The particle count each detail level allows, from the mod's own
    * `StaticGameLOD` blocks (`MaxParticleCount`), smallest first
    */
-  private async particleBudgets(): Promise<{ lod: string; max: number }[]> {
+  const particleBudgets = async (): Promise<{ lod: string; max: number }[]> => {
     const budgets: { lod: string; max: number }[] = [];
 
-    for (const name of this.index.getNames('StaticGameLOD')) {
-      const [place] = this.index.findDefinitions('StaticGameLOD', name);
+    for (const name of index.getNames('StaticGameLOD')) {
+      const [place] = index.findDefinitions('StaticGameLOD', name);
 
       if (!place) {
         continue;
@@ -432,25 +386,25 @@ class ParticlePreview {
       }
     }
     return budgets.sort((a, b) => a.max - b.max);
-  }
+  };
 
-  private async send(): Promise<void> {
-    await this.index.whenReady();
+  const send = async (): Promise<void> => {
+    await index.whenReady();
 
-    const root = await this.rootDefinition();
+    const root = await rootDefinition();
 
     if (!root) {
-      await this.panel.webview.postMessage({
+      await panel.post({
         kind: 'notice',
-        message: `${this.name} is no longer in the file`,
+        message: `${name} is no longer in the file`,
       });
       return;
     }
 
     // Slider values are previewed on a copy of the text, never written
-    const text = this.comparing
+    const text = comparing
       ? root.text
-      : applyValueEdits(root.text, valueEdits(root.definition, this.values));
+      : applyValueEdits(root.text, valueEdits(root.definition, values));
     const definition = findParticleDefinitions(text).find(
       (candidate) => candidate.startLine === root.definition.startLine,
     )!;
@@ -459,15 +413,15 @@ class ParticlePreview {
         ? readFxList(definition)
         : readParticleDef(definition)
     ) as ParticleDef | FxListDef;
-    const { systems, fxLists, textures, notes } = await this.library.collect(
+    const { systems, fxLists, textures, notes } = await library.collect(
       [previewed],
       [],
       text,
     );
 
-    this.lastScene = {
+    lastScene = {
       kind: 'scene',
-      restart: this.restartNext,
+      restart: restartNext,
       root: {
         kind: definition.keyword === 'FXList' ? 'fxList' : 'system',
         name: definition.name,
@@ -478,14 +432,62 @@ class ParticlePreview {
       textures,
       notes,
       fields: numericFields(root.definition),
-      values: Object.fromEntries(this.values),
-      comparing: this.comparing,
-      budgets: await this.particleBudgets(),
+      values: Object.fromEntries(values),
+      comparing: comparing,
+      budgets: await particleBudgets(),
     };
-    await this.panel.webview.postMessage(this.lastScene);
-    this.restartNext = false;
-  }
-}
+    await panel.post(lastScene);
+    restartNext = false;
+  };
+
+  /** Opens the preview, or brings it forward and starts it over */
+  const show = (): void => {
+    const opened = panel.isOpen();
+
+    panel.show({ preserveFocus: true });
+    if (opened) {
+      restart();
+    }
+  };
+
+  return {
+    show,
+    receive,
+    /** Resolves once every update asked for so far has been sent */
+    settled: () => updating,
+    dispose: panel.dispose,
+    get lastScene() {
+      return lastScene;
+    },
+    get lastStatus() {
+      return lastStatus;
+    },
+  };
+};
+
+type ParticlePreview = ReturnType<typeof createParticlePreview>;
+
+const openParticlePreviews = new Map<string, ParticlePreview>();
+
+/** Opens the preview of a block, or brings the open one forward and restarts it */
+const showParticlePreview = (
+  context: vscode.ExtensionContext,
+  index: SageIniIndex,
+  locator: EntryLocator | undefined,
+  uri: vscode.Uri,
+  name: string,
+): ParticlePreview => {
+  const key = `${uri.toString()}#${name.toLowerCase()}`;
+  const preview =
+    openParticlePreviews.get(key) ??
+    createParticlePreview(context, index, locator, uri, name, () =>
+      openParticlePreviews.delete(key),
+    );
+
+  openParticlePreviews.set(key, preview);
+  preview.show();
+  return preview;
+};
 
 /** The preview page: its controls, and the bundle that simulates and draws */
 export const particlePageHtml = (source: string, script: string): string =>
@@ -587,9 +589,9 @@ kbd { font-size: 10px; opacity: 0.7; }
 </div>`,
   });
 
-/** A lens over every particle system and FX list in an INI file */
-class ParticleLensProvider implements vscode.CodeLensProvider {
-  public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+/** Creates a lens over every particle system and FX list in an INI file */
+const createParticleLensProvider = (): vscode.CodeLensProvider => ({
+  provideCodeLenses(document) {
     return findParticleDefinitions(document.getText()).map(
       (definition) =>
         new vscode.CodeLens(
@@ -604,8 +606,8 @@ class ParticleLensProvider implements vscode.CodeLensProvider {
           },
         ),
     );
-  }
-}
+  },
+});
 
 export const registerParticlePreview = (
   context: vscode.ExtensionContext,
@@ -615,7 +617,7 @@ export const registerParticlePreview = (
 ): vscode.Disposable[] => [
   vscode.languages.registerCodeLensProvider(
     selector,
-    new ParticleLensProvider(),
+    createParticleLensProvider(),
   ),
   vscode.commands.registerCommand(
     'bigfs.previewParticles',
@@ -639,7 +641,7 @@ export const registerParticlePreview = (
         uri = editor.document.uri;
         name = found.name;
       }
-      return ParticlePreview.show(context, index, locator, uri, name);
+      return showParticlePreview(context, index, locator, uri, name);
     },
   ),
 ];
