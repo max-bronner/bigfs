@@ -5,13 +5,13 @@ import {
   keepLineBreaks,
   parseCsf,
   writeCsf,
-} from '../formats/csf/csf';
+} from '../../formats/csf/csf';
 import {
   parseStringRecords,
   quoteStringText,
-} from '../formats/str/sageStringRecords';
+} from '../../formats/str/sageStringRecords';
 import { STRING_TABLE_SCRIPT } from './stringTableViewScript';
-import { webviewPage } from '../platform/webview/webviewPage';
+import { webviewPage } from '../../platform/webview/webviewPage';
 
 /**
  * Table editors for string tables: `.str` as an alternative view of the text

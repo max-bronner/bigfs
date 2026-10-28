@@ -1,13 +1,13 @@
 import { commands, window } from 'vscode';
 import type { ExtensionContext, Uri } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { registerSageStrLanguage } from '../../language/sageStrLanguage';
+import { registerSageStrLanguage } from './sageStrLanguage';
 import {
   CSF_VIEW_TYPE,
   CsfEditorProvider,
   STR_TABLE_VIEW_TYPE,
   StrTableEditorProvider,
-} from '../../providers/stringTableEditorProvider';
+} from './stringTableEditorProvider';
 
 /**
  * Registers the string features: the STR language, the `.str` and `.csf`

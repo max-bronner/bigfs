@@ -1,4 +1,4 @@
-import { SCRIPT_TREE_SCRIPT } from './scriptTreeScript';
+import { SCRIPT_TREE_SCRIPT } from '../scripts/scriptTreeScript';
 
 /**
  * Page code of the map editor: the terrain as a shaded relief with objects,

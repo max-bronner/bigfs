@@ -1,7 +1,7 @@
 import type { EntryLocator } from '../../services/entryLocator';
 import { imageExtent, isRotated, mappedUv } from '../../formats/mappedImage/mappedImage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { loadMappedTexture, readMappedImage } from '../../language/mappedImagePreview';
+import { loadMappedTexture, readMappedImage } from '../preview/mappedImagePreview';
 import type { PageMappedImage, TexturePixels } from '../../webview/apt/protocol';
 
 /** Most names answered per request, so a page cannot ask for the whole INI */

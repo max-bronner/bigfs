@@ -1,6 +1,6 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { PreviewEditorProvider } from '../../providers/previewEditorProvider';
+import { PreviewEditorProvider } from './previewEditorProvider';
 
 /** Registers the preview editor for textures, audio and W3D models */
 export const registerPreview = (

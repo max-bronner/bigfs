@@ -1,6 +1,6 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { MapEditorProvider } from '../../providers/mapEditorProvider';
+import { MapEditorProvider } from './mapEditorProvider';
 
 /** Registers the map editor */
 export const registerMap = (

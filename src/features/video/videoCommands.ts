@@ -2,15 +2,15 @@ import * as vscode from 'vscode';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { decodePng } from '../node/png';
-import { Vp6Movie } from '../formats/vp6/container';
-import { MAX_SIDE, encodeMovie, resizeRgba } from '../formats/vp6/encodeMovie';
-import type { FrameSource } from '../formats/vp6/encodeMovie';
-import { webviewPage } from '../platform/webview/webviewPage';
-import { ffmpegSource, probe, run } from '../node/ffmpeg';
-import { decodeDds, decodeTga } from '../formats/texture/textureTools';
-import { toUri } from '../services/archives/commandTarget';
-import type { CommandTarget } from '../services/archives/commandTarget';
+import { decodePng } from '../../node/png';
+import { Vp6Movie } from '../../formats/vp6/container';
+import { MAX_SIDE, encodeMovie, resizeRgba } from '../../formats/vp6/encodeMovie';
+import type { FrameSource } from '../../formats/vp6/encodeMovie';
+import { webviewPage } from '../../platform/webview/webviewPage';
+import { ffmpegSource, probe, run } from '../../node/ffmpeg';
+import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
+import { toUri } from '../../services/archives/commandTarget';
+import type { CommandTarget } from '../../services/archives/commandTarget';
 
 /**
  * "Convert to VP6 Movie…": a video file, or a folder of numbered PNG, TGA or

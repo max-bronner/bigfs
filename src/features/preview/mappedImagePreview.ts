@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { decodeIniText } from '../core/windows1252';
-import type { EntryLocator } from '../services/entryLocator';
-import { isRotated, parseMappedImage } from '../formats/mappedImage/mappedImage';
-import type { MappedImage } from '../formats/mappedImage/mappedImage';
-import { encodePng } from '../node/png';
-import { decodeDds, decodeTga } from '../formats/texture/textureTools';
-import type { RgbaImage } from '../formats/texture/textureTools';
-import type { SageDefinition } from '../services/ini/sageIniIndex';
+import { decodeIniText } from '../../core/windows1252';
+import type { EntryLocator } from '../../services/entryLocator';
+import { isRotated, parseMappedImage } from '../../formats/mappedImage/mappedImage';
+import type { MappedImage } from '../../formats/mappedImage/mappedImage';
+import { encodePng } from '../../node/png';
+import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
+import type { RgbaImage } from '../../formats/texture/textureTools';
+import type { SageDefinition } from '../../services/ini/sageIniIndex';
 
 /**
  * The picture a `MappedImage` names: its texture, cropped to `Coords`, as a
