@@ -1,39 +1,40 @@
-import { decodeBlock } from '../formats/apt/aptBytecode';
-import type { AptInstruction } from '../formats/apt/aptBytecode';
+import { decodeBlock } from '../../formats/apt/aptBytecode';
+import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import * as vscode from 'vscode';
-import { SPEEDS } from '../webview/apt/protocol';
-import type { ToolBox } from '../services/toolRegistry';
-import { decodeTgaTool } from '../formats/texture/textureTools';
-import type { EntryLocator } from '../services/entryLocator';
-import type { ArchiveModel } from '../services/archives/archiveModel';
+import { SPEEDS } from '../../webview/apt/protocol';
+import type { ToolBox } from '../../services/toolRegistry';
+import { decodeTgaTool } from '../../formats/texture/textureTools';
+import type { EntryLocator } from '../../services/entryLocator';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
 import {
   parseAptMovie,
   parseConst,
   parseSpriteFrames,
-} from '../formats/apt/aptMovie';
-import type { AptMovie, ConstFile, Frame } from '../formats/apt/aptMovie';
+} from '../../formats/apt/aptMovie';
+import type { AptMovie, ConstFile, Frame } from '../../formats/apt/aptMovie';
 import {
   AptImage,
   applyAptEdit,
   changeConstItem,
-} from '../formats/apt/aptWriter';
+} from '../../formats/apt/aptWriter';
 import type {
   AptEdit,
   ConstItemChange,
   EditResult,
-} from '../formats/apt/aptWriter';
+} from '../../formats/apt/aptWriter';
 import {
   addBlock,
   appendConstItems,
   decompileBlock,
   replaceBlock,
-} from '../formats/apt/aptScript';
+} from '../../formats/apt/aptScript';
 import { AptScripts } from './aptScripts';
+import { APT_VIEW_TYPE } from './viewTypes';
 import { AptTextView } from './aptTextView';
-import { isEditable } from '../services/ini/archiveText';
-import { checkMovie } from '../formats/apt/aptIntegrity';
-import { referencesTo } from '../formats/apt/aptManage';
-import type { Problem } from '../formats/apt/aptIntegrity';
+import { isEditable } from '../../services/ini/archiveText';
+import { checkMovie } from '../../formats/apt/aptIntegrity';
+import { referencesTo } from '../../formats/apt/aptManage';
+import type { Problem } from '../../formats/apt/aptIntegrity';
 import { findBeside, movieAccess, workspaceMovies } from './aptAccess';
 import { deleteMovie, renameMovie } from './aptMovieFiles';
 import type { MovieHost } from './aptMovieFiles';
@@ -44,21 +45,21 @@ import {
   parseDat,
   parseRu,
   writeDat,
-} from '../formats/apt/aptGeometry';
-import { addTexture, setShapeGeometry } from '../formats/apt/aptAssets';
-import type { DatLocation, RuRun } from '../formats/apt/aptGeometry';
-import { behaviourOf } from '../formats/apt/aptBehaviour';
-import type { Behaviour } from '../formats/apt/aptBehaviour';
-import type { FromPage, PageMovie, ToPage } from '../webview/apt/protocol';
+} from '../../formats/apt/aptGeometry';
+import { addTexture, setShapeGeometry } from '../../formats/apt/aptAssets';
+import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
+import { behaviourOf } from '../../formats/apt/aptBehaviour';
+import type { Behaviour } from '../../formats/apt/aptBehaviour';
+import type { FromPage, PageMovie, ToPage } from '../../webview/apt/protocol';
 import { AptLibrary, movieKey } from './aptLibrary';
 import type { MovieLocation } from './aptLibrary';
-import { collectTextKeys, resolveAptText } from '../formats/apt/aptText';
-import type { GameLanguage } from '../services/ini/gameLanguage';
-import type { SageIniIndex } from '../services/ini/sageIniIndex';
-import type { EngineValues } from '../webview/apt/avm/engine';
+import { collectTextKeys, resolveAptText } from '../../formats/apt/aptText';
+import type { GameLanguage } from '../../services/ini/gameLanguage';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import type { EngineValues } from '../../webview/apt/avm/engine';
 import { resolveMappedImages } from './aptMappedImages';
-import { createNonce } from '../platform/webview/webviewNonce';
-import { decodeWindows1252 } from '../core/windows1252';
+import { createNonce } from '../../platform/webview/webviewNonce';
+import { decodeWindows1252 } from '../../core/windows1252';
 
 /**
  * Custom editor for `.apt` movies: a list of every character, a stage that
@@ -71,9 +72,6 @@ import { decodeWindows1252 } from '../core/windows1252';
  * which in a shipped `apt/*.big` is the archive's root, and textures from
  * `art/textures/` below it.
  */
-
-/** View type `package.json` registers the editor under */
-export const APT_VIEW_TYPE = 'bigfs.aptEditor';
 
 type MovieMessage = Extract<ToPage, { kind: 'movie' }>;
 

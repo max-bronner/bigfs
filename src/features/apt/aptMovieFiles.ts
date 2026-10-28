@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { parseAptMovie, parseConst } from '../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../formats/apt/aptWriter';
-import type { AptEdit } from '../formats/apt/aptWriter';
-import type { ArchiveModel } from '../services/archives/archiveModel';
+import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
+import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import type { AptEdit } from '../../formats/apt/aptWriter';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { findBeside, listBeside, workspaceMovies } from './aptAccess';
 import { movieKey } from './aptLibrary';
-import { toUri } from '../services/archives/commandTarget';
+import { toUri } from '../../services/archives/commandTarget';
 
 /**
  * A movie as a whole: its `.apt`, `.const` and `.dat`, its `_geometry`

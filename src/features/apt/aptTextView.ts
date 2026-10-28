@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
-import { parseConst } from '../formats/apt/aptMovie';
+import { parseConst } from '../../formats/apt/aptMovie';
 import {
   movieToText,
   parseMovieText,
   printMovieText,
-} from '../formats/apt/movieText';
-import type { MovieText, TextProblem } from '../formats/apt/movieText';
+} from '../../formats/apt/movieText';
+import type { MovieText, TextProblem } from '../../formats/apt/movieText';
 import {
   blockScripts,
   saveMovieText,
   TextSaveError,
-} from '../formats/apt/movieTextEdits';
-import type { TextSave } from '../formats/apt/movieTextEdits';
-import { toUri } from '../services/archives/commandTarget';
+} from '../../formats/apt/movieTextEdits';
+import type { TextSave } from '../../formats/apt/movieTextEdits';
+import { toUri } from '../../services/archives/commandTarget';
 import type { AptDocument } from './aptEditorProvider';
 
 /**

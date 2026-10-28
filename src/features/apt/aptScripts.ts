@@ -3,7 +3,7 @@ import {
   checkScript,
   decompileBlock,
   findBlockPointers,
-} from '../formats/apt/aptScript';
+} from '../../formats/apt/aptScript';
 import type { AptDocument } from './aptEditorProvider';
 
 /**

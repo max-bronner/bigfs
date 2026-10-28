@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import type { MovieAccess } from '../formats/apt/aptIntegrity';
-import type { ArchiveModel } from '../services/archives/archiveModel';
-import { getNodeUri } from '../services/archives/nodeAddress';
-import { getFileNodes } from '../services/archives/virtualNode';
+import type { MovieAccess } from '../../formats/apt/aptIntegrity';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import { getNodeUri } from '../../services/archives/nodeAddress';
+import { getFileNodes } from '../../services/archives/virtualNode';
 
 /**
  * The files beside a movie as the game finds them: by path relative to the

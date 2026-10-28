@@ -1,8 +1,8 @@
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
-import { AptEditorProvider } from '../../providers/aptEditorProvider';
-import { registerAptTextLanguage } from '../../providers/aptTextLanguage';
-import { registerAptCommands } from '../../commands/aptCommands';
+import { AptEditorProvider } from './aptEditorProvider';
+import { registerAptTextLanguage } from './aptTextLanguage';
+import { registerAptCommands } from './aptCommands';
 
 /** Registers the APT movie editor, its text view and the APT commands */
 export const registerApt = (
