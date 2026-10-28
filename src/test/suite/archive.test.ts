@@ -11,8 +11,6 @@ import { ArchiveModel } from '../../model/archiveModel';
 import { BigTreeDataProvider } from '../../providers/treeDataProvider';
 import { findChild, getFileNodes } from '../../model/virtualNode';
 import { getExtractedFiles } from '../../commands/extractCommands';
-import { createToolRegistry } from '../../tools/toolRegistry';
-import { createFormatRegistry } from '../../formats/formatRegistry';
 import type { VirtualNode } from '../../model/virtualNode';
 import { isVirtualNode } from '../../providers/explorerNode';
 
@@ -608,111 +606,6 @@ suite('Extraction layout', () => {
         .map((root) => root.archive.rootPath)
         .filter((rootPath) => rootPath.endsWith('notreally.big')),
       [],
-    );
-  });
-});
-
-suite('Format registry', () => {
-  const FORMAT_ARCHIVE = 'formats.big';
-
-  let archiveFsPath: string;
-  let log: vscode.LogOutputChannel;
-  let model: ArchiveModel;
-
-  suiteSetup(async function () {
-    this.timeout(30_000);
-
-    const workspaceFolder = vscode.workspace.workspaceFolders![0].uri.fsPath;
-
-    archiveFsPath = path.join(workspaceFolder, FORMAT_ARCHIVE);
-
-    await writeFile(
-      archiveFsPath,
-      buildArchive([
-        { name: 'movies/unit.apt', content: 'APT' },
-        { name: 'movies/unit.const', content: 'CONST' },
-        { name: 'movies/unit.dat', content: 'DAT' },
-        { name: 'movies/other.apt', content: 'OTHER' },
-      ]),
-    );
-
-    log = vscode.window.createOutputChannel('bigFS format tests', {
-      log: true,
-    });
-    model = new ArchiveModel(log);
-
-    await model.whenReady();
-
-    // A file written moments ago may not be indexed yet, and an archive is
-    // only read once something asks for its content
-    await waitFor(async () => {
-      const archive = model.getArchiveByPath(archiveFsPath);
-
-      assert.ok(archive, 'the archive was not listed');
-
-      await archive.ensureLoaded();
-    });
-  });
-
-  suiteTeardown(async () => {
-    model.dispose();
-    log.dispose();
-
-    await unlink(archiveFsPath).catch(() => undefined);
-  });
-
-  /** The context an entry of the suite's archive would be parsed through */
-  const contextFor = (entryPath: string) => {
-    const archive = model.getArchiveByPath(archiveFsPath);
-
-    assert.ok(archive, 'the archive was not loaded');
-
-    const node = findChild(archive.root, entryPath);
-
-    assert.ok(node, `${entryPath} is missing`);
-
-    const registry = createFormatRegistry(model, createToolRegistry());
-    const context = registry.createContext(node);
-
-    assert.ok(context, 'no context for the entry');
-
-    return context;
-  };
-
-  test('finds the siblings an entry needs', () => {
-    const context = contextFor('movies/unit.apt');
-
-    assert.strictEqual(context.sibling('.const')?.name, 'unit.const');
-    assert.strictEqual(context.sibling('.dat')?.name, 'unit.dat');
-
-    // A sibling that does not exist is absent, not an error
-    assert.strictEqual(context.sibling('.missing'), undefined);
-  });
-
-  test('reads the bytes of a group of entries', async () => {
-    const context = contextFor('movies/unit.apt');
-
-    const group = [
-      context.entry,
-      context.sibling('.const')!,
-      context.sibling('.dat')!,
-    ];
-
-    const contents = await context.readAll(group);
-    const asText = new Map(
-      Array.from(contents, ([entryPath, bytes]) => [
-        entryPath,
-        Buffer.from(bytes).toString('utf-8'),
-      ]),
-    );
-
-    assert.deepStrictEqual(
-      asText,
-      new Map([
-        ['movies/unit.apt', 'APT'],
-        ['movies/unit.const', 'CONST'],
-        ['movies/unit.dat', 'DAT'],
-      ]),
     );
   });
 });

@@ -48,8 +48,7 @@ export interface ToolRegistry extends ToolBox {
 }
 
 /**
- * Creates the tool registry `extension.ts` holds for the life of the session
- * and passes to `createFormatRegistry` as its `ToolBox`.
+ * Creates the tool registry `extension.ts` holds for the life of the session.
  */
 export const createToolRegistry = (): ToolRegistry => {
   const tools = new Map<string, Tool<never, unknown>>();
