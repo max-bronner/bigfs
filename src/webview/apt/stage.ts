@@ -61,6 +61,15 @@ const logList = byId("log");
 let onInspect: () => void = () => {};
 let onRendered: () => void = () => {};
 
+/** Extra drawing after each render, in the shown character's space (gadget surfaces) */
+const afterRender: ((ctx: CanvasRenderingContext2D, base: Affine) => void)[] = [];
+
+export const addRenderHook = (
+  hook: (ctx: CanvasRenderingContext2D, base: Affine) => void,
+): void => {
+  afterRender.push(hook);
+};
+
 /** How the stage tells the inspector: a new pick, and each frame drawn */
 export const setInspectorView = (
   show: () => void,
@@ -428,6 +437,8 @@ export const render = (): void => {
   ctx.setTransform(...base);
   overlays(ctx, frameBox, scale, extent);
   showFrame(frameBox);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  afterRender.forEach((hook) => hook(ctx, base));
   onRendered();
 };
 

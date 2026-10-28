@@ -46,6 +46,7 @@ import { collectTextKeys, resolveAptText } from '../formats/apt/aptText';
 import type { GameLanguage } from '../language/gameLanguage';
 import type { SageIniIndex } from '../language/sageIniIndex';
 import type { EngineValues } from '../webview/apt/avm/engine';
+import { resolveMappedImages } from './aptMappedImages';
 import { createNonce } from './webviewNonce';
 import { decodeWindows1252 } from '../common/windows1252';
 
@@ -1740,6 +1741,20 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
               sentMovies,
             ),
           );
+        } else if (message?.kind === 'mappedImages') {
+          const names = Array.isArray(message.names)
+            ? message.names.filter((n: unknown) => typeof n === 'string')
+            : [];
+
+          await post({
+            kind: 'mappedImages',
+            ...(await resolveMappedImages(
+              names,
+              this.game.index,
+              this.locator,
+              sentTextures,
+            )),
+          });
         } else if (message?.kind === 'playSound') {
           // Only a click on a play button, or the checkbox that was ticked
           if (typeof message.name === 'string' && message.name) {

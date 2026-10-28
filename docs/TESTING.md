@@ -251,6 +251,14 @@ Open an `.apt` (with its `.const` beside it).
   boxes; `Color` (`setRGB`, `getRGB`, `setTransform`, `getTransform`) tints a
   clip. Open a menu that tints or stacks clips by script and check the
   colours and stacking match the game.
+- [ ] **new** Gadgets (ported from mint's apt-player): in a menu with
+  sliders, check boxes, lists or combo boxes, turn on **Interact** and use the
+  controls over the stage; the **Gadgets** section of the Engine panel lists
+  each with its `_value`, `_checked`, `_selected`/`_items`, `_text` and an
+  override field, and the movie reads what you set. A clip with `_imageName`
+  draws its `MappedImage` (open the game's INI so it is indexed); a name with
+  no definition, and a `_type` the preview does not know, show as a labelled
+  dashed box and never an error.
 - [ ] **new** Selecting characters, scrubbing and playing stay as quick
   with scripts respected as with them ignored, and nothing a script does
   breaks the editor: a script that fails or runs away is stopped and

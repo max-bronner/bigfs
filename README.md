@@ -301,6 +301,15 @@ your mod's archives.
   (`FSCommand:PlaySound`) are listed in the Engine panel with a play button;
   the **Play movie sounds** checkbox, off at every start, lets them play as
   the movie asks.
+- **new** Engine gadgets (ported from mint's apt-player and apt-viewer): a clip
+  whose `_type` (or `_Load` template) names a slider, check box, list box,
+  combo box, text entry, scroll bar or progress bar gets a working control
+  over the stage, bound to variables of the clip (`_value`/`_min`/`_max`,
+  `_checked`, `_selected` and `_items` separated by `|`, `_text`). A clip
+  with `_imageName` (or `_imageMap`) draws that `MappedImage` from the INI
+  index and its texture. Any other `_type` is a labelled placeholder. The
+  Engine panel has a **Gadgets** section listing each one with its bound
+  values, overridable like any other value.
 - ActionScript as a small JavaScript-like language, editable and compiled
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,
