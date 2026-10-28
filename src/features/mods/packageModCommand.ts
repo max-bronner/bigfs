@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
 import os from 'os';
 import path from 'path';
-import { listBaseArchives } from '../node/modDiff';
+import { listBaseArchives } from '../../node/modDiff';
 import {
   defaultPackageFolder,
   overrideReport,
   reportMarkdown,
   skippedFromPackage,
-} from '../node/modPackage';
-import type { Delivery, OverrideReport } from '../node/modPackage';
-import { packedArchives } from '../services/archives/packagedOutputs';
-import { decodeWindows1252 } from '../core/windows1252';
-import { diagnoseText } from '../language/sageIniValidation';
-import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+} from '../../node/modPackage';
+import type { Delivery, OverrideReport } from '../../node/modPackage';
+import { packedArchives } from '../../services/archives/packagedOutputs';
+import { decodeWindows1252 } from '../../core/windows1252';
+import { diagnoseText } from '../../language/sageIniValidation';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';
 
 /**

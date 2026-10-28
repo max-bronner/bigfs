@@ -1,14 +1,14 @@
 ﻿import { commands, env } from 'vscode';
-import { SCHEME } from '../constants';
+import { SCHEME } from '../../constants';
 import {
   copyNodes,
   getTargetDirectory,
   transferNodes,
-} from '../actions/fileActions';
-import { getTopLevelNodes } from '../services/archives/virtualNode';
+} from './fileActions';
+import { getTopLevelNodes } from '../../services/archives/virtualNode';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../services/archives/virtualNode';
-import type { ArchiveModel } from '../services/archives/archiveModel';
+import type { VirtualNode } from '../../services/archives/virtualNode';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
 
 type ClipboardOperation = 'cut' | 'copy';
 

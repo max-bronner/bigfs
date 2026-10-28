@@ -2,18 +2,18 @@ import { ConfigurationTarget, commands, window, workspace } from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
 import { SCHEME } from '../../constants';
-import { BigFileSystemProvider } from '../../providers/fileSystemProvider';
+import { BigFileSystemProvider } from './fileSystemProvider';
 import {
   BigTreeDataProvider,
   VIEW_SETTING,
   isGameViewShown,
-} from '../../providers/treeDataProvider';
-import { BigDragAndDropController } from '../../providers/dragAndDropController';
-import { createNodeCommandRegister } from '../../commands/commandCenter';
-import { registerFileCommands } from '../../commands/fileCommands';
-import { registerExtractCommands } from '../../commands/extractCommands';
-import { registerClipboardCommands } from '../../commands/clipboardCommands';
-import { registerModCommands } from '../../commands/modCommands';
+} from './treeDataProvider';
+import { BigDragAndDropController } from './dragAndDropController';
+import { createNodeCommandRegister } from './commandCenter';
+import { registerFileCommands } from './fileCommands';
+import { registerExtractCommands } from './extractCommands';
+import { registerClipboardCommands } from './clipboardCommands';
+import { registerModCommands } from '../mods/modCommands';
 
 /**
  * Registers the archive explorer: the `bigfs` file system, the tree view with

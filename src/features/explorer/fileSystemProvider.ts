@@ -1,7 +1,7 @@
 ﻿import * as vscode from 'vscode';
-import type { ArchiveModel } from '../services/archives/archiveModel';
-import { SCHEME } from '../constants';
-import type { VirtualNode } from '../services/archives/virtualNode';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import { SCHEME } from '../../constants';
+import type { VirtualNode } from '../../services/archives/virtualNode';
 
 /**
  * File system provider behind the `bigfs` scheme, through which an entry

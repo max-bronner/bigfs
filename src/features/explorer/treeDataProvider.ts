@@ -8,20 +8,20 @@ import {
   TreeItemCollapsibleState,
   FileType,
 } from 'vscode';
-import { formatCount } from '../core/messages';
-import { countFileNodes, isArchiveRoot } from '../services/archives/virtualNode';
-import { getNodePath, getNodeUri } from '../services/archives/nodeAddress';
-import type { ArchiveModel } from '../services/archives/archiveModel';
-import type { VirtualNode } from '../services/archives/virtualNode';
+import { formatCount } from '../../core/messages';
+import { countFileNodes, isArchiveRoot } from '../../services/archives/virtualNode';
+import { getNodePath, getNodeUri } from '../../services/archives/nodeAddress';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import type { VirtualNode } from '../../services/archives/virtualNode';
 import {
   isFolderNode,
   isGameRow,
   isSourceNode,
   isVirtualNode,
-} from '../services/archives/explorerRow';
-import type { ExplorerNode, FolderNode, GameRow } from '../services/archives/explorerRow';
-import { GameViewModel } from '../services/archives/gameViewModel';
-import { getGameFiles } from '../game/install/gameView';
+} from '../../services/archives/explorerRow';
+import type { ExplorerNode, FolderNode, GameRow } from '../../services/archives/explorerRow';
+import { GameViewModel } from '../../services/archives/gameViewModel';
+import { getGameFiles } from '../../game/install/gameView';
 
 /** Compares names as an explorer does: `a2` before `a10`, casing ignored */
 const nameCollator = new Intl.Collator(undefined, {
