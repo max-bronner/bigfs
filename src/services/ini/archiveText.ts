@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { decodeIniText, encodeWindows1252 } from '../core/windows1252';
-import type { ArchiveModel } from '../model/archiveModel';
-import { getFileNodes } from '../model/virtualNode';
-import { getNodeUri } from '../model/nodeAddress';
-import { SCHEME } from '../constants';
+import { decodeIniText, encodeWindows1252 } from '../../core/windows1252';
+import type { ArchiveModel } from '../archives/archiveModel';
+import { getFileNodes } from '../archives/virtualNode';
+import { getNodeUri } from '../archives/nodeAddress';
+import { SCHEME } from '../../constants';
 
 /**
  * Text entries inside archives, for the tools that otherwise work on files

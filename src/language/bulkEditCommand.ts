@@ -6,7 +6,7 @@ import {
 } from '../game/ini-tools/bulkEdit';
 import type { BulkQuery, BulkSource } from '../game/ini-tools/bulkEdit';
 import { isFragmentPath, parseSageIni } from '../formats/ini/sageIniParser';
-import { resolveIncludeUri } from './sageIniInclude';
+import { resolveIncludeUri } from '../services/ini/sageIniInclude';
 import {
   isArchiveUri,
   listArchiveEntries,
@@ -14,11 +14,11 @@ import {
   readEntryText,
   restoreEntries,
   saveEntryTexts,
-} from './archiveText';
+} from '../services/ini/archiveText';
 import { replaceInLines } from '../formats/ini/iniTextEdits';
-import type { SageIniDocuments } from './sageIniDocuments';
-import { readWorkspaceText } from './workspaceText';
-import type { ArchiveModel } from '../model/archiveModel';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import { readWorkspaceText } from '../services/ini/workspaceText';
+import type { ArchiveModel } from '../services/archives/archiveModel';
 
 /**
  * "Bulk Edit INI Values…": asks for blocks, conditions, a field and a

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { EASINGS } from '../core/expression';
 import { parseW3dAnimations } from '../formats/w3d/w3dAnimation';
 import type { W3dAnimation } from '../formats/w3d/w3dAnimation';
-import { toUri } from '../platform/commandTarget';
+import { toUri } from '../services/archives/commandTarget';
 import {
   MAX_NAME,
   easeAnimation,

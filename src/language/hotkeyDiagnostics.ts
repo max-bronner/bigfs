@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../constants';
 import { createLineReader, resolveSlots } from './commandSetPreview';
 import { hotkeyClashes } from '../game/ini-tools/hotkeys';
-import type { SageIniDocuments } from './sageIniDocuments';
-import type { SageIniIndex } from './sageIniIndex';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
 
 /**
  * Warns on CommandSet slots whose buttons share a hotkey, in every open INI

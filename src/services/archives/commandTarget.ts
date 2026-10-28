@@ -1,8 +1,8 @@
 import { Uri } from 'vscode';
 import type { TreeItem } from 'vscode';
-import { getNodeUri } from '../model/nodeAddress';
-import { isGameRow, isVirtualNode } from '../providers/explorerNode';
-import type { ExplorerNode } from '../providers/explorerNode';
+import { getNodeUri } from './nodeAddress';
+import { isGameRow, isVirtualNode } from './explorerRow';
+import type { ExplorerNode } from './explorerRow';
 
 /** What a command can be given: a uri, or the row it was run from */
 export type CommandTarget = Uri | TreeItem | ExplorerNode | undefined;

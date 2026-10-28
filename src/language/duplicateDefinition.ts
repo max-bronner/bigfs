@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { duplicateDefinition, strRecord } from '../game/objects/duplicateDefinition';
 import type { SageBlock } from '../formats/ini/sageIniParser';
-import type { SageIniDocuments } from './sageIniDocuments';
-import type { SageIniIndex } from './sageIniIndex';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
 
 /**
  * "Duplicate Definition…": copies the file-scope block at the cursor under a

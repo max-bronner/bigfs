@@ -7,7 +7,7 @@ import {
   workspace,
 } from 'vscode';
 import type { EntryLocator } from '../services/entryLocator';
-import { BASE_SETTING } from '../model/baseGameFolders';
+import { BASE_SETTING } from '../services/archives/baseGameFolders';
 import { decideAssetCheck } from '../game/ini-tools/assetCheckPolicy';
 import type { AssetCheckMode } from '../game/ini-tools/assetCheckPolicy';
 import { closestNames } from '../formats/ini/sageIniFormat';

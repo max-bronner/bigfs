@@ -7,9 +7,9 @@ import {
   readEntryData,
   writeArchiveFile,
   writeEntryInPlace,
-} from '../node/archiveFile';
-import type { BigFileEntry } from '../formats/big/bigFormat';
-import { movePath } from '../core/paths';
+} from '../../node/archiveFile';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
+import { movePath } from '../../core/paths';
 import {
   buildVirtualTree,
   copyNode,

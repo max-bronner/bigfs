@@ -3,7 +3,7 @@ import {
   ReadOnlySourceError,
   assertWritableSource,
   isReadOnlySource,
-} from '../../model/sourceAccess';
+} from '../../services/archives/sourceAccess';
 
 const baseSource = { label: 'Base game: bfme2', external: true };
 const workspaceSource = { label: 'my-mod', external: false };

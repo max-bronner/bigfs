@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { EntryLocator } from '../services/entryLocator';
 import { PREVIEW_VIEW_TYPE } from '../providers/previewEditorProvider';
 import { findAssetReferences } from '../formats/ini/sageIniAssets';
-import type { SageIniDocuments } from './sageIniDocuments';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
 
 /**
  * Every model, animation, texture and sound an INI file names is a link that

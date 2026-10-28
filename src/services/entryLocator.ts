@@ -1,9 +1,9 @@
 import { FileType, Uri, workspace } from 'vscode';
 import type { Disposable } from 'vscode';
-import type { ArchiveModel } from '../model/archiveModel';
-import type { GameViewModel, GameViewNode } from '../model/gameViewModel';
-import { getNodeUri } from '../model/nodeAddress';
-import type { VirtualNode } from '../model/virtualNode';
+import type { ArchiveModel } from './archives/archiveModel';
+import type { GameViewModel, GameViewNode } from './archives/gameViewModel';
+import { getNodeUri } from './archives/nodeAddress';
+import type { VirtualNode } from './archives/virtualNode';
 
 /**
  * Finds a file the way the game would. A model names its skeleton and

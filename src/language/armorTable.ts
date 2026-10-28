@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { webviewPage } from '../providers/webviewPage';
+import { webviewPage } from '../platform/webview/webviewPage';
 import {
   armorEdit,
   armorValue,
@@ -12,9 +12,9 @@ import type {
   FromArmorPage,
 } from '../game/objects/armorTable';
 import { parseSageIni } from '../formats/ini/sageIniParser';
-import type { SageIniDocuments } from './sageIniDocuments';
-import type { SageIniIndex } from './sageIniIndex';
-import { readWorkspaceText } from './workspaceText';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../services/ini/workspaceText';
 
 /**
  * **Armor Table**: every armor in the workspace and its archives against

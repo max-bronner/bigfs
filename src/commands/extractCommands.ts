@@ -10,17 +10,17 @@
 import type { CancellationToken, Progress } from 'vscode';
 import path from 'path';
 import { isContainedPath, splitPath } from '../core/paths';
-import { resolveConflicts } from '../ui/dialogs';
+import { resolveConflicts } from '../platform/dialogs';
 import {
   getFileNodes,
   getRelativeEntryPath,
   getTopLevelNodes,
   isArchiveRoot,
-} from '../model/virtualNode';
-import { getNodeUri } from '../model/nodeAddress';
+} from '../services/archives/virtualNode';
+import { getNodeUri } from '../services/archives/nodeAddress';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../model/virtualNode';
-import type { ArchiveModel } from '../model/archiveModel';
+import type { VirtualNode } from '../services/archives/virtualNode';
+import type { ArchiveModel } from '../services/archives/archiveModel';
 
 const REVEAL_LABEL = 'Reveal in File Explorer';
 

@@ -7,8 +7,8 @@ import {
   serializeIndexTable,
 } from '../../formats/big/bigFormat';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
-import { ArchiveModel } from '../../model/archiveModel';
-import { GameViewModel } from '../../model/gameViewModel';
+import { ArchiveModel } from '../../services/archives/archiveModel';
+import { GameViewModel } from '../../services/archives/gameViewModel';
 
 /** The bytes of an archive holding the given files */
 const buildArchive = (files: Record<string, string>): Buffer => {

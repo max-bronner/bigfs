@@ -1,6 +1,6 @@
-import type { ArchiveSource } from '../model/archiveSource';
-import type { VirtualNode } from '../model/virtualNode';
-import type { GameViewNode } from '../model/gameViewModel';
+import type { ArchiveSource } from './archiveSource';
+import type { VirtualNode } from './virtualNode';
+import type { GameViewNode } from './gameViewModel';
 
 /**
  * A row of the archive explorer. The rows above the archives have no archive

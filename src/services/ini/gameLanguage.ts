@@ -1,11 +1,11 @@
 import { EventEmitter, window, workspace } from 'vscode';
 import type { Disposable, Memento } from 'vscode';
-import type { ArchiveModel } from '../model/archiveModel';
+import type { ArchiveModel } from '../archives/archiveModel';
 import {
   AUTO_LANGUAGE,
   chooseLanguage,
   installedLanguages,
-} from '../game/text/gameLanguage';
+} from '../../game/text/gameLanguage';
 import type { SageIniIndex } from './sageIniIndex';
 
 /**

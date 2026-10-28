@@ -14,9 +14,9 @@ import { findGameTextLabels, missingTextMessage } from '../game/text/gameTextLab
 import type { SageProblem } from '../formats/ini/sageIniProblems';
 import type { SageDocument } from '../formats/ini/sageIniParser';
 import type { SageIniSchema } from '../formats/ini/sageIniSchema';
-import type { SageIniIndex } from './sageIniIndex';
-import type { SageIniDocuments } from './sageIniDocuments';
-import { includeExists, resolveIncludeUri } from './sageIniInclude';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import { includeExists, resolveIncludeUri } from '../services/ini/sageIniInclude';
 import type { EntryLocator } from '../services/entryLocator';
 import {
   CHECK_ASSETS_SETTING,

@@ -2,10 +2,10 @@
 import type { TreeDragAndDropController } from 'vscode';
 import { importFromDisk, transferNodes } from '../actions/fileActions';
 import { formatCount } from '../core/messages';
-import type { ArchiveModel } from '../model/archiveModel';
-import type { VirtualNode } from '../model/virtualNode';
-import { isVirtualNode } from './explorerNode';
-import type { ExplorerNode } from './explorerNode';
+import type { ArchiveModel } from '../services/archives/archiveModel';
+import type { VirtualNode } from '../services/archives/virtualNode';
+import { isVirtualNode } from '../services/archives/explorerRow';
+import type { ExplorerNode } from '../services/archives/explorerRow';
 
 /**
  * Drag and drop controller for the archive explorer. It moves nodes inside an

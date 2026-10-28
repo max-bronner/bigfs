@@ -1,6 +1,6 @@
 import { DocumentSymbol, Range, SymbolKind } from 'vscode';
 import type { DocumentSymbolProvider, TextDocument } from 'vscode';
-import type { SageIniDocuments } from '../sageIniDocuments';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageBlock } from '../../formats/ini/sageIniParser';
 
 /**

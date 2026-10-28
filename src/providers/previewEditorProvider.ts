@@ -9,7 +9,7 @@ import { decompressEar, isEarWrapped } from '../formats/refpack/refpack';
 import { Vp6Movie } from '../formats/vp6/container';
 import type { ModelScene } from '../formats/w3d/w3dScene';
 import type { EntryLocator } from '../services/entryLocator';
-import { createNonce } from './webviewNonce';
+import { createNonce } from '../platform/webview/webviewNonce';
 
 /** The file's name, as the INI files write it */
 const basename = (uri: vscode.Uri) =>

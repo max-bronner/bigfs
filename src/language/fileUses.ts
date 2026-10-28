@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { readObjectScene } from '../game/objects/objectScene';
 import { parseSageIni } from '../formats/ini/sageIniParser';
-import type { SageIniDocuments } from './sageIniDocuments';
-import { FILE_USES } from './sageIniIndex';
-import type { SageIniIndex } from './sageIniIndex';
-import { readWorkspaceText } from './workspaceText';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import { FILE_USES } from '../services/ini/sageIniIndex';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../services/ini/workspaceText';
 
 /**
  * Where the INI files use a model or animation file, for viewers that

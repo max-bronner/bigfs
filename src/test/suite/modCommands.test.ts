@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import path from 'path';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { readArchiveIndexTable } from '../../node/archiveFile';
-import { ArchiveModel } from '../../model/archiveModel';
+import { ArchiveModel } from '../../services/archives/archiveModel';
 import { packFolderInto } from '../../commands/modCommands';
 
 suite('Mod commands', () => {

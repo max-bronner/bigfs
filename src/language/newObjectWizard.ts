@@ -20,11 +20,11 @@ import {
   isEditable,
   readEntryText,
   saveEntryTexts,
-} from './archiveText';
-import type { ArchiveModel } from '../model/archiveModel';
-import type { SageIniDocuments } from './sageIniDocuments';
-import type { SageIniIndex } from './sageIniIndex';
-import { readWorkspaceText } from './workspaceText';
+} from '../services/ini/archiveText';
+import type { ArchiveModel } from '../services/archives/archiveModel';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../services/ini/workspaceText';
 
 /**
  * "New Unit, Hero or Building…": makes a new object from an existing one

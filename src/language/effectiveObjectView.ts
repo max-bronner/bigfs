@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { composeLineage } from '../game/objects/effectiveObject';
 import type { LineageStep } from '../game/objects/effectiveObject';
 import { parseSageIni, stripComment, tokenize } from '../formats/ini/sageIniParser';
-import type { SageIniDocuments } from './sageIniDocuments';
-import type { SageIniIndex } from './sageIniIndex';
-import { readWorkspaceText } from './workspaceText';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../services/ini/workspaceText';
 
 /**
  * "Show Effective Definition" on a `ChildObject` or `ObjectReskin`: a

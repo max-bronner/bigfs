@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import type { ArchiveModel } from '../model/archiveModel';
+import type { ArchiveModel } from '../services/archives/archiveModel';
 import { archiveOrderKey } from '../game/install/gameView';
-import { getNodeUri } from '../model/nodeAddress';
-import { findChild } from '../model/virtualNode';
+import { getNodeUri } from '../services/archives/nodeAddress';
+import { findChild } from '../services/archives/virtualNode';
 
 /**
  * Finds the movie an APT import names the way the game finds any file, so

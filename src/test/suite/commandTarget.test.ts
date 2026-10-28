@@ -1,11 +1,11 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { toUri } from '../../platform/commandTarget';
-import { getNodeUri } from '../../model/nodeAddress';
-import type { Archive } from '../../model/archive';
-import type { VirtualNode } from '../../model/virtualNode';
-import type { GameRow } from '../../providers/explorerNode';
-import type { GameViewNode } from '../../model/gameViewModel';
+import { toUri } from '../../services/archives/commandTarget';
+import { getNodeUri } from '../../services/archives/nodeAddress';
+import type { Archive } from '../../services/archives/archive';
+import type { VirtualNode } from '../../services/archives/virtualNode';
+import type { GameRow } from '../../services/archives/explorerRow';
+import type { GameViewNode } from '../../services/archives/gameViewModel';
 
 const node = (entryPath: string): VirtualNode =>
   ({
