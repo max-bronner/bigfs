@@ -11,7 +11,7 @@ import {
 import type { Delivery, OverrideReport } from '../../node/modPackage';
 import { packedArchives } from '../../services/archives/packagedOutputs';
 import { decodeWindows1252 } from '../../core/windows1252';
-import { diagnoseText } from '../../language/sageIniValidation';
+import { diagnoseText } from '../iniLanguage/sageIniValidation';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';
 

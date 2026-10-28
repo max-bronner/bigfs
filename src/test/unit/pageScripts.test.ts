@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { MAP_VIEW_SCRIPT } from '../../providers/mapViewScript';
 import { SCRIPT_FILE_VIEW_SCRIPT } from '../../providers/scriptTreeScript';
 import { WND_PREVIEW_SCRIPT } from '../../language/wndPreviewScript';
-import { BALANCE_SHEET_SCRIPT } from '../../language/balanceSheetScript';
+import { BALANCE_SHEET_SCRIPT } from '../../features/balanceSheet/balanceSheetScript';
 import { STRING_TABLE_SCRIPT } from '../../providers/stringTableViewScript';
 
 suite('Page scripts', () => {
