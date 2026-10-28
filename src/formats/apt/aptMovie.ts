@@ -150,6 +150,8 @@ export interface MovieRecord {
   charactersOffset: number;
   screenWidth: number;
   screenHeight: number;
+  /** Usually 33, meaning unknown; mint measured 40 and 83 once each */
+  unknown36: number;
   importCount: number;
   importsOffset: number;
   exportCount: number;
@@ -165,6 +167,31 @@ export interface ButtonRecord {
   depth: number;
   matrix: Matrix2;
   translate: [number, number];
+  /** Multiply colour as floats R, G, B, A (OpenSAGE's `ButtonRecord.Color`) */
+  color: [number, number, number, number];
+  /** Four floats OpenSAGE reads and names only as unknown */
+  unknown: [number, number, number, number];
+}
+
+/** One glyph of a text record: an index whose meaning is unconfirmed, and an advance */
+export interface TextGlyph {
+  index: number;
+  advance: number;
+}
+
+/**
+ * One run of a Text character, 56 bytes: font, a colour stored as a rect of
+ * floats, a rect read as unknown, the pen offset, the height and the glyphs
+ */
+export interface TextRecord {
+  offset: number;
+  font: number;
+  /** R, G, B, A, read cross-wired from the stored rect as mint and AptConverter do */
+  color: [number, number, number, number];
+  unknown: Rect;
+  penOffset: [number, number];
+  textHeight: number;
+  glyphs: TextGlyph[];
 }
 
 /** A button's action block and when it runs */
@@ -202,7 +229,13 @@ export type Character = { id: number; offset: number } & (
   | { type: 'image'; texture: number }
   | { type: 'morph'; startShape: number; endShape: number }
   | { type: 'movie'; record: MovieRecord }
-  | { type: 'text'; bounds: Rect; matrix: Matrix2; translate: [number, number] }
+  | {
+      type: 'text';
+      bounds: Rect;
+      matrix: Matrix2;
+      translate: [number, number];
+      records: TextRecord[];
+    }
   /** A slot an import fills at load time */
   | { type: 'placeholder' }
   | { type: 'unknown'; characterType: number }
@@ -321,6 +354,7 @@ export const parseMovieRecord = (
     charactersOffset: reader.u32(offset + 24),
     screenWidth: reader.u32(offset + 28),
     screenHeight: reader.u32(offset + 32),
+    unknown36: reader.u32(offset + 36),
     importCount: reader.u32(offset + 40),
     importsOffset: reader.u32(offset + 44),
     exportCount: reader.u32(offset + 48),
@@ -333,6 +367,28 @@ const checkCount = (reader: AptReader, count: number, stride: number): void => {
   if (count * stride > reader.bytes.length) {
     throw new Error(`A count of ${count} cannot fit in the file`);
   }
+};
+
+/** Reads a text record; its colour maps the rect's top, left, bottom, right to R, G, B, A */
+const parseTextRecord = (reader: AptReader, at: number): TextRecord => {
+  const [left, top, right, bottom] = readRect(reader, at + 4);
+  const count = reader.u32(at + 48);
+  const glyphs = reader.u32(at + 52);
+
+  checkCount(reader, count, 8);
+
+  return {
+    offset: at,
+    font: reader.u32(at),
+    color: [top, left, bottom, right],
+    unknown: readRect(reader, at + 20),
+    penOffset: [reader.f32(at + 36), reader.f32(at + 40)],
+    textHeight: reader.f32(at + 44),
+    glyphs: Array.from({ length: count }, (_, index) => ({
+      index: reader.u32(glyphs + index * 8),
+      advance: reader.i32(glyphs + index * 8 + 4),
+    })),
+  };
 };
 
 const parseCharacter = (
@@ -418,6 +474,8 @@ const parseCharacter = (
             depth: reader.i32(at + 8),
             matrix: readMatrix(reader, at + 12),
             translate: [reader.f32(at + 28), reader.f32(at + 32)],
+            color: readMatrix(reader, at + 36),
+            unknown: readMatrix(reader, at + 52),
           };
         }),
         actions: Array.from({ length: actionCount }, (_, index) => ({
@@ -451,7 +509,12 @@ const parseCharacter = (
         type: 'movie',
         record: parseMovieRecord(reader, offset),
       };
-    case 'text':
+    case 'text': {
+      const count = reader.u32(offset + 48);
+      const records = reader.u32(offset + 52);
+
+      checkCount(reader, count, 56);
+
       return {
         id,
         offset,
@@ -459,7 +522,11 @@ const parseCharacter = (
         bounds: readRect(reader, offset + 8),
         matrix: readMatrix(reader, offset + 24),
         translate: [reader.f32(offset + 40), reader.f32(offset + 44)],
+        records: Array.from({ length: count }, (_, index) =>
+          parseTextRecord(reader, records + index * 56),
+        ),
       };
+    }
     default:
       return { id, offset, type: 'unknown', characterType: type };
   }

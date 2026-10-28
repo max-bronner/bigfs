@@ -12,8 +12,16 @@ import {
   parseSpriteFrames,
 } from '../formats/apt/aptMovie';
 import type { AptMovie, ConstFile, Frame } from '../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../formats/apt/aptWriter';
-import type { AptEdit, EditResult } from '../formats/apt/aptWriter';
+import {
+  AptImage,
+  applyAptEdit,
+  changeConstItem,
+} from '../formats/apt/aptWriter';
+import type {
+  AptEdit,
+  ConstItemChange,
+  EditResult,
+} from '../formats/apt/aptWriter';
 import {
   addBlock,
   appendConstItems,
@@ -319,6 +327,12 @@ export class AptDocument implements vscode.CustomDocument {
   /** The files beside the movie as edited, the `.const` among them */
   public get editedFiles(): Map<string, Uint8Array> {
     return new Map([...this.files, [`${this.name}.const`, this.constBytes]]);
+  }
+
+  /** Changes one `.const` item in place, or repoints it at an appended string */
+  public changeConstItem(change: ConstItemChange): void {
+    this.constBytes = changeConstItem(this.constBytes, change);
+    this.parsedConst = parseConst(this.constBytes);
   }
 
   /** Adds `.const` items a compiled script needs */
@@ -676,6 +690,8 @@ export const renderHtml = (
   .field input, .field textarea { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 2px 4px; width: 90px; font: inherit; }
   .field textarea { width: 100%; min-height: 3em; }
   .field input.short { width: 52px; }
+  .field label.bit { min-width: 0; opacity: 1; margin-right: 6px; white-space: nowrap; }
+  .field label.bit input { width: auto; }
   .field input.line { width: 160px; }
   textarea.code { width: 100%; box-sizing: border-box; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 12px); color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); white-space: pre; tab-size: 2; }
   .field input.invalid { border-color: var(--vscode-inputValidation-errorBorder); }
@@ -1677,6 +1693,10 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             block,
             previous: Number(message.block),
           });
+        } else if (message?.kind === 'constEdit') {
+          await this.record(document, 'constant', async () =>
+            document.changeConstItem(message.change as ConstItemChange),
+          );
         } else if (message?.kind === 'removeCharacter') {
           await this.removeCharacter(document, Number(message.id));
         } else if (message?.kind === 'manageMovie') {

@@ -351,6 +351,17 @@ your mod's archives.
 - Edit text fields, colours, bounds, exports, imports, placements, frame
   labels and frames, add frames, duplicate characters and create new text,
   sprite, shape and image characters, with undo.
+- **new** Every field the parser reads is editable, with undo: a placement's
+  flags (move and each optional field on or off), depth, character (picked
+  from a list), matrix, the colour transform's multiply and add as R, G, B, A
+  bytes or a hex word, ratio, name, clip depth and clip events; button
+  records' states, character, depth, matrix and colour; button action
+  conditions; text runs (font, colour, pen offset, height, glyphs) of Text
+  characters, added and removed; font glyph ids; morph shapes; frame label
+  flags, background colours (added too), init actions and removed depths;
+  the movie record's word at +36, import slots and every `.const` item. An
+  unedited movie still saves byte for byte, and an edit touches only its
+  own fields or appends.
 - **Check APT Movies** checks every movie of the workspace, loose or in an
   archive, for integrity problems and reports what it found; **Rename APT Movie…** and
   **Delete APT Movie…** (on an `.apt`, in the Explorer or an archive) rename

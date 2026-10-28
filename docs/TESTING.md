@@ -296,6 +296,23 @@ Movie**.
 - [ ] **new** Editing with undo: text, colours, bounds, exports, imports,
   placements, frame labels, frames, new text / sprite / shape / image
   characters, geometry and texture import, remove characters.
+- [ ] **new** **Every field is editable.** Select a sprite with placements:
+  each PlaceObject of the frame shows its flags as checkboxes (untick
+  **colour** and the instance draws without its tint; tick it back and the
+  stored values return), a character list, matrix, **Multiply** and **Add**
+  as R, G, B, A bytes plus a hex word, ratio, name, clip depth and the clip
+  events of each clip action. Pick an instance on the stage: the inspector
+  shows the same colour rows (written to the record the colour comes from at
+  that frame), a character swap, ratio, the **Move** bit and clip depth. A
+  button shows each record's states, character, depth, matrix, colour and the
+  four unknown floats, and each button script its conditions as checkboxes.
+  A Text character shows its matrix and every run; a font its glyph ids; a
+  morph its two shapes. Frame labels show flags and frame, background
+  colours and init actions are editable and a background colour can be
+  added. The movie (#0) shows the word at +36, each import's slot and every
+  `.const` item, string or number. Every one of these undoes with Ctrl+Z
+  and redoes with Ctrl+Y; save an unedited movie and it is byte for byte the
+  same.
 - [ ] **new** ActionScript tabs: edit, compile, add and remove scripts.
 - [ ] **new** **New APT Movie…** (folder): `.apt`, `.const`, `.dat`.
   **Rename APT Movie…** renames every file of the movie and the imports that
