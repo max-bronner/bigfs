@@ -100,7 +100,7 @@ export const registerSageIniLanguage = (
     ...registerObjectPreview(context, selector, documents, index, locator),
     ...(locator ? registerAssetLinks(selector, documents, locator) : []),
     ...registerFileUses(documents, index),
-    registerNewObjectWizard(documents, index),
+    registerNewObjectWizard(documents, index, archiveModel),
     ...registerUnusedDefinitions(index),
     watchHotkeyClashes(documents, index),
     languages.registerCallHierarchyProvider(
