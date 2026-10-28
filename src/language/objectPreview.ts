@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import type { EntryLocator } from '../formats/entryLocator';
-import { findAnimation, parseW3dAnimations } from '../formats/w3dAnimation';
-import { buildW3dScene } from '../formats/w3dScene';
-import { createToolRegistry } from '../tools/toolRegistry';
+import type { EntryLocator } from '../services/entryLocator';
+import { findAnimation, parseW3dAnimations } from '../formats/w3d/w3dAnimation';
+import { buildW3dScene } from '../formats/w3d/w3dScene';
+import { createToolRegistry } from '../services/toolRegistry';
 import { EffectLibrary } from './effectLibrary';
 import { composeEffective } from './effectiveObjectView';
 import { focusAt, readObjectScene } from './model/objectScene';

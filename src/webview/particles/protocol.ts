@@ -4,8 +4,8 @@ import type {
   ParticleDef,
 } from '../../formats/particles/particleIni';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
-import type { ModelScene } from '../../formats/w3dScene';
-import type { W3dAnimation } from '../../formats/w3dAnimation';
+import type { ModelScene } from '../../formats/w3d/w3dScene';
+import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { ObjectScene, SceneFocus } from '../../language/model/objectScene';
 
 /** Messages between the particle preview and its page */

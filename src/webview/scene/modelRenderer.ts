@@ -1,8 +1,8 @@
-import { boneLines, poseAt, skin } from "../../formats/w3dPose";
-import type { Pose, Vec3 } from "../../formats/w3dPose";
-import { visibleMeshes } from "../../formats/w3dScene";
-import type { ModelScene } from "../../formats/w3dScene";
-import type { W3dBlend } from "../../tools/w3dTools";
+import { boneLines, poseAt, skin } from "../../formats/w3d/w3dPose";
+import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
+import { visibleMeshes } from "../../formats/w3d/w3dScene";
+import type { ModelScene } from "../../formats/w3d/w3dScene";
+import type { W3dBlend } from "../../formats/w3d/w3dTools";
 
 /**
  * Draws a W3D model with WebGL: every mesh textured and lit from the

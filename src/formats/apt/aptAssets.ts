@@ -1,4 +1,4 @@
-import { encodeTga } from '../textureEncode';
+import { encodeTga } from '../texture/textureEncode';
 import {
   getTexturePath,
   parseDat,

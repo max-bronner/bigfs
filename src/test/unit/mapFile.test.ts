@@ -6,7 +6,7 @@ import {
   compressEar,
   compressRefPack,
   decompressRefPack,
-} from '../../formats/refpack';
+} from '../../formats/refpack/refpack';
 
 suite('Maps', () => {
   test('reads the world info, terrain, lighting, objects and sides', () => {

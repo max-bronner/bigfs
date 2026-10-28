@@ -8,8 +8,8 @@ import {
   emptyCahRecord,
   parseCah,
   writeCah,
-} from "../../formats/cah";
-import type { CahRecord } from "../../formats/cah";
+} from "../../formats/cah/cah";
+import type { CahRecord } from "../../formats/cah/cah";
 
 /** mint's `crc.rs`, bit by bit, as the reference the table version must equal */
 const referenceCrc = (bytes: number[]): number => {

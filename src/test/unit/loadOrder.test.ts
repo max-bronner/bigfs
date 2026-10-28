@@ -2,8 +2,8 @@ import * as assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import * as path from 'path';
-import { writeArchiveFile } from '../../binary/archiveFile';
-import type { BigFileEntry } from '../../binary/bigFormat';
+import { writeArchiveFile } from '../../node/archiveFile';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { createDebouncer } from '../../core/debounce';
 import { buildGameTree, getGameFiles, indexByName } from '../../model/gameView';
 import {

@@ -1,7 +1,7 @@
-import { poseAt } from "../../formats/w3dPose";
-import type { Pose, Vec3 } from "../../formats/w3dPose";
-import type { W3dAnimation } from "../../formats/w3dAnimation";
-import type { ModelScene } from "../../formats/w3dScene";
+import { poseAt } from "../../formats/w3d/w3dPose";
+import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
+import type { W3dAnimation } from "../../formats/w3d/w3dAnimation";
+import type { ModelScene } from "../../formats/w3d/w3dScene";
 import { createModelRenderer } from "../scene/modelRenderer";
 import { createOrbit } from "../scene/orbit";
 

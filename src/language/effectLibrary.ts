@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import type { EntryLocator } from '../formats/entryLocator';
+import type { EntryLocator } from '../services/entryLocator';
 import {
   findParticleDefinitions,
   readFxList,
@@ -11,8 +11,8 @@ import type {
   IniDefinition,
   ParticleDef,
 } from '../formats/particles/particleIni';
-import { encodePng } from '../formats/textureEncode';
-import { decodeDds, decodeTga } from '../tools/textureTools';
+import { encodePng } from '../node/png';
+import { decodeDds, decodeTga } from '../formats/texture/textureTools';
 import type { SageIniIndex } from './sageIniIndex';
 import { readWorkspaceText } from './workspaceText';
 

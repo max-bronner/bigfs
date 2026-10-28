@@ -34,8 +34,8 @@ import {
   objectView,
   showObject,
 } from './objectPanel';
-import { poseAt } from '../../formats/w3dPose';
-import type { Pose, Vec3 } from '../../formats/w3dPose';
+import { poseAt } from '../../formats/w3d/w3dPose';
+import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
 import type { ToPage } from './protocol';
 import { GRID, pushRing, reach, volumeLines } from './volume';
 

@@ -2,8 +2,8 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
-import { parseW3dAnimations } from '../../formats/w3dAnimation';
-import { writeW3dAnimation } from '../../formats/w3dAnimationEdit';
+import { parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
+import { writeW3dAnimation } from '../../formats/w3d/w3dAnimationEdit';
 
 /** An animation edited from the command, written beside the original */
 suite('W3D animation edit', () => {

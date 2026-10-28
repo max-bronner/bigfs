@@ -4,7 +4,7 @@ import {
   isRotated,
   mappedUv,
   parseMappedImage,
-} from '../../formats/mappedImage';
+} from '../../formats/mappedImage/mappedImage';
 
 const body = (...lines: string[]) => lines.map((line) => `  ${line}`);
 

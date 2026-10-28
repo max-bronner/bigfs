@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { toPlayableAudio } from '../../tools/audioTools';
+import { toPlayableAudio } from '../../formats/audio/audioTools';
 
 /** A RIFF/WAVE file with the given format fields and data */
 const wave = (

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { EASINGS } from '../core/expression';
-import { parseW3dAnimations } from '../formats/w3dAnimation';
-import type { W3dAnimation } from '../formats/w3dAnimation';
+import { parseW3dAnimations } from '../formats/w3d/w3dAnimation';
+import type { W3dAnimation } from '../formats/w3d/w3dAnimation';
 import { toUri } from '../platform/commandTarget';
 import {
   MAX_NAME,
@@ -12,7 +12,7 @@ import {
   reverseAnimation,
   trimAnimation,
   writeW3dAnimation,
-} from '../formats/w3dAnimationEdit';
+} from '../formats/w3d/w3dAnimationEdit';
 
 /**
  * **Edit W3D Animation…** on a `.w3d` file, in an archive or a folder:

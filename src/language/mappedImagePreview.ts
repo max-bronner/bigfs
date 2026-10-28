@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import { decodeIniText } from '../core/windows1252';
-import type { EntryLocator } from '../formats/entryLocator';
-import { isRotated, parseMappedImage } from '../formats/mappedImage';
-import type { MappedImage } from '../formats/mappedImage';
-import { encodePng } from '../formats/textureEncode';
-import { decodeDds, decodeTga } from '../tools/textureTools';
-import type { RgbaImage } from '../tools/textureTools';
+import type { EntryLocator } from '../services/entryLocator';
+import { isRotated, parseMappedImage } from '../formats/mappedImage/mappedImage';
+import type { MappedImage } from '../formats/mappedImage/mappedImage';
+import { encodePng } from '../node/png';
+import { decodeDds, decodeTga } from '../formats/texture/textureTools';
+import type { RgbaImage } from '../formats/texture/textureTools';
 import type { SageDefinition } from './sageIniIndex';
 
 /**

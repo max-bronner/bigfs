@@ -7,8 +7,8 @@ import {
   readArchiveIndexTable,
   readEntryData,
   writeArchiveFile,
-} from '../../binary/archiveFile';
-import type { BigFileEntry } from '../../binary/bigFormat';
+} from '../../node/archiveFile';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { decodeIniText } from '../../core/windows1252';
 import {
   bulkChangesAcross,

@@ -6,8 +6,8 @@ import path from 'path';
 import {
   computeArchiveLayout,
   serializeIndexTable,
-} from '../../binary/bigFormat';
-import type { BigFileEntry } from '../../binary/bigFormat';
+} from '../../formats/big/bigFormat';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 
 /**
  * Packaging a mod against a synthetic base game: the report says which

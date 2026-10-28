@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { decodeDds, decodeTga } from '../../tools/textureTools';
+import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
 
 /** A TGA header for an image of the given type, depth and descriptor */
 const tgaHeader = (

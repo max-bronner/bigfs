@@ -5,7 +5,7 @@ import { parseDat, parseRu } from '../../formats/apt/aptGeometry';
 import type { RuRun } from '../../formats/apt/aptGeometry';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
 import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
-import { decodeTga } from '../../tools/textureTools';
+import { decodeTga } from '../../formats/texture/textureTools';
 
 const newMovie = () => {
   const files = createAptMovie({ width: 100, height: 100, exports: [] });

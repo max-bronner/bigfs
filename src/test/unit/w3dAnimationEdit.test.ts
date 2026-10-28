@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import { parseW3dAnimations } from '../../formats/w3dAnimation';
-import type { W3dAnimation } from '../../formats/w3dAnimation';
+import { parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
+import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import {
   easeAnimation,
   frameRateProblem,
@@ -9,7 +9,7 @@ import {
   reverseAnimation,
   trimAnimation,
   writeW3dAnimation,
-} from '../../formats/w3dAnimationEdit';
+} from '../../formats/w3d/w3dAnimationEdit';
 
 /** A bone sliding 0 to 30 along x over 4 frames, turning, and shown from frame 2 */
 const animation = (): W3dAnimation => {
