@@ -5,7 +5,7 @@ import type { AptEdit } from '../formats/apt/aptWriter';
 import type { ArchiveModel } from '../model/archiveModel';
 import { findBeside, listBeside, workspaceMovies } from './aptAccess';
 import { movieKey } from './aptLibrary';
-import { toUri } from '../common/commandTarget';
+import { toUri } from '../platform/commandTarget';
 
 /**
  * A movie as a whole: its `.apt`, `.const` and `.dat`, its `_geometry`

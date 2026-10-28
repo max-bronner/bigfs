@@ -9,7 +9,7 @@ import {
 } from "../formats/cah";
 import type { CahRecord, ParsedCah } from "../formats/cah";
 import type { EntryLocator } from "../formats/entryLocator";
-import { decodeIniText } from "../common/windows1252";
+import { decodeIniText } from "../core/windows1252";
 import type { GameLanguage } from "../language/gameLanguage";
 import {
   blingOptions,

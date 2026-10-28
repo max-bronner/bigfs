@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { toUri } from '../../common/commandTarget';
+import { toUri } from '../../platform/commandTarget';
 import { getNodeUri } from '../../model/nodeAddress';
 import type { Archive } from '../../model/archive';
 import type { VirtualNode } from '../../model/virtualNode';

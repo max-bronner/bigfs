@@ -9,8 +9,8 @@ import type { FrameSource } from '../formats/vp6/encodeMovie';
 import { webviewPage } from '../providers/webviewPage';
 import { ffmpegSource, probe, run } from '../tools/ffmpeg';
 import { decodeDds, decodeTga } from '../tools/textureTools';
-import { toUri } from '../common/commandTarget';
-import type { CommandTarget } from '../common/commandTarget';
+import { toUri } from '../platform/commandTarget';
+import type { CommandTarget } from '../platform/commandTarget';
 
 /**
  * "Convert to VP6 Movie…": a video file, or a folder of numbered PNG, TGA or

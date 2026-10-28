@@ -4,7 +4,7 @@ import { tmpdir } from 'os';
 import * as path from 'path';
 import { writeArchiveFile } from '../../binary/archiveFile';
 import type { BigFileEntry } from '../../binary/bigFormat';
-import { createDebouncer } from '../../common/debounce';
+import { createDebouncer } from '../../core/debounce';
 import { buildGameTree, getGameFiles, indexByName } from '../../model/gameView';
 import {
   detectInstallKind,

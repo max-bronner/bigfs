@@ -16,7 +16,7 @@ import { canonicalNamespace } from "./model/sageReferenceFields";
 import { SAGE_INI_LANGUAGE } from "../constants";
 import { findString, parseStringTable } from "./model/sageStringTable";
 import type { SageString } from "./model/sageStringTable";
-import { decodeIniText } from "../common/windows1252";
+import { decodeIniText } from "../core/windows1252";
 
 /**
  * Where every definition, reference and macro in every open archive lives, so

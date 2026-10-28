@@ -11,7 +11,7 @@ import {
   spliceMap,
   writeDict,
 } from './mapFile';
-import { encodeWindows1252 } from '../../common/windows1252';
+import { encodeWindows1252 } from '../../core/windows1252';
 
 /**
  * Edits to a parsed map. Each one splices the decompressed body, so every

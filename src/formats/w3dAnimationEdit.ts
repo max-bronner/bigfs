@@ -1,4 +1,4 @@
-import { EASINGS } from '../common/expression';
+import { EASINGS } from '../core/expression';
 import type { SampledChannel, W3dAnimation } from './w3dAnimation';
 
 /**

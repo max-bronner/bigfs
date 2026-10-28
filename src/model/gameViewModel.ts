@@ -1,6 +1,6 @@
 import { EventEmitter, FileType, Uri } from 'vscode';
 import type { Disposable } from 'vscode';
-import { createDebouncer } from '../common/debounce';
+import { createDebouncer } from '../core/debounce';
 import type { ArchiveModel } from './archiveModel';
 import { getFileNodes } from './virtualNode';
 import type { VirtualNode } from './virtualNode';

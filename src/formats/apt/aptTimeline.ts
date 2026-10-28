@@ -1,4 +1,4 @@
-import { EASINGS, compileExpression } from '../../common/expression';
+import { EASINGS, compileExpression } from '../../core/expression';
 import { AptReader } from './aptMovie';
 import type { Frame, Matrix2 } from './aptMovie';
 

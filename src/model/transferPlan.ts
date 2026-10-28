@@ -1,4 +1,4 @@
-import { getAvailableName, getParentPath } from '../common/paths';
+import { getAvailableName, getParentPath } from '../core/paths';
 
 /**
  * Plans a transfer of files into a directory of another archive: which target

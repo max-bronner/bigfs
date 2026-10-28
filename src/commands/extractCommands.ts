@@ -9,7 +9,7 @@
 } from 'vscode';
 import type { CancellationToken, Progress } from 'vscode';
 import path from 'path';
-import { isContainedPath, splitPath } from '../common/paths';
+import { isContainedPath, splitPath } from '../core/paths';
 import { resolveConflicts } from '../ui/dialogs';
 import {
   getFileNodes,

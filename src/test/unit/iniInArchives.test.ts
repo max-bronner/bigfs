@@ -9,7 +9,7 @@ import {
   writeArchiveFile,
 } from '../../binary/archiveFile';
 import type { BigFileEntry } from '../../binary/bigFormat';
-import { decodeIniText } from '../../common/windows1252';
+import { decodeIniText } from '../../core/windows1252';
 import {
   bulkChangesAcross,
   compileBulkQuery,

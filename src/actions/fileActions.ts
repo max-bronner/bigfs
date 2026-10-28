@@ -1,6 +1,6 @@
 ﻿import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
-import { getAvailableName } from '../common/paths';
+import { getAvailableName } from '../core/paths';
 import {
   askForTransferConflict,
   confirmDelete,

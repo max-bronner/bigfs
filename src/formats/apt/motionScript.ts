@@ -1,4 +1,4 @@
-import { EASINGS, compileExpression } from '../../common/expression';
+import { EASINGS, compileExpression } from '../../core/expression';
 import type { DetectedTween, Pose, TimelineOperation } from './aptTimeline';
 
 /**

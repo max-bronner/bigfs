@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { decodeWindows1252, encodeWindows1252 } from '../../common/windows1252';
+import { decodeWindows1252, encodeWindows1252 } from '../../core/windows1252';
 
 suite('Windows-1252', () => {
   test('bytes 0x80-0x9F decode to the characters the encoding gives them', () => {

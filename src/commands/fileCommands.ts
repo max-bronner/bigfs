@@ -1,5 +1,5 @@
 ﻿import { commands, window, workspace } from 'vscode';
-import { formatCount } from '../common/messages';
+import { formatCount } from '../core/messages';
 import { getChildUri, getNodeUri } from '../model/nodeAddress';
 import { askForName } from '../ui/dialogs';
 import {

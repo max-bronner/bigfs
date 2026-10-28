@@ -9,7 +9,7 @@ import {
   writeEntryInPlace,
 } from '../binary/archiveFile';
 import type { BigFileEntry } from '../binary/bigFormat';
-import { movePath } from '../common/paths';
+import { movePath } from '../core/paths';
 import {
   buildVirtualTree,
   copyNode,

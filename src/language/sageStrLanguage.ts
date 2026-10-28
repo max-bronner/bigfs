@@ -5,9 +5,9 @@ import {
   decodeIniText,
   encodeWindows1252,
   unencodableCharacters,
-} from '../common/windows1252';
-import { toUri } from '../common/commandTarget';
-import type { CommandTarget } from '../common/commandTarget';
+} from '../core/windows1252';
+import { toUri } from '../platform/commandTarget';
+import type { CommandTarget } from '../platform/commandTarget';
 import type { ArchiveModel } from '../model/archiveModel';
 import { registerTranslationCheck } from './translationCheck';
 

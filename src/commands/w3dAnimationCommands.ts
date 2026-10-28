@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { EASINGS } from '../common/expression';
+import { EASINGS } from '../core/expression';
 import { parseW3dAnimations } from '../formats/w3dAnimation';
 import type { W3dAnimation } from '../formats/w3dAnimation';
-import { toUri } from '../common/commandTarget';
+import { toUri } from '../platform/commandTarget';
 import {
   MAX_NAME,
   easeAnimation,
