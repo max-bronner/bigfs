@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import path from 'path';
 import { rm, writeFile } from 'fs/promises';
 import { PREVIEW_VIEW_TYPE } from '../../features/preview/previewEditorProvider';
-import { APT_VIEW_TYPE } from '../../providers/aptEditorProvider';
+import { APT_VIEW_TYPE } from '../../features/apt/viewTypes';
 
 suite('Previews', () => {
   let texturePath: string;

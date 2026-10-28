@@ -1,7 +1,7 @@
 import type { ExtensionContext } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../../constants';
 import type { Services } from '../../services/createServices';
-import { registerCommandSetEditor } from '../../language/commandSetEditor';
+import { registerCommandSetEditor } from './commandSetEditor';
 
 /** Registers the CommandSet editor and its lens */
 export const registerCommandSet = (

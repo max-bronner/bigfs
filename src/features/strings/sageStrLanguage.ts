@@ -9,7 +9,7 @@ import {
 import { toUri } from '../../services/archives/commandTarget';
 import type { CommandTarget } from '../../services/archives/commandTarget';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
-import { registerTranslationCheck } from '../../language/translationCheck';
+import { registerTranslationCheck } from '../translations/translationCheck';
 
 /**
  * Language support for `.str` string tables: problems, an outline of labels,
