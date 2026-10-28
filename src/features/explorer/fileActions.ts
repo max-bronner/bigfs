@@ -1,21 +1,21 @@
 ﻿import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
-import { getAvailableName } from '../core/paths';
+import { getAvailableName } from '../../core/paths';
 import {
   askForTransferConflict,
   confirmDelete,
   resolveConflicts,
-} from '../platform/dialogs';
-import { findConflicts, planTransfer } from '../game/install/transferPlan';
+} from '../../platform/dialogs';
+import { findConflicts, planTransfer } from '../../game/install/transferPlan';
 import {
   findChild,
   getTopLevelNodes,
   isArchiveRoot,
   isInside,
-} from '../services/archives/virtualNode';
-import type { VirtualNode } from '../services/archives/virtualNode';
-import type { ArchiveModel, ImportedFile } from '../services/archives/archiveModel';
-import type { ConflictChoice } from '../game/install/transferPlan';
+} from '../../services/archives/virtualNode';
+import type { VirtualNode } from '../../services/archives/virtualNode';
+import type { ArchiveModel, ImportedFile } from '../../services/archives/archiveModel';
+import type { ConflictChoice } from '../../game/install/transferPlan';
 
 /**
  * Gets the directory an operation on a node applies to: the node itself for a

@@ -9,18 +9,18 @@ import {
 } from 'vscode';
 import type { Disposable, QuickPickItem } from 'vscode';
 import path from 'path';
-import { writeArchiveFile } from '../node/archiveFile';
-import type { BigFileEntry } from '../formats/big/bigFormat';
-import type { ArchiveModel } from '../services/archives/archiveModel';
-import { getFileNodes } from '../services/archives/virtualNode';
-import type { VirtualNode } from '../services/archives/virtualNode';
-import { getNodeUri } from '../services/archives/nodeAddress';
-import { skippedFromPackage } from '../node/modPackage';
-import { recordPackedArchive } from '../services/archives/packagedOutputs';
-import { formatCount } from '../core/messages';
-import { SCHEME } from '../constants';
-import type { RegisterNodeCommand } from './commandCenter';
-import { decodeWindows1252 } from '../core/windows1252';
+import { writeArchiveFile } from '../../node/archiveFile';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import { getFileNodes } from '../../services/archives/virtualNode';
+import type { VirtualNode } from '../../services/archives/virtualNode';
+import { getNodeUri } from '../../services/archives/nodeAddress';
+import { skippedFromPackage } from '../../node/modPackage';
+import { recordPackedArchive } from '../../services/archives/packagedOutputs';
+import { formatCount } from '../../core/messages';
+import { SCHEME } from '../../constants';
+import type { RegisterNodeCommand } from '../explorer/commandCenter';
+import { decodeWindows1252 } from '../../core/windows1252';
 
 /**
  * The commands a mod is made with: pack a folder into a `.big`, copy files

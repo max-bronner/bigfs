@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import path from 'path';
-import { planLaunch } from '../node/launchPlan';
+import { planLaunch } from '../../node/launchPlan';
 
 /**
  * "Launch Game with Mod": starts the game with `-mod "<folder>"`, the way

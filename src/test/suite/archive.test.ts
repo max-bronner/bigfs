@@ -8,9 +8,9 @@ import {
 } from '../../formats/big/bigFormat';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { ArchiveModel } from '../../services/archives/archiveModel';
-import { BigTreeDataProvider } from '../../providers/treeDataProvider';
+import { BigTreeDataProvider } from '../../features/explorer/treeDataProvider';
 import { findChild, getFileNodes } from '../../services/archives/virtualNode';
-import { getExtractedFiles } from '../../commands/extractCommands';
+import { getExtractedFiles } from '../../features/explorer/extractCommands';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import { isVirtualNode } from '../../services/archives/explorerRow';
 
