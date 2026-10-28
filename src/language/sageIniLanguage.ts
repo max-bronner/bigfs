@@ -95,7 +95,7 @@ export const registerSageIniLanguage = (
     documents.onDidChangeSchema(() => index.reset()),
     ...registerParticlePreview(context, selector, index, locator),
     registerParticleTemplates(),
-    registerBulkEdit(context, documents),
+    registerBulkEdit(context, documents, archiveModel),
     ...registerEffectiveObjects(selector, documents, index),
     ...registerObjectPreview(context, selector, documents, index, locator),
     ...(locator ? registerAssetLinks(selector, documents, locator) : []),

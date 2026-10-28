@@ -778,6 +778,41 @@ export class ArchiveModel {
   }
 
   /**
+   * Writes several entries, creating those the archives hold none of. Each
+   * archive is rewritten once however many of its entries change, so the
+   * whole set lands as one save per archive.
+   */
+  public async writeFiles(
+    files: readonly { uri: Uri; content: Uint8Array }[],
+  ): Promise<void> {
+    const byArchive = new Map<Archive, EntryChange[]>();
+
+    for (const { uri, content } of files) {
+      const { archive, entryPath } = this.getArchiveContext(uri);
+
+      if (!entryPath) {
+        throw FileSystemError.NoPermissions('Cannot write to the archive root');
+      }
+
+      this.ensureWritablePath(archive, entryPath);
+      byArchive.set(archive, [
+        ...(byArchive.get(archive) ?? []),
+        { kind: 'put', path: entryPath, source: { kind: 'data', content } },
+      ]);
+    }
+    for (const [archive, changes] of byArchive) {
+      await this.apply(archive, changes);
+    }
+  }
+
+  /** Whether the entry a uri names sits in an archive that is never written to */
+  public isReadOnlyUri(uri: Uri): boolean {
+    const resolved = this.resolveUri(uri);
+
+    return resolved ? this.isReadOnly(resolved.archive) : false;
+  }
+
+  /**
    * Creates a directory. Nothing is written to the archive, which stores file
    * paths and knows no directories of its own.
    */
