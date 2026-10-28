@@ -8,6 +8,7 @@ import {
 } from '../common/windows1252';
 import { toUri } from '../common/commandTarget';
 import type { CommandTarget } from '../common/commandTarget';
+import type { ArchiveModel } from '../model/archiveModel';
 import { registerTranslationCheck } from './translationCheck';
 
 /**
@@ -123,6 +124,7 @@ export const strToCsf = (source: string): Uint8Array =>
 
 export const registerSageStrLanguage = (
   context: vscode.ExtensionContext,
+  archiveModel: ArchiveModel,
 ): void => {
   const diagnostics = vscode.languages.createDiagnosticCollection(STR_LANGUAGE);
   const refresh = (document: vscode.TextDocument) => {
@@ -261,6 +263,6 @@ export const registerSageStrLanguage = (
         }),
     }),
     vscode.commands.registerCommand('bigfs.convertStringTable', convert),
-    registerTranslationCheck(),
+    registerTranslationCheck(archiveModel),
   );
 };

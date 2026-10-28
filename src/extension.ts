@@ -116,7 +116,7 @@ export function activate(context: vscode.ExtensionContext) {
     .whenReady()
     .then(() => gameLanguage.ensure())
     .catch((error: unknown) => log.error('Failed to settle language', error));
-  registerSageStrLanguage(context);
+  registerSageStrLanguage(context, archiveModel);
   registerSageWndLanguage(context, {
     index: iniIndex,
     locator,

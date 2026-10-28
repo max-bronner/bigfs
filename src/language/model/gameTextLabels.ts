@@ -1,3 +1,4 @@
+import { stripComment, tokenize } from './sageIniParser';
 import type { SageDocument } from './sageIniParser';
 
 /**
@@ -28,6 +29,19 @@ export const findGameTextLabels = (parsed: SageDocument): LabelToken[] =>
             end: value.end,
           }))
       : [],
+  );
+
+/**
+ * The labels an INI text writes as values, found without a schema: the words
+ * after the first on each line, so a tool that only counts them need not
+ * parse the file
+ */
+export const labelsInText = (text: string): string[] =>
+  text.split(/\r?\n/).flatMap((line) =>
+    tokenize(stripComment(line))
+      .slice(1)
+      .map((token) => token.text)
+      .filter((word) => LABEL.test(word)),
   );
 
 export const missingTextMessage = (label: string): string =>
