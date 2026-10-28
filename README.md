@@ -18,6 +18,17 @@ your mod's archives.
   and drop files inside an archive. A save rewrites the archive through a
   temporary file and keeps names, duplicates and the header layout as the
   game shipped them.
+- **new** **Copy and move between archives:** cut, copy and paste, or drag,
+  files and folders from one archive into another writable one (a loose
+  folder dragged in from the Explorer works too). Names the target already
+  holds ask to replace, skip or keep both, and the target is saved once.
+  Copying out of the read-only base game is allowed; moving out of it copies.
+- **new** **Find Game Installs:** with `bigfs.baseGameFolder` unset, a quick
+  pick offers the BFME, BFME II and ROTWK installs found through the
+  registry (`reg query`), the usual Program Files, EA app and Origin
+  folders, and Wine, Proton and CrossOver prefixes on Linux and macOS.
+  Nothing is written until you pick one; **BIG: Find Game Installs** asks
+  again later. The folders are only read.
 - **Extract** files, folders or whole archives, and **add** files from disk.
 - **Pack into BIG Archive** on any folder in the Explorer.
 - **Launch Game with Mod** starts the game with `-mod "<folder>"` on a folder
@@ -204,6 +215,20 @@ your mod's archives.
 - `.csf` files open as the same table and save back byte for byte.
 - **Convert String Table** turns a `.str` into a `.csf` and back.
 
+**Create-a-Hero files** (`.cah`)
+
+- **new** `MyHero_<id>.cah` files, loose or inside a BIG archive, open in a
+  form showing the hero's name, id, class and subclass, the three colours, the
+  15 power slots, the bling and upgrade choices, and the attribute points
+  spent. Class, subclass, bling, power and special-power names resolve through
+  the `CreateAHeroSystem`, `Upgrade`, `CommandButton` and `SpecialPower`
+  definitions and the string labels of the chosen game language; whatever does
+  not resolve is shown as stored.
+- **new** Name, id, class, subclass, colours, powers and bling are editable
+  with undo and redo. Saving recomputes the CRC-32 trailer exactly as mint's
+  `mint-sage-cah` does (the game drops a hero whose checksum is wrong) and
+  writes record version 8. Files from a game install are read-only; use Save As.
+
 **Window layouts** (`.wnd`)
 
 - Highlighting, outline of windows, folding, completion of keys, window
@@ -264,7 +289,10 @@ your mod's archives.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
   Animations of the skeleton are listed and play on the model (dense,
   time-coded, adaptive-delta and motion channels); a skeleton or an
-  animation file on its own shows its bones.
+  animation file on its own shows its bones. Meshes marked hidden are not
+  drawn (a toggle shows them); the HLOD's levels of detail are picked from a
+  dropdown with their max screen size, one drawn at a time, and its aggregate
+  and proxy lists are shown; collision boxes can be drawn as wireframes.
 
 **Interface movies (APT)**
 
@@ -282,6 +310,13 @@ your mod's archives.
   `.const` and `.dat` are read from its own archive first, whatever their
   casing there, and imports resolve in the game's load order (mod, ROTWK,
   BFME II).
+- Movies a script loads (`loadMovie`, `loadMovieNum`, `unloadMovie`,
+  `getURL` to a clip or level) are found in the game's load order like an
+  import (`.apt` and `.const`) and play inside the target clip or level; one
+  that cannot be found or read is a line in the log. Sounds a movie asks for
+  (`FSCommand:PlaySound`) are listed in the Engine panel with a play button;
+  the **Play movie sounds** checkbox, off at every start, lets them play as
+  the movie asks.
 - ActionScript as a small JavaScript-like language, editable and compiled
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,

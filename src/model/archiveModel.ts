@@ -7,10 +7,15 @@
   Uri,
 } from 'vscode';
 import type { Disposable, FileSystemWatcher, LogOutputChannel } from 'vscode';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
 import { BIG_PATTERN } from '../constants';
 import { NotAnArchiveError } from '../binary/bigFormat';
 import type { BigFileEntry } from '../binary/bigFormat';
 import { isContainedPath, isPathBelow } from '../common/paths';
+import { findConflicts, planTransfer } from './transferPlan';
+import type { ConflictChoice, TransferItem } from './transferPlan';
 import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
 import { createSources, findSourceFor, getPathInSource } from './archiveSource';
@@ -22,7 +27,13 @@ import {
   assertWritableSource,
   isReadOnlySource,
 } from './sourceAccess';
-import { findBlockingFile, findChild, isArchiveRoot } from './virtualNode';
+import {
+  findBlockingFile,
+  findChild,
+  getFileNodes,
+  getRelativeEntryPath,
+  isArchiveRoot,
+} from './virtualNode';
 import { getNodePath, parseNodeUri } from './nodeAddress';
 import type { ResolvedUri } from './nodeAddress';
 import type { VirtualNode } from './virtualNode';
@@ -55,6 +66,18 @@ export interface ImportedFile {
   sourcePath?: string;
   content?: Uint8Array;
 }
+
+/**
+ * What a transfer did: the files that landed in the target, and how many of
+ * them left their source, which a read-only source never lets go of
+ */
+export interface TransferResult {
+  transferred: number;
+  removed: number;
+}
+
+/** Files above this size are staged on disk during a transfer rather than held in memory */
+const STAGE_LIMIT = 8 * 1024 * 1024;
 
 /** What a caller can turn off when it creates an `ArchiveModel` */
 export interface ArchiveModelOptions {
@@ -875,6 +898,159 @@ export class ArchiveModel {
     });
 
     await this.apply(archive, changes);
+  }
+
+  /**
+   * Copies the files below nodes, of any archives, into a directory, and
+   * removes them from where they came from when `move` is set. The target
+   * archive is written once however many files and sources there are, and a
+   * source archive once for what leaves it. Sources in a read-only archive
+   * are only ever copied. The names the target already holds go to `choose`,
+   * which answers what to do with them, or undefined to cancel.
+   */
+  public async transferNodes(
+    sources: readonly VirtualNode[],
+    targetDirectory: VirtualNode,
+    move: boolean,
+    choose: (names: string[]) => Promise<ConflictChoice | undefined>,
+  ): Promise<TransferResult> {
+    const archive = this.getArchiveOf(targetDirectory);
+    const files: (TransferItem & { node: VirtualNode })[] = [];
+
+    for (const source of sources) {
+      if (isArchiveRoot(source)) {
+        continue; // an archive is a file on disk, not an entry to carry over
+      }
+
+      for (const node of getFileNodes(source)) {
+        files.push({
+          node,
+          path:
+            node === source
+              ? source.name
+              : `${source.name}/${getRelativeEntryPath(source, node)}`,
+        });
+      }
+    }
+
+    const content = this.getDirectoryContent(targetDirectory);
+    const conflicts = findConflicts(files, content);
+    let choice: ConflictChoice = 'replace';
+
+    if (conflicts.length) {
+      const answer = await choose(conflicts.map((conflict) => conflict.path));
+
+      if (!answer) {
+        return { transferred: 0, removed: 0 };
+      }
+
+      choice = answer;
+    }
+
+    const plan = planTransfer(files, content, choice);
+
+    if (!plan.length) {
+      return { transferred: 0, removed: 0 };
+    }
+
+    const targetPath = targetDirectory.entryPath;
+    const entryPaths = plan.map((planned) =>
+      joinEntryPath(targetPath, planned.targetPath),
+    );
+
+    for (const entryPath of entryPaths) {
+      this.ensureWritablePath(archive, entryPath);
+    }
+
+    const staging = await mkdtemp(path.join(tmpdir(), 'bigfs-transfer-'));
+
+    try {
+      const sourcesOfPut = new Map<string, EntrySource>();
+      let staged = 0;
+
+      await this.readFiles(
+        plan.map((planned, index) => ({ node: planned.item.node, index })),
+        async ({ index }, bytes) => {
+          if (bytes.length <= STAGE_LIMIT) {
+            sourcesOfPut.set(entryPaths[index], {
+              kind: 'data',
+              content: bytes,
+            });
+            return;
+          }
+
+          const file = path.join(staging, String(staged++));
+
+          await writeFile(file, bytes);
+          sourcesOfPut.set(entryPaths[index], {
+            kind: 'file',
+            path: file,
+            size: bytes.length,
+          });
+        },
+      );
+
+      const changes: EntryChange[] = entryPaths.map((entryPath) => ({
+        kind: 'put',
+        path: entryPath,
+        source: sourcesOfPut.get(entryPath) as EntrySource,
+      }));
+
+      const removals = new Map<Archive, EntryChange[]>();
+
+      for (const { item } of move ? plan : []) {
+        const origin = item.node.archive;
+
+        if (this.isReadOnly(origin)) {
+          continue;
+        }
+
+        const group = removals.get(origin) ?? [];
+
+        group.push({ kind: 'remove', path: item.node.entryPath });
+        removals.set(origin, group);
+      }
+
+      // The copies are written first, so a failure never loses a file
+      await this.apply(archive, [...changes, ...(removals.get(archive) ?? [])]);
+
+      for (const [origin, group] of removals) {
+        if (origin !== archive) {
+          await this.apply(origin, group);
+        }
+      }
+
+      return {
+        transferred: plan.length,
+        removed: Array.from(removals.values()).reduce(
+          (total, group) => total + group.length,
+          0,
+        ),
+      };
+    } finally {
+      await rm(staging, { recursive: true, force: true });
+    }
+  }
+
+  /** Lists the files and directories below a directory, by path below it */
+  public getDirectoryContent(directory: VirtualNode): {
+    files: string[];
+    directories: string[];
+  } {
+    const files = getFileNodes(directory).map((node) =>
+      getRelativeEntryPath(directory, node),
+    );
+    const directories = new Set<string>();
+
+    for (const file of files) {
+      const segments = file.split('/');
+
+      for (let depth = 1; depth < segments.length; depth += 1) {
+        directories.add(segments.slice(0, depth).join('/'));
+      }
+    }
+
+    return { files, directories: Array.from(directories) };
   }
 
   /** Reads several file nodes, opening each archive involved only once */

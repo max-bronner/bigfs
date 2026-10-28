@@ -1,6 +1,7 @@
 import { onEngineRestart, showEngine } from './enginePanel';
 import { keepAnswers } from './engineState';
 import { setGameText } from './gameText';
+import { movieArrived, storeTextures } from './movieLoads';
 import { byId, escapeHtml } from './dom';
 import {
   describe,
@@ -293,24 +294,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       for (const [key, imported] of Object.entries(data.library)) {
         state.library.set(key, imported);
       }
-      for (const [path, texture] of Object.entries(data.textures)) {
-        const canvas = document.createElement('canvas');
-
-        canvas.width = texture.width;
-        canvas.height = texture.height;
-        canvas
-          .getContext('2d')!
-          .putImageData(
-            new ImageData(
-              new Uint8ClampedArray(texture.pixels),
-              texture.width,
-              texture.height,
-            ),
-            0,
-            0,
-          );
-        state.textures.set(path, canvas);
-      }
+      storeTextures(data.textures);
       byId('summary').textContent = data.summary;
       if (isFirst || !data.movie.characters[state.selected]) {
         state.selected = 0;
@@ -330,6 +314,10 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       render();
       break;
     }
+    case 'movieLoaded':
+      movieArrived(data);
+      render();
+      break;
     case 'select':
       showList();
       select(data.character);

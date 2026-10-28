@@ -23,9 +23,12 @@ import { registerTextureCommands } from './commands/textureCommands';
 import { registerAptCommands } from './commands/aptCommands';
 import { registerW3dAnimationCommands } from './commands/w3dAnimationCommands';
 import { registerVideoCommands } from './commands/videoCommands';
+import { registerInstallDetectCommands } from './commands/installDetectCommands';
 import { registerLaunchCommands } from './commands/launchCommands';
 import { registerModDiffCommands } from './commands/modDiffCommands';
 import { PreviewEditorProvider } from './providers/previewEditorProvider';
+import { CahEditorProvider } from './providers/cahEditorProvider';
+import { SageIniDocuments } from './language/sageIniDocuments';
 import { AptEditorProvider } from './providers/aptEditorProvider';
 import { MapEditorProvider } from './providers/mapEditorProvider';
 import { ScriptFileEditorProvider } from './providers/scriptFileEditorProvider';
@@ -79,11 +82,13 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
+  const cahDocuments = new SageIniDocuments(context.extensionUri);
 
   context.subscriptions.push(
     MapEditorProvider.register(iniIndex),
     ScriptFileEditorProvider.register(),
   );
+
   const gameLanguage = new GameLanguage(
     archiveModel,
     context.workspaceState,
@@ -95,6 +100,13 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(`${SCHEME}.chooseLanguage`, () =>
       gameLanguage.choose(),
     ),
+    cahDocuments,
+    CahEditorProvider.register({
+      documents: cahDocuments,
+      index: iniIndex,
+      gameLanguage,
+      locator,
+    }),
     AptEditorProvider.register(
       tools,
       locator,
@@ -121,6 +133,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(registerW3dAnimationCommands());
   registerVideoCommands(context);
   registerLaunchCommands(context);
+  registerInstallDetectCommands(context, archiveModel.whenReady());
 
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(

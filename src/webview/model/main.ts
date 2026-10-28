@@ -1,14 +1,15 @@
-import { poseAt } from '../../formats/w3dPose';
-import type { Pose, Vec3 } from '../../formats/w3dPose';
-import type { W3dAnimation } from '../../formats/w3dAnimation';
-import type { ModelScene } from '../../formats/w3dScene';
-import { createModelRenderer } from '../scene/modelRenderer';
-import { createOrbit } from '../scene/orbit';
+import { poseAt } from "../../formats/w3dPose";
+import type { Pose, Vec3 } from "../../formats/w3dPose";
+import type { W3dAnimation } from "../../formats/w3dAnimation";
+import type { ModelScene } from "../../formats/w3dScene";
+import { createModelRenderer } from "../scene/modelRenderer";
+import { createOrbit } from "../scene/orbit";
 
 /**
  * The W3D viewer's model view: the model textured and skinned, its
- * skeleton's animations to play on it, and its bones as a toggle (B), off
- * whenever there are meshes to show. The preview page calls `showModel`
+ * skeleton's animations to play on it, its bones as a toggle (B), off
+ * whenever there are meshes to show, the HLOD level of detail to draw, a
+ * toggle for the meshes marked hidden and one for collision boxes. The preview page calls `showModel`
  * with the extension's message and gets back the controls later messages
  * drive.
  */
@@ -22,8 +23,8 @@ interface Host {
   main: HTMLElement;
   post: (
     message:
-      | { kind: 'animation'; file: string }
-      | { kind: 'reveal'; uri: string; line: number },
+      | { kind: "animation"; file: string }
+      | { kind: "reveal"; uri: string; line: number },
   ) => void;
 }
 
@@ -49,17 +50,17 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] =>
   Object.assign(document.createElement(tag), properties);
 
-const OWN = '#own';
+const OWN = "#own";
 
 const showModel = (
   message: ModelMessage,
   { main, post }: Host,
 ): ModelControl | undefined => {
   const { meshes, missing, hierarchy, bounds, skeleton } = message;
-  const canvas = element('canvas', { className: 'model' });
-  const info = element('p');
-  const usedIn = element('p');
-  const controls = element('div', { className: 'controls' });
+  const canvas = element("canvas", { className: "model" });
+  const info = element("p");
+  const usedIn = element("p");
+  const controls = element("div", { className: "controls" });
   const triangles = meshes.reduce(
     (total, mesh) => total + mesh.indices.length / 3,
     0,
@@ -74,15 +75,15 @@ const showModel = (
     ...(hierarchy && skeleton
       ? [`skeleton ${hierarchy} (${skeleton.parents.length} bones)`]
       : []),
-    ...(missing.length ? [`textures not found: ${missing.join(', ')}`] : []),
-    'drag to orbit, scroll to zoom, double-click to reset, B for bones',
-  ].join(' · ');
+    ...(missing.length ? [`textures not found: ${missing.join(", ")}`] : []),
+    "drag to orbit, scroll to zoom, double-click to reset, B for bones",
+  ].join(" · ");
   main.replaceChildren(controls, canvas, info, usedIn);
 
-  const gl = canvas.getContext('webgl', { antialias: true });
+  const gl = canvas.getContext("webgl", { antialias: true });
 
   if (!gl) {
-    info.textContent = 'This view needs WebGL, which is not available here.';
+    info.textContent = "This view needs WebGL, which is not available here.";
     return undefined;
   }
 
@@ -101,6 +102,10 @@ const showModel = (
     frame: 0,
     playing: false,
     showBones: !meshes.length,
+    showHidden: false,
+    showBoxes: false,
+    // The finest level, which the HLOD stores last
+    lod: undefined as number | undefined,
     pose: undefined as Pose | undefined,
     last: 0,
   };
@@ -120,29 +125,72 @@ const showModel = (
     renderer.draw(orbit.viewProjection(canvas.width / canvas.height), {
       light: orbit.towardsEye(),
       showBones: player.showBones,
+      lod: player.lod,
+      showHidden: player.showHidden,
+      showBoxes: player.showBoxes,
     });
   };
   const orbit = createOrbit(canvas, centre, radius, draw);
 
   renderer.setModel(message);
 
-  const select = element('select');
-  const play = element('button', { textContent: 'Play', disabled: true });
-  const slider = element('input', {
-    type: 'range',
-    min: '0',
-    step: 'any',
+  const select = element("select");
+  const play = element("button", { textContent: "Play", disabled: true });
+  const slider = element("input", {
+    type: "range",
+    min: "0",
+    step: "any",
     disabled: true,
   });
-  const bones = element('button', {
-    textContent: 'Bones',
-    title: 'B: show the skeleton',
+  const bones = element("button", {
+    textContent: "Bones",
+    title: "B: show the skeleton",
   });
-  const label = element('span', { className: 'status' });
+  const label = element("span", { className: "status" });
+  const hlod = message.hlod;
+  const levels = element("select", { title: "HLOD level of detail" });
+  const hiddenToggle = element("button", {
+    textContent: "Show hidden",
+    title: "Draw the meshes marked hidden",
+  });
+  const boxesToggle = element("button", {
+    textContent: "Show boxes",
+    title: "Draw the collision boxes as wireframes",
+  });
+  const lists = element("p");
+  const hiddenCount = meshes.filter((mesh) => mesh.hidden).length;
 
-  select.append(new Option(skeleton ? 'Bind pose' : 'No skeleton', ''));
+  select.append(new Option(skeleton ? "Bind pose" : "No skeleton", ""));
   if (skeleton) {
     controls.append(select, play, slider, bones, label);
+  }
+
+  if (hlod && hlod.lods.length) {
+    hlod.lods.forEach((lod, at) => {
+      levels.append(
+        new Option(
+          `LOD ${at}: ${lod.meshes.length} meshes, ${
+            lod.maxScreenSize === undefined
+              ? "finest"
+              : `max screen size ${lod.maxScreenSize}`
+          }`,
+          String(at),
+        ),
+      );
+    });
+    levels.value = String(hlod.lods.length - 1);
+    controls.append(levels);
+    lists.textContent = [
+      `aggregates: ${hlod.aggregates.join(", ") || "none"}`,
+      `proxies: ${hlod.proxies.join(", ") || "none"}`,
+    ].join(" · ");
+    main.append(lists);
+  }
+  if (hiddenCount) {
+    controls.append(hiddenToggle);
+  }
+  if (message.boxes.length) {
+    controls.append(boxesToggle);
   }
 
   const showFrame = () => {
@@ -153,7 +201,7 @@ const showModel = (
     slider.value = String(player.frame);
     label.textContent = player.animation
       ? `${player.animation.name} · frame ${player.frame.toFixed(1)} / ${player.animation.frameCount} · ${player.animation.frameRate} fps`
-      : '';
+      : "";
     draw();
   };
 
@@ -176,7 +224,7 @@ const showModel = (
 
   const setPlaying = (playing: boolean) => {
     player.playing = playing && !!player.animation;
-    play.textContent = player.playing ? 'Pause' : 'Play';
+    play.textContent = player.playing ? "Pause" : "Play";
     player.last = 0;
     if (player.playing) {
       requestAnimationFrame(tick);
@@ -185,12 +233,31 @@ const showModel = (
 
   const toggleBones = () => {
     player.showBones = !player.showBones;
-    bones.setAttribute('aria-pressed', String(player.showBones));
-    label.textContent = `bones ${player.showBones ? 'shown' : 'hidden'}`;
+    bones.setAttribute("aria-pressed", String(player.showBones));
+    label.textContent = `bones ${player.showBones ? "shown" : "hidden"}`;
     draw();
   };
 
-  bones.setAttribute('aria-pressed', String(player.showBones));
+  bones.setAttribute("aria-pressed", String(player.showBones));
+  hiddenToggle.setAttribute("aria-pressed", "false");
+  boxesToggle.setAttribute("aria-pressed", "false");
+  levels.onchange = () => {
+    player.lod = Number(levels.value);
+    label.textContent = `LOD ${player.lod}`;
+    draw();
+  };
+  hiddenToggle.onclick = () => {
+    player.showHidden = !player.showHidden;
+    hiddenToggle.setAttribute("aria-pressed", String(player.showHidden));
+    label.textContent = `hidden meshes ${player.showHidden ? "shown" : "not drawn"} (${hiddenCount})`;
+    draw();
+  };
+  boxesToggle.onclick = () => {
+    player.showBoxes = !player.showBoxes;
+    boxesToggle.setAttribute("aria-pressed", String(player.showBoxes));
+    label.textContent = `boxes ${player.showBoxes ? "shown" : "hidden"} (${message.boxes.length})`;
+    draw();
+  };
   play.onclick = () => setPlaying(!player.playing);
   slider.oninput = () => {
     setPlaying(false);
@@ -209,29 +276,29 @@ const showModel = (
       control.play({ file: OWN, animation: message.animation });
     } else {
       label.textContent = `Loading ${select.value}…`;
-      post({ kind: 'animation', file: select.value });
+      post({ kind: "animation", file: select.value });
     }
   };
-  document.addEventListener('keydown', (event) => {
+  document.addEventListener("keydown", (event) => {
     if (
       event.target instanceof HTMLInputElement ||
       event.target instanceof HTMLSelectElement
     ) {
       return;
     }
-    if (event.key.toLowerCase() === 'b' && skeleton) {
+    if (event.key.toLowerCase() === "b" && skeleton) {
       toggleBones();
-    } else if (event.key === ' ') {
+    } else if (event.key === " ") {
       event.preventDefault();
       setPlaying(!player.playing);
     }
   });
-  window.addEventListener('resize', draw);
+  window.addEventListener("resize", draw);
 
   const control: ModelControl = {
     setAnimations: (names) =>
       select.append(
-        ...names.map((name) => new Option(name.replace(/\.w3d$/i, ''), name)),
+        ...names.map((name) => new Option(name.replace(/\.w3d$/i, ""), name)),
       ),
     play: ({ file, animation }) => {
       if (!skeleton) {
@@ -256,19 +323,19 @@ const showModel = (
     setUses: (uses) => {
       usedIn.replaceChildren(
         uses.length
-          ? 'Used in: '
-          : 'No INI file the index holds uses this file',
+          ? "Used in: "
+          : "No INI file the index holds uses this file",
         ...uses.flatMap((use, at) => {
-          const link = element('a', {
-            href: '#',
-            textContent: `${use.owner ?? use.uri.slice(use.uri.lastIndexOf('/') + 1)} (${use.field}, line ${use.line + 1})`,
+          const link = element("a", {
+            href: "#",
+            textContent: `${use.owner ?? use.uri.slice(use.uri.lastIndexOf("/") + 1)} (${use.field}, line ${use.line + 1})`,
           });
 
           link.onclick = (event) => {
             event.preventDefault();
-            post({ kind: 'reveal', uri: use.uri, line: use.line });
+            post({ kind: "reveal", uri: use.uri, line: use.line });
           };
-          return at ? [' · ', link] : [link];
+          return at ? [" · ", link] : [link];
         }),
       );
     },

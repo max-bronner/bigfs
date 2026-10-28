@@ -34,6 +34,23 @@ deserves one load in the game as well.
   copy and paste (Ctrl+X/C/V), duplicate, drag and drop, copy path. Saving
   keeps names, duplicates, header and trailer as shipped; the game still
   loads the archive.
+- [ ] **new** Copy between archives: with two writable archives, copy (or
+  cut) a file and a folder in one, paste on the other archive or a folder in
+  it, and drag the same. A name already there asks Replace, Skip or Keep
+  Both (Keep Both adds ` copy`); Cancel (Esc) changes nothing. The target
+  saves once; a cut removes the files from the source archive.
+- [ ] **new** Copy a file out of a base game archive (`bigfs.baseGameFolder`)
+  into a workspace archive: it works. Cut or drag it: the file stays in the
+  base game and the message says Copied. Pasting into a base game archive is
+  refused.
+- [ ] **new** Drag a loose folder from the Explorer into an archive that
+  holds some of the same files: the same Replace, Skip, Keep Both prompt.
+- [ ] **new** **BIG: Find Game Installs** (and once on first start with
+  `bigfs.baseGameFolder` and `bigfs.underlyingGameFolder` empty) lists the
+  installs found on the machine: registry, Program Files, EA app, Origin,
+  and Wine/Proton prefixes on Linux and macOS. Picking ROTWK also sets BFME II
+  beneath it. Dismissing the pick changes no setting and it is not offered
+  again at start.
 - [ ] **Extract…** a file, a folder and a whole archive; **Add Files…** from
   disk. A name that would escape the target folder is refused.
 - [ ] **Pack into BIG Archive…** on a folder in the Explorer.
@@ -175,6 +192,15 @@ Open a `.w3d` from an archive or folder.
 - [ ] **new** Bones are off when there are meshes; **B** toggles them (#86).
 - [ ] **new** "Used in" under the model lists the INI lines naming the file,
   each a link to the line (#88).
+- [ ] **new** Meshes with the HIDDEN attribute are not drawn; **Show hidden**
+  (only offered when the model has one) draws them.
+- [ ] **new** A model with an HLOD draws one level of detail at a time, the
+  finest first. The dropdown lists each level with its mesh count and max
+  screen size; picking one redraws only that level. Under the model the
+  aggregate and proxy lists are named.
+- [ ] **new** **Show boxes** (only offered when the file has `BOX` chunks)
+  draws the collision boxes as green wireframes; off by default. Boxes are
+  drawn in the bind pose, not following an animation.
 - [ ] The animation list of the skeleton plays on the model; play, pause,
   frame slider.
 - [ ] **Edit W3D Animation…**: retime, reverse, ease, trim, rate, written as
@@ -266,10 +292,28 @@ Open an `.apt` (with its `.const` beside it).
 - [ ] Palantir check: open `palantir.apt`, call `SetPlayerFaction` with the
   faction name the movie's labels use, and see the matching art; play with
   the values it lists.
+- [ ] **new** Movies a script loads play in place (ported from mint's
+  apt-player `load.rs`). Open a movie whose script calls `loadMovie`,
+  `loadMovieNum`, `unloadMovie` or `getURL` with a clip or level target (the
+  retail in-game hero select does, into a slot of the palantir) with the
+  movie's install in the workspace. The loaded movie (its `.apt` and
+  `.const` found in the load order, like imports) replaces the clip's
+  content and plays from frame 0; a level (`_level1`) shows above the
+  movie; `unloadMovie` leaves the clip empty. The log under the stage names
+  each load. A movie no install holds, or one that does not read, shows
+  `loadMovie: <name> not loaded: <reason>` and nothing throws.
+- [ ] **new** Movie sounds (ported from mint's apt-player/`expose.rs`). In
+  the Engine panel, **Sounds the movie asks for** lists each event a
+  `FSCommand:PlaySound` (or `GameCode` with a `PlaySound` command) asked
+  for, with a count and a **▶ Play** button that plays it through the sound
+  player. The log shows `movie sound: <event> (not played, Play movie sounds
+  is off)`. Tick **Play movie sounds** and hover the menu's buttons: each
+  sound plays as it is asked. The box is off every time the editor is
+  opened and is not remembered.
 - Known gaps: pointer events on plain clips (`onPress` on a sprite) are not
   delivered, only on buttons; `Color`, drag, `hitTest` and `localToGlobal`
-  do nothing; the imported library movies' code runs, but nothing loads a
-  movie a script asks for by URL.
+  do nothing; a movie loaded into `_level0` is refused, and a mounted
+  movie's own `onLoad` clip events do not run.
 
 ## Game language (new)
 
@@ -293,6 +337,12 @@ Open an `.apt` (with its `.const` beside it).
 
 - [ ] `.str` language (outline, folding, problems) and **Open as Table**;
   `.csf` opens as a table and saves byte for byte; **Convert String Table**.
+- [ ] **new** `.cah`: a loose `MyHero_*.cah` and one inside an archive open
+  in the hero form. Name, class, subclass, colours, powers and bling show the
+  game's text once the INI is indexed. Edit the name and a colour, undo and
+  redo, save, and load the hero in the game: it still lists (the checksum was
+  recomputed). A file from the install is read-only and Save As writes a copy.
+  A truncated `.cah` fails to open with a message.
 - [ ] `.wnd`: completion, problems, **Show Layout Preview** (click a window
   to jump to it).
 - [ ] Maps (`.map`, `.bse`): relief with objects, world info, time of day,
