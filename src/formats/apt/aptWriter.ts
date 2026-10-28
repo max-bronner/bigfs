@@ -1,4 +1,10 @@
-import { AptReader, PLACE_FLAGS, parseAptMovie, parseFrames } from './aptMovie';
+import {
+  AptReader,
+  PLACE_FLAGS,
+  parseAptMovie,
+  parseConst,
+  parseFrames,
+} from './aptMovie';
 import type { AptMovie, Character, Matrix2, Rect } from './aptMovie';
 import { applyOperation, decodeTimeline, encodeTimeline } from './aptTimeline';
 import type { FrameSpec, PlaceSpec, TimelineOperation } from './aptTimeline';
@@ -17,6 +23,11 @@ import type { FrameSpec, PlaceSpec, TimelineOperation } from './aptTimeline';
 /** A change to one character's own fields */
 export type CharacterChange =
   | { field: 'bounds'; value: Rect }
+  /** A Text character's own placement */
+  | { field: 'matrix'; value: Matrix2 }
+  | { field: 'translate'; value: [number, number] }
+  /** A font's glyph ids; the table is appended and repointed */
+  | { field: 'glyphs'; value: number[] }
   | { field: 'text' | 'variable' | 'fontName'; value: string | undefined }
   | {
       field:
@@ -28,7 +39,9 @@ export type CharacterChange =
         | 'multiline'
         | 'wordwrap'
         | 'texture'
-        | 'geometry';
+        | 'geometry'
+        | 'startShape'
+        | 'endShape';
       value: number;
     };
 
@@ -44,8 +57,51 @@ export interface PlacementChange {
   ratio?: number;
   /** An empty string removes the name */
   name?: string;
+  clipDepth?: number;
   /** Sets the "move" bit: modify what is at the depth instead of placing anew */
   isMove?: boolean;
+  /**
+   * Fields to turn off: their flag is cleared and the stored value left, as
+   * the game leaves stale values behind unset flags. Applied before the
+   * fields given, so a field both cleared and given ends up set.
+   */
+  clear?: PlacementField[];
+}
+
+/** A PlaceObject field a flag bit gates, which `PlacementChange.clear` can turn off */
+export type PlacementField =
+  | 'character'
+  | 'matrix'
+  | 'colorTransform'
+  | 'ratio'
+  | 'name'
+  | 'clipDepth';
+
+/** The flag bit each optional PlaceObject field is gated on */
+const PLACEMENT_FLAGS: Record<PlacementField, number> = {
+  character: PLACE_FLAGS.hasCharacter,
+  matrix: PLACE_FLAGS.hasMatrix,
+  colorTransform: PLACE_FLAGS.hasColorTransform,
+  ratio: PLACE_FLAGS.hasRatio,
+  name: PLACE_FLAGS.hasName,
+  clipDepth: PLACE_FLAGS.hasClipDepth,
+};
+
+/** A change to one run of a Text character; glyphs are appended and repointed */
+export interface TextRecordChange {
+  font?: number;
+  /** R, G, B, A, as the parser reads them */
+  color?: [number, number, number, number];
+  unknown?: Rect;
+  penOffset?: [number, number];
+  textHeight?: number;
+  glyphs?: { index: number; advance: number }[];
+}
+
+/** A change to one `.const` item: a number in place, a string appended and repointed */
+export interface ConstItemChange {
+  index: number;
+  value: string | number;
 }
 
 /** One edit to a movie, as the inspector sends it */
@@ -60,12 +116,43 @@ export type AptEdit =
       translate?: [number, number];
       character?: number;
       depth?: number;
+      /** Multiply colour, floats R, G, B, A */
+      color?: [number, number, number, number];
+      unknown?: [number, number, number, number];
     }
-  | { kind: 'frameLabel'; offset: number; label: string }
+  | {
+      kind: 'frameLabel';
+      offset: number;
+      label?: string;
+      flags?: number;
+      frame?: number;
+    }
+  | { kind: 'backgroundColor'; offset: number; color: number }
+  | {
+      kind: 'addBackgroundColor';
+      timeline: number;
+      frame: number;
+      color: number;
+    }
+  /** Repoints an InitAction at another sprite; its block is a script edit */
+  | { kind: 'initAction'; offset: number; sprite: number }
+  | { kind: 'removeObjectDepth'; offset: number; depth: number }
+  | { kind: 'textRecord'; id: number; index: number; change: TextRecordChange }
+  | { kind: 'addTextRecord'; id: number; font: number }
+  | { kind: 'removeTextRecord'; id: number; index: number }
+  /** The Movie record's word at +36, whose meaning is unknown */
+  | { kind: 'movieUnknown36'; value: number }
   | { kind: 'export'; index: number; name?: string; character?: number }
   | { kind: 'addExport'; name: string; character: number }
   | { kind: 'removeExport'; index: number }
-  | { kind: 'import'; index: number; movie?: string; name?: string }
+  | {
+      kind: 'import';
+      index: number;
+      movie?: string;
+      name?: string;
+      /** The placeholder slot the import fills */
+      character?: number;
+    }
   | { kind: 'addImport'; movie: string; name: string }
   | { kind: 'removeImport'; index: number }
   | { kind: 'screen'; width: number; height: number }
@@ -133,7 +220,7 @@ export interface EditResult {
 /** Byte offsets of a character's fields, by type and field */
 const FIELD_OFFSETS: Record<
   string,
-  Record<string, [number, 'u32' | 'f32' | 'string' | 'rect']>
+  Record<string, [number, 'u32' | 'f32' | 'string' | 'rect' | 'pair']>
 > = {
   shape: { bounds: [8, 'rect'], geometry: [24, 'u32'] },
   editText: {
@@ -148,10 +235,11 @@ const FIELD_OFFSETS: Record<
     text: [52, 'string'],
     variable: [56, 'string'],
   },
-  font: { fontName: [8, 'string'] },
+  font: { fontName: [8, 'string'], glyphs: [16, 'u32'] },
   button: { bounds: [12, 'rect'] },
   image: { texture: [8, 'u32'] },
-  text: { bounds: [8, 'rect'] },
+  morph: { startShape: [8, 'u32'], endShape: [12, 'u32'] },
+  text: { bounds: [8, 'rect'], matrix: [24, 'rect'], translate: [40, 'pair'] },
 };
 
 /** Bytes each character type's record takes, for a duplicate */
@@ -461,8 +549,17 @@ const changeCharacter = (
   const [delta, type] = field;
   const at = character.offset + delta;
 
-  if (type === 'rect') {
-    (change.value as Rect).forEach((value, index) =>
+  if (change.field === 'glyphs') {
+    if (character.type !== 'font') {
+      throw new Error(`A ${character.type} has no field glyphs`);
+    }
+    image.setU32(character.offset + 16, image.appendWords(change.value));
+    image.setU32(character.offset + 12, change.value.length);
+    return;
+  }
+
+  if (type === 'rect' || type === 'pair') {
+    (change.value as number[]).forEach((value, index) =>
       image.setF32(at + index * 4, value),
     );
   } else if (type === 'string') {
@@ -473,6 +570,64 @@ const changeCharacter = (
     image.setF32(at, change.value as number);
   } else {
     image.setU32(at, change.value as number);
+  }
+};
+
+/** The bits of a float, as a word */
+const f32Bits = (value: number): number =>
+  new Uint32Array(new Float32Array([value]).buffer)[0];
+
+/** Refuses an edit aimed at an offset that holds a different frame item */
+const expectItem = (
+  image: AptImage,
+  offset: number,
+  type: number,
+  name: string,
+): void => {
+  if (image.u32(offset) !== type) {
+    throw new Error(`No ${name} at ${offset}`);
+  }
+};
+
+/** Writes the fields of a text record in place, appending a new glyph table */
+const changeTextRecord = (
+  image: AptImage,
+  at: number,
+  change: TextRecordChange,
+): void => {
+  if (change.font !== undefined) {
+    image.setU32(at, change.font);
+  }
+  if (change.color) {
+    // R, G, B, A are stored as the rect's top, left, bottom, right
+    const [red, green, blue, alpha] = change.color;
+
+    [green, red, alpha, blue].forEach((value, index) =>
+      image.setF32(at + 4 + index * 4, value),
+    );
+  }
+  change.unknown?.forEach((value, index) =>
+    image.setF32(at + 20 + index * 4, value),
+  );
+  if (change.penOffset) {
+    image.setF32(at + 36, change.penOffset[0]);
+    image.setF32(at + 40, change.penOffset[1]);
+  }
+  if (change.textHeight !== undefined) {
+    image.setF32(at + 44, change.textHeight);
+  }
+  if (change.glyphs) {
+    const glyphs = change.glyphs;
+
+    image.setU32(
+      at + 52,
+      glyphs.length
+        ? image.appendWords(
+            glyphs.flatMap((glyph) => [glyph.index, glyph.advance >>> 0]),
+          )
+        : 0,
+    );
+    image.setU32(at + 48, glyphs.length);
   }
 };
 
@@ -490,6 +645,10 @@ const changePlacement = (
   const set = (bit: number, isOn: boolean) => {
     flags = isOn ? flags | bit : flags & ~bit;
   };
+
+  for (const field of change.clear ?? []) {
+    set(PLACEMENT_FLAGS[field], false);
+  }
 
   if (change.character !== undefined) {
     image.setU32(offset + 12, change.character);
@@ -555,6 +714,11 @@ const changePlacement = (
     set(PLACE_FLAGS.hasName, Boolean(change.name));
   }
 
+  if (change.clipDepth !== undefined) {
+    image.setI32(offset + 56, change.clipDepth);
+    set(PLACE_FLAGS.hasClipDepth, true);
+  }
+
   if (change.isMove !== undefined) {
     set(PLACE_FLAGS.move, change.isMove);
   }
@@ -607,15 +771,82 @@ export const applyAptEdit = (
         image.setF32(edit.offset + 28, edit.translate[0]);
         image.setF32(edit.offset + 32, edit.translate[1]);
       }
+      edit.color?.forEach((value, index) =>
+        image.setF32(edit.offset + 36 + index * 4, value),
+      );
+      edit.unknown?.forEach((value, index) =>
+        image.setF32(edit.offset + 52 + index * 4, value),
+      );
 
       return {};
     }
     case 'frameLabel':
-      if (image.u32(edit.offset) !== 2) {
-        throw new Error(`No frame label at ${edit.offset}`);
+      expectItem(image, edit.offset, 2, 'frame label');
+      if (edit.label !== undefined) {
+        image.setU32(edit.offset + 4, image.appendString(edit.label));
+      }
+      if (edit.flags !== undefined) {
+        image.setU32(edit.offset + 8, edit.flags);
+      }
+      if (edit.frame !== undefined) {
+        image.setU32(edit.offset + 12, edit.frame);
+      }
+      return {};
+    case 'backgroundColor':
+      expectItem(image, edit.offset, 5, 'background colour');
+      image.setU32(edit.offset + 4, edit.color);
+      return {};
+    case 'addBackgroundColor':
+      addFrameItem(image, movie, edit.timeline, edit.frame, [5, edit.color]);
+      return {};
+    case 'initAction':
+      expectItem(image, edit.offset, 8, 'InitAction');
+      image.setU32(edit.offset + 4, edit.sprite);
+      return {};
+    case 'removeObjectDepth':
+      expectItem(image, edit.offset, 4, 'RemoveObject');
+      image.setI32(edit.offset + 4, edit.depth);
+      return {};
+    case 'textRecord':
+    case 'addTextRecord':
+    case 'removeTextRecord': {
+      const text = movie.characters[edit.id];
+
+      if (text?.type !== 'text') {
+        throw new Error(`#${edit.id} is not a Text character`);
+      }
+      if (edit.kind === 'textRecord') {
+        const record = text.records[edit.index];
+
+        if (!record) {
+          throw new Error(`#${edit.id} has no text record ${edit.index}`);
+        }
+        changeTextRecord(image, record.offset, edit.change);
+        return {};
       }
 
-      image.setU32(edit.offset + 4, image.appendString(edit.label));
+      // 56 bytes: font, colour rect (white), unknown rect, pen offset,
+      // height 16, no glyphs; the layout is mint's TextRecord
+      editRecords(
+        image,
+        text.offset + 48,
+        text.offset + 52,
+        14,
+        edit.kind === 'addTextRecord'
+          ? {
+              add: [
+                edit.font,
+                ...[1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 16].map(f32Bits),
+                0,
+                0,
+              ],
+            }
+          : { index: edit.index, remove: true },
+      );
+      return {};
+    }
+    case 'movieUnknown36':
+      image.setU32(record.offset + 36, edit.value);
       return {};
     case 'export': {
       const at = record.exportsOffset + edit.index * 8;
@@ -671,6 +902,9 @@ export const applyAptEdit = (
       }
       if (edit.name !== undefined) {
         image.setU32(at + 4, image.appendString(edit.name));
+      }
+      if (edit.character !== undefined) {
+        image.setU32(at + 8, edit.character);
       }
       return {};
     }
@@ -1120,4 +1354,40 @@ export const applyAptEdit = (
       return {};
     }
   }
+};
+
+/**
+ * Changes one item of a `.const` file and returns the new bytes. A number is
+ * written in place; a string is appended and its item repointed, so every
+ * other byte stays where it was.
+ */
+export const changeConstItem = (
+  bytes: Uint8Array,
+  change: ConstItemChange,
+): Uint8Array => {
+  const parsed = parseConst(bytes);
+
+  if (
+    !Number.isInteger(change.index) ||
+    change.index < 0 ||
+    change.index >= parsed.items.length
+  ) {
+    throw new Error(`The .const has no item ${change.index}`);
+  }
+
+  const image = new AptImage(bytes);
+  const at = parsed.itemsOffset + change.index * 8;
+
+  if (typeof change.value === 'string') {
+    image.setU32(at + 4, image.appendString(change.value));
+    image.setU32(at, 1);
+  } else {
+    if (!Number.isInteger(change.value)) {
+      throw new Error('A .const number is a whole 32-bit word');
+    }
+    image.setU32(at + 4, change.value);
+    image.setU32(at, 4);
+  }
+
+  return image.bytes;
 };

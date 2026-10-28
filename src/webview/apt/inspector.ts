@@ -1,4 +1,7 @@
-import type { Matrix2 } from '../../formats/apt/aptMovie';
+import { PLACE_FLAGS } from '../../formats/apt/aptMovie';
+import type { FrameItem, Matrix2 } from '../../formats/apt/aptMovie';
+import type { PlacementChange } from '../../formats/apt/aptWriter';
+import { characterPicker, colourRows } from './recordFields';
 import { send, vscode } from './details';
 import { CLIP_EVENTS, bitNames, bitSelect } from './scriptSites';
 import { button, byId, heading, input, row } from './dom';
@@ -269,6 +272,54 @@ export const freeDepth = (timeline: Instance): number =>
     ),
   ) + 1;
 
+type PlaceItem = Extract<FrameItem, { type: 'placeObject' }>;
+
+/**
+ * The PlaceObject records an instance takes its state from at its parent's
+ * frame: the one that placed it, and the last one that set its colour
+ */
+const placementRecords = (
+  instance: Instance,
+): { placed?: PlaceItem; colour?: PlaceItem } => {
+  const parent = instance.parent!;
+  const depth = depthOf(instance);
+  let placed: PlaceItem | undefined;
+  let colour: PlaceItem | undefined;
+
+  for (let index = 0; index <= parent.frame; index++) {
+    for (const item of parent.frames[index]?.items ?? []) {
+      if (item.type === 'removeObject' && item.depth === depth) {
+        colour = undefined;
+      } else if (item.type === 'placeObject' && item.depth === depth) {
+        if (item.offset === instance.placedItem) {
+          placed = item;
+        }
+        if (!(item.flags & PLACE_FLAGS.move)) {
+          colour = undefined;
+        }
+        if (item.colorTransform !== undefined) {
+          colour = item;
+        }
+      }
+    }
+  }
+  return { placed, colour };
+};
+
+const checkbox = (
+  isChecked: boolean,
+  title: string,
+  onCommit: (isChecked: boolean) => void,
+): HTMLInputElement => {
+  const element = document.createElement('input');
+
+  element.type = 'checkbox';
+  element.checked = isChecked;
+  element.title = title;
+  element.onchange = () => onCommit(element.checked);
+  return element;
+};
+
 /** Fields and actions for an instance whose placement can be written */
 const editControls = (instance: Instance): HTMLElement[] => {
   const parent = instance.parent!;
@@ -293,7 +344,13 @@ const editControls = (instance: Instance): HTMLElement[] => {
     .filter(Number.isFinite)
     .sort((a, b) => a - b);
   const index = siblings.indexOf(depth);
-  const alpha = Math.round(instance.alpha * 255);
+  const { placed, colour } = placementRecords(instance);
+  const writePlaced = (change: PlacementChange) =>
+    send({
+      kind: 'placement',
+      offset: instance.placedItem ?? instance.matrixItem!,
+      change,
+    });
 
   const events = bitSelect(CLIP_EVENTS, 1 << 9);
   const clipScript =
@@ -355,16 +412,47 @@ const editControls = (instance: Instance): HTMLElement[] => {
         : []),
     ),
     row(
-      'Alpha',
-      field('0 to 255', alpha, (value) =>
+      'Character',
+      characterPicker(instance.placed, (character) =>
+        writePlaced({ character }),
+      ),
+    ),
+    // The colour is written where it comes from at this frame, or where the
+    // matrix does when nothing has set one yet
+    ...colourRows(
+      colour?.colorTransform ?? 0xffffffff,
+      colour?.colorAdd ?? 0,
+      (change) =>
         send({
           kind: 'placement',
-          offset: instance.matrixItem!,
-          change: {
-            colorTransform:
-              (0xffffff | (Math.max(0, Math.min(255, value)) << 24)) >>> 0,
-          },
+          offset: colour?.offset ?? instance.matrixItem!,
+          change,
         }),
+    ),
+    row(
+      'Ratio',
+      field('ratio', placed?.ratio ?? 0, (ratio) => writePlaced({ ratio })),
+      label('Move'),
+      checkbox(
+        ((placed?.flags ?? 0) & PLACE_FLAGS.move) !== 0,
+        'Modify what is at the depth instead of placing anew',
+        (isMove) => writePlaced({ isMove }),
+      ),
+    ),
+    row(
+      'Clip depth',
+      field('clip depth', placed?.clipDepth ?? 0, (clipDepth) =>
+        writePlaced({ clipDepth }),
+      ),
+      checkbox(
+        placed?.clipDepth !== undefined,
+        'Mask the depths above this one up to the clip depth',
+        (isOn) =>
+          writePlaced(
+            isOn
+              ? { clipDepth: placed?.clipDepth ?? depth }
+              : { clear: ['clipDepth'] },
+          ),
       ),
     ),
     row(

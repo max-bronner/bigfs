@@ -1,4 +1,4 @@
-import type { Character, Frame, Matrix2 } from '../../formats/apt/aptMovie';
+import type { Character, Frame } from '../../formats/apt/aptMovie';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptEdit } from '../../formats/apt/aptWriter';
 import { button, byId, heading, input, row } from './dom';
@@ -12,6 +12,17 @@ import {
 import { movie, state } from './state';
 import { movieNamed, resolve } from './resolve';
 import { framesOf } from './timeline';
+import {
+  BUTTON_STATES,
+  bitChecks,
+  buttonConditionChecks,
+  buttonRecordFields,
+  characterPicker,
+  frameItemFields,
+  listInput,
+  numberInputs,
+  textRecordFields,
+} from './recordFields';
 
 declare const acquireVsCodeApi: () => {
   postMessage(message: FromPage): void;
@@ -71,36 +82,14 @@ export const describe = (character: Character): string => {
 export const send = (edit: AptEdit): void =>
   vscode.postMessage({ kind: 'edit', edit });
 
-/** Inputs for a 2x2 matrix and a translation, raw so a skew survives */
-const matrixInputs = (
-  matrix: Matrix2 | undefined,
-  translate: [number, number] | undefined,
-  onCommit: (matrix: Matrix2, translate: [number, number]) => void,
-) => {
-  const values = [...(matrix ?? [1, 0, 0, 1]), ...(translate ?? [0, 0])];
-
-  return ['a', 'b', 'c', 'd', 'x', 'y'].map((name, index) => {
-    const element = input(values[index], (value) => {
-      values[index] = value;
-      onCommit(
-        values.slice(0, 4) as Matrix2,
-        values.slice(4) as [number, number],
-      );
-    });
-
-    element.title = name;
-    element.classList.add('short');
-    return element;
-  });
-};
-
-/** The action blocks a character or its timeline runs, for the details panel */
 /** A script of a character or its timeline: where it runs, and how it is detached */
 interface ScriptEntry {
   label: string;
   block: number;
   /** The edit that detaches it; absent when it cannot be detached here */
   remove?: AptEdit;
+  /** When it runs, for a button action whose conditions can be set */
+  when?: () => HTMLElement;
 }
 
 const blocksOf = (character: Character): ScriptEntry[] => {
@@ -145,6 +134,8 @@ const blocksOf = (character: Character): ScriptEntry[] => {
         label: `on ${bitNames(action.condition, BUTTON_CONDITIONS)}`,
         block: action.block,
         remove: { kind: 'removeButtonAction', id: character.id, index },
+        when: () =>
+          buttonConditionChecks(character.id, index, action.condition),
       }),
     );
   }
@@ -237,7 +228,7 @@ const characterFields = (character: Character): HTMLElement[] => {
         'Text',
         input(
           character.text ?? '',
-          (value) => change('line')(value === '' ? undefined : value),
+          (value) => change('text')(value === '' ? undefined : value),
           'line',
         ),
       ),
@@ -252,7 +243,7 @@ const characterFields = (character: Character): HTMLElement[] => {
       ),
       row('Colour ARGB', input(character.color, change('color'), 'hex')),
       row('Font height', input(character.fontHeight, change('fontHeight'))),
-      row('Font #', input(character.font, change('font'))),
+      row('Font', characterPicker(character.font, change('font'))),
       row('Alignment', input(character.alignment, change('alignment'))),
       ...(['readonly', 'multiline', 'wordwrap'] as const).map((flag) =>
         row(flag, input(character[flag], change(flag))),
@@ -270,6 +261,64 @@ const characterFields = (character: Character): HTMLElement[] => {
         ),
       ),
     );
+  }
+  if (character.type === 'font') {
+    fields.push(
+      row(
+        'Glyph ids',
+        listInput(character.glyphs.join(', '), 1, (ids) =>
+          change('glyphs')(ids.map(([id]) => id)),
+        ),
+      ),
+    );
+  }
+  if (character.type === 'morph') {
+    fields.push(
+      row(
+        'Start shape',
+        characterPicker(character.startShape, change('startShape')),
+      ),
+      row('End shape', characterPicker(character.endShape, change('endShape'))),
+    );
+  }
+  if (character.type === 'text') {
+    let font = 1;
+
+    fields.push(
+      row(
+        'Matrix',
+        ...numberInputs(
+          [...character.matrix, ...character.translate],
+          ['a', 'b', 'c', 'd', 'x', 'y'],
+          (values) => {
+            const was = [...character.matrix, ...character.translate];
+
+            // One edit for the part that changed, so one undo takes it back
+            if (
+              values.slice(0, 4).some((value, index) => value !== was[index])
+            ) {
+              change('matrix')(values.slice(0, 4));
+            } else {
+              change('translate')(values.slice(4));
+            }
+          },
+        ),
+      ),
+      heading('Text runs'),
+      ...character.records.flatMap((record, index) =>
+        textRecordFields(character, record, index),
+      ),
+      row(
+        'New run',
+        characterPicker(undefined, (id) => (font = id)),
+        button('Add run', () =>
+          send({ kind: 'addTextRecord', id: character.id, font }),
+        ),
+      ),
+    );
+  }
+  if (character.type === 'sprite') {
+    fields.push(row('Frames', text(String(character.frameCount))));
   }
   if (character.type === 'image') {
     fields.push(row('Texture id', input(character.texture, change('texture'))));
@@ -289,49 +338,20 @@ const characterFields = (character: Character): HTMLElement[] => {
     );
   }
   if (character.type === 'button') {
-    character.records.forEach((record, index) => {
-      const flags = input(record.flags, (value) =>
-        send({ kind: 'buttonRecord', offset: record.offset, flags: value }),
-      );
-
-      flags.title = 'bit 0 up, 1 over, 2 down, 3 hit test';
-      fields.push(
-        row(
-          'Record ' + index,
-          button('×', () =>
-            send({ kind: 'removeButtonRecord', id: character.id, index }),
-          ),
-          flags,
-          input(record.character, (value) =>
-            send({
-              kind: 'buttonRecord',
-              offset: record.offset,
-              character: value,
-            }),
-          ),
-          ...matrixInputs(
-            record.matrix,
-            record.translate,
-            (matrix, translate) =>
-              send({
-                kind: 'buttonRecord',
-                offset: record.offset,
-                matrix,
-                translate,
-              }),
-          ),
-        ),
-      );
-    });
     const added = { character: 1, flags: 15 };
     const depth =
       Math.max(0, ...character.records.map((record) => record.depth)) + 1;
 
     fields.push(
+      row('Hit mesh', text(`${character.hitTriangles} triangles`)),
+      heading('Button records'),
+      ...character.records.flatMap((record, index) =>
+        buttonRecordFields(character.id, record, index),
+      ),
       row(
         'New record',
-        input(1, (value) => (added.character = value)),
-        input(15, (value) => (added.flags = value)),
+        characterPicker(undefined, (value) => (added.character = value)),
+        bitChecks(BUTTON_STATES, added.flags, (value) => (added.flags = value)),
         button('Add record', () =>
           send({ kind: 'addButtonRecord', id: character.id, depth, ...added }),
         ),
@@ -352,6 +372,12 @@ const characterFields = (character: Character): HTMLElement[] => {
             size[index] = next;
             send({ kind: 'screen', width: size[0], height: size[1] });
           }),
+        ),
+      ),
+      row(
+        'Word +36',
+        input(character.record.unknown36, (value) =>
+          send({ kind: 'movieUnknown36', value }),
         ),
       ),
       row(
@@ -401,6 +427,9 @@ const characterFields = (character: Character): HTMLElement[] => {
             (name) => send({ kind: 'import', index, name }),
             'line',
           ),
+          input(entry.character, (value) =>
+            send({ kind: 'import', index, character: value }),
+          ),
           button('Remove', () => send({ kind: 'removeImport', index })),
         ),
       ),
@@ -416,6 +445,7 @@ const characterFields = (character: Character): HTMLElement[] => {
             send({ kind: 'addImport', ...imported }),
         ),
       ),
+      ...constantFields(),
       heading('New character'),
       row(
         '',
@@ -448,6 +478,39 @@ const characterFields = (character: Character): HTMLElement[] => {
     );
   }
   return fields;
+};
+
+/** The movie's `.const` items: a string or a number each, either editable */
+const constantFields = (): HTMLElement[] => {
+  const items = movie().consts ?? [];
+  const constEdit = (index: number, value: string | number) =>
+    vscode.postMessage({ kind: 'constEdit', change: { index, value } });
+
+  return [
+    heading(`Constants (${items.length})`),
+    ...items.map((value, index) => {
+      const kind = document.createElement('select');
+
+      kind.add(
+        new Option('string', 'string', false, typeof value === 'string'),
+      );
+      kind.add(
+        new Option('number', 'number', false, typeof value === 'number'),
+      );
+
+      const field =
+        typeof value === 'string'
+          ? input(value, (next) => constEdit(index, next), 'line')
+          : input(value, (next) => constEdit(index, next));
+
+      kind.onchange = () =>
+        constEdit(
+          index,
+          kind.value === 'string' ? String(value) : Number(value) >>> 0 || 0,
+        );
+      return row(String(index), kind, field);
+    }),
+  ];
 };
 
 /** Where an import comes from, and what it resolves to there */
@@ -553,6 +616,7 @@ const frameFields = (character: Character): HTMLElement[] => {
   const timeline = character.id;
   const place = { character: 1, depth: 1 };
   let label = '';
+  let background = 0xff000000;
 
   for (const item of frame ? frame.items : []) {
     const remove = button('×', () =>
@@ -565,50 +629,7 @@ const frameFields = (character: Character): HTMLElement[] => {
     );
 
     remove.title = 'Remove this item from the frame';
-    if (item.type === 'placeObject') {
-      const placement = (change: Record<string, unknown>) =>
-        send({ kind: 'placement', offset: item.offset, change } as AptEdit);
-      const alpha = input(
-        item.colorTransform === undefined ? 255 : item.colorTransform >>> 24,
-        (value) =>
-          placement({
-            colorTransform:
-              (((item.colorTransform ?? 0xffffffff) & 0xffffff) |
-                (Math.max(0, Math.min(255, value)) << 24)) >>>
-              0,
-          }),
-      );
-
-      alpha.title = 'alpha 0-255';
-      alpha.classList.add('short');
-      fields.push(
-        row(
-          'Place @' + item.depth,
-          input(item.character ?? '', (value) =>
-            placement({ character: value }),
-          ),
-          ...matrixInputs(item.matrix, item.translate, (matrix, translate) =>
-            placement({ matrix, translate }),
-          ),
-          alpha,
-          input(item.name ?? '', (name) => placement({ name }), 'line'),
-          remove,
-        ),
-      );
-    } else if (item.type === 'frameLabel') {
-      fields.push(
-        row(
-          'Label',
-          input(
-            item.label,
-            (value) =>
-              send({ kind: 'frameLabel', offset: item.offset, label: value }),
-            'line',
-          ),
-          remove,
-        ),
-      );
-    } else if (item.type === 'action') {
+    if (item.type === 'action') {
       fields.push(
         row(
           'Script',
@@ -616,16 +637,16 @@ const frameFields = (character: Character): HTMLElement[] => {
           remove,
         ),
       );
-    } else if (item.type === 'removeObject') {
-      fields.push(row('Remove @' + item.depth, remove));
+    } else if (item.type === 'unknown') {
+      fields.push(row(`type ${item.itemType}`, remove));
     } else {
-      fields.push(row(item.type, remove));
+      fields.push(...frameItemFields(item, remove));
     }
   }
   fields.push(
     row(
       'Place',
-      input(1, (value) => (place.character = value)),
+      characterPicker(place.character, (value) => (place.character = value)),
       input(1, (value) => (place.depth = value)),
       button('Add', () =>
         send({ kind: 'placeObject', timeline, frame: state.frame, ...place }),
@@ -639,6 +660,18 @@ const frameFields = (character: Character): HTMLElement[] => {
         () =>
           label &&
           send({ kind: 'addFrameLabel', timeline, frame: state.frame, label }),
+      ),
+    ),
+    row(
+      'Background',
+      input(background, (value) => (background = value), 'hex'),
+      button('Add', () =>
+        send({
+          kind: 'addBackgroundColor',
+          timeline,
+          frame: state.frame,
+          color: background,
+        }),
       ),
     ),
     row(
@@ -708,7 +741,11 @@ export const showDetails = (): void => {
       );
     body.className = 'script';
     body.textContent = '…';
-    element.append(summary, body);
+    element.append(
+      summary,
+      ...(each.when ? [row('When', each.when())] : []),
+      body,
+    );
     element.addEventListener('toggle', () => {
       if (element.open) {
         state.openBlocks.add(each.block);

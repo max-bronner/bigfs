@@ -1,6 +1,6 @@
 import type { AptMovie, Frame } from '../../formats/apt/aptMovie';
 import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
-import type { AptEdit } from '../../formats/apt/aptWriter';
+import type { AptEdit, ConstItemChange } from '../../formats/apt/aptWriter';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import type { Problem } from '../../formats/apt/aptIntegrity';
@@ -123,6 +123,8 @@ export type FromPage =
   | { kind: 'openMovie'; name: string }
   /** Removes a character nothing refers to, with its own files */
   | { kind: 'removeCharacter'; id: number }
+  /** Changes one item of the movie's `.const` */
+  | { kind: 'constEdit'; change: ConstItemChange }
   | { kind: 'manageMovie'; action: 'rename' | 'delete' }
   /** Opens a block in its own editor tab */
   | { kind: 'openScript'; block: number; label: string }
