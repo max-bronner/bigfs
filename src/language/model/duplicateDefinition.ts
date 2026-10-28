@@ -1,4 +1,4 @@
-import { stripComment, tokenize } from './sageIniParser';
+import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
 
 /**
  * A copy of a definition under a new name: the header renamed, and every
@@ -75,4 +75,4 @@ export const renameLabels = (
     labels: [...labels].map(([from, to]) => ({ from, to })),
   };
 };
-export { strRecord } from './sageStringRecords';
+export { strRecord } from '../../formats/str/sageStringRecords';

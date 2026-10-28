@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { readObjectScene } from './model/objectScene';
-import { parseSageIni } from './model/sageIniParser';
+import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { FILE_USES } from './sageIniIndex';
 import type { SageIniIndex } from './sageIniIndex';

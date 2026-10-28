@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { parseCsf } from '../formats/csf/csf';
-import { strRecord } from './model/sageStringRecords';
-import { parseStringTable } from './model/sageStringTable';
+import { strRecord } from '../formats/str/sageStringRecords';
+import { parseStringTable } from '../formats/str/sageStringTable';
 import { labelsInText } from './model/gameTextLabels';
 import { languageOfArchive } from './model/gameLanguage';
 import {

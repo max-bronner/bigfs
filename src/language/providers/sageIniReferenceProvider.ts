@@ -2,7 +2,7 @@ import { Location, Position, Range } from 'vscode';
 import type { ReferenceProvider } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniIndex } from '../sageIniIndex';
-import { resolveSageSymbol } from '../model/sageIniSymbol';
+import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 
 /**
  * Answers "what uses this", across every open archive.

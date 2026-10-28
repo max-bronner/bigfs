@@ -6,10 +6,10 @@ import {
   ROOT_CONTEXT,
   UNCHECKED_CONTEXT,
   createSageIniSchema,
-} from '../../language/model/sageIniSchema';
-import { parseSageIni } from '../../language/model/sageIniParser';
-import { findSageIniProblems } from '../../language/model/sageIniProblems';
-import { formatSageIni } from '../../language/model/sageIniFormat';
+} from '../../formats/ini/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { findSageIniProblems } from '../../formats/ini/sageIniProblems';
+import { formatSageIni } from '../../formats/ini/sageIniFormat';
 
 /**
  * Grammar fixtures are synthetic text written here, in the shapes the shipped

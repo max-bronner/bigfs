@@ -2,7 +2,7 @@ import { Position, Range } from 'vscode';
 import type { DefinitionProvider, LocationLink } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniIndex } from '../sageIniIndex';
-import { resolveSageSymbol } from '../model/sageIniSymbol';
+import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 import { includeExists, resolveIncludeUri } from '../sageIniInclude';
 
 /**

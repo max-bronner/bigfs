@@ -1,7 +1,7 @@
-import { stripComment, tokenize } from '../../language/model/sageIniParser';
+import { stripComment, tokenize } from '../ini/sageIniParser';
 import { readFxEffect } from './fxEffects';
 import type { FxEffect } from './fxEffects';
-import type { SageToken } from '../../language/model/sageIniParser';
+import type { SageToken } from '../ini/sageIniParser';
 
 /**
  * Reads particle systems and FX lists out of INI text into plain data a

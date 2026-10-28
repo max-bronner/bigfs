@@ -5,8 +5,8 @@ import {
   readObjectStats,
   readWeaponStats,
 } from '../../language/model/objectStats';
-import { parseSageIni } from '../../language/model/sageIniParser';
-import { createSageIniSchema } from '../../language/model/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 
 const schema = createSageIniSchema(
   JSON.parse(

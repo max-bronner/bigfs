@@ -3,11 +3,11 @@ import { createParseCache } from './workspaceText';
 import type { EntryLocator } from '../services/entryLocator';
 import { toPlayableAudio } from '../formats/audio/audioTools';
 import { webviewPage } from '../providers/webviewPage';
-import { findAssetReferences } from './model/sageIniAssets';
+import { findAssetReferences } from '../formats/ini/sageIniAssets';
 import { audioDefinitionOf, resolveAudio } from './model/sageAudioResolve';
 import type { AudioLookup, AudioVariant } from './model/sageAudioResolve';
-import { forEachBlock } from './model/sageIniParser';
-import type { SageDocument, SageToken } from './model/sageIniParser';
+import { forEachBlock } from '../formats/ini/sageIniParser';
+import type { SageDocument, SageToken } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 

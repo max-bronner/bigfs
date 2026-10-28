@@ -1,4 +1,4 @@
-import type { SageBlock, SageStatement } from './sageIniParser';
+import type { SageBlock, SageStatement } from '../../formats/ini/sageIniParser';
 
 /**
  * An object as the game builds it from a `ChildObject` or `ObjectReskin`

@@ -2,8 +2,8 @@ import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { diffDefinitions } from '../../language/model/definitionDiff';
-import { parseSageIni } from '../../language/model/sageIniParser';
-import { createSageIniSchema } from '../../language/model/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 
 const schema = createSageIniSchema(
   JSON.parse(

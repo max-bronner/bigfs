@@ -11,7 +11,7 @@ import type {
   ArmorTableMessage,
   FromArmorPage,
 } from './model/armorTable';
-import { parseSageIni } from './model/sageIniParser';
+import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 import { readWorkspaceText } from './workspaceText';

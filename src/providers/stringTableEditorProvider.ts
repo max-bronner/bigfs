@@ -9,7 +9,7 @@ import {
 import {
   parseStringRecords,
   quoteStringText,
-} from '../language/model/sageStringRecords';
+} from '../formats/str/sageStringRecords';
 import { STRING_TABLE_SCRIPT } from './stringTableViewScript';
 import { webviewPage } from './webviewPage';
 

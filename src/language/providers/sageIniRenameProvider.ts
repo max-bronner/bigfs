@@ -2,7 +2,7 @@ import { Position, Range, WorkspaceEdit } from 'vscode';
 import type { RenameProvider, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
 import type { SageIniIndex } from '../sageIniIndex';
-import { resolveSageSymbol } from '../model/sageIniSymbol';
+import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 
 /**
  * Renames a definition and every value that names it, across every archive

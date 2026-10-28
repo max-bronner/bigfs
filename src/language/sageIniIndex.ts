@@ -4,18 +4,18 @@ import type { ArchiveModel } from "../model/archiveModel";
 import type { VirtualNode } from "../model/virtualNode";
 import { getFileNodes } from "../model/virtualNode";
 import { getNodeUri } from "../model/nodeAddress";
-import type { SageIniSchema } from "./model/sageIniSchema";
+import type { SageIniSchema } from "../formats/ini/sageIniSchema";
 import { languageOfArchive } from "./model/gameLanguage";
 import {
   FILE_USES,
   collectEntries,
   reachedThroughMacros,
-} from "./model/sageIniEntries";
-import type { EntryBodyToken } from "./model/sageIniEntries";
-import { canonicalNamespace } from "./model/sageReferenceFields";
+} from "../formats/ini/sageIniEntries";
+import type { EntryBodyToken } from "../formats/ini/sageIniEntries";
+import { canonicalNamespace } from "../formats/ini/sageReferenceFields";
 import { SAGE_INI_LANGUAGE } from "../constants";
-import { findString, parseStringTable } from "./model/sageStringTable";
-import type { SageString } from "./model/sageStringTable";
+import { findString, parseStringTable } from "../formats/str/sageStringTable";
+import type { SageString } from "../formats/str/sageStringTable";
 import { decodeIniText } from "../core/windows1252";
 
 /**

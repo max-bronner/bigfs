@@ -1,17 +1,17 @@
 import { Hover, MarkdownString, Range } from 'vscode';
 import type { HoverProvider, Position, TextDocument, Uri } from 'vscode';
 import type { SageIniDocuments } from '../sageIniDocuments';
-import type { SageIniSchema } from '../model/sageIniSchema';
+import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
 import type {
   SageDocument,
   SageStatement,
   SageToken,
-} from '../model/sageIniParser';
+} from '../../formats/ini/sageIniParser';
 import {
   evaluateCall,
   evaluateMacroBody,
   formatValue,
-} from '../model/sageIniPreprocessor';
+} from '../../formats/ini/sageIniPreprocessor';
 import type { SageDefinition, SageIniIndex } from '../sageIniIndex';
 
 /**

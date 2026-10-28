@@ -1,4 +1,4 @@
-import type { SageBlock, SageDocument } from './sageIniParser';
+import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
 
 /**
  * What a name given to the audio system can play: the files behind an audio

@@ -9,7 +9,7 @@ import { unencodableCharacters } from '../../core/windows1252';
 import {
   parseStringRecords,
   quoteStringText,
-} from '../../language/model/sageStringRecords';
+} from '../../formats/str/sageStringRecords';
 
 const SOURCE = [
   '// units',

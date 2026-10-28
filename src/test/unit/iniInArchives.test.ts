@@ -15,13 +15,13 @@ import {
   compileBulkQuery,
 } from '../../language/model/bulkEdit';
 import { labelsInText } from '../../language/model/gameTextLabels';
-import { insertLines, replaceInLines } from '../../language/model/iniTextEdits';
+import { insertLines, replaceInLines } from '../../formats/ini/iniTextEdits';
 import {
   isLoadedObjectPath,
   newObjectEntryPath,
 } from '../../language/model/newObject';
-import { parseSageIni } from '../../language/model/sageIniParser';
-import { createSageIniSchema } from '../../language/model/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import { undefinedLabels } from '../../language/model/translations';
 
 const schema = createSageIniSchema(

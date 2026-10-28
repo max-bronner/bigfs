@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { EntryLocator } from '../services/entryLocator';
 import { PREVIEW_VIEW_TYPE } from '../providers/previewEditorProvider';
-import { findAssetReferences } from './model/sageIniAssets';
+import { findAssetReferences } from '../formats/ini/sageIniAssets';
 import type { SageIniDocuments } from './sageIniDocuments';
 
 /**

@@ -1,5 +1,5 @@
-import { stripComment, tokenize } from './sageIniParser';
-import type { SageDocument } from './sageIniParser';
+import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
+import type { SageDocument } from '../../formats/ini/sageIniParser';
 
 /**
  * Game-text labels written in INI values, like `OBJECT:GondorFighter` or

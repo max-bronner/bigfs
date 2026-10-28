@@ -1,4 +1,4 @@
-import { stripComment, tokenize } from './sageIniParser';
+import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
 
 /**
  * Rewriting a CommandSet's numbered slots as a whole: the editor moves,

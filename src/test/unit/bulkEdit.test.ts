@@ -8,8 +8,8 @@ import {
   compileBulkQuery,
 } from '../../language/model/bulkEdit';
 import type { BulkQuery, BulkSource } from '../../language/model/bulkEdit';
-import { parseSageIni } from '../../language/model/sageIniParser';
-import { createSageIniSchema } from '../../language/model/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 
 const schema = createSageIniSchema(
   JSON.parse(

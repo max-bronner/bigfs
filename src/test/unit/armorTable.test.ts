@@ -8,8 +8,8 @@ import {
   readArmorRows,
   shownArmor,
 } from '../../language/model/armorTable';
-import { parseSageIni } from '../../language/model/sageIniParser';
-import { createSageIniSchema } from '../../language/model/sageIniSchema';
+import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 
 const schema = createSageIniSchema(
   JSON.parse(

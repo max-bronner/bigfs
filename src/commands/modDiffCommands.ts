@@ -17,7 +17,7 @@ import { registerPackageMod } from './packageModCommand';
 import { decodeIniText } from '../core/windows1252';
 import { diffDefinitions } from '../language/model/definitionDiff';
 import type { DefinitionDiff } from '../language/model/definitionDiff';
-import { parseSageIni } from '../language/model/sageIniParser';
+import { parseSageIni } from '../formats/ini/sageIniParser';
 import { SageIniDocuments } from '../language/sageIniDocuments';
 
 /**

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { duplicateDefinition, strRecord } from './model/duplicateDefinition';
-import type { SageBlock } from './model/sageIniParser';
+import type { SageBlock } from '../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 

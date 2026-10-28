@@ -1,6 +1,6 @@
-import type { SageBlock, SageDocument, SageStatement } from './sageIniParser';
+import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/sageIniParser';
 import { audioReferenceKind } from './sageAudioFields';
-import type { SageIniSchema } from './sageIniSchema';
+import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
 
 /**
  * What an object shows: the models its draw modules switch between, the

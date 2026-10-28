@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import {
   findString,
   parseStringTable,
-} from '../../language/model/sageStringTable';
+} from '../../formats/str/sageStringTable';
 
 suite('SAGE string tables', () => {
   test('reads a record past its comment lines, and skips comments between records', () => {
