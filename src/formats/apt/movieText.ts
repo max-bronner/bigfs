@@ -304,14 +304,30 @@ const transformWords = (matrix: Matrix2): string[] => {
   ];
 
   if (scaleX && Number.isFinite(scaleY) && Number.isFinite(degrees)) {
-    for (const x of candidates(scaleX, 9)) {
-      for (const y of candidates(scaleY, 9)) {
+    // Scales are printed and read back as 32-bit floats, degrees as doubles
+    const scales = (value: number) => [
+      ...new Set(candidates(value, 9).map((each) => formatF32(each))),
+    ];
+    const read = (text: string) => Math.fround(Number(text));
+
+    for (const x of scales(scaleX)) {
+      for (const y of scales(scaleY)) {
         for (const rotation of candidates(degrees, 17)) {
-          if (sameMatrix(composeMatrix(x, y, rotation), matrix)) {
+          const degreesText = Object.is(rotation, -0) ? '-0' : String(rotation);
+
+          if (
+            sameMatrix(
+              composeMatrix(read(x), read(y), Number(degreesText)),
+              matrix,
+            )
+          ) {
             return [
-              ...(x === 1 && y === 1 ? [] : ['scale', `${x},${y}`]),
+              ...(f32Bits(read(x)) === f32Bits(1) &&
+              f32Bits(read(y)) === f32Bits(1)
+                ? []
+                : ['scale', `${x},${y}`]),
               'rot',
-              String(rotation),
+              degreesText,
             ];
           }
         }

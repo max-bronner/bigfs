@@ -9,6 +9,7 @@ import {
 import type { TextSave } from '../../formats/apt/movieTextEdits';
 import {
   composeMatrix,
+  f32Bits,
   formatF32,
   movieToText,
   parseMovieText,
@@ -435,6 +436,98 @@ suite('APT text view', () => {
       movieText(raw.apt, raw.constBytes),
       /at 5,6 matrix 0\.1,0\.2,0\.3,0\.4 color/,
     );
+  });
+
+  test('every placement matrix and translation survives the text bit for bit', () => {
+    // A small fixed generator, so a failure names the same matrix every run
+    let seed = 0x2545f491;
+    const random = () => {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return (seed >>> 0) / 2 ** 32;
+    };
+    const awkward: { matrix: number[]; at: number[] }[] = [
+      // A retail menu's scale and rotation, composed at full precision
+      {
+        matrix: composeMatrix(0.60046236, 0.60046236, 35.84454),
+        at: [0.1, -0.2],
+      },
+      {
+        matrix: composeMatrix(Math.fround(0.60046236), 0.60046236, 35.84454),
+        at: [0, 0],
+      },
+      { matrix: composeMatrix(0.6, 1.7, 35.84454), at: [1e-7, 3e7] },
+      { matrix: composeMatrix(-2.5, 0.3, -123.456789), at: [-0, -0] },
+      { matrix: composeMatrix(1, 1, 90), at: [0, 0] },
+      { matrix: composeMatrix(1, 1, -0.0001), at: [0, 0] },
+      { matrix: composeMatrix(1e-30, 1e30, 12.5), at: [1e-40, -1e38] },
+      { matrix: [1, 0.5, -0.25, 1], at: [0, 0] },
+      { matrix: [-0, 0.1, -0.1, -0], at: [0, 0] },
+      { matrix: [1, -0, 0, 1], at: [0, 0] },
+      { matrix: [-0, -0, -0, -0], at: [0, 0] },
+      { matrix: [1e-45, 3.4e38, -3.4e38, 1e-45], at: [3.4e38, -1e-45] },
+      { matrix: [0.6, 0, 0, 0.6], at: [0, 0] },
+    ];
+
+    for (let index = 0; index < 40; index++) {
+      const scale = () => (random() < 0.5 ? -1 : 1) * 10 ** (random() * 8 - 4);
+      const degrees = random() * 720 - 360;
+
+      awkward.push(
+        {
+          matrix: composeMatrix(scale(), scale(), degrees),
+          at: [scale(), scale()],
+        },
+        {
+          matrix: [scale(), scale(), scale(), scale()].map(Math.fround),
+          at: [random() * 2000 - 1000, random()],
+        },
+      );
+    }
+
+    for (const { matrix, at } of awkward) {
+      const words = `at ${at.map(formatF32).join(',')} matrix ${matrix.map(formatF32).join(',')} color`;
+      const placed = full().save((text) =>
+        replaceOnce(text, 'at 5,6 color', words),
+      );
+      const change = (
+        placed.edits[0] as { change: { matrix: number[]; translate: number[] } }
+      ).change;
+
+      assert.deepStrictEqual(
+        change.matrix.map(f32Bits),
+        matrix.map(f32Bits),
+        words,
+      );
+      assert.deepStrictEqual(
+        change.translate.map(f32Bits),
+        at.map(f32Bits),
+        words,
+      );
+
+      const text = movieText(placed.apt, placed.constBytes);
+      const parsed = parseMovieText(text);
+
+      assert.deepStrictEqual(parsed.problems, [], words);
+      assert.strictEqual(printMovieText(parsed.movie), text, words);
+
+      const resaved = saveMovieText(
+        placed.apt,
+        placed.constBytes,
+        movieToText(
+          placed.apt,
+          placed.constBytes,
+          blockScripts(placed.apt, parseConst(placed.constBytes).items),
+        ),
+        parsed.movie,
+      );
+
+      assert.deepStrictEqual(resaved.edits, [], words);
+      assert.deepStrictEqual(resaved.constChanges, [], words);
+      assert.deepStrictEqual(resaved.apt, placed.apt, words);
+      assert.deepStrictEqual(resaved.constBytes, placed.constBytes, words);
+    }
   });
 
   test('every character id names its declaration, and blocks fold whole', () => {
