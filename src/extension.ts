@@ -14,7 +14,6 @@ import { registerExtractCommands } from './commands/extractCommands';
 import { registerClipboardCommands } from './commands/clipboardCommands';
 import { registerModCommands } from './commands/modCommands';
 import { createToolRegistry } from './tools/toolRegistry';
-import { createFormatRegistry } from './formats/formatRegistry';
 import { GameLanguage } from './language/gameLanguage';
 import { registerSageIniLanguage } from './language/sageIniLanguage';
 import { registerSageStrLanguage } from './language/sageStrLanguage';
@@ -66,12 +65,10 @@ export function activate(context: vscode.ExtensionContext) {
   // usable while it runs
   archiveModel.whenReady().finally(markScanned);
 
-  // Registering a tool or a format is one line here
+  // Registering a tool is one line here
   const tools = createToolRegistry();
-  const formats = createFormatRegistry(archiveModel, tools);
 
   tools.register(decodeTgaTool, decodeDdsTool, playableAudioTool, parseW3dTool);
-  formats.register();
 
   const gameView = new GameViewModel(archiveModel);
   const locator = new EntryLocator(archiveModel, gameView);
