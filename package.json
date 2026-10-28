@@ -1031,7 +1031,8 @@
     "test": "npm run test:unit && vscode-test",
     "test:unit": "npm run compile-tests && mocha --ui tdd \"out/test/unit/**/*.test.js\"",
     "build:schema": "node scripts/buildSageSchema.mjs",
-    "vsix": "vsce package --out bigfs.vsix"
+    "vsix": "vsce package --out bigfs.vsix",
+    "check:cycles": "madge --circular --extensions ts src"
   },
   "devDependencies": {
     "@types/luaparse": "^0.2.13",
@@ -1045,10 +1046,14 @@
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.2",
     "eslint": "^10.8.1",
+    "madge": "^8.0.0",
     "mocha": "^11.8.0",
     "typescript": "~6.0.3"
   },
   "dependencies": {
     "luaparse": "^0.3.1"
+  },
+  "overrides": {
+    "typescript": "$typescript"
   }
 }

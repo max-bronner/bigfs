@@ -39,7 +39,7 @@ the later features built on `model/` and `formats/` rather than beside them.
 flowchart TD
   VS["VS Code"]
 
-  subgraph entry["extension.ts - wires everything at activation"]
+  subgraph entry["extension.ts - createServices, then one register per feature"]
   end
 
   subgraph surface["VS Code surface"]
@@ -312,9 +312,9 @@ allowed to know.
 | knows about VS Code | no | no (except `entryLocator`) |
 | testable without a host | yes | yes |
 
-A tool is a pure function with an id, registered once in `extension.ts`
-through `createToolRegistry` and reached through the `ToolBox` the preview
-editor is handed. A format module is simply imported by what needs it; there is
+A tool is a pure function with an id, registered once in
+`services/createServices.ts` through `createToolRegistry` and reached through
+the `ToolBox` the preview editor is handed. A format module is simply imported by what needs it; there is
 no registry between them, and the registry that once stood for it was removed
 as dead code (nothing ever registered a format).
 
@@ -437,9 +437,9 @@ level down:
 | `language/providers/` | one VS Code adapter per feature | the model, and the two services below |
 | `language/` (top) | `sageIniDocuments` (per-document parse and schema, cached), `sageIniIndex` (cross-archive definitions, references, macros), `sageIniDialect` (`.ini` recognition), `sageIniInclude` (path resolution) | `vscode`, and for the index, `ArchiveModel` |
 
-`sageIniLanguage.ts` only wires these together. **Adding a feature is adding
-one file to `providers/` and one registration call there** - a new provider
-takes `(documents, index)`, the same two services every existing one takes,
+`features/iniLanguage/index.ts` only wires these together. **Adding a feature
+is adding one file to `providers/` and one registration call there** - a new
+provider takes `(documents, index)`, the same two services every existing one takes,
 and needs to know nothing about how another provider works. This is the
 concrete answer to "how do I add another syntax feature later": the file to
 open is `providers/`, not the registration function.

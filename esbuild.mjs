@@ -37,99 +37,55 @@ const esbuildProblemMatcherPlugin = {
   },
 };
 
-async function main() {
-  const context = await esbuild.context({
-    entryPoints: ['src/extension.ts'],
-    bundle: true,
-    format: 'esm',
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    platform: 'node',
-    outfile: 'dist/extension.mjs',
-    external: ['vscode'],
-    logLevel: 'silent',
-    plugins: [esbuildProblemMatcherPlugin],
-  });
-
+/**
+ * The webview pages, each bundled for the browser into `dist/webview/<name>.js`.
+ * The extension loads them by that name, so a name never changes.
+ */
+const PAGES = [
   // The particle preview's page, with the simulation it runs
-  const webview = await esbuild.context({
-    entryPoints: ['src/webview/particles/main.ts'],
-    bundle: true,
-    format: 'iife',
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    platform: 'browser',
-    outfile: 'dist/webview/particles.js',
-    logLevel: 'silent',
-    plugins: [esbuildProblemMatcherPlugin],
-  });
-
+  { name: 'particles', entry: 'src/webview/particles/main.ts' },
   // The APT editor's page
-  const aptPage = await esbuild.context({
-    entryPoints: ['src/webview/apt/main.ts'],
-    bundle: true,
-    format: 'iife',
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    platform: 'browser',
-    outfile: 'dist/webview/apt.js',
-    logLevel: 'silent',
-    plugins: [esbuildProblemMatcherPlugin],
-  });
-
+  { name: 'apt', entry: 'src/webview/apt/main.ts' },
   // The armor table's page
-  const armorPage = await esbuild.context({
-    entryPoints: ['src/webview/armor/main.ts'],
-    bundle: true,
-    format: 'iife',
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    platform: 'browser',
-    outfile: 'dist/webview/armor.js',
-    logLevel: 'silent',
-    plugins: [esbuildProblemMatcherPlugin],
-  });
-
+  { name: 'armor', entry: 'src/webview/armor/main.ts' },
   // The CommandSet editor's page
-  const commandSetPage = await esbuild.context({
-    entryPoints: ['src/webview/commandset/main.ts'],
-    bundle: true,
-    format: 'iife',
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    platform: 'browser',
-    outfile: 'dist/webview/commandset.js',
-    logLevel: 'silent',
-    plugins: [esbuildProblemMatcherPlugin],
-  });
-
+  { name: 'commandset', entry: 'src/webview/commandset/main.ts' },
   // The W3D viewer's model view
-  const modelPage = await esbuild.context({
-    entryPoints: ['src/webview/model/main.ts'],
-    bundle: true,
-    format: 'iife',
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
-    platform: 'browser',
-    outfile: 'dist/webview/model.js',
-    logLevel: 'silent',
-    plugins: [esbuildProblemMatcherPlugin],
-  });
+  { name: 'model', entry: 'src/webview/model/main.ts' },
+];
 
-  for (const each of [
-    context,
-    webview,
-    aptPage,
-    armorPage,
-    commandSetPage,
-    modelPage,
-  ]) {
+/** Options every bundle shares */
+const shared = {
+  bundle: true,
+  minify: production,
+  sourcemap: !production,
+  sourcesContent: false,
+  logLevel: 'silent',
+  plugins: [esbuildProblemMatcherPlugin],
+};
+
+async function main() {
+  const contexts = await Promise.all([
+    esbuild.context({
+      ...shared,
+      entryPoints: ['src/extension.ts'],
+      format: 'esm',
+      platform: 'node',
+      outfile: 'dist/extension.mjs',
+      external: ['vscode'],
+    }),
+    ...PAGES.map(({ name, entry }) =>
+      esbuild.context({
+        ...shared,
+        entryPoints: [entry],
+        format: 'iife',
+        platform: 'browser',
+        outfile: `dist/webview/${name}.js`,
+      }),
+    ),
+  ]);
+
+  for (const each of contexts) {
     if (watch) {
       await each.watch();
     } else {
