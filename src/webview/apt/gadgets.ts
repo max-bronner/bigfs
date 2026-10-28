@@ -39,7 +39,8 @@ stage.replaceWith(wrap);
 wrap.append(stage, layer);
 
 /** The gadgets of the shown run; the Engine panel lists these too */
-export const currentGadgets = (): Gadget[] => findGadgets(currentPlayer());
+export const currentGadgets = (): Gadget[] =>
+  state.movie ? findGadgets(currentPlayer()) : [];
 
 /** An instance's matrix to the shown character's space */
 const absolute = (gadget: Gadget): Affine => {
