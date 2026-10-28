@@ -29,6 +29,14 @@ your mod's archives.
   folders, and Wine, Proton and CrossOver prefixes on Linux and macOS.
   Nothing is written until you pick one; **BIG: Find Game Installs** asks
   again later. The folders are only read.
+- **Context menu and keys** on a row of the view: **New File…**, **New
+  Folder…**, **Add Files…**, **Rename…** (F2), **Delete** (Del), **Cut**
+  (Ctrl+X), **Copy** (Ctrl+C), **Paste** (Ctrl+V), **Duplicate**, **Copy Path**
+  and **Copy Relative Path**; **Refresh** and **Search in BIG Archives…** sit
+  in the view's title bar. Commands act on the row they are run from.
+- **Show What the Game Loads** / **Show Every Archive** (the title bar button)
+  switch the view between the merged game view and one tree per archive,
+  the same as `bigfs.explorer.view`.
 - **Extract** files, folders or whole archives, and **add** files from disk.
 - **Pack into BIG Archive** on any folder in the Explorer.
 - **Launch Game with Mod** starts the game with `-mod "<folder>"` on a folder
@@ -147,11 +155,35 @@ your mod's archives.
   down through weapons, FX lists and particle systems, and what uses it.
   **Show Type Hierarchy** follows ChildObject and ObjectReskin parents and
   children.
+- References to a definition that nothing in the workspace defines (a
+  `Weapon`, `Upgrade`, `FXList` and the like) are reported as information, so
+  a real typo stays visible without alarming on names the engine tolerates
+  (`bigfs.ini.checkReferences`).
+- **Clear Unused Definitions** empties the list **Find Unused Definitions**
+  left in the Problems panel.
 - Models, animations, textures and sounds named in INI files are checked
   against every archive and folder once `bigfs.baseGameFolder` is set (until
   then the check stays off and says so once); a missing one is reported with the
   nearest existing names as quick fixes, in the editor and in **Validate INI
   Files** (`bigfs.ini.checkAssets`).
+
+**Object preview**
+
+- **▶ Preview object** over every `Object`, `ChildObject` and `ObjectReskin`
+  (also **Preview Object Here** in the editor context menu) opens the object
+  with its default model, the idle animation playing and the default state's
+  bone particle systems on; other effects are listed, switched off. **▶
+  Preview state** over a `ModelConditionState`, `AnimationState` and the like
+  shows that state's model and first animation. A lightbulb **Preview on the
+  object** on an `AnimationName`, FX or `ParticleSysBone` line plays that
+  animation or effect on the model. Toggles for model, bones and every
+  effect, and pickers for state and animation. A `ChildObject` shows what it
+  inherits.
+- **Voices** lists every sound field of the object with a **▶** button each;
+  nothing plays unless clicked.
+- Model, animation and texture names in an INI file are links (Ctrl+click) to
+  the file in its viewer, and the W3D viewer's "Used in" list links back to
+  the INI lines naming the file.
 
 **Bone animations**
 
@@ -251,7 +283,7 @@ your mod's archives.
 
 - Highlighting, outline of windows, folding, completion of keys, window
   types and status and style flags, and every structural problem at once.
-- **Show Layout Preview** draws the windows at their creation resolution
+- **Show Layout Preview** (the `.wnd` editor title button) draws the windows at their creation resolution
   beside the text, live; click a window to jump to it.
 
 **Maps** (`.map`, `.bse`)
@@ -319,6 +351,11 @@ your mod's archives.
 - Edit text fields, colours, bounds, exports, imports, placements, frame
   labels and frames, add frames, duplicate characters and create new text,
   sprite, shape and image characters, with undo.
+- **Check APT Movies** checks every movie of the workspace, loose or in an
+  archive, for integrity problems and reports what it found; **Rename APT Movie…** and
+  **Delete APT Movie…** (on an `.apt`, in the Explorer or an archive) rename
+  or remove a movie together with its `.const` and `.dat`, and update the
+  imports that name it.
 - Create whole new movies (**New APT Movie…** on a folder): an `.apt`,
   `.const` and `.dat` with exported empty sprites, ready for a root movie to
   import with **Add import** in its movie panel.
@@ -379,6 +416,48 @@ your mod's archives.
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens
   it in the tween form with its easing, to change it as one tween.
+
+## Commands, settings and editors
+
+Every command is in the Command Palette as **BIG: …** (or **bigFS: …**) where
+it makes sense without a selection; the rest sit in the context menu of the
+row, file or editor they act on.
+
+| Command | Where | Does |
+| --- | --- | --- |
+| Refresh, Search in BIG Archives…, Validate INI Files, Show What the Game Loads, Show Every Archive | BIG Archives title bar | Rescan, search, validate, switch view |
+| New File…, New Folder…, Add Files…, Extract…, Rename…, Delete, Cut, Copy, Paste, Duplicate, Copy Path, Copy Relative Path, Override in Folder… | archive row context menu | Edit archives |
+| Pack into BIG Archive…, Launch Game with Mod | Explorer folder menu | Build and run a mod |
+| Find Game Installs, Choose Game Language, Compare with Base Game, Package Mod…, Check Translations, Open Balance Sheet, Armor Table, Find Unused Definitions, Clear Unused Definitions, Check APT Movies | Command Palette | Workspace tools |
+| Convert String Table (.str ⇄ .csf), Open as Table | `.str`/`.csf` menu, editor title | String tables |
+| Show Layout Preview | `.wnd` editor title | WND preview |
+| Export as PNG, Replace with PNG…, Convert to Game Texture… | `.tga`/`.dds`/`.png` menu | Textures |
+| Convert to VP6 Movie… | video, image or folder menu | VP6 |
+| Edit W3D Animation… | `.w3d` menu | Bone animations |
+| New APT Movie…, Rename APT Movie…, Delete APT Movie… | folder or `.apt` menu | APT movies |
+| Preview Particle System, Preview Object Here, New Particle System from Template…, Bulk Edit INI Values…, Show Effective Definition, New Unit, Hero or Building…, Duplicate Definition…, Edit CommandSet Slots, Play Audio Event | INI editor menu and lenses | INI tools |
+
+| Setting | Default | Does |
+| --- | --- | --- |
+| `bigfs.ini.game` | `rotwk` | Grammar for `rotwk`, `bfme2` or `bfme1` |
+| `bigfs.ini.checkReferences`, `bigfs.ini.checkAssets`, `bigfs.ini.checkStrings` | `auto` | Report undefined references, missing assets, undefined game text (`auto`, `on`, `off`) |
+| `bigfs.language` | `auto` | Game text language |
+| `bigfs.explorer.view` | `archives` | `archives` or `game` view |
+| `bigfs.baseGameFolder`, `bigfs.underlyingGameFolder` | empty | Untouched installs, the lowest load-order layers |
+| `bigfs.game.executable`, `bigfs.game.arguments` | empty | What Launch Game with Mod starts |
+| `bigfs.ffmpegPath`, `bigfs.vp6.keyFrameSeconds` | empty, `2` | VP6 conversion |
+
+| Editor | Opens |
+| --- | --- |
+| bigFS Preview | `.tga`, `.dds`, `.wav`, `.mp3`, `.w3d`, `.vp6` |
+| bigFS APT Movie | `.apt` |
+| bigFS String Table, bigFS CSF String Table | `.str`, `.csf` |
+| bigFS Create-a-Hero | `.cah` |
+| bigFS Map | `.map`, `.bse` |
+| bigFS Script File | `.scb` |
+
+Languages: `sage-ini` (`.ini`, `.inc`, `.bhav`), `sage-str`, `sage-wnd`,
+`apt-script` (`.aptscript`).
 
 ## Game language
 
