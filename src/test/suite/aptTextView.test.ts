@@ -99,9 +99,11 @@ suite('APT text view', () => {
       ),
     );
 
+    const original = text.getText();
+
     await replaceText(
       text,
-      text.getText().replace('character 1 sprite', 'character 1 sprite x'),
+      original.replace('character 1 sprite', 'character 1 sprite x'),
     );
 
     for (let tries = 0; tries < 50; tries++) {
@@ -119,7 +121,7 @@ suite('APT text view', () => {
       new Uint8Array(await readFile(movieUri.fsPath)),
       before,
     );
-    await vscode.commands.executeCommand('workbench.action.revertFile');
+    await replaceText(text, original);
   });
 
   test('symbols outline the characters and their frames', async () => {
