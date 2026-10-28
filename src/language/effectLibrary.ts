@@ -133,9 +133,17 @@ export class EffectLibrary {
     }
 
     for (const list of Object.values(fxLists)) {
-      if (list.skipped.length) {
+      const listed = [
+        ...new Set(
+          list.effects
+            .filter((effect) => !effect.approximation)
+            .map((effect) => effect.slot),
+        ),
+      ];
+
+      if (listed.length) {
         notes.add(
-          `${list.name}: ${list.skipped.join(', ')} not previewed; only ParticleSystem and Sound nuggets play`,
+          `${list.name}: ${listed.join(', ')} only listed on the timeline; ParticleSystem and Sound nuggets play, LightPulse, ViewShake and TerrainScorch are approximated`,
         );
       }
     }

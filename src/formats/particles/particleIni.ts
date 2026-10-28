@@ -1,4 +1,6 @@
 import { stripComment, tokenize } from '../../language/model/sageIniParser';
+import { readFxEffect } from './fxEffects';
+import type { FxEffect } from './fxEffects';
 import type { SageToken } from '../../language/model/sageIniParser';
 
 /**
@@ -133,8 +135,8 @@ export interface FxListDef {
   name: string;
   nuggets: FxNugget[];
   sounds: FxSound[];
-  /** Other nugget kinds, which the preview does not play */
-  skipped: string[];
+  /** Every other nugget kind, in file order: approximated or only listed */
+  effects: FxEffect[];
 }
 
 /** One line of a block: its keyword and values, with columns */
@@ -685,7 +687,7 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
   return def;
 };
 
-/** Reads an `FXList`'s particle and sound nuggets */
+/** Reads an `FXList`'s particle, sound and other nuggets */
 export const readFxList = (definition: IniDefinition): FxListDef => {
   const nuggets = definition.modules.flatMap((module, index) => {
     if (!/^particlesystem$/i.test(module.slot)) {
@@ -738,18 +740,27 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
       : [];
   });
 
-  return {
-    name: definition.name,
-    nuggets,
-    sounds,
-    skipped: [
-      ...new Set(
-        definition.modules
-          .filter((module) => !/^(particlesystem|sound)$/i.test(module.slot))
-          .map((module) => module.slot),
+  const effects = definition.modules.flatMap((module, index) => {
+    if (/^(particlesystem|sound)$/i.test(module.slot)) {
+      return [];
+    }
+
+    const fields = fieldMap(
+      definition.lines.filter((line) => line.moduleIndex === index),
+    );
+
+    return [
+      readFxEffect(
+        module.slot,
+        index,
+        fields,
+        rangeOf(fields.get('initialdelay') ?? []) ?? { ...RANGE_ZERO },
+        parseIniNumber,
       ),
-    ],
-  };
+    ];
+  });
+
+  return { name: definition.name, nuggets, sounds, effects };
 };
 
 /** The names a particle system or FX list starts in turn */

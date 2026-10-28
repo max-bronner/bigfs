@@ -2,6 +2,8 @@ import type {
   FxListDef,
   NumericField,
 } from '../../formats/particles/particleIni';
+import type { FxEffect } from '../../formats/particles/fxEffects';
+import { effectLength } from '../../formats/particles/fxEffects';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
 import { $, library, post, state, world } from './page';
 
@@ -31,7 +33,8 @@ let solo: number | undefined;
 let original: FxListDef | undefined;
 let canvas: HTMLCanvasElement | undefined;
 let drag:
-  { nugget: number; startX: number; delays: [string, number][] } | undefined;
+  | { nugget: number; startX: number; delays: [string, number][] }
+  | undefined;
 
 const rootList = () =>
   state.scene?.root?.kind === 'fxList'
@@ -86,7 +89,14 @@ const span = (list: FxListDef): number => {
 
     return delayFrames(nugget.initialDelay.high) + (end ?? 0);
   });
-  const finite = ends.filter(Number.isFinite);
+  const finite = [
+    ...ends.filter(Number.isFinite),
+    ...list.effects.map(
+      (effect) =>
+        delayFrames(effect.initialDelay.low) +
+        (effectLength(effect) / 1000) * STEP_HZ,
+    ),
+  ];
 
   return Math.max(
     STEP_HZ * 2,
@@ -95,6 +105,9 @@ const span = (list: FxListDef): number => {
     ...(finite.length < ends.length ? [STEP_HZ * 4] : []),
   );
 };
+
+/** The other nuggets of the list on show, which the page approximates */
+export const listEffects = (): readonly FxEffect[] => original?.effects ?? [];
 
 /** Draws the rows and the playhead; called every frame */
 export const drawTimeline = (): void => {
@@ -106,7 +119,7 @@ export const drawTimeline = (): void => {
 
   const ratio = window.devicePixelRatio || 1;
   const width = canvas.clientWidth;
-  const rows = list.nuggets.length + list.sounds.length + list.skipped.length;
+  const rows = list.nuggets.length + list.sounds.length + list.effects.length;
   const height = PAD * 2 + Math.max(1, rows) * ROW + 12;
 
   if (canvas.width !== width * ratio || canvas.height !== height * ratio) {
@@ -195,11 +208,34 @@ export const drawTimeline = (): void => {
     ctx.fillStyle = 'rgba(136, 255, 136, 0.9)';
     ctx.fillRect(at, top + 4, 2, ROW - 8);
   });
-  list.skipped.forEach((name, index) => {
+  list.effects.forEach((effect, index) => {
     const top = PAD + (list.nuggets.length + list.sounds.length + index) * ROW;
+    const approximated = !!effect.approximation;
+    const at = x(delayFrames(effect.initialDelay.low));
+    const length = (effectLength(effect) / 1000) * STEP_HZ;
 
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.fillText(`${name} (not previewed)`, 4, top + ROW / 2);
+    ctx.fillStyle = approximated ? '#ddd' : 'rgba(255,255,255,0.35)';
+    ctx.fillText(
+      approximated ? effect.slot : `${effect.slot} (not previewed)`,
+      4,
+      top + ROW / 2,
+      LABEL - 8,
+    );
+    // An approximated nugget gets a bar for as long as it shows; one that is
+    // only listed gets a tick at its delay
+    ctx.fillStyle = approximated
+      ? 'rgba(102, 187, 255, 0.7)'
+      : 'rgba(255,255,255,0.35)';
+    ctx.fillRect(
+      at,
+      top + 4,
+      length ? x(delayFrames(effect.initialDelay.low) + length) - at : 2,
+      ROW - 8,
+    );
+    if (effect.detail) {
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillText(effect.detail, at + 6, top + ROW / 2, width - at - PAD - 6);
+    }
   });
 
   playDueSounds(list);

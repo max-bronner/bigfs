@@ -8,6 +8,7 @@ import {
   valueEdits,
 } from '../../formats/particles/particleIni';
 import type { ParticleDef } from '../../formats/particles/particleIni';
+import { effectsAt } from '../../formats/particles/fxEffects';
 import { ParticleWorld } from '../../formats/particles/particleSimulation';
 
 // Synthetic definitions: field names are the games' grammar, values invented
@@ -165,7 +166,135 @@ suite('Particle systems', () => {
     assert.deepStrictEqual(list.sounds, [
       { name: 'SomeSound', module: 1, initialDelay: { low: 0, high: 0 } },
     ]);
-    assert.deepStrictEqual(list.skipped, []);
+    assert.deepStrictEqual(list.effects, []);
+  });
+
+  test('an FX list reads its other nuggets as effects, approximated or listed', () => {
+    const list = readFxList(
+      definitionsOf(`
+FXList FX_Mixed
+  LightPulse
+    Color = R:255 G:128 B:0
+    Radius = 80
+    IncreaseTime = 100
+    DecreaseTime = 400
+    InitialDelay = 200
+  End
+  ViewShake
+    Type = STRONG
+  End
+  CameraShakerVolume
+    Radius = 100
+    Duration_Seconds = 2
+    Amplitude_Degrees = 3
+  End
+  TerrainScorch
+    Type = RANDOM
+    Radius = 25
+  End
+  FXListAtBonePos
+    FX = FX_Inner
+    BoneName = MUZZLE
+  End
+  BuffNugget
+    BuffType = FIRE
+  End
+End
+`)[0],
+    );
+
+    assert.deepStrictEqual(
+      list.effects.map((effect) => [
+        effect.slot,
+        effect.approximation?.type,
+        effect.initialDelay.low,
+      ]),
+      [
+        ['LightPulse', 'flash', 200],
+        ['ViewShake', 'shake', 0],
+        ['CameraShakerVolume', 'shake', 0],
+        ['TerrainScorch', 'scorch', 0],
+        ['FXListAtBonePos', undefined, 0],
+        ['BuffNugget', undefined, 0],
+      ],
+    );
+    assert.deepStrictEqual(list.effects[0].approximation, {
+      type: 'flash',
+      color: [1, 128 / 255, 0],
+      rise: 100,
+      fall: 400,
+    });
+    assert.deepStrictEqual(list.effects[2].approximation, {
+      type: 'shake',
+      seconds: 2,
+      degrees: 3,
+    });
+    assert.strictEqual(list.effects[4].detail, 'FX FX_Inner, BoneName MUZZLE');
+  });
+
+  test('approximated effects show only between their delay and their end', () => {
+    const [flash, shake, scorch] = readFxList(
+      definitionsOf(`
+FXList FX_Timed
+  LightPulse
+    Color = R:0 G:0 B:255
+    IncreaseTime = 100
+    DecreaseTime = 100
+    InitialDelay = 1000
+  End
+  ViewShake
+    Type = NORMAL
+    InitialDelay = 1000
+  End
+  TerrainScorch
+    Radius = 30
+    InitialDelay = 1000
+  End
+End
+`)[0],
+    ).effects.map((effect) => [effect]);
+    const effects = [flash[0], shake[0], scorch[0]];
+
+    assert.deepStrictEqual(effectsAt(effects, 29, 30), {
+      shake: 0,
+      scorches: [],
+    });
+
+    // 1100 ms: the flash is at its peak, the shake and the scorch have begun
+    const peak = effectsAt(effects, 33, 30);
+
+    assert.deepStrictEqual(peak.flash?.color, [0, 0, 1]);
+    assert.ok(peak.flash!.alpha > 0.4);
+    assert.notStrictEqual(peak.shake, 0);
+    assert.deepStrictEqual(peak.scorches, [30]);
+
+    // 3000 ms: flash and shake are over, the scorch stays
+    assert.deepStrictEqual(effectsAt(effects, 90, 30), {
+      shake: 0,
+      scorches: [30],
+    });
+    assert.deepStrictEqual(effectsAt(effects, 33, 30), peak);
+  });
+
+  test('a light pulse that writes no times still fades out', () => {
+    const [pulse] = readFxList(
+      definitionsOf(`
+FXList FX_Pulse
+  LightPulse
+    Color = R:255 G:255 B:255
+  End
+End
+`)[0],
+    ).effects;
+
+    assert.deepStrictEqual(pulse.approximation, {
+      type: 'flash',
+      color: [1, 1, 1],
+      rise: 0,
+      fall: 300,
+    });
+    assert.ok(effectsAt([pulse], 0, 30).flash);
+    assert.strictEqual(effectsAt([pulse], 15, 30).flash, undefined);
   });
 
   test('slider values are written back over the tokens they came from', () => {

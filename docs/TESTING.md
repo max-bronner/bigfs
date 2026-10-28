@@ -172,6 +172,13 @@ In an object's INI, for example Aragorn's:
 - [ ] Over-lifetime curves: drag, add and remove colour, alpha and size keys.
 - [ ] **Scale** size and time; **A/B**; **Vary ±**; **Save as variant…**.
 - [ ] FX list **Timeline**: mute (click), solo (shift-click), drag a delay.
+- [ ] **new** FX list **Timeline** rows for the other nuggets. Preview a list
+  with a `LightPulse`, a `ViewShake` or `CameraShakerVolume`, a
+  `TerrainScorch` and an `FXListAtBonePos`: the first three show a screen
+  flash, a camera shake and a ring on the ground at their delay (they repeat
+  with **Restart**, hold still when paused); the last is greyed
+  "(not previewed)" with its `FX` and `BoneName`. A `Sound` row still plays
+  only from its ▶ or the **Play sounds** box.
 - [ ] **Load**: peaks, averages, per system, fill, the mod's detail-level
   budgets.
 - [ ] **New Particle System from Template…** (context menu).

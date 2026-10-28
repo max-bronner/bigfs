@@ -512,6 +512,7 @@ button.primary { background: var(--vscode-button-background); color: var(--vscod
 button.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .field input[type=range] { width: 100%; }
 #handles { position: absolute; inset: 0; pointer-events: none; cursor: default; }
+#flash { position: absolute; inset: 0; pointer-events: none; }
 #notes div { opacity: 0.8; margin: 2px 0; }
 .stats-lines { white-space: pre; font: 11px var(--vscode-editor-font-family); }
 .stats-table { border-collapse: collapse; font-size: 11px; margin-top: 4px; }
@@ -530,7 +531,7 @@ button.on { background: var(--vscode-button-background); color: var(--vscode-but
 kbd { font-size: 10px; opacity: 0.7; }
 `,
     body: `<div id="layout">
-<div id="view"><canvas id="canvas"></canvas><canvas id="handles"></canvas><div id="hud"></div></div>
+<div id="view"><canvas id="canvas"></canvas><canvas id="handles"></canvas><div id="flash"></div><div id="hud"></div></div>
 <div id="side">
   <div class="row"><strong id="title"></strong></div>
   <div id="object" hidden>
