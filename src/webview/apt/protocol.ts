@@ -31,6 +31,18 @@ export type PageMovie = AptMovie & {
   consts?: (string | number)[];
 };
 
+/** A `MappedImage` as the page draws it: a rect of a texture */
+export interface PageMappedImage {
+  /** The texture path, a key of the page's textures */
+  texture: string;
+  /** `[x, y, w, h]` of the texture in `0..1` */
+  uv: [number, number, number, number];
+  /** Packed turned a quarter turn clockwise, so drawn turned back */
+  rotated: boolean;
+  /** The size it draws at, in pixels */
+  extent: [number, number];
+}
+
 export interface TexturePixels {
   width: number;
   height: number;
@@ -74,6 +86,12 @@ export type ToPage =
       origins?: Record<string, string>;
       texts?: Record<string, string>;
     }
+  /** The answer to `mappedImages`: each name as a rect of a texture, or null if none */
+  | {
+      kind: 'mappedImages';
+      images: Record<string, PageMappedImage | null>;
+      textures: Record<string, TexturePixels>;
+    }
   | { kind: 'select'; character: number }
   /** What the integrity check found in the movie and the files beside it */
   | { kind: 'integrity'; problems: Problem[] }
@@ -90,6 +108,8 @@ export type ToPage =
 
 export type FromPage =
   | { kind: 'ready' }
+  /** Image surfaces name `MappedImage`s; the editor finds them in the game's INI */
+  | { kind: 'mappedImages'; names: string[] }
   | { kind: 'script'; block: number }
   /** The Engine panel's answers for the shown movie, to keep in the workspace */
   | { kind: 'engineAnswers'; values: EngineValues }

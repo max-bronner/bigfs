@@ -4,7 +4,9 @@ import { AsObject } from './avm/value';
 import type { Value } from './avm/value';
 import { button, byId, heading, input, row } from './dom';
 import { engine, onEngineChange, saveAnswers } from './engineState';
-import { render } from './stage';
+import { currentGadgets } from './gadgets';
+import { bindingsOf, writeBinding } from './gadgetModel';
+import { currentPlayer, render } from './stage';
 
 /**
  * The engine panel: the game's side of the shown movie, played by hand,
@@ -154,6 +156,50 @@ const callReturnRow = (seen: Seen) => {
       'muted',
     ),
   );
+};
+
+/** Each gadget the movie attached, with the variables it is bound to */
+const gadgetRows = () => {
+  const gadgets = currentGadgets().filter((each) =>
+    matches(`${each.path ?? each.instance.path} ${each.kind} ${each.type ?? ''}`),
+  );
+
+  return [
+    heading('Gadgets'),
+    ...(gadgets.length
+      ? limited(gadgets, (gadget) => {
+          const where = gadget.path ?? `${gadget.instance.path} (unnamed)`;
+          const bound = bindingsOf(currentPlayer(), engine, gadget);
+
+          return row(
+            where,
+            text(
+              gadget.kind === 'unknown'
+                ? `unknown _type ${gadget.type}`
+                : gadget.kind === 'image'
+                  ? `image ${gadget.imageName || gadget.imageMap}`
+                  : gadget.kind,
+              'muted',
+            ),
+            ...bound.map(({ binding, value, overridden }) => {
+              const field = overrideField(
+                overridden
+                  ? (engine.overrides.get(
+                      pathKey(`${gadget.path}.${binding.name}`),
+                    ) ?? '')
+                  : '',
+                `${binding.name} = ${value}`,
+                (typed) =>
+                  writeBinding(currentPlayer(), engine, gadget, binding.name, typed),
+              );
+
+              field.title = binding.name;
+              return field;
+            }),
+          );
+        })
+      : [text('No gadget surface (_type, _Load, _imageName) yet.', 'muted')]),
+  ];
 };
 
 /** The sounds the movie asked for, each to play on request, and the switch that lets it */
@@ -328,6 +374,7 @@ export const showEngine = (): void => {
       ),
     ),
     ...limited(reads, valueRow),
+    ...gadgetRows(),
     ...soundRows(),
     heading('Calls to the engine'),
     ...(calls.length

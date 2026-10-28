@@ -13,6 +13,8 @@ import {
 } from './details';
 import type { ToPage } from './protocol';
 import { showAtlas } from './atlas';
+import './gadgets';
+import { mappedImagesArrived } from './mappedSurfaces';
 import { showIntegrity } from './integrity';
 import { nudge } from './edit';
 import './geometry';
@@ -317,6 +319,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     case 'movieLoaded':
       movieArrived(data);
       render();
+      break;
+    case 'mappedImages':
+      mappedImagesArrived(data);
       break;
     case 'select':
       showList();
