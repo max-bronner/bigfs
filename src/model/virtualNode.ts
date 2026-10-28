@@ -28,11 +28,16 @@ export const isArchiveRoot = (node: VirtualNode): boolean => !node.entryPath;
 
 /**
  * Whether a node sits below another, in the same archive: two archives can
- * hold the same entry path, so the path alone does not settle it
+ * hold the same entry path, so the path alone does not settle it. A node is
+ * not inside itself, and a path that merely starts with the other's name
+ * (`data/ini2` beside `data/ini`) is a sibling. The archive root holds every
+ * other node, but its empty path has no prefix to test.
  */
 export const isInside = (node: VirtualNode, other: VirtualNode): boolean =>
   node.archive === other.archive &&
-  node.entryPath.startsWith(`${other.entryPath}/`);
+  (isArchiveRoot(other)
+    ? !isArchiveRoot(node)
+    : node.entryPath.startsWith(`${other.entryPath}/`));
 
 /**
  * Gets a node's path below one of its ancestors, which is the path an extract
