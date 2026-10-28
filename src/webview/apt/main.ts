@@ -11,6 +11,8 @@ import {
   showScript,
   vscode,
 } from './details';
+import { scriptSaved } from './blocks/scriptBlock';
+import { installBlockStyles } from './blocks/blockStyles';
 import type { ToPage } from './protocol';
 import { showAtlas } from './atlas';
 import './gadgets';
@@ -251,7 +253,9 @@ document.addEventListener('keydown', (event) => {
     event.ctrlKey ||
     event.metaKey ||
     event.altKey ||
-    ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) ||
+    // Blocks and their menus use the keys themselves
+    target.closest('#details, .bk-popup')
   ) {
     return;
   }
@@ -337,17 +341,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       showScript(data);
       break;
     case 'scriptSaved': {
-      state.drafts.delete(data.previous);
-      state.openBlocks.delete(data.previous);
-      state.openBlocks.add(data.block);
-
-      const element = document.querySelector<HTMLDetailsElement>(
-        `#details details[data-block="${data.block}"]`,
-      );
-
-      if (element && !element.open) {
-        element.open = true;
-      }
+      scriptSaved(data.previous, data.block);
       break;
     }
     case 'notice': {
@@ -367,6 +361,10 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   }
 });
 
+byId('toggleTextView').onclick = () =>
+  vscode.postMessage({ kind: 'openTextView' });
+
+installBlockStyles();
 showMode();
 showEngine();
 vscode.postMessage({ kind: 'ready' });

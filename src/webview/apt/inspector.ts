@@ -1,10 +1,19 @@
 import { PLACE_FLAGS } from '../../formats/apt/aptMovie';
 import type { FrameItem, Matrix2 } from '../../formats/apt/aptMovie';
 import type { PlacementChange } from '../../formats/apt/aptWriter';
-import { characterPicker, colourRows } from './recordFields';
 import { send, vscode } from './details';
 import { CLIP_EVENTS, bitNames, bitSelect } from './scriptSites';
-import { button, byId, heading, input, row } from './dom';
+import { byId } from './dom';
+import { blockCard } from './blocks/blockCard';
+import {
+  action,
+  characterPicker,
+  field,
+  numberField,
+  placementColour,
+  section,
+  textField,
+} from './blocks/controls';
 import { commit, editable } from './edit';
 import { DOWN, OVER, UP, describe } from './player';
 import type { Instance } from './player';
@@ -102,22 +111,22 @@ const timelineControls = (instance: Instance): HTMLElement[] => {
   position.id = 'inspector-frame';
 
   const rows = [
-    row('Frame', position),
-    row(
+    field('Frame', position),
+    field(
       '',
-      button(
+      action(
         '▶ play',
         act(() => (instance.playing = true)),
       ),
-      button(
+      action(
         '■ stop',
         act(() => (instance.playing = false)),
       ),
-      button(
+      action(
         '‹',
         act(() => player.goTo(instance, instance.frame - 1, false)),
       ),
-      button(
+      action(
         '›',
         act(() => player.goTo(instance, instance.frame + 1, false)),
       ),
@@ -126,16 +135,16 @@ const timelineControls = (instance: Instance): HTMLElement[] => {
 
   if (labels.length) {
     rows.push(
-      heading('Labels'),
+      section('Labels'),
       ...labels.map((each) =>
-        row(
+        field(
           `${each.frame}`,
           label(each.label),
-          button(
+          action(
             'gotoAndPlay',
             act(() => player.goTo(instance, each.frame, true)),
           ),
-          button(
+          action(
             'gotoAndStop',
             act(() => player.goTo(instance, each.frame, false)),
           ),
@@ -155,10 +164,10 @@ const buttonControls = (instance: Instance): HTMLElement => {
     ['Down', DOWN],
   ];
 
-  return row(
+  return field(
     'State',
     ...states.map(([name, value]) => {
-      const choice = button(
+      const choice = action(
         name,
         act(() => player.force(instance, value)),
       );
@@ -189,9 +198,8 @@ export const showInspector = (): void => {
     ? (TYPE_NAMES[character.type] ?? character.type)
     : 'Import';
   const parts: HTMLElement[] = [
-    heading('Instance'),
     breadcrumb(instance),
-    row(
+    field(
       '',
       label(
         `#${instance.id} ${kind}` +
@@ -201,7 +209,7 @@ export const showInspector = (): void => {
             : '') +
           (instance.missing ? ` · ${instance.missing} not found` : ''),
       ),
-      button(
+      action(
         'Close',
         act(() => (state.inspected = undefined)),
       ),
@@ -215,13 +223,32 @@ export const showInspector = (): void => {
     parts.push(buttonControls(instance));
   }
   const owner = instance.parent?.movie;
+  const cards = [
+    blockCard({
+      key: `instance:${instance.path}`,
+      kind: 'instance',
+      title: 'Instance',
+      summary: `#${instance.id} ${kind}`,
+      open: true,
+      body: () => parts,
+    }),
+  ];
 
   if (editable(instance)) {
-    parts.push(...editControls(instance));
+    cards.push(
+      blockCard({
+        key: `placement:${instance.path}`,
+        kind: 'placement',
+        title: 'Placement',
+        summary: instance.name ? `"${instance.name}"` : `@${depthOf(instance)}`,
+        open: true,
+        body: () => editControls(instance),
+      }),
+    );
   } else if (owner && owner !== state.movie) {
-    parts.push(row('', label(`Edit it in ${owner.name}`)));
+    parts.push(field('', label(`Edit it in ${owner.name}`)));
   }
-  panel.replaceChildren(...parts);
+  panel.replaceChildren(...cards);
 };
 
 /** Position, scale, rotation and skew of a placement, the way an editor shows them */
@@ -328,17 +355,11 @@ const editControls = (instance: Instance): HTMLElement[] => {
   const parts = decompose(instance.matrix);
   const write = (matrix: Matrix2, translate = instance.translate) =>
     commit(instance, [...matrix, ...translate]);
-  const field = (
+  const numeric = (
     name: string,
     value: number,
     onCommit: (value: number) => void,
-  ) => {
-    const element = input(round(value), onCommit);
-
-    element.classList.add('short');
-    element.title = name;
-    return element;
-  };
+  ) => numberField(round(value), onCommit, name, 'short');
   const siblings = [...parent.children.keys()]
     .map(Number)
     .filter(Number.isFinite)
@@ -352,14 +373,20 @@ const editControls = (instance: Instance): HTMLElement[] => {
       change,
     });
 
+  const writeColour = (change: PlacementChange) =>
+    send({
+      kind: 'placement',
+      offset: colour?.offset ?? instance.matrixItem!,
+      change,
+    });
   const events = bitSelect(CLIP_EVENTS, 1 << 9);
   const clipScript =
     instance.character?.type === 'sprite' && instance.placedItem !== undefined
       ? [
-          row(
+          field(
             'Add',
             events,
-            button('Clip script', () =>
+            action('Clip script', () =>
               vscode.postMessage({
                 kind: 'addScript',
                 label: `${parent.movie.name} @${depth} on ${bitNames(Number(events.value), CLIP_EVENTS)}`,
@@ -376,28 +403,27 @@ const editControls = (instance: Instance): HTMLElement[] => {
 
   return [
     ...clipScript,
-    heading('Placement'),
-    row(
+    field(
       'Position',
-      field('x', instance.translate[0], (x) =>
+      numeric('x', instance.translate[0], (x) =>
         write(instance.matrix, [x, instance.translate[1]]),
       ),
-      field('y', instance.translate[1], (y) =>
+      numeric('y', instance.translate[1], (y) =>
         write(instance.matrix, [instance.translate[0], y]),
       ),
     ),
-    row(
+    field(
       'Scale',
-      field('scale x', parts.scaleX, (value) =>
+      numeric('scale x', parts.scaleX, (value) =>
         write(compose(value, parts.scaleY, parts.rotation, parts.skew)),
       ),
-      field('scale y', parts.scaleY, (value) =>
+      numeric('scale y', parts.scaleY, (value) =>
         write(compose(parts.scaleX, value, parts.rotation, parts.skew)),
       ),
     ),
-    row(
+    field(
       'Rotation °',
-      field('degrees', (parts.rotation * 180) / Math.PI, (degrees) =>
+      numeric('degrees', (parts.rotation * 180) / Math.PI, (degrees) =>
         write(
           compose(
             parts.scaleX,
@@ -411,7 +437,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
         ? [label(`skew ${round(parts.skew)}`)]
         : []),
     ),
-    row(
+    field(
       'Character',
       characterPicker(instance.placed, (character) =>
         writePlaced({ character }),
@@ -419,19 +445,21 @@ const editControls = (instance: Instance): HTMLElement[] => {
     ),
     // The colour is written where it comes from at this frame, or where the
     // matrix does when nothing has set one yet
-    ...colourRows(
-      colour?.colorTransform ?? 0xffffffff,
-      colour?.colorAdd ?? 0,
-      (change) =>
-        send({
-          kind: 'placement',
-          offset: colour?.offset ?? instance.matrixItem!,
-          change,
-        }),
+    field(
+      'Multiply',
+      placementColour(
+        'colorTransform',
+        colour?.colorTransform ?? 0xffffffff,
+        writeColour,
+      ),
     ),
-    row(
+    field(
+      'Add',
+      placementColour('colorAdd', colour?.colorAdd ?? 0, writeColour),
+    ),
+    field(
       'Ratio',
-      field('ratio', placed?.ratio ?? 0, (ratio) => writePlaced({ ratio })),
+      numeric('ratio', placed?.ratio ?? 0, (ratio) => writePlaced({ ratio })),
       label('Move'),
       checkbox(
         ((placed?.flags ?? 0) & PLACE_FLAGS.move) !== 0,
@@ -439,9 +467,9 @@ const editControls = (instance: Instance): HTMLElement[] => {
         (isMove) => writePlaced({ isMove }),
       ),
     ),
-    row(
+    field(
       'Clip depth',
-      field('clip depth', placed?.clipDepth ?? 0, (clipDepth) =>
+      numeric('clip depth', placed?.clipDepth ?? 0, (clipDepth) =>
         writePlaced({ clipDepth }),
       ),
       checkbox(
@@ -455,22 +483,19 @@ const editControls = (instance: Instance): HTMLElement[] => {
           ),
       ),
     ),
-    row(
+    field(
       'Name',
-      input(
-        instance.name ?? '',
-        (name) =>
-          send({
-            kind: 'placement',
-            offset: instance.placedItem ?? instance.matrixItem!,
-            change: { name },
-          }),
-        'line',
+      textField(instance.name ?? '', (name) =>
+        send({
+          kind: 'placement',
+          offset: instance.placedItem ?? instance.matrixItem!,
+          change: { name },
+        }),
       ),
     ),
-    row(
+    field(
       '',
-      button('Duplicate', () => {
+      action('Duplicate', () => {
         const next = freeDepth(parent);
 
         state.inspected = `${parent.path}/${next}`;
@@ -484,7 +509,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
           translate: [instance.translate[0] + 10, instance.translate[1] + 10],
         });
       }),
-      button('Remove', () => {
+      action('Remove', () => {
         state.inspected = undefined;
         // Placed in this frame: drop the record; placed earlier: remove it from here on
         send(
@@ -502,7 +527,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
         ['Forward', siblings[index + 1]],
         ['Backward', siblings[index - 1]],
       ].map(([name, other]) => {
-        const element = button(name as string, () => {
+        const element = action(name as string, () => {
           state.inspected = `${parent.path}/${other}`;
           send({ kind: 'swapDepths', timeline, a: depth, b: other as number });
         });

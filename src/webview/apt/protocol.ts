@@ -108,6 +108,8 @@ export type ToPage =
 
 export type FromPage =
   | { kind: 'ready' }
+  /** The toolbar's text view button: the whole movie as text, in an editor of its own */
+  | { kind: 'openTextView' }
   /** Image surfaces name `MappedImage`s; the editor finds them in the game's INI */
   | { kind: 'mappedImages'; names: string[] }
   | { kind: 'script'; block: number }

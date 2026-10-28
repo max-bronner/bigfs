@@ -14,10 +14,10 @@ export interface PageState {
   textures: Map<string, HTMLCanvasElement>;
   /** The path of the instance the inspector shows */
   inspected?: string;
-  /** Script blocks whose panel is open, kept across redraws */
-  openBlocks: Set<number>;
   /** Unapplied script text by block */
   drafts: Map<number, string>;
+  /** Block cards the user opened or closed, by card key, kept across redraws */
+  cards: Map<string, boolean>;
 }
 
 export const state: PageState = {
@@ -26,8 +26,8 @@ export const state: PageState = {
   frame: 0,
   tick: 0,
   textures: new Map(),
-  openBlocks: new Set(),
   drafts: new Map(),
+  cards: new Map(),
 };
 
 /** The movie; the page only runs code that needs it once one arrived */
