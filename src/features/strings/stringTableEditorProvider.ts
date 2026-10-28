@@ -12,6 +12,18 @@ import {
 } from '../../formats/str/sageStringRecords';
 import { STRING_TABLE_SCRIPT } from './stringTableViewScript';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import {
+  SnapshotDocument,
+  SnapshotFormat,
+  addSnapshotView,
+  backupSnapshot,
+  createSnapshotDocument,
+  readSnapshotSource,
+  recordSnapshotEdit,
+  redrawSnapshotViews,
+  revertSnapshot,
+  saveSnapshot,
+} from '../../platform/webview/snapshotEditor';
 
 /**
  * Table editors for string tables: `.str` as an alternative view of the text
@@ -288,17 +300,12 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
 }
 
 /** An open `.csf`: its parsed form, and a copy for each undo step */
-class CsfDocument implements vscode.CustomDocument {
-  public constructor(
-    public readonly uri: vscode.Uri,
-    public file: CsfFile,
-    private readonly onDispose: () => void,
-  ) {}
+type CsfDocument = SnapshotDocument<CsfFile>;
 
-  public dispose(): void {
-    this.onDispose();
-  }
-}
+const CSF_FORMAT: SnapshotFormat<CsfFile> = {
+  read: parseCsf,
+  write: writeCsf,
+};
 
 const cloneCsf = (file: CsfFile): CsfFile => ({
   ...file,
@@ -314,28 +321,14 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     vscode.CustomDocumentEditEvent<CsfDocument>
   >();
   public readonly onDidChangeCustomDocument = this.changes.event;
-  private readonly redraws = new Map<
-    CsfDocument,
-    Set<() => Thenable<boolean>>
-  >();
 
   public async openCustomDocument(
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
   ): Promise<CsfDocument> {
-    const source = context.backupId ? vscode.Uri.parse(context.backupId) : uri;
+    const file = parseCsf(await readSnapshotSource(uri, context.backupId));
 
-    const document: CsfDocument = new CsfDocument(
-      uri,
-      parseCsf(await vscode.workspace.fs.readFile(source)),
-      () => this.redraws.delete(document),
-    );
-
-    return document;
-  }
-
-  private redraw(document: CsfDocument): void {
-    this.redraws.get(document)?.forEach((send) => void send());
+    return createSnapshotDocument(uri, file, false);
   }
 
   /** Applies a change to a copy, records the step, and redraws */
@@ -344,24 +337,11 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     label: string,
     mutate: (file: CsfFile) => void,
   ): void {
-    const before = document.file;
-    const after = cloneCsf(before);
+    const after = cloneCsf(document.snapshot);
 
     mutate(after);
-    document.file = after;
-    this.changes.fire({
-      document,
-      label,
-      undo: () => {
-        document.file = before;
-        this.redraw(document);
-      },
-      redo: () => {
-        document.file = after;
-        this.redraw(document);
-      },
-    });
-    this.redraw(document);
+    recordSnapshotEdit(this.changes, document, label, after);
+    redrawSnapshotViews(document);
   }
 
   public resolveCustomEditor(
@@ -386,7 +366,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
         const seen = new Set<string>();
 
         return {
-          rows: document.file.labels.map((label, id) => {
+          rows: document.snapshot.labels.map((label, id) => {
             const key = label.name.toLowerCase();
             const problems = [
               ...(seen.has(key)
@@ -409,13 +389,13 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
           }),
           hasSpeech: true,
           canReveal: false,
-          summary: `CSF version ${document.file.version}, language ${document.file.language}`,
+          summary: `CSF version ${document.snapshot.version}, language ${document.snapshot.language}`,
         };
       },
       (message) => {
         switch (message.kind) {
           case 'setText': {
-            const previous = labelOf(document.file, message).strings[0]?.text;
+            const previous = labelOf(document.snapshot, message).strings[0]?.text;
             const text = keepLineBreaks(previous ?? '', message.value ?? '');
 
             if (previous === text) {
@@ -433,7 +413,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             });
           }
           case 'setSpeech':
-            labelOf(document.file, message);
+            labelOf(document.snapshot, message);
             checkEncodable((message.value ?? '').trim());
 
             return this.change(document, 'Edit speech', (file) => {
@@ -451,7 +431,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
 
             checkLabel(name);
             checkEncodable(name);
-            labelOf(document.file, message);
+            labelOf(document.snapshot, message);
 
             return this.change(document, 'Rename label', (file) => {
               labelOf(file, message).name = name;
@@ -471,7 +451,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             });
           }
           case 'remove':
-            labelOf(document.file, message);
+            labelOf(document.snapshot, message);
 
             return this.change(document, 'Remove label', (file) => {
               file.labels.splice(message.id ?? -1, 1);
@@ -480,45 +460,28 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
       },
     );
 
-    let sends = this.redraws.get(document);
-
-    if (!sends) {
-      sends = new Set();
-      this.redraws.set(document, sends);
-    }
-
-    sends.add(send);
-    panel.onDidDispose(() => sends?.delete(send));
+    addSnapshotView(document, panel, send);
   }
 
-  public async saveCustomDocument(document: CsfDocument): Promise<void> {
-    await vscode.workspace.fs.writeFile(document.uri, writeCsf(document.file));
+  public saveCustomDocument(document: CsfDocument): Promise<void> {
+    return saveSnapshot(document, CSF_FORMAT);
   }
 
-  public async saveCustomDocumentAs(
+  public saveCustomDocumentAs(
     document: CsfDocument,
     destination: vscode.Uri,
   ): Promise<void> {
-    await vscode.workspace.fs.writeFile(destination, writeCsf(document.file));
+    return saveSnapshot(document, CSF_FORMAT, destination);
   }
 
-  public async revertCustomDocument(document: CsfDocument): Promise<void> {
-    document.file = parseCsf(await vscode.workspace.fs.readFile(document.uri));
-    this.redraw(document);
+  public revertCustomDocument(document: CsfDocument): Promise<void> {
+    return revertSnapshot(document, CSF_FORMAT);
   }
 
-  public async backupCustomDocument(
+  public backupCustomDocument(
     document: CsfDocument,
     context: vscode.CustomDocumentBackupContext,
   ): Promise<vscode.CustomDocumentBackup> {
-    await vscode.workspace.fs.writeFile(
-      context.destination,
-      writeCsf(document.file),
-    );
-
-    return {
-      id: context.destination.toString(),
-      delete: () => vscode.workspace.fs.delete(context.destination),
-    };
+    return backupSnapshot(document, CSF_FORMAT, context);
   }
 }

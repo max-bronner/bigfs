@@ -5,6 +5,19 @@ import { markSounds } from '../../formats/map/mapScriptSounds';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { MAP_VIEW_SCRIPT } from './mapViewScript';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import {
+  SnapshotDocument,
+  SnapshotFormat,
+  addSnapshotView,
+  backupSnapshot,
+  createSnapshotDocument,
+  isReadOnlyFile,
+  readSnapshotSource,
+  recordSnapshotEdit,
+  redrawSnapshotViews,
+  revertSnapshot,
+  saveSnapshot,
+} from '../../platform/webview/snapshotEditor';
 
 /**
  * Editor for `.map` and `.bse` files: terrain relief with objects and start
@@ -19,19 +32,12 @@ export const MAP_VIEW_TYPE = 'bigfs.mapEditor';
 /** More templates than this are left to the filter; a datalist of tens of thousands stalls the page */
 const MAX_TEMPLATES = 20000;
 
-class MapDocument implements vscode.CustomDocument {
-  public constructor(
-    public readonly uri: vscode.Uri,
-    public map: MapFile,
-    /** True for a map in a game install, which is never written */
-    public readonly readOnly: boolean,
-    private readonly onDispose: () => void,
-  ) {}
+type MapDocument = SnapshotDocument<MapFile>;
 
-  public dispose(): void {
-    this.onDispose();
-  }
-}
+const MAP_FORMAT: SnapshotFormat<MapFile> = {
+  read: parseMap,
+  write: writeMap,
+};
 
 export const renderHtml = (): string => {
   return webviewPage({
@@ -162,7 +168,6 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     vscode.CustomDocumentEditEvent<MapDocument>
   >();
   public readonly onDidChangeCustomDocument = this.changes.event;
-  private readonly redraws = new Map<MapDocument, Set<() => void>>();
 
   public constructor(private readonly index: SageIniIndex) {}
 
@@ -189,23 +194,9 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
   ): Promise<MapDocument> {
-    const source = context.backupId ? vscode.Uri.parse(context.backupId) : uri;
+    const map = parseMap(await readSnapshotSource(uri, context.backupId));
 
-    const stat = await vscode.workspace.fs.stat(uri);
-    const document: MapDocument = new MapDocument(
-      uri,
-      parseMap(await vscode.workspace.fs.readFile(source)),
-      Boolean(
-        stat.permissions && stat.permissions & vscode.FilePermission.Readonly,
-      ),
-      () => this.redraws.delete(document),
-    );
-
-    return document;
-  }
-
-  private redraw(document: MapDocument): void {
-    this.redraws.get(document)?.forEach((send) => send());
+    return createSnapshotDocument(uri, map, await isReadOnlyFile(uri));
   }
 
   /** The placeable templates the INI files declare, which the page offers when adding an object */
@@ -222,28 +213,18 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
   }
 
   private edit(document: MapDocument, edit: MapEdit): void {
-    if (document.readOnly) {
+    if (document.isReadOnly) {
       throw new Error(
         'This map is read-only: it is part of a game install. Copy it into the workspace to edit it.',
       );
     }
 
-    const before = document.map;
-    const after = applyMapEdit(before, edit);
-
-    document.map = after;
-    this.changes.fire({
+    recordSnapshotEdit(
+      this.changes,
       document,
-      label: edit.kind,
-      undo: () => {
-        document.map = before;
-        this.redraw(document);
-      },
-      redo: () => {
-        document.map = after;
-        this.redraw(document);
-      },
-    });
+      edit.kind,
+      applyMapEdit(document.snapshot, edit),
+    );
   }
 
   public resolveCustomEditor(
@@ -257,9 +238,9 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     const send = () => {
       void panel.webview.postMessage(
         toMessage(
-          document.map,
+          document.snapshot,
           !heightsSent,
-          document.readOnly,
+          document.isReadOnly,
           heightsSent ? undefined : this.templates(),
         ),
       );
@@ -289,48 +270,31 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
         });
       }
 
-      this.redraw(document);
+      redrawSnapshotViews(document);
     });
 
-    let sends = this.redraws.get(document);
-
-    if (!sends) {
-      sends = new Set();
-      this.redraws.set(document, sends);
-    }
-
-    sends.add(send);
-    panel.onDidDispose(() => sends?.delete(send));
+    addSnapshotView(document, panel, send);
   }
 
-  public async saveCustomDocument(document: MapDocument): Promise<void> {
-    await vscode.workspace.fs.writeFile(document.uri, writeMap(document.map));
+  public saveCustomDocument(document: MapDocument): Promise<void> {
+    return saveSnapshot(document, MAP_FORMAT);
   }
 
-  public async saveCustomDocumentAs(
+  public saveCustomDocumentAs(
     document: MapDocument,
     destination: vscode.Uri,
   ): Promise<void> {
-    await vscode.workspace.fs.writeFile(destination, writeMap(document.map));
+    return saveSnapshot(document, MAP_FORMAT, destination);
   }
 
-  public async revertCustomDocument(document: MapDocument): Promise<void> {
-    document.map = parseMap(await vscode.workspace.fs.readFile(document.uri));
-    this.redraw(document);
+  public revertCustomDocument(document: MapDocument): Promise<void> {
+    return revertSnapshot(document, MAP_FORMAT);
   }
 
-  public async backupCustomDocument(
+  public backupCustomDocument(
     document: MapDocument,
     context: vscode.CustomDocumentBackupContext,
   ): Promise<vscode.CustomDocumentBackup> {
-    await vscode.workspace.fs.writeFile(
-      context.destination,
-      writeMap(document.map),
-    );
-
-    return {
-      id: context.destination.toString(),
-      delete: () => vscode.workspace.fs.delete(context.destination),
-    };
+    return backupSnapshot(document, MAP_FORMAT, context);
   }
 }
