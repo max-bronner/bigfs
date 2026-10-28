@@ -353,6 +353,23 @@ Open an `.apt` (with its `.const` beside it).
   `MUSIC_PLAY_TRACK_FINITE_TIMES`, `AUDIO_PUSH_MUSIC` and
   `HAS_FINISHED_AUDIO` plays that event; opening the map plays nothing.
 
+- [ ] **new** Maps, Objects: type a template (the list is the workspace's
+  `Object`, `ChildObject` and `ObjectReskin` names) and **Place object**, click
+  the map: the object appears selected. Drag it, press `[` and `]`, edit
+  Owner / team, Health and Name, add and remove a property with ×. Delete
+  with `Delete`. Undo and redo each step; save and reopen keeps it.
+- [ ] **new** Maps, Waypoints: **Place waypoint** adds one named
+  `Waypoint <id>`; Alt-click from a selected waypoint to another adds an arrow,
+  again removes it; the Links list and its × do the same. Deleting a waypoint
+  drops its arrows. **Waypoint links** hides them.
+- [ ] **new** Maps, Trigger areas: **New area**, click three points, Enter;
+  select it in the list or by clicking inside it, drag a corner, rename,
+  **Add point**, **Delete area**. Scripts and other chunks are unchanged.
+- [ ] **new** A map opened from a base game archive shows no placing
+  controls and refuses edits with a message.
+- [ ] **new** `.scb`: opens in **bigFS Script File**, the script tree matches
+  the map view, the **▶** buttons play, nothing can be edited.
+
 ## Textures, sound, video
 
 - [ ] TGA and DDS previews with zoom, channels, mip levels; **Export as

@@ -254,6 +254,22 @@ your mod's archives.
   plays it through the INI audio events of the workspace. Nothing plays
   unless clicked.
 
+- **new** Place, move, turn and delete objects on the map: pick a template
+  from the workspace's INI definitions and click the map, drag an object to
+  move it, **⟲ ⟳** or `[` `]` turn it by 15°, `Delete` removes it. Owner or
+  team, health and name are fields; any other property can be added or
+  removed. New names are added to the map's name table.
+- **new** Waypoints are drawn with their links as arrows. **Place waypoint**
+  adds one with the next id, Alt-click another waypoint to add or remove a
+  link, and the object panel lists a waypoint's links. Removing a waypoint
+  removes its links.
+- **new** Trigger areas can be selected, renamed, reshaped (drag a corner or
+  type coordinates), added by clicking points on the map, and deleted.
+  Chunks the editor does not touch, including `PolygonTriggers`, keep their
+  bytes. Maps from a game install open read-only.
+- **new** Standalone `.scb` script files open in a read-only viewer with the
+  same script tree as the map editor.
+
 **Previews**
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip

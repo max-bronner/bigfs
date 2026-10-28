@@ -1,14 +1,8 @@
 import * as vscode from 'vscode';
-import {
-  Dict,
-  MapEdit,
-  MapFile,
-  applyMapEdit,
-  parseMap,
-  writeMap,
-} from '../formats/map/mapFile';
-import { withSoundParameters } from '../formats/map/mapScriptSounds';
-import type { MapScriptNode } from '../formats/map/mapFile';
+import { Dict, MapFile, parseMap, writeMap } from '../formats/map/mapFile';
+import { MapEdit, applyMapEdit } from '../formats/map/mapEdit';
+import { markSounds } from '../formats/map/mapScriptSounds';
+import type { SageIniIndex } from '../language/sageIniIndex';
 import { MAP_VIEW_SCRIPT } from './mapViewScript';
 import { webviewPage } from './webviewPage';
 
@@ -22,10 +16,15 @@ import { webviewPage } from './webviewPage';
 
 export const MAP_VIEW_TYPE = 'bigfs.mapEditor';
 
+/** More templates than this are left to the filter; a datalist of tens of thousands stalls the page */
+const MAX_TEMPLATES = 20000;
+
 class MapDocument implements vscode.CustomDocument {
   public constructor(
     public readonly uri: vscode.Uri,
     public map: MapFile,
+    /** True for a map in a game install, which is never written */
+    public readonly readOnly: boolean,
     private readonly onDispose: () => void,
   ) {}
 
@@ -66,6 +65,11 @@ export const renderHtml = (): string => {
   button.play { padding: 0 4px; margin: 0 2px; font-size: 0.85em; cursor: pointer; }
   .script label { display: flex; gap: 4px; align-items: center; }
   .light { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 3px; align-items: center; }
+  .toolbar, .addproperty { display: flex; gap: 4px; margin: 4px 0; flex-wrap: wrap; }
+  .addproperty input { flex: 1 1 60px; width: auto; min-width: 0; } .addproperty select { width: auto; }
+  button.icon { padding: 0 6px; cursor: pointer; margin-left: 4px; }
+  #hint { margin-left: 8px; }
+  body.readonly .edit-only { display: none; }
   #notice { position: fixed; bottom: 8px; left: 310px; right: 310px; padding: 6px 10px; background: var(--vscode-inputValidation-errorBackground); border: 1px solid var(--vscode-inputValidation-errorBorder); }
 `,
     body: `<section id="info"></section>
@@ -73,41 +77,44 @@ export const renderHtml = (): string => {
   <div id="layers">
     <label><input type="checkbox" id="layer-objects"> Objects</label>
     <label><input type="checkbox" id="layer-waypoints"> Waypoints</label>
+    <label><input type="checkbox" id="layer-links"> Waypoint links</label>
     <label><input type="checkbox" id="layer-starts"> Start positions</label>
     <label><input type="checkbox" id="layer-boundary"> Playable area</label>
     <label><input type="checkbox" id="layer-areas"> Trigger areas</label>
+    <span id="hint" class="muted"></span>
+    <span id="modebar" hidden><button id="finishMode">Finish</button> <button id="cancelMode">Cancel</button></span>
   </div>
   <div id="stage"><canvas id="terrain" width="10" height="10"></canvas></div>
 </main>
 <section id="side">
+  <div class="toolbar edit-only">
+    <input id="template" list="templates" placeholder="Object template">
+    <button id="placeObject" title="Then click the map">Place object</button>
+    <button id="placeWaypoint" title="Then click the map">Place waypoint</button>
+  </div>
   <input id="filter" placeholder="Filter objects by template or name"><span id="objectCount" class="muted"></span>
   <div id="objects"></div>
   <div id="object"></div>
 </section>
-<div id="notice" hidden></div>`,
+<div id="notice" hidden></div>
+<datalist id="templates"></datalist><datalist id="owners"></datalist><datalist id="propertyKeys"></datalist>`,
     script: MAP_VIEW_SCRIPT,
   });
 };
-
-/** Every call of a script tree with the parameters that name a sound marked */
-const markSounds = (nodes: MapScriptNode[]): MapScriptNode[] =>
-  nodes.map((node) =>
-    node.kind === 'group'
-      ? { ...node, children: markSounds(node.children) }
-      : {
-          ...node,
-          conditions: node.conditions.map((and) => and.map(withSoundParameters)),
-          actions: node.actions.map(withSoundParameters),
-          actionsFalse: node.actionsFalse.map(withSoundParameters),
-        },
-  );
 
 const entriesOf = (dict: Dict | undefined) =>
   (dict?.entries ?? []).map(({ key, value }) => ({ key, value }));
 
 /** What the page draws; the heights only when asked, as they never change */
-const toMessage = (map: MapFile, withHeights: boolean) => ({
+const toMessage = (
+  map: MapFile,
+  withHeights: boolean,
+  readOnly: boolean,
+  templates: string[] | undefined,
+) => ({
   kind: 'map',
+  readOnly,
+  templates,
   map: {
     compression: map.compression,
     worldInfo: entriesOf(map.worldInfo),
@@ -115,7 +122,12 @@ const toMessage = (map: MapFile, withHeights: boolean) => ({
     lights: map.lighting?.terrainSuns,
     teams: map.teams.map(entriesOf),
     scripts: map.scripts.map(markSounds),
-    triggerAreas: map.triggerAreas,
+    triggerAreas: map.triggerAreas.map(({ name, id, points }) => ({
+      name,
+      id,
+      points,
+    })),
+    waypointLinks: map.waypointLinks,
     sides: map.sides.map(entriesOf),
     objects: map.objects.map((object) => ({
       index: object.index,
@@ -152,9 +164,11 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
   public readonly onDidChangeCustomDocument = this.changes.event;
   private readonly redraws = new Map<MapDocument, Set<() => void>>();
 
+  public constructor(private readonly index: SageIniIndex) {}
+
   /** One provider under two view types: the default for files under a `maps` folder, and an option for any `.map` */
-  public static register(): vscode.Disposable {
-    const provider = new MapEditorProvider();
+  public static register(index: SageIniIndex): vscode.Disposable {
+    const provider = new MapEditorProvider(index);
     const options = { supportsMultipleEditorsPerDocument: true };
 
     return vscode.Disposable.from(
@@ -177,9 +191,13 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
   ): Promise<MapDocument> {
     const source = context.backupId ? vscode.Uri.parse(context.backupId) : uri;
 
+    const stat = await vscode.workspace.fs.stat(uri);
     const document: MapDocument = new MapDocument(
       uri,
       parseMap(await vscode.workspace.fs.readFile(source)),
+      Boolean(
+        stat.permissions && stat.permissions & vscode.FilePermission.Readonly,
+      ),
       () => this.redraws.delete(document),
     );
 
@@ -190,7 +208,26 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     this.redraws.get(document)?.forEach((send) => send());
   }
 
+  /** The placeable templates the INI files declare, which the page offers when adding an object */
+  private templates(): string[] {
+    return [
+      ...new Set(
+        ['Object', 'ChildObject', 'ObjectReskin'].flatMap((namespace) =>
+          this.index.getNames(namespace),
+        ),
+      ),
+    ]
+      .sort()
+      .slice(0, MAX_TEMPLATES);
+  }
+
   private edit(document: MapDocument, edit: MapEdit): void {
+    if (document.readOnly) {
+      throw new Error(
+        'This map is read-only: it is part of a game install. Copy it into the workspace to edit it.',
+      );
+    }
+
     const before = document.map;
     const after = applyMapEdit(before, edit);
 
@@ -218,7 +255,14 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
 
     let heightsSent = false;
     const send = () => {
-      void panel.webview.postMessage(toMessage(document.map, !heightsSent));
+      void panel.webview.postMessage(
+        toMessage(
+          document.map,
+          !heightsSent,
+          document.readOnly,
+          heightsSent ? undefined : this.templates(),
+        ),
+      );
       heightsSent = true;
     };
 

@@ -31,6 +31,7 @@ import { CahEditorProvider } from './providers/cahEditorProvider';
 import { SageIniDocuments } from './language/sageIniDocuments';
 import { AptEditorProvider } from './providers/aptEditorProvider';
 import { MapEditorProvider } from './providers/mapEditorProvider';
+import { ScriptFileEditorProvider } from './providers/scriptFileEditorProvider';
 import {
   CSF_VIEW_TYPE,
   CsfEditorProvider,
@@ -78,11 +79,16 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     locator,
     PreviewEditorProvider.register(tools, locator, context.extensionUri),
-    MapEditorProvider.register(),
   );
 
   const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
   const cahDocuments = new SageIniDocuments(context.extensionUri);
+
+  context.subscriptions.push(
+    MapEditorProvider.register(iniIndex),
+    ScriptFileEditorProvider.register(),
+  );
+
   const gameLanguage = new GameLanguage(
     archiveModel,
     context.workspaceState,

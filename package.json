@@ -860,6 +860,16 @@
         "priority": "default"
       },
       {
+        "viewType": "bigfs.scriptViewer",
+        "displayName": "bigFS Script File",
+        "selector": [
+          {
+            "filenamePattern": "*.{scb,SCB}"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "bigfs.mapEditorAny",
         "displayName": "bigFS Map",
         "selector": [

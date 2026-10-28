@@ -1,3 +1,5 @@
+import { SCRIPT_TREE_SCRIPT } from './scriptTreeScript';
+
 /**
  * Page code of the map editor: the terrain as a shaded relief with objects,
  * waypoints and start positions over it, the map's settings and players,
@@ -5,16 +7,31 @@
  * as edits; it sends the map back.
  */
 export const MAP_VIEW_SCRIPT = /* js */ `
+${SCRIPT_TREE_SCRIPT}
 const vscode = acquireVsCodeApi();
 const TIMES = ['', 'Morning', 'Afternoon', 'Evening', 'Night'];
-const state = { map: undefined, heights: undefined, selected: undefined, filter: '', layers: { objects: true, waypoints: true, starts: true, boundary: true, areas: true }, relief: undefined };
+const state = { map: undefined, heights: undefined, selected: undefined, selectedArea: undefined, filter: '', layers: { objects: true, waypoints: true, links: true, starts: true, boundary: true, areas: true }, relief: undefined, readOnly: false, templates: [], mode: undefined, draft: [], drag: undefined, pendingSelect: undefined };
+const PROPERTY_KEYS = ['uniqueID', 'objectLayer', 'objectInitialHealth', 'objectEnabled', 'objectIndestructible', 'objectUnsellable', 'objectPowered', 'objectRecruitableAI', 'objectTargetable', 'objectBasePriority', 'objectBasePhase', 'exportWithScript', 'alignToTerrain', 'objectPrototypeScale', 'objectName', 'originalOwner', 'waypointName', 'waypointPathLabel1', 'waypointPathLabel2', 'waypointPathLabel3', 'waypointPathBiDirectional'];
+const WAYPOINT_TEMPLATE = '*Waypoints/Waypoint';
+const ROTATE_STEP = Math.PI / 12;
 const canvas = document.getElementById('terrain');
 const context = canvas.getContext('2d');
 const info = document.getElementById('info');
 const objectList = document.getElementById('objects');
 const objectDetails = document.getElementById('object');
 
-const send = (edit) => vscode.postMessage({ kind: 'edit', edit });
+const send = (edit) => {
+  if (state.readOnly) { showNotice('This map is read-only: it is part of a game install'); return; }
+  vscode.postMessage({ kind: 'edit', edit });
+};
+
+const fillList = (id, values) => {
+  document.getElementById(id).replaceChildren(...values.map((value) => Object.assign(document.createElement('option'), { value })));
+};
+const ownerOf = (object) => {
+  const entry = object.properties.find((candidate) => candidate.key === 'originalOwner');
+  return entry ? String(entry.value.value) : '';
+};
 
 const element = (tag, text, className) => {
   const node = document.createElement(tag);
@@ -30,11 +47,13 @@ const valueInput = (entry, onCommit) => {
     const box = element('input');
     box.type = 'checkbox';
     box.checked = value.value;
+    box.disabled = state.readOnly;
     box.onchange = () => onCommit({ type: 'bool', value: box.checked });
     return box;
   }
   const field = element('input');
   field.value = value.type === 'real' ? String(Math.round(value.value * 1e6) / 1e6) : String(value.value);
+  field.disabled = state.readOnly;
   field.onchange = () => {
     if (value.type === 'int' || value.type === 'real') {
       const number = Number(field.value);
@@ -48,7 +67,7 @@ const valueInput = (entry, onCommit) => {
 };
 
 /** A table of a dictionary's entries, each editable */
-const dictTable = (entries, owner) => {
+const dictTable = (entries, owner, removable) => {
   const table = element('table', undefined, 'dict');
   for (const entry of entries) {
     const row = element('tr');
@@ -57,6 +76,14 @@ const dictTable = (entries, owner) => {
     const cell = element('td');
     cell.append(valueInput(entry, (value) => send({ kind: 'dict', owner, key: entry.key, value })));
     row.append(key, cell);
+    if (removable && !state.readOnly) {
+      const remove = element('button', '×', 'icon');
+      remove.title = 'Remove ' + entry.key;
+      remove.onclick = () => send({ kind: 'property', owner, key: entry.key, value: null });
+      const end = element('td');
+      end.append(remove);
+      row.append(end);
+    }
     table.append(row);
   }
   if (!entries.length) {
@@ -73,6 +100,19 @@ const nameOf = (object) => {
   return entry && entry.value.value ? String(entry.value.value) : '';
 };
 const isStart = (object) => isWaypoint(object) && /^Player_\\d+_Start$/i.test(nameOf(object));
+const idOf = (object) => {
+  const entry = object.properties.find((candidate) => candidate.key === 'waypointID');
+  return entry ? entry.value.value : undefined;
+};
+const waypointsById = () => {
+  const found = new Map();
+  for (const object of state.map.objects) {
+    const id = isWaypoint(object) ? idOf(object) : undefined;
+    if (id !== undefined && !found.has(id)) found.set(id, object);
+  }
+  return found;
+};
+const waypointLabel = (object) => nameOf(object) || '#' + idOf(object);
 
 /** Shades the height map once: height as brightness, lit from the north west */
 const buildRelief = (heights) => {
@@ -114,6 +154,13 @@ const project = (x, y) => {
   return [cellX * scale, canvas.height - cellY * scale];
 };
 
+/** Canvas pixels to world units */
+const unproject = (px, py) => {
+  const heights = state.heights;
+  const scale = canvas.width / heights.width;
+  return [(px / scale - heights.border) * 10, ((canvas.height - py) / scale - heights.border) * 10];
+};
+
 const draw = () => {
   const heights = state.heights;
   if (!heights) {
@@ -138,7 +185,7 @@ const draw = () => {
   }
   if (state.layers.areas) {
     context.font = '11px sans-serif';
-    for (const area of state.map.triggerAreas || []) {
+    for (const [areaIndex, area] of (state.map.triggerAreas || []).entries()) {
       if (!area.points.length) continue;
       context.beginPath();
       area.points.forEach(([x, y], index) => {
@@ -146,13 +193,52 @@ const draw = () => {
         if (index) context.lineTo(px, py); else context.moveTo(px, py);
       });
       context.closePath();
-      context.fillStyle = 'rgba(180, 90, 255, 0.18)';
-      context.strokeStyle = 'rgba(200, 130, 255, 0.9)';
+      const chosen = state.selectedArea === areaIndex;
+      context.fillStyle = chosen ? 'rgba(180, 90, 255, 0.32)' : 'rgba(180, 90, 255, 0.18)';
+      context.strokeStyle = chosen ? '#ffffff' : 'rgba(200, 130, 255, 0.9)';
+      context.lineWidth = chosen ? 2 : 1;
       context.fill();
       context.stroke();
+      context.lineWidth = 1;
+      if (chosen) {
+        context.fillStyle = '#ffffff';
+        for (const [x, y] of area.points) {
+          const [vx, vy] = project(x, y);
+          context.fillRect(vx - 3, vy - 3, 6, 6);
+        }
+      }
       const [cx, cy] = project(area.points.reduce((sum, p) => sum + p[0], 0) / area.points.length, area.points.reduce((sum, p) => sum + p[1], 0) / area.points.length);
       context.fillStyle = '#e8d4ff';
       context.fillText(area.name, cx - context.measureText(area.name).width / 2, cy);
+    }
+  }
+  if (state.layers.links && state.layers.waypoints) {
+    const ids = waypointsById();
+    const chosen = state.map.objects[state.selected];
+    for (const link of state.map.waypointLinks || []) {
+      const from = ids.get(link.from);
+      const to = ids.get(link.to);
+      if (!from || !to) continue;
+      const [ax, ay] = project(from.x, from.y);
+      const [bx, by] = project(to.x, to.y);
+      const hot = chosen && (chosen === from || chosen === to);
+      context.strokeStyle = hot ? '#ffd23f' : 'rgba(63, 169, 255, 0.55)';
+      context.fillStyle = context.strokeStyle;
+      context.lineWidth = hot ? 2 : 1;
+      context.beginPath();
+      context.moveTo(ax, ay);
+      context.lineTo(bx, by);
+      context.stroke();
+      // An arrowhead half way along says which way the link runs
+      const angle = Math.atan2(by - ay, bx - ax);
+      const mx = (ax + bx) / 2;
+      const my = (ay + by) / 2;
+      context.beginPath();
+      context.moveTo(mx + Math.cos(angle) * 6, my + Math.sin(angle) * 6);
+      context.lineTo(mx + Math.cos(angle + 2.5) * 5, my + Math.sin(angle + 2.5) * 5);
+      context.lineTo(mx + Math.cos(angle - 2.5) * 5, my + Math.sin(angle - 2.5) * 5);
+      context.fill();
+      context.lineWidth = 1;
     }
   }
   for (const object of state.map.objects) {
@@ -177,6 +263,113 @@ const draw = () => {
       context.lineWidth = 1;
     }
   }
+  if (state.mode && state.mode.kind === 'area' && state.draft.length) {
+    context.strokeStyle = '#ffffff';
+    context.fillStyle = '#ffffff';
+    context.setLineDash([4, 3]);
+    context.beginPath();
+    state.draft.forEach(([x, y], index) => {
+      const [px, py] = project(x, y);
+      if (index) context.lineTo(px, py); else context.moveTo(px, py);
+    });
+    context.stroke();
+    context.setLineDash([]);
+    for (const [x, y] of state.draft) {
+      const [px, py] = project(x, y);
+      context.fillRect(px - 3, py - 3, 6, 6);
+    }
+  }
+};
+
+const parseValue = (type, text) => {
+  if (type === 'bool') {
+    if (['true', '1', 'yes'].includes(text.toLowerCase())) return { type, value: true };
+    if (['false', '0', 'no'].includes(text.toLowerCase())) return { type, value: false };
+    return undefined;
+  }
+  if (type === 'int' || type === 'real') {
+    const number = Number(text);
+    if (text.trim() === '' || !Number.isFinite(number) || (type === 'int' && !Number.isInteger(number))) return undefined;
+    return { type, value: number };
+  }
+  return { type, value: text };
+};
+
+const roundTo = (value) => Math.round(value * 100) / 100;
+
+const selectArea = (index) => {
+  state.selectedArea = index;
+  state.selected = index === undefined ? state.selected : undefined;
+  showInfo();
+  showObjects();
+  showObject();
+  draw();
+};
+
+/** The trigger areas as a list; the chosen one is edited by name and points */
+const areaSection = (areas) => {
+  const section = element('details');
+  section.append(element('summary', 'Trigger areas (' + areas.length + ')'));
+  if (state.selectedArea !== undefined) section.open = true;
+  if (!state.readOnly) {
+    const add = element('button', 'New area');
+    add.title = 'Click the map to place points, Enter to finish';
+    add.onclick = () => setMode({ kind: 'area' });
+    section.append(add);
+  }
+  areas.forEach((area, index) => {
+    const row = element('div', area.name + ' · ' + area.points.length + ' points', 'object' + (state.selectedArea === index ? ' selected' : ''));
+    row.onclick = () => selectArea(index);
+    section.append(row);
+    if (state.selectedArea !== index) return;
+    const edit = (changes) => send({ kind: 'areaSet', index, ...changes });
+    const name = element('input');
+    name.value = area.name;
+    name.disabled = state.readOnly;
+    name.onchange = () => edit({ name: name.value });
+    const nameRow = element('div', undefined, 'field');
+    nameRow.append(element('label', 'Name'), name);
+    section.append(nameRow);
+    area.points.forEach(([x, y], at) => {
+      const line = element('div', undefined, 'light');
+      line.append(element('label', 'Point ' + (at + 1)));
+      [x, y].forEach((value, axis) => {
+        const input = element('input');
+        input.value = String(roundTo(value));
+        input.disabled = state.readOnly;
+        input.onchange = () => {
+          const number = Number(input.value);
+          if (input.value.trim() === '' || !Number.isFinite(number)) { input.classList.add('invalid'); return; }
+          const points = area.points.map((point) => point.slice());
+          points[at][axis] = number;
+          edit({ points });
+        };
+        line.append(input);
+      });
+      if (!state.readOnly) {
+        const remove = element('button', '×', 'icon');
+        remove.title = 'Remove point';
+        remove.onclick = () => edit({ points: area.points.filter((_, other) => other !== at) });
+        line.append(remove);
+      }
+      section.append(line);
+    });
+    if (!state.readOnly) {
+      const bar = element('div');
+      const more = element('button', 'Add point');
+      more.title = 'Adds a point half way along the closing edge';
+      more.onclick = () => {
+        const first = area.points[0];
+        const last = area.points[area.points.length - 1];
+        edit({ points: [...area.points, [(first[0] + last[0]) / 2, (first[1] + last[1]) / 2]] });
+      };
+      const remove = element('button', 'Delete area');
+      remove.onclick = () => { state.selectedArea = undefined; send({ kind: 'areaDelete', index }); };
+      bar.append(more, remove);
+      section.append(bar);
+    }
+  });
+  return section;
 };
 
 const showInfo = () => {
@@ -268,77 +461,10 @@ const showInfo = () => {
     info.append(teams);
   }
   if (map.scripts && map.scripts.some((list) => list.length)) {
-    const scripts = element('details');
-    const count = (nodes) => nodes.reduce((sum, node) => sum + (node.kind === 'group' ? count(node.children) : 1), 0);
-    scripts.append(element('summary', 'Scripts (' + map.scripts.reduce((sum, list) => sum + count(list), 0) + ')'));
-    /** A call as text, a play button after each parameter that names a sound */
-    const callNodes = (call) => {
-      const nodes = [document.createTextNode(call.name + (call.parameters.length ? '(' : ''))];
-      call.parameters.forEach((parameter, at) => {
-        if (at) nodes.push(document.createTextNode(', '));
-        nodes.push(document.createTextNode(parameter));
-        if ((call.sounds || []).includes(at)) {
-          const play = element('button', '▶', 'play');
-          play.title = 'Play ' + parameter;
-          play.onclick = () => vscode.postMessage({ kind: 'playSound', name: parameter });
-          nodes.push(play);
-        }
-      });
-      if (call.parameters.length) nodes.push(document.createTextNode(')'));
-      return nodes;
-    };
-    const joined = (calls, separator) => calls.flatMap((call, at) => [...(at ? [document.createTextNode(separator)] : []), ...callNodes(call)]);
-    const calls = (title, list) => list.length ? [document.createTextNode(title + ' '), ...joined(list, '; ')] : [];
-    const render = (nodes, parent) => {
-      for (const node of nodes) {
-        const box = element('input');
-        box.type = 'checkbox';
-        box.checked = node.active;
-        box.title = 'Active';
-        box.onchange = () => send({ kind: 'scriptActive', at: node.activeAt, active: box.checked });
-        if (node.kind === 'group') {
-          const group = element('details', undefined, 'script');
-          const summary = element('summary');
-          summary.append(box, document.createTextNode(' ' + node.name + (node.subroutine ? ' (subroutine)' : '')));
-          group.append(summary);
-          render(node.children, group);
-          parent.append(group);
-        } else {
-          const item = element('div', undefined, 'script');
-          const label = element('label');
-          label.append(box, document.createTextNode(node.name + (node.oneShot ? ' · once' : '') + (node.subroutine ? ' · subroutine' : '') + (node.difficulties.length < 3 ? ' · ' + node.difficulties.join('/') : '')));
-          if (node.comment) label.title = node.comment;
-          const detail = element('div', undefined, 'calls');
-          const parts = [
-            node.conditions.length ? [document.createTextNode('IF '), ...node.conditions.flatMap((and, at) => [...(at ? [document.createTextNode(' OR ')] : []), ...joined(and, ' AND ')])] : [],
-            calls('THEN', node.actions),
-            calls('ELSE', node.actionsFalse),
-          ].filter((part) => part.length);
-          parts.forEach((part, at) => {
-            if (at) detail.append(document.createTextNode(' · '));
-            detail.append(...part);
-          });
-          item.append(label, detail);
-          parent.append(item);
-        }
-      }
-    };
-    map.scripts.forEach((list, slot) => {
-      if (!list.length) return;
-      const side = map.sides[slot];
-      const owner = side && side.find((entry) => entry.key === 'playerName');
-      const player = element('details');
-      player.append(element('summary', (owner && owner.value.value ? owner.value.value : 'Player ' + (slot + 1)) + ' (' + count(list) + ')'));
-      render(list, player);
-      scripts.append(player);
-    });
-    info.append(scripts);
+    info.append(scriptTree(map.scripts, map.sides, { editable: !state.readOnly }));
   }
-  if (map.triggerAreas && map.triggerAreas.length) {
-    const areas = element('details');
-    areas.append(element('summary', 'Trigger areas (' + map.triggerAreas.length + ')'));
-    map.triggerAreas.forEach((area) => areas.append(element('div', area.name + ' · ' + area.points.length + ' points', 'muted')));
-    info.append(areas);
+  if ((map.triggerAreas && map.triggerAreas.length) || !state.readOnly) {
+    info.append(areaSection(map.triggerAreas || []));
   }
   const chunks = element('details');
   chunks.append(element('summary', 'Chunks (' + map.chunks.length + ')'));
@@ -374,6 +500,7 @@ const numberField = (label, value, onCommit) => {
   const row = element('div', undefined, 'field');
   const field = element('input');
   field.value = String(Math.round(value * 1000) / 1000);
+  field.disabled = state.readOnly;
   field.onchange = () => {
     const number = Number(field.value);
     if (!Number.isFinite(number)) { field.classList.add('invalid'); return; }
@@ -383,14 +510,126 @@ const numberField = (label, value, onCommit) => {
   return row;
 };
 
+/** A text, whole number or real property the object may or may not have yet; empty removes it */
+const propertyField = (object, label, key, type, list) => {
+  const entry = object.properties.find((candidate) => candidate.key === key);
+  const row = element('div', undefined, 'field');
+  const field = element('input');
+  if (list) field.setAttribute('list', list);
+  field.value = entry ? String(entry.value.value) : '';
+  field.placeholder = entry ? '' : 'not set';
+  field.disabled = state.readOnly;
+  field.onchange = () => {
+    const owner = { object: object.index };
+    if (field.value.trim() === '') { send({ kind: 'property', owner, key, value: null }); return; }
+    const value = parseValue(entry ? entry.value.type : type, field.value);
+    if (!value) { field.classList.add('invalid'); return; }
+    send({ kind: 'property', owner, key, value });
+  };
+  row.append(element('label', label), field);
+  return row;
+};
+
+const addPropertyRow = (object) => {
+  const row = element('div', undefined, 'addproperty');
+  const key = element('input');
+  key.setAttribute('list', 'propertyKeys');
+  key.placeholder = 'property';
+  const type = element('select');
+  for (const name of ['string', 'int', 'real', 'bool', 'wide']) type.append(element('option', name));
+  const value = element('input');
+  value.placeholder = 'value';
+  const add = element('button', 'Add');
+  add.onclick = () => {
+    const parsed = parseValue(type.value, value.value);
+    if (!key.value.trim() || !parsed) { (parsed ? key : value).classList.add('invalid'); return; }
+    send({ kind: 'property', owner: { object: object.index }, key: key.value.trim(), value: parsed });
+  };
+  row.append(key, type, value, add);
+  return row;
+};
+
+const toggleLink = (from, to, present) => send({ kind: 'waypointLink', from, to, present });
+
+const waypointLinks = (object) => {
+  const id = idOf(object);
+  const section = element('div');
+  if (id === undefined) return section;
+  const ids = waypointsById();
+  section.append(element('h3', 'Links'));
+  const links = state.map.waypointLinks || [];
+  const rows = [
+    ...links.filter((link) => link.from === id).map((link) => ({ link, arrow: '→', other: ids.get(link.to), otherId: link.to })),
+    ...links.filter((link) => link.to === id).map((link) => ({ link, arrow: '←', other: ids.get(link.from), otherId: link.from })),
+  ];
+  for (const { link, arrow, other, otherId } of rows) {
+    const line = element('div', arrow + ' ' + (other ? waypointLabel(other) : 'missing #' + otherId), 'object');
+    if (other) line.onclick = () => select(other.index);
+    if (!state.readOnly) {
+      const remove = element('button', '×', 'icon');
+      remove.title = 'Remove this link';
+      remove.onclick = (event) => { event.stopPropagation(); toggleLink(link.from, link.to, false); };
+      line.append(remove);
+    }
+    section.append(line);
+  }
+  if (!rows.length) section.append(element('p', 'No links', 'muted'));
+  if (!state.readOnly) {
+    const target = element('select');
+    for (const [otherId, other] of ids) if (otherId !== id) target.append(Object.assign(element('option', waypointLabel(other)), { value: String(otherId) }));
+    const add = element('button', 'Link to');
+    add.title = 'Alt-click a waypoint on the map does the same, and removes a link that is there';
+    add.onclick = () => { if (target.value !== '') toggleLink(id, Number(target.value), true); };
+    const bar = element('div', undefined, 'addproperty');
+    bar.append(add, target);
+    section.append(bar);
+  }
+  return section;
+};
+
+const rotateBy = (object, step) => {
+  let angle = object.angle + step;
+  while (angle > Math.PI) angle -= Math.PI * 2;
+  while (angle < -Math.PI) angle += Math.PI * 2;
+  send({ kind: 'object', index: object.index, angle });
+};
+
+const deleteSelected = () => {
+  if (state.readOnly) return;
+  if (state.selected !== undefined && state.map.objects[state.selected]) {
+    const index = state.selected;
+    state.selected = undefined;
+    send({ kind: 'objectDelete', index });
+  } else if (state.selectedArea !== undefined) {
+    const index = state.selectedArea;
+    state.selectedArea = undefined;
+    send({ kind: 'areaDelete', index });
+  }
+};
+
 const showObject = () => {
   const object = state.map.objects[state.selected];
   objectDetails.replaceChildren();
   if (!object) return;
-  objectDetails.append(element('h3', 'Object ' + object.index));
+  const waypoint = isWaypoint(object);
+  objectDetails.append(element('h3', (waypoint ? 'Waypoint ' : 'Object ') + object.index));
+  if (!state.readOnly) {
+    const bar = element('div', undefined, 'toolbar');
+    const left = element('button', '⟲ 15°');
+    left.onclick = () => rotateBy(object, ROTATE_STEP);
+    const right = element('button', '⟳ 15°');
+    right.onclick = () => rotateBy(object, -ROTATE_STEP);
+    const remove = element('button', 'Delete');
+    remove.title = 'Delete key';
+    remove.onclick = deleteSelected;
+    bar.append(left, right, remove);
+    objectDetails.append(bar);
+  }
   const template = element('div', undefined, 'field');
   const templateField = element('input');
+  templateField.setAttribute('list', 'templates');
   templateField.value = object.template;
+  templateField.disabled = state.readOnly;
   templateField.onchange = () => send({ kind: 'object', index: object.index, template: templateField.value });
   template.append(element('label', 'Template'), templateField);
   objectDetails.append(
@@ -399,31 +638,203 @@ const showObject = () => {
     numberField('Y', object.y, (value) => send({ kind: 'object', index: object.index, y: value })),
     numberField('Z offset', object.z, (value) => send({ kind: 'object', index: object.index, z: value })),
     numberField('Angle °', object.angle * 180 / Math.PI, (value) => send({ kind: 'object', index: object.index, angle: value * Math.PI / 180 })),
-    element('h3', 'Properties'),
-    dictTable(object.properties, { object: object.index }),
+    propertyField(object, 'Owner / team', 'originalOwner', 'string', 'owners'),
+    propertyField(object, 'Health %', 'objectInitialHealth', 'int'),
+    propertyField(object, waypoint ? 'Waypoint name' : 'Name', waypoint ? 'waypointName' : 'objectName', 'string'),
   );
+  if (waypoint) objectDetails.append(waypointLinks(object));
+  objectDetails.append(element('h3', 'Properties'), dictTable(object.properties, { object: object.index }, true));
+  if (!state.readOnly) objectDetails.append(addPropertyRow(object));
 };
 
 const select = (index) => {
   state.selected = index;
+  if (index !== undefined) state.selectedArea = undefined;
+  showInfo();
   showObjects();
   showObject();
   draw();
 };
 
-canvas.addEventListener('click', (event) => {
-  if (!state.heights) return;
+const setMode = (mode) => {
+  state.mode = mode;
+  state.draft = [];
+  canvas.style.cursor = mode ? 'copy' : 'crosshair';
+  const hint = document.getElementById('hint');
+  hint.textContent = !mode ? '' : mode.kind === 'place' ? 'Click the map to place ' + mode.template + ' · Esc cancels' : 'Click the map to add points · Enter finishes · Backspace removes the last · Esc cancels';
+  document.getElementById('modebar').hidden = !mode;
+  draw();
+};
+
+const finishArea = () => {
+  if (!state.mode || state.mode.kind !== 'area') return;
+  if (state.draft.length < 3) { showNotice('A trigger area has at least three points'); return; }
+  const taken = new Set((state.map.triggerAreas || []).map((area) => area.name));
+  let number = taken.size + 1;
+  while (taken.has('Area ' + number)) number++;
+  send({ kind: 'areaAdd', name: 'Area ' + number, points: state.draft });
+  state.selectedArea = (state.map.triggerAreas || []).length;
+  setMode(undefined);
+};
+
+const placeAt = (x, y) => {
+  const mode = state.mode;
+  const base = { kind: 'objectAdd', template: mode.template, x: roundTo(x), y: roundTo(y) };
+  if (mode.waypoint) {
+    const ids = [...waypointsById().keys()];
+    const id = ids.length ? Math.max(...ids) + 1 : 1;
+    base.properties = [{ key: 'waypointID', value: { type: 'int', value: id } }, { key: 'waypointName', value: { type: 'string', value: 'Waypoint ' + id } }];
+  } else {
+    base.properties = [{ key: 'objectInitialHealth', value: { type: 'int', value: 100 } }, { key: 'objectEnabled', value: { type: 'bool', value: true } }];
+  }
+  state.pendingSelect = state.map.objects.length;
+  send(base);
+  setMode(undefined);
+};
+
+const canvasPoint = (event) => {
   const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-  let best, bestDistance = 64;
+  return [(event.clientX - rect.left) * canvas.width / rect.width, (event.clientY - rect.top) * canvas.height / rect.height];
+};
+
+const visible = (object) => isStart(object) ? state.layers.starts : isWaypoint(object) ? state.layers.waypoints : state.layers.objects;
+
+const nearestObject = ([x, y]) => {
+  let best, bestDistance = 100;
   for (const object of state.map.objects) {
+    if (!visible(object)) continue;
     const [px, py] = project(object.x, object.y);
     const distance = (px - x) ** 2 + (py - y) ** 2;
     if (distance < bestDistance) { best = object; bestDistance = distance; }
   }
-  if (best) select(best.index);
+  return best;
+};
+
+const nearestVertex = ([x, y]) => {
+  const area = (state.map.triggerAreas || [])[state.selectedArea];
+  if (!area || !state.layers.areas) return undefined;
+  let best, bestDistance = 64;
+  area.points.forEach((point, index) => {
+    const [px, py] = project(point[0], point[1]);
+    const distance = (px - x) ** 2 + (py - y) ** 2;
+    if (distance < bestDistance) { best = index; bestDistance = distance; }
+  });
+  return best;
+};
+
+const insidePolygon = ([x, y], points) => {
+  let inside = false;
+  for (let at = 0, back = points.length - 1; at < points.length; back = at++) {
+    const [ax, ay] = points[at];
+    const [bx, by] = points[back];
+    if ((ay > y) !== (by > y) && x < (bx - ax) * (y - ay) / (by - ay) + ax) inside = !inside;
+  }
+  return inside;
+};
+
+canvas.addEventListener('mousedown', (event) => {
+  if (!state.heights || event.button !== 0 || state.mode) return;
+  const at = canvasPoint(event);
+  const vertex = nearestVertex(at);
+  if (vertex !== undefined && !state.readOnly) {
+    state.drag = { kind: 'vertex', area: state.selectedArea, vertex, moved: false };
+    return;
+  }
+  const object = nearestObject(at);
+  const chosen = state.map.objects[state.selected];
+  if (object && event.altKey && chosen && isWaypoint(chosen) && isWaypoint(object) && object !== chosen) {
+    if (!state.readOnly) {
+      const from = idOf(chosen);
+      const to = idOf(object);
+      const present = (state.map.waypointLinks || []).some((link) => link.from === from && link.to === to);
+      toggleLink(from, to, !present);
+    }
+    return;
+  }
+  if (object) {
+    select(object.index);
+    if (!state.readOnly) state.drag = { kind: 'object', index: object.index, moved: false };
+    return;
+  }
+  const world = unproject(at[0], at[1]);
+  const index = state.layers.areas ? (state.map.triggerAreas || []).findIndex((area) => insidePolygon(world, area.points)) : -1;
+  if (index >= 0) selectArea(index);
 });
+
+canvas.addEventListener('mousemove', (event) => {
+  const drag = state.drag;
+  if (!drag) return;
+  const [x, y] = unproject(...canvasPoint(event));
+  drag.moved = true;
+  if (drag.kind === 'object') {
+    const object = state.map.objects[drag.index];
+    object.x = x;
+    object.y = y;
+  } else {
+    state.map.triggerAreas[drag.area].points[drag.vertex] = [x, y];
+  }
+  draw();
+});
+
+window.addEventListener('mouseup', () => {
+  const drag = state.drag;
+  state.drag = undefined;
+  if (!drag || !drag.moved) return;
+  if (drag.kind === 'object') {
+    const object = state.map.objects[drag.index];
+    send({ kind: 'object', index: drag.index, x: roundTo(object.x), y: roundTo(object.y) });
+  } else {
+    const area = state.map.triggerAreas[drag.area];
+    send({ kind: 'areaSet', index: drag.area, points: area.points.map(([x, y]) => [roundTo(x), roundTo(y)]) });
+  }
+});
+
+canvas.addEventListener('click', (event) => {
+  if (!state.heights || !state.mode || state.readOnly) return;
+  const [x, y] = unproject(...canvasPoint(event));
+  if (state.mode.kind === 'place') {
+    placeAt(x, y);
+  } else {
+    state.draft.push([roundTo(x), roundTo(y)]);
+    draw();
+  }
+});
+
+window.addEventListener('keydown', (event) => {
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement && document.activeElement.tagName)) return;
+  if (event.key === 'Escape') {
+    setMode(undefined);
+  } else if (event.key === 'Enter') {
+    finishArea();
+  } else if (event.key === 'Backspace' && state.mode && state.mode.kind === 'area') {
+    state.draft.pop();
+    draw();
+  } else if (event.key === 'Delete') {
+    deleteSelected();
+  } else if ((event.key === '[' || event.key === ']') && !state.readOnly) {
+    const object = state.map.objects[state.selected];
+    if (object) rotateBy(object, event.key === '[' ? ROTATE_STEP : -ROTATE_STEP);
+  }
+});
+
+const showNotice = (message) => {
+  const notice = document.getElementById('notice');
+  notice.textContent = message;
+  notice.hidden = false;
+  setTimeout(() => { notice.hidden = true; }, 6000);
+};
+
+const templateInput = document.getElementById('template');
+const startPlace = (waypoint) => {
+  const template = waypoint ? WAYPOINT_TEMPLATE : templateInput.value.trim();
+  if (!template) { showNotice('Pick an object template to place'); return; }
+  setMode({ kind: 'place', template, waypoint });
+};
+document.getElementById('placeObject').onclick = () => startPlace(false);
+document.getElementById('placeWaypoint').onclick = () => startPlace(true);
+document.getElementById('finishMode').onclick = finishArea;
+document.getElementById('cancelMode').onclick = () => setMode(undefined);
+fillList('propertyKeys', PROPERTY_KEYS);
 
 document.getElementById('filter').addEventListener('input', (event) => { state.filter = event.target.value; showObjects(); });
 for (const name of Object.keys(state.layers)) {
@@ -436,20 +847,26 @@ new ResizeObserver(() => draw()).observe(canvas.parentElement);
 window.addEventListener('message', ({ data }) => {
   if (data.kind === 'map') {
     state.map = data.map;
+    state.readOnly = Boolean(data.readOnly);
+    document.body.classList.toggle('readonly', state.readOnly);
+    if (data.templates) fillList('templates', data.templates);
     if (data.heights) {
       state.heights = data.heights;
       state.relief = buildRelief(data.heights);
     }
+    if (state.pendingSelect !== undefined) {
+      if (state.map.objects.length > state.pendingSelect) select(state.pendingSelect);
+      state.pendingSelect = undefined;
+    }
     if (state.selected !== undefined && !state.map.objects[state.selected]) state.selected = undefined;
+    if (state.selectedArea !== undefined && !(state.map.triggerAreas || [])[state.selectedArea]) state.selectedArea = undefined;
+    fillList('owners', [...new Set([...state.map.objects.map(ownerOf).filter(Boolean), ...state.map.teams.map((team) => (team.find((entry) => entry.key === 'teamName') || { value: {} }).value.value).filter(Boolean)])].sort());
     showInfo();
     showObjects();
     showObject();
     draw();
   } else if (data.kind === 'notice' || data.kind === 'error') {
-    const notice = document.getElementById('notice');
-    notice.textContent = data.message;
-    notice.hidden = false;
-    if (data.kind === 'notice') setTimeout(() => { notice.hidden = true; }, 6000);
+    showNotice(data.message);
   }
 });
 
