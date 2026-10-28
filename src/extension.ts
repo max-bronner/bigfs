@@ -1,248 +1,64 @@
-﻿import * as vscode from 'vscode';
-import { ArchiveModel } from './model/archiveModel';
-import { BigFileSystemProvider } from './providers/fileSystemProvider';
-import {
-  BigTreeDataProvider,
-  VIEW_SETTING,
-  isGameViewShown,
-} from './providers/treeDataProvider';
-import { GameViewModel } from './model/gameViewModel';
-import { BigDragAndDropController } from './providers/dragAndDropController';
-import { createNodeCommandRegister } from './commands/commandCenter';
-import { registerFileCommands } from './commands/fileCommands';
-import { registerExtractCommands } from './commands/extractCommands';
-import { registerClipboardCommands } from './commands/clipboardCommands';
-import { registerModCommands } from './commands/modCommands';
-import { createToolRegistry } from './tools/toolRegistry';
-import { GameLanguage } from './language/gameLanguage';
-import { registerSageIniLanguage } from './language/sageIniLanguage';
-import { registerSageStrLanguage } from './language/sageStrLanguage';
-import { registerSageWndLanguage } from './language/sageWndLanguage';
-import { registerTextureCommands } from './commands/textureCommands';
-import { registerAptCommands } from './commands/aptCommands';
-import { registerW3dAnimationCommands } from './commands/w3dAnimationCommands';
-import { registerVideoCommands } from './commands/videoCommands';
-import { registerInstallDetectCommands } from './commands/installDetectCommands';
-import { registerLaunchCommands } from './commands/launchCommands';
-import { registerModDiffCommands } from './commands/modDiffCommands';
-import { PreviewEditorProvider } from './providers/previewEditorProvider';
-import { CahEditorProvider } from './providers/cahEditorProvider';
-import { SageIniDocuments } from './language/sageIniDocuments';
-import { AptEditorProvider } from './providers/aptEditorProvider';
-import { registerAptTextLanguage } from './providers/aptTextLanguage';
-import { MapEditorProvider } from './providers/mapEditorProvider';
-import { ScriptFileEditorProvider } from './providers/scriptFileEditorProvider';
-import {
-  CSF_VIEW_TYPE,
-  CsfEditorProvider,
-  STR_TABLE_VIEW_TYPE,
-  StrTableEditorProvider,
-} from './providers/stringTableEditorProvider';
-import { decodeDdsTool, decodeTgaTool } from './tools/textureTools';
-import { playableAudioTool } from './tools/audioTools';
-import { parseW3dTool } from './tools/w3dTools';
-import { EntryLocator } from './formats/entryLocator';
-import { SCHEME } from './constants';
+import type { ExtensionContext } from 'vscode';
+import { createServices } from './services/createServices';
+import type { Services } from './services/createServices';
+import { registerPreview } from './features/preview';
+import { registerParticles } from './features/particles';
+import { registerBulkEdit } from './features/bulkEdit';
+import { registerObjects } from './features/objects';
+import { registerAudio } from './features/audio';
+import { registerBalanceSheet } from './features/balanceSheet';
+import { registerArmorTable } from './features/armorTable';
+import { registerCommandSet } from './features/commandSet';
+import { registerIniLanguage } from './features/iniLanguage';
+import { registerMap } from './features/map';
+import { registerScripts } from './features/scripts';
+import { registerCah } from './features/cah';
+import { registerApt } from './features/apt';
+import { registerStrings } from './features/strings';
+import { registerWnd } from './features/wnd';
+import { registerTextures } from './features/textures';
+import { registerW3d } from './features/w3d';
+import { registerVideo } from './features/video';
+import { registerInstalls } from './features/installs';
+import { registerMods } from './features/mods';
+import { registerExplorer } from './features/explorer';
 
-export function activate(context: vscode.ExtensionContext) {
-  const log = vscode.window.createOutputChannel('bigFS', { log: true });
-  const archiveModel = new ArchiveModel(log);
+/**
+ * Every feature, in activation order. Providers of one kind for the same
+ * language are consulted in registration order, so the INI features that
+ * add lenses and code actions come before `registerIniLanguage`.
+ */
+const FEATURES: ((context: ExtensionContext, services: Services) => void)[] = [
+  registerPreview,
+  registerParticles,
+  registerBulkEdit,
+  registerObjects,
+  registerAudio,
+  registerBalanceSheet,
+  registerArmorTable,
+  registerCommandSet,
+  registerIniLanguage,
+  registerMap,
+  registerScripts,
+  registerCah,
+  registerApt,
+  registerStrings,
+  registerWnd,
+  registerTextures,
+  registerW3d,
+  registerVideo,
+  registerInstalls,
+  registerMods,
+  registerExplorer,
+];
 
-  context.subscriptions.push(log, archiveModel);
+/** Activation hook VS Code calls once, at startup or on the first `bigfs` uri */
+export function activate(context: ExtensionContext): void {
+  const services = createServices(context);
 
-  // scanned and hasArchives gate the welcome views declared in package.json
-  const setContextKey = (key: string, value: boolean) =>
-    vscode.commands.executeCommand('setContext', `${SCHEME}.${key}`, value);
-
-  const markScanned = async () => {
-    await setContextKey(
-      'hasArchives',
-      archiveModel.getArchiveRoots().length > 0,
-    );
-    await setContextKey('scanned', true);
-  };
-
-  // not awaited: activation returns before the scan does, and the tree is
-  // usable while it runs
-  archiveModel.whenReady().finally(markScanned);
-
-  // Registering a tool is one line here
-  const tools = createToolRegistry();
-
-  tools.register(decodeTgaTool, decodeDdsTool, playableAudioTool, parseW3dTool);
-
-  const gameView = new GameViewModel(archiveModel);
-  const locator = new EntryLocator(archiveModel, gameView);
-
-  context.subscriptions.push(
-    locator,
-    PreviewEditorProvider.register(tools, locator, context.extensionUri),
-  );
-
-  const iniIndex = registerSageIniLanguage(context, archiveModel, log, locator);
-  const cahDocuments = new SageIniDocuments(context.extensionUri);
-
-  context.subscriptions.push(
-    MapEditorProvider.register(iniIndex),
-    ScriptFileEditorProvider.register(),
-  );
-
-  const gameLanguage = new GameLanguage(
-    archiveModel,
-    context.workspaceState,
-    iniIndex,
-  );
-
-  context.subscriptions.push(
-    gameLanguage,
-    vscode.commands.registerCommand(`${SCHEME}.chooseLanguage`, () =>
-      gameLanguage.choose(),
-    ),
-    cahDocuments,
-    CahEditorProvider.register({
-      documents: cahDocuments,
-      index: iniIndex,
-      gameLanguage,
-      locator,
-    }),
-    AptEditorProvider.register(
-      tools,
-      locator,
-      archiveModel,
-      context.extensionUri,
-      { gameLanguage, index: iniIndex, state: context.workspaceState },
-    ),
-    registerAptTextLanguage(),
-  );
-
-  // Settled once the archives are indexed, so hovers and diagnostics read
-  // text in the chosen language; asks only when several are installed
-  void archiveModel
-    .whenReady()
-    .then(() => gameLanguage.ensure())
-    .catch((error: unknown) => log.error('Failed to settle language', error));
-  registerSageStrLanguage(context, archiveModel);
-  registerSageWndLanguage(context, {
-    index: iniIndex,
-    locator,
-    gameLanguage,
-  });
-  registerTextureCommands(context);
-  registerAptCommands(context);
-  context.subscriptions.push(registerW3dAnimationCommands());
-  registerVideoCommands(context);
-  registerLaunchCommands(context);
-  registerInstallDetectCommands(context, archiveModel.whenReady());
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      STR_TABLE_VIEW_TYPE,
-      new StrTableEditorProvider(),
-    ),
-    vscode.window.registerCustomEditorProvider(
-      CSF_VIEW_TYPE,
-      new CsfEditorProvider(),
-      { supportsMultipleEditorsPerDocument: true },
-    ),
-    vscode.commands.registerCommand(
-      'bigfs.openStringTable',
-      (uri?: vscode.Uri) => {
-        const target = uri ?? vscode.window.activeTextEditor?.document.uri;
-
-        return target
-          ? vscode.commands.executeCommand(
-              'vscode.openWith',
-              target,
-              STR_TABLE_VIEW_TYPE,
-            )
-          : undefined;
-      },
-    ),
-  );
-
-  const fileSystemProvider = new BigFileSystemProvider(archiveModel);
-
-  registerModDiffCommands(context, gameView);
-  const treeDataProvider = new BigTreeDataProvider(archiveModel, gameView);
-
-  // The context key picks which of the two view buttons the title bar shows
-  const showView = (isGame: boolean) =>
-    vscode.workspace
-      .getConfiguration()
-      .update(
-        VIEW_SETTING,
-        isGame ? 'game' : 'archives',
-        vscode.ConfigurationTarget.Workspace,
-      );
-
-  void setContextKey('gameView', isGameViewShown());
-  context.subscriptions.push(
-    gameView,
-    vscode.commands.registerCommand(`${SCHEME}.showGameView`, () =>
-      showView(true),
-    ),
-    vscode.commands.registerCommand(`${SCHEME}.showArchiveView`, () =>
-      showView(false),
-    ),
-    vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(VIEW_SETTING)) {
-        void setContextKey('gameView', isGameViewShown());
-        treeDataProvider.refresh();
-      }
-    }),
-  );
-  const dragAndDropController = new BigDragAndDropController(archiveModel);
-
-  context.subscriptions.push(
-    vscode.workspace.registerFileSystemProvider(SCHEME, fileSystemProvider, {
-      isCaseSensitive: false,
-      isReadonly: false,
-    }),
-  );
-
-  const treeView = vscode.window.createTreeView('bigArchiveExplorer', {
-    treeDataProvider,
-    dragAndDropController,
-    showCollapseAll: true,
-    canSelectMany: true,
-  });
-
-  context.subscriptions.push(treeView);
-
-  const registerNodeCommand = createNodeCommandRegister(context, treeView);
-
-  registerFileCommands(registerNodeCommand, archiveModel);
-  registerExtractCommands(registerNodeCommand, archiveModel);
-  registerClipboardCommands(registerNodeCommand, archiveModel);
-  context.subscriptions.push(
-    ...registerModCommands(registerNodeCommand, archiveModel),
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand(`${SCHEME}.refreshArchives`, async () => {
-      await setContextKey('scanned', false);
-
-      try {
-        await archiveModel.scanWorkspace();
-        // Loose files are only found when the game view is built
-        gameView.invalidate();
-      } finally {
-        treeDataProvider.refresh();
-        await markScanned();
-      }
-    }),
-  );
-
-  context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument(async (document) => {
-      if (document.uri.scheme === SCHEME) {
-        vscode.window.setStatusBarMessage(
-          `BIG archive updated: ${document.uri.path}`,
-          4000,
-        );
-      }
-    }),
-  );
+  for (const register of FEATURES) {
+    register(context, services);
+  }
 }
 
 /**

@@ -6,7 +6,9 @@ BIG archives, gives the INI, STR and WND dialects language support, and
 previews or edits the game's formats (W3D, APT, maps, textures, audio, VP6).
 
 `docs/architecture.md` describes how it is put together; read the section for
-the layer you touch before changing it. `docs/TESTING.md` is the manual test
+the layer you touch before changing it. `docs/conventions.md` says where new
+code goes and what shape it takes, and `docs/refactor-plan.md` lists the waves
+moving the code into that layout. `docs/TESTING.md` is the manual test
 guide for everything `dev/next` adds over `master`.
 
 ## Branches and pull requests
