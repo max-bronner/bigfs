@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { toUri } from '../platform/commandTarget';
-import type { CommandTarget } from '../platform/commandTarget';
+import { toUri } from '../services/archives/commandTarget';
+import type { CommandTarget } from '../services/archives/commandTarget';
 import { decodeDds, decodeTga } from '../formats/texture/textureTools';
 import type { DecodedTexture } from '../formats/texture/textureTools';
 import {

@@ -13,8 +13,8 @@ import type {
 } from '../formats/particles/particleIni';
 import { encodePng } from '../node/png';
 import { decodeDds, decodeTga } from '../formats/texture/textureTools';
-import type { SageIniIndex } from './sageIniIndex';
-import { readWorkspaceText } from './workspaceText';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../services/ini/workspaceText';
 
 /**
  * The definitions and textures an effect needs to play: every particle

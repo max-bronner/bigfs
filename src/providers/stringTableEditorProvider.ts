@@ -11,7 +11,7 @@ import {
   quoteStringText,
 } from '../formats/str/sageStringRecords';
 import { STRING_TABLE_SCRIPT } from './stringTableViewScript';
-import { webviewPage } from './webviewPage';
+import { webviewPage } from '../platform/webview/webviewPage';
 
 /**
  * Table editors for string tables: `.str` as an alternative view of the text

@@ -5,8 +5,8 @@ import {
   detectInstallKind,
   orderLayers,
   parseRegistryPath,
-} from '../game/install/installLayers';
-import type { InstallKind } from '../game/install/installLayers';
+} from '../../game/install/installLayers';
+import type { InstallKind } from '../../game/install/installLayers';
 
 /**
  * The install folders the settings name as the game beneath the workspace:

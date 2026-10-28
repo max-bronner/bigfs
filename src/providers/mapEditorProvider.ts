@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { Dict, MapFile, parseMap, writeMap } from '../formats/map/mapFile';
 import { MapEdit, applyMapEdit } from '../formats/map/mapEdit';
 import { markSounds } from '../formats/map/mapScriptSounds';
-import type { SageIniIndex } from '../language/sageIniIndex';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
 import { MAP_VIEW_SCRIPT } from './mapViewScript';
-import { webviewPage } from './webviewPage';
+import { webviewPage } from '../platform/webview/webviewPage';
 
 /**
  * Editor for `.map` and `.bse` files: terrain relief with objects and start

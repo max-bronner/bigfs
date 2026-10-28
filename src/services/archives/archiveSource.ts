@@ -4,8 +4,8 @@ import {
   detectInstallKind,
   isInsideSource,
   orderLayers,
-} from '../game/install/installLayers';
-import type { InstallKind } from '../game/install/installLayers';
+} from '../../game/install/installLayers';
+import type { InstallKind } from '../../game/install/installLayers';
 import { findBaseGameFolders } from './baseGameFolders';
 
 /**

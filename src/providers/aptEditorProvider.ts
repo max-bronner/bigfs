@@ -5,7 +5,7 @@ import { SPEEDS } from '../webview/apt/protocol';
 import type { ToolBox } from '../services/toolRegistry';
 import { decodeTgaTool } from '../formats/texture/textureTools';
 import type { EntryLocator } from '../services/entryLocator';
-import type { ArchiveModel } from '../model/archiveModel';
+import type { ArchiveModel } from '../services/archives/archiveModel';
 import {
   parseAptMovie,
   parseConst,
@@ -30,7 +30,7 @@ import {
 } from '../formats/apt/aptScript';
 import { AptScripts } from './aptScripts';
 import { AptTextView } from './aptTextView';
-import { isEditable } from '../language/archiveText';
+import { isEditable } from '../services/ini/archiveText';
 import { checkMovie } from '../formats/apt/aptIntegrity';
 import { referencesTo } from '../formats/apt/aptManage';
 import type { Problem } from '../formats/apt/aptIntegrity';
@@ -53,11 +53,11 @@ import type { FromPage, PageMovie, ToPage } from '../webview/apt/protocol';
 import { AptLibrary, movieKey } from './aptLibrary';
 import type { MovieLocation } from './aptLibrary';
 import { collectTextKeys, resolveAptText } from '../formats/apt/aptText';
-import type { GameLanguage } from '../language/gameLanguage';
-import type { SageIniIndex } from '../language/sageIniIndex';
+import type { GameLanguage } from '../services/ini/gameLanguage';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
 import type { EngineValues } from '../webview/apt/avm/engine';
 import { resolveMappedImages } from './aptMappedImages';
-import { createNonce } from './webviewNonce';
+import { createNonce } from '../platform/webview/webviewNonce';
 import { decodeWindows1252 } from '../core/windows1252';
 
 /**

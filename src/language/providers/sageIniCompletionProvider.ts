@@ -1,10 +1,10 @@
 import { CompletionItem, CompletionItemKind, Range } from 'vscode';
 import type { CompletionItemProvider, Position, TextDocument } from 'vscode';
-import type { SageIniDocuments } from '../sageIniDocuments';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
 import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
 import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
-import type { SageIniIndex } from '../sageIniIndex';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 
 /**
  * Suggests what is legal where the cursor is.

@@ -20,10 +20,10 @@ import {
   offerOverride,
   readEntryText,
   saveEntryTexts,
-} from './archiveText';
+} from '../services/ini/archiveText';
 import { decodeIniText } from '../core/windows1252';
-import { readWorkspaceText } from './workspaceText';
-import type { ArchiveModel } from '../model/archiveModel';
+import { readWorkspaceText } from '../services/ini/workspaceText';
+import type { ArchiveModel } from '../services/archives/archiveModel';
 
 /**
  * **Check Translations**: compares the workspace's string tables language

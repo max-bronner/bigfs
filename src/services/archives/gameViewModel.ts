@@ -1,12 +1,12 @@
 import { EventEmitter, FileType, Uri } from 'vscode';
 import type { Disposable } from 'vscode';
-import { createDebouncer } from '../core/debounce';
+import { createDebouncer } from '../../core/debounce';
 import type { ArchiveModel } from './archiveModel';
 import { getFileNodes } from './virtualNode';
 import type { VirtualNode } from './virtualNode';
-import { buildGameTree, indexByName, orderInstallFiles } from '../game/install/gameView';
-import type { GameNode, InstallFiles } from '../game/install/gameView';
-import { GAME_FOLDERS, listLooseFiles } from '../node/installScan';
+import { buildGameTree, indexByName, orderInstallFiles } from '../../game/install/gameView';
+import type { GameNode, InstallFiles } from '../../game/install/gameView';
+import { GAME_FOLDERS, listLooseFiles } from '../../node/installScan';
 import * as path from 'path';
 
 /**

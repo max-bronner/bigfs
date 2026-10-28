@@ -1,10 +1,10 @@
 ﻿import { commands, window } from 'vscode';
 import type { ExtensionContext, TreeView } from 'vscode';
 import { SCHEME } from '../constants';
-import { isGameRow, isVirtualNode } from '../providers/explorerNode';
-import { toEntryDirectory } from '../model/gameViewModel';
-import type { ExplorerNode } from '../providers/explorerNode';
-import type { VirtualNode } from '../model/virtualNode';
+import { isGameRow, isVirtualNode } from '../services/archives/explorerRow';
+import { toEntryDirectory } from '../services/archives/gameViewModel';
+import type { ExplorerNode } from '../services/archives/explorerRow';
+import type { VirtualNode } from '../services/archives/virtualNode';
 
 /**
  * Body of a tree node command, handed the nodes it was invoked on. Never run

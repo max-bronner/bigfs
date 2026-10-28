@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import Module from 'module';
-import type { VirtualNode } from '../../model/virtualNode';
+import type { VirtualNode } from '../../services/archives/virtualNode';
 
 // virtualNode only needs `FileType` from vscode, which a plain mocha run does
 // not have; the stub is in place for the one require and then removed.
@@ -14,11 +14,11 @@ internals._load = (request, ...rest) =>
     ? { FileType: { File: 1, Directory: 2 } }
     : original.call(Module, request, ...rest);
 
-let nodes: typeof import('../../model/virtualNode');
+let nodes: typeof import('../../services/archives/virtualNode');
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  nodes = require('../../model/virtualNode');
+  nodes = require('../../services/archives/virtualNode');
 } finally {
   internals._load = original;
 }

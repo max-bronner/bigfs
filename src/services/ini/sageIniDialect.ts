@@ -1,6 +1,6 @@
 import { languages, workspace } from 'vscode';
 import type { Disposable, TextDocument } from 'vscode';
-import { SAGE_INI_LANGUAGE } from '../constants';
+import { SAGE_INI_LANGUAGE } from '../../constants';
 
 /**
  * Recognises the dialect inside a `.ini` file and switches its language mode.

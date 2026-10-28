@@ -5,16 +5,16 @@ import {
   askForTransferConflict,
   confirmDelete,
   resolveConflicts,
-} from '../ui/dialogs';
+} from '../platform/dialogs';
 import { findConflicts, planTransfer } from '../game/install/transferPlan';
 import {
   findChild,
   getTopLevelNodes,
   isArchiveRoot,
   isInside,
-} from '../model/virtualNode';
-import type { VirtualNode } from '../model/virtualNode';
-import type { ArchiveModel, ImportedFile } from '../model/archiveModel';
+} from '../services/archives/virtualNode';
+import type { VirtualNode } from '../services/archives/virtualNode';
+import type { ArchiveModel, ImportedFile } from '../services/archives/archiveModel';
 import type { ConflictChoice } from '../game/install/transferPlan';
 
 /**

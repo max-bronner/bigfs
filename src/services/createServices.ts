@@ -1,16 +1,16 @@
 import { window } from 'vscode';
 import type { ExtensionContext, LogOutputChannel } from 'vscode';
-import { ArchiveModel } from '../model/archiveModel';
-import { GameViewModel } from '../model/gameViewModel';
+import { ArchiveModel } from './archives/archiveModel';
+import { GameViewModel } from './archives/gameViewModel';
 import { EntryLocator } from './entryLocator';
 import { createToolRegistry } from './toolRegistry';
 import type { ToolBox } from './toolRegistry';
 import { decodeDdsTool, decodeTgaTool } from '../formats/texture/textureTools';
 import { playableAudioTool } from '../formats/audio/audioTools';
 import { parseW3dTool } from '../formats/w3d/w3dTools';
-import { SageIniDocuments } from '../language/sageIniDocuments';
-import { SageIniIndex } from '../language/sageIniIndex';
-import { GameLanguage } from '../language/gameLanguage';
+import { SageIniDocuments } from './ini/sageIniDocuments';
+import { SageIniIndex } from './ini/sageIniIndex';
+import { GameLanguage } from './ini/gameLanguage';
 
 /**
  * The long-lived host services every feature is handed, built once at

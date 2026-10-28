@@ -1,7 +1,7 @@
 import * as os from 'os';
 import * as vscode from 'vscode';
 import { SCHEME } from '../constants';
-import { BASE_SETTING, UNDERLYING_SETTING } from '../model/baseGameFolders';
+import { BASE_SETTING, UNDERLYING_SETTING } from '../services/archives/baseGameFolders';
 import { findInstalls, systemHost } from '../node/installDiscovery';
 import type { FoundInstall } from '../node/installDiscovery';
 

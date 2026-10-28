@@ -1,6 +1,6 @@
 import { Uri } from 'vscode';
-import { SCHEME } from '../constants';
-import { isPathBelow, splitPath } from '../core/paths';
+import { SCHEME } from '../../constants';
+import { isPathBelow, splitPath } from '../../core/paths';
 import type { Archive } from './archive';
 import type { VirtualNode } from './virtualNode';
 

@@ -1,6 +1,6 @@
 import { FoldingRange, FoldingRangeKind } from 'vscode';
 import type { FoldingRangeProvider } from 'vscode';
-import type { SageIniDocuments } from '../sageIniDocuments';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageBlock } from '../../formats/ini/sageIniParser';
 
 /**

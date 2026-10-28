@@ -7,8 +7,8 @@ import {
 } from 'vscode';
 import type { Uri } from 'vscode';
 import type { CodeActionProvider, Diagnostic, TextDocument } from 'vscode';
-import type { SageIniDocuments } from '../sageIniDocuments';
-import type { SageIniIndex } from '../sageIniIndex';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { closestNames, missingEndLine } from '../../formats/ini/sageIniFormat';
 import {
   findGameTextLabels,

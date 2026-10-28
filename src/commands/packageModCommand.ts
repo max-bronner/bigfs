@@ -9,10 +9,10 @@ import {
   skippedFromPackage,
 } from '../node/modPackage';
 import type { Delivery, OverrideReport } from '../node/modPackage';
-import { packedArchives } from '../model/packagedOutputs';
+import { packedArchives } from '../services/archives/packagedOutputs';
 import { decodeWindows1252 } from '../core/windows1252';
 import { diagnoseText } from '../language/sageIniValidation';
-import type { SageIniDocuments } from '../language/sageIniDocuments';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';
 
 /**

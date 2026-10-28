@@ -1,7 +1,7 @@
 import { Position, Range, WorkspaceEdit } from 'vscode';
 import type { RenameProvider, TextDocument } from 'vscode';
-import type { SageIniDocuments } from '../sageIniDocuments';
-import type { SageIniIndex } from '../sageIniIndex';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 
 /**

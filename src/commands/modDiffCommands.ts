@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { getGameFiles } from '../game/install/gameView';
-import type { GameViewModel } from '../model/gameViewModel';
-import { getNodeUri } from '../model/nodeAddress';
+import type { GameViewModel } from '../services/archives/gameViewModel';
+import { getNodeUri } from '../services/archives/nodeAddress';
 import {
   BaseIndex,
   ComparedFile,
@@ -10,15 +10,15 @@ import {
   indexBaseGame,
   readBaseEntry,
 } from '../node/modDiff';
-import { findBaseGameFolders } from '../model/baseGameFolders';
-import { packedArchives, useOutputStore } from '../model/packagedOutputs';
-import { webviewPage } from '../providers/webviewPage';
+import { findBaseGameFolders } from '../services/archives/baseGameFolders';
+import { packedArchives, useOutputStore } from '../services/archives/packagedOutputs';
+import { webviewPage } from '../platform/webview/webviewPage';
 import { registerPackageMod } from './packageModCommand';
 import { decodeIniText } from '../core/windows1252';
 import { diffDefinitions } from '../game/objects/definitionDiff';
 import type { DefinitionDiff } from '../game/objects/definitionDiff';
 import { parseSageIni } from '../formats/ini/sageIniParser';
-import { SageIniDocuments } from '../language/sageIniDocuments';
+import { SageIniDocuments } from '../services/ini/sageIniDocuments';
 
 /**
  * **Compare with Base Game**: what the workspace's mod adds and changes

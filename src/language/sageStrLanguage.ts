@@ -6,9 +6,9 @@ import {
   encodeWindows1252,
   unencodableCharacters,
 } from '../core/windows1252';
-import { toUri } from '../platform/commandTarget';
-import type { CommandTarget } from '../platform/commandTarget';
-import type { ArchiveModel } from '../model/archiveModel';
+import { toUri } from '../services/archives/commandTarget';
+import type { CommandTarget } from '../services/archives/commandTarget';
+import type { ArchiveModel } from '../services/archives/archiveModel';
 import { registerTranslationCheck } from './translationCheck';
 
 /**

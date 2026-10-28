@@ -7,12 +7,12 @@ import {
   serializeIndexTable,
 } from '../../formats/big/bigFormat';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
-import { ArchiveModel } from '../../model/archiveModel';
+import { ArchiveModel } from '../../services/archives/archiveModel';
 import { BigTreeDataProvider } from '../../providers/treeDataProvider';
-import { findChild, getFileNodes } from '../../model/virtualNode';
+import { findChild, getFileNodes } from '../../services/archives/virtualNode';
 import { getExtractedFiles } from '../../commands/extractCommands';
-import type { VirtualNode } from '../../model/virtualNode';
-import { isVirtualNode } from '../../providers/explorerNode';
+import type { VirtualNode } from '../../services/archives/virtualNode';
+import { isVirtualNode } from '../../services/archives/explorerRow';
 
 /** Names of a node's child rows, in the order the tree lists them */
 const childNames = async (

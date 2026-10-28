@@ -2,7 +2,7 @@ import { languages } from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../../constants';
 import type { Services } from '../../services/createServices';
-import { watchSageIniDialect } from '../../language/sageIniDialect';
+import { watchSageIniDialect } from '../../services/ini/sageIniDialect';
 import { watchSageIniDiagnostics } from '../../language/sageIniDiagnostics';
 import { registerSageIniValidation } from '../../language/sageIniValidation';
 import { createCommandSetPreview } from '../../language/commandSetPreview';

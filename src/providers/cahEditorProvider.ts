@@ -10,7 +10,7 @@ import {
 import type { CahRecord, ParsedCah } from "../formats/cah/cah";
 import type { EntryLocator } from "../services/entryLocator";
 import { decodeIniText } from "../core/windows1252";
-import type { GameLanguage } from "../language/gameLanguage";
+import type { GameLanguage } from "../services/ini/gameLanguage";
 import {
   blingOptions,
   blockAtLine,
@@ -20,11 +20,11 @@ import {
 } from "../game/objects/cahSystem";
 import type { HeroSystem } from "../game/objects/cahSystem";
 import { isFragmentPath, parseSageIni } from "../formats/ini/sageIniParser";
-import type { SageIniDocuments } from "../language/sageIniDocuments";
-import type { SageIniIndex } from "../language/sageIniIndex";
-import { createParseCache } from "../language/workspaceText";
+import type { SageIniDocuments } from "../services/ini/sageIniDocuments";
+import type { SageIniIndex } from "../services/ini/sageIniIndex";
+import { createParseCache } from "../services/ini/workspaceText";
 import { CAH_SCRIPT } from "./cahViewScript";
-import { webviewPage } from "./webviewPage";
+import { webviewPage } from "../platform/webview/webviewPage";
 
 /**
  * The editor for Create-a-Hero files (`MyHero_<id>.cah`), loose or inside a

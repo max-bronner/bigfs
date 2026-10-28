@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { stripComment, tokenize } from '../formats/ini/sageIniParser';
 import type { SageBlock, SageDocument } from '../formats/ini/sageIniParser';
 import { resolveSageSymbol } from '../formats/ini/sageIniSymbol';
-import type { SageIniDocuments } from './sageIniDocuments';
-import type { SageDefinition, SageIniIndex } from './sageIniIndex';
-import { createParseCache, readWorkspaceText } from './workspaceText';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import type { SageDefinition, SageIniIndex } from '../services/ini/sageIniIndex';
+import { createParseCache, readWorkspaceText } from '../services/ini/workspaceText';
 
 /**
  * Definitions as a graph, in the editor's own views. The call hierarchy

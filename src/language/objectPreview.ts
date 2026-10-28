@@ -9,9 +9,9 @@ import { focusAt, readObjectScene } from '../game/objects/objectScene';
 import { parseSageIni } from '../formats/ini/sageIniParser';
 import type { SageDocument } from '../formats/ini/sageIniParser';
 import { particlePageHtml } from './particlePreview';
-import type { SageIniDocuments } from './sageIniDocuments';
-import type { SageIniIndex } from './sageIniIndex';
-import { readWorkspaceText } from './workspaceText';
+import type { SageIniDocuments } from '../services/ini/sageIniDocuments';
+import type { SageIniIndex } from '../services/ini/sageIniIndex';
+import { readWorkspaceText } from '../services/ini/workspaceText';
 import type { FromPage, ToPage } from '../webview/particles/protocol';
 
 /**

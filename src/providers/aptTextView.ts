@@ -12,7 +12,7 @@ import {
   TextSaveError,
 } from '../formats/apt/movieTextEdits';
 import type { TextSave } from '../formats/apt/movieTextEdits';
-import { toUri } from '../platform/commandTarget';
+import { toUri } from '../services/archives/commandTarget';
 import type { AptDocument } from './aptEditorProvider';
 
 /**
