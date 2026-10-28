@@ -4,7 +4,7 @@ import path from 'path';
 import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { readArchiveIndexTable } from '../../node/archiveFile';
 import { ArchiveModel } from '../../services/archives/archiveModel';
-import { packFolderInto } from '../../commands/modCommands';
+import { packFolderInto } from '../../features/mods/modCommands';
 
 suite('Mod commands', () => {
   let folder: string;

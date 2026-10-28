@@ -1,15 +1,15 @@
 ﻿import { commands, window, workspace } from 'vscode';
-import { formatCount } from '../core/messages';
-import { getChildUri, getNodeUri } from '../services/archives/nodeAddress';
-import { askForName } from '../platform/dialogs';
+import { formatCount } from '../../core/messages';
+import { getChildUri, getNodeUri } from '../../services/archives/nodeAddress';
+import { askForName } from '../../platform/dialogs';
 import {
   deleteNodes,
   getTargetDirectory,
   importFromDisk,
-} from '../actions/fileActions';
+} from './fileActions';
 import type { RegisterNodeCommand } from './commandCenter';
-import type { VirtualNode } from '../services/archives/virtualNode';
-import type { ArchiveModel } from '../services/archives/archiveModel';
+import type { VirtualNode } from '../../services/archives/virtualNode';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
 
 /**
  * Gets the names already used in a directory, through the file system provider
