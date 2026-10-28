@@ -297,15 +297,15 @@ Movie**.
   placements, frame labels, frames, new text / sprite / shape / image
   characters, geometry and texture import, remove characters.
 - [ ] **new** **Every field is editable.** Select a sprite with placements:
-  each PlaceObject of the frame shows its flags as checkboxes (untick
-  **colour** and the instance draws without its tint; tick it back and the
-  stored values return), a character list, matrix, **Multiply** and **Add**
+  each PlaceObject of the frame shows its flags as toggles (turn off
+  **colour** and the instance draws without its tint; turn it back on and the
+  stored values return), a character picker, matrix, **Multiply** and **Add**
   as R, G, B, A bytes plus a hex word, ratio, name, clip depth and the clip
   events of each clip action. Pick an instance on the stage: the inspector
   shows the same colour rows (written to the record the colour comes from at
   that frame), a character swap, ratio, the **Move** bit and clip depth. A
   button shows each record's states, character, depth, matrix, colour and the
-  four unknown floats, and each button script its conditions as checkboxes.
+  four unknown floats, and each button script its conditions as toggles.
   A Text character shows its matrix and every run; a font its glyph ids; a
   morph its two shapes. Frame labels show flags and frame, background
   colours and init actions are editable and a background colour can be
@@ -314,6 +314,44 @@ Movie**.
   and redoes with Ctrl+Y; save an unedited movie and it is byte for byte the
   same.
 - [ ] **new** ActionScript tabs: edit, compile, add and remove scripts.
+- [ ] **changed** **Block editor.** The details, inspector and timeline
+  panels are now blocks: each record (movie header, character, frame,
+  placement, button record, action, export, import, `.const` item) is a
+  collapsible card with a type icon, id or name and a one-line summary in
+  its header. Open and close cards by clicking the header; they stay as you
+  left them when an edit redraws the panel. Colours show a swatch (click it
+  for the picker) beside R, G, B, A byte boxes; flag words are toggle pills;
+  every field that names a character opens a list with a search box (type
+  `hero sprite`, arrows and Enter choose, Escape closes). Number boxes step
+  with the up and down arrows (Shift for 10). All themes: try a light and a
+  high contrast theme and check nothing is unreadable.
+- [ ] **new** **Add-block menus.** The **＋ Add block** button at the end of
+  the movie body, a frame, a button and a Text character opens a menu of only
+  the kinds that fit there: the movie adds text, sprite, shape, image and
+  button characters, exports and imports; a frame adds a placement, label,
+  background colour or script; a button a state record or script; a Text
+  character a run. Each add is one undo step.
+- [ ] **new** **Reorder, duplicate, delete.** Items of a frame and the records
+  of a button have a drag handle (⋮⋮): drag a card up or down, or press
+  Alt+↑ / Alt+↓ on its header, and the order changes in the movie (a button
+  record later in the list draws over the earlier ones); Ctrl+Z puts it back.
+  ⧉ duplicates (placements, labels, background colours, button records, text
+  runs, characters) and 🗑 or Delete removes. The up and down arrows on a
+  header move to the previous and next card, Right and Left open and close,
+  Home and End jump to the first and last, Escape in a field returns to its
+  header.
+- [ ] **new** **Scripts in place.** Open a frame script, button action, clip
+  action or init action card: the decompiled script shows as a formatted code
+  field with keywords, strings, numbers, registers, labels and comments
+  coloured by your theme. Edit it where it stands; when you click away it
+  compiles. An error underlines the offending token and the line and message
+  show under the field, and nothing is written until it compiles; a good
+  script becomes one undo step and the card stays open. **↗ Open in tab** on
+  the card still opens the script in its own editor tab. **Reset** drops the
+  unapplied text. A block that could only be listed is read-only.
+- [ ] **new** **Text view button.** The toolbar has a **Text view** button
+  (`toggleTextView`) that asks the extension to open the whole movie as text;
+  it needs the text view feature to do anything.
 - [ ] **new** **New APT Movie…** (folder): `.apt`, `.const`, `.dat`.
   **Rename APT Movie…** renames every file of the movie and the imports that
   name it (a dirty tab stops it); **Delete APT Movie…** asks first.

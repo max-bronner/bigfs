@@ -11,15 +11,37 @@ import type {
   PlacementField,
   TextRecordChange,
 } from '../../formats/apt/aptWriter';
-import { describe, send } from './details';
-import { button, heading, input, row } from './dom';
+import { send, vscode } from './details';
+import { addMenu } from './blocks/addMenu';
+import { blockCard } from './blocks/blockCard';
+import {
+  buttonRecordSummary,
+  bytesToFloats,
+  floatsToBytes,
+  itemKind,
+  itemSummary,
+  itemTitle,
+} from './blocks/blockModel';
+import {
+  characterPicker,
+  colourField,
+  field,
+  flagToggles,
+  hexField,
+  listField,
+  numberField,
+  placementColour,
+  textField,
+  tupleFields,
+} from './blocks/controls';
+import { scriptBlock } from './blocks/scriptBlock';
 import { BUTTON_CONDITIONS, CLIP_EVENTS, bitNames } from './scriptSites';
 import { movie } from './state';
 
 /**
- * Controls for every field of the records a movie stores: placements, the
- * other frame items, button records and text runs. Each field commits one
- * edit of its own, so an undo takes back exactly that field.
+ * The blocks of the records a movie stores: placements, the other frame
+ * items, button records and text runs. Each field commits one edit of its
+ * own, so an undo takes back exactly that field.
  */
 
 /** The state bits of a button record, as `Flags.hpp` names them */
@@ -42,182 +64,10 @@ const PLACE_FLAG_NAMES: [string, number][] = [
   ['clip actions', PLACE_FLAGS.hasClipActions],
 ];
 
-/** Bit positions of a colour word's channels R, G, B, A */
-const MULTIPLY_SHIFTS = [0, 8, 16, 24];
-/** The add term is 0x00RRGGBB by value; its top byte is kept as A */
-const ADD_SHIFTS = [16, 8, 0, 24];
-
-const short = <T extends HTMLElement>(element: T, title: string): T => {
-  element.classList.add('short');
-  element.title = title;
-  return element;
-};
-
-/** A select of every character of the movie, for a field that names one */
-export const characterPicker = (
-  chosen: number | undefined,
-  onCommit: (id: number) => void,
-): HTMLSelectElement => {
-  const element = document.createElement('select');
-  const characters = movie().characters;
-
-  if (chosen === undefined || !characters[chosen]) {
-    element.add(
-      new Option(chosen === undefined ? '—' : `#${chosen} (none)`, '', true),
-    );
-  }
-  for (const character of characters) {
-    element.add(
-      new Option(
-        describe(character),
-        String(character.id),
-        false,
-        character.id === chosen,
-      ),
-    );
-  }
-  element.onchange = () => {
-    if (element.value !== '') {
-      onCommit(Number(element.value));
-    }
-  };
-  return element;
-};
-
-/** One checkbox per named bit of a word; a change commits the whole word */
-export const bitChecks = (
-  names: [string, number][],
-  value: number,
-  onCommit: (value: number) => void,
-  isLocked: (bit: number) => boolean = () => false,
-): HTMLSpanElement => {
-  const element = document.createElement('span');
-  let word = value >>> 0;
-
-  element.title = bitNames(value, names);
-  for (const [name, bit] of names) {
-    const label = document.createElement('label');
-    const box = document.createElement('input');
-
-    box.type = 'checkbox';
-    box.checked = (word & bit) !== 0;
-    box.disabled = isLocked(bit);
-    box.onchange = () => {
-      word = (box.checked ? word | bit : word & ~bit) >>> 0;
-      onCommit(word);
-    };
-    label.className = 'bit';
-    label.append(box, ` ${name}`);
-    element.append(label);
-  }
-  return element;
-};
-
-/** Byte inputs, 0 to 255, for the channels of a packed colour word */
-const channelInputs = (
-  word: number,
-  shifts: number[],
-  onCommit: (word: number) => void,
-): HTMLInputElement[] => {
-  let value = word >>> 0;
-
-  return shifts.map((shift, index) =>
-    short(
-      input((value >>> shift) & 255, (next) => {
-        const byte = Math.max(0, Math.min(255, Math.round(next)));
-
-        value = ((value & ~(255 << shift)) | (byte << shift)) >>> 0;
-        onCommit(value);
-      }),
-      'RGBA'[index] + ' 0-255',
-    ),
-  );
-};
-
-/**
- * The multiply and add terms of a colour transform, a byte input per
- * channel R, G, B, A and the whole word as hex
- */
-export const colourRows = (
-  multiply: number,
-  add: number,
-  onChange: (change: PlacementChange) => void,
-): HTMLElement[] => [
-  row(
-    'Multiply',
-    ...channelInputs(multiply, MULTIPLY_SHIFTS, (colorTransform) =>
-      onChange({ colorTransform }),
-    ),
-    input(multiply, (colorTransform) => onChange({ colorTransform }), 'hex'),
-  ),
-  row(
-    'Add',
-    ...channelInputs(add, ADD_SHIFTS, (colorAdd) => onChange({ colorAdd })),
-    input(add, (colorAdd) => onChange({ colorAdd }), 'hex'),
-  ),
-];
-
-/** Number inputs for a tuple, each committing the whole tuple */
-export const numberInputs = <T extends number[]>(
-  values: T,
-  names: string[],
-  onCommit: (values: T) => void,
-): HTMLInputElement[] => {
-  const current = [...values] as T;
-
-  return current.map((value, index) =>
-    short(
-      input(value, (next) => {
-        current[index] = next;
-        onCommit([...current] as T);
-      }),
-      names[index],
-    ),
-  );
-};
-
-/** Reads `index:advance` pairs or plain ids, comma separated */
-const parseList = (text: string): number[][] =>
-  text
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => part.split(':').map(Number));
-
-/** A line input for a list of numbers, refusing one that is not */
-export const listInput = (
-  text: string,
-  width: number,
-  onCommit: (values: number[][]) => void,
-): HTMLInputElement => {
-  const element = input(
-    text,
-    (value) => {
-      const values = parseList(value);
-
-      if (
-        values.some(
-          (each) =>
-            each.length !== width ||
-            each.some((part) => !Number.isInteger(part)),
-        )
-      ) {
-        element.classList.add('invalid');
-        return;
-      }
-      onCommit(values);
-    },
-    'line',
-  ) as HTMLInputElement;
-
-  return element;
-};
+type PlaceItem = Extract<FrameItem, { type: 'placeObject' }>;
 
 /** The value a field takes when its flag is turned on without one */
-const turnedOn = (
-  item: Extract<FrameItem, { type: 'placeObject' }>,
-  bit: number,
-): PlacementChange => {
+const turnedOn = (item: PlaceItem, bit: number): PlacementChange => {
   switch (bit) {
     case PLACE_FLAGS.hasCharacter:
       return { character: item.character ?? 1 };
@@ -243,16 +93,39 @@ const FLAG_FIELDS: [number, PlacementField][] = [
   [PLACE_FLAGS.hasClipDepth, 'clipDepth'],
 ];
 
+/** Where a frame item sits, for the edits that move or add beside it */
+export interface ItemSite {
+  timeline: number;
+  frame: number;
+  index: number;
+  count: number;
+  /** What a frame script does to timelines, as controls; none when it does nothing */
+  flow?: (block: number) => HTMLElement | undefined;
+}
+
+const moveItemBy =
+  (site: ItemSite) =>
+  (by: -1 | 1): void => {
+    const to = site.index + by;
+
+    if (to >= 0 && to < site.count) {
+      send({
+        kind: 'moveItem',
+        timeline: site.timeline,
+        frame: site.frame,
+        from: site.index,
+        to,
+      });
+    }
+  };
+
 /**
  * Every field of a PlaceObject: its flags, depth, character, matrix, the
- * multiply and add colour, ratio, name, clip depth and the clip events of
- * each clip action. A field whose flag is off shows what the record would
+ * multiply and add colour, ratio, name, clip depth and each clip action
+ * with its script. A field whose flag is off shows what the record would
  * get and setting it turns the flag on.
  */
-export const placementFields = (
-  item: Extract<FrameItem, { type: 'placeObject' }>,
-  remove?: HTMLElement,
-): HTMLElement[] => {
+const placementBody = (item: PlaceItem): Node[] => {
   const placement = (change: PlacementChange) =>
     send({ kind: 'placement', offset: item.offset, change });
   const flagChange = (word: number) => {
@@ -262,41 +135,49 @@ export const placementFields = (
     if (changed & PLACE_FLAGS.move) {
       change.isMove = (word & PLACE_FLAGS.move) !== 0;
     }
-    for (const [bit, field] of FLAG_FIELDS) {
+    for (const [bit, name] of FLAG_FIELDS) {
       if (changed & bit) {
         if (word & bit) {
           Object.assign(change, turnedOn(item, bit));
         } else {
-          change.clear = [...(change.clear ?? []), field];
+          change.clear = [...(change.clear ?? []), name];
         }
       }
     }
     placement(change);
   };
-  const multiply = item.colorTransform ?? 0xffffffff;
-  const add = item.colorAdd ?? 0;
+  const clips = (item.clipActions ?? []).map((clip, index) =>
+    scriptBlock({
+      label: `on ${bitNames(clip.events, CLIP_EVENTS)}`,
+      block: clip.block,
+      tab: `${movie().name} @${item.depth} on ${bitNames(clip.events, CLIP_EVENTS)}`,
+      remove: { kind: 'removeClipAction', offset: item.offset, index },
+      when: () =>
+        flagToggles(CLIP_EVENTS, clip.events, (events) =>
+          send({ kind: 'clipAction', offset: item.offset, index, events }),
+        ),
+    }),
+  );
 
   return [
-    heading(`Place @${item.depth} · 0x${item.offset.toString(16)}`),
-    row(
+    field(
       'Flags',
-      bitChecks(PLACE_FLAG_NAMES, item.flags, flagChange, (bit) =>
+      flagToggles(PLACE_FLAG_NAMES, item.flags, flagChange, (bit) =>
         // Clip actions come and go with their handlers; a name needs a name
         [PLACE_FLAGS.hasClipActions, PLACE_FLAGS.hasName].includes(bit),
       ),
-      ...(remove ? [remove] : []),
     ),
-    row(
+    field(
       'Depth',
-      input(item.depth, (depth) => placement({ depth })),
+      numberField(item.depth, (depth) => placement({ depth })),
     ),
-    row(
+    field(
       'Character',
       characterPicker(item.character, (character) => placement({ character })),
     ),
-    row(
+    field(
       'Matrix',
-      ...numberInputs(
+      tupleFields(
         [...(item.matrix ?? [1, 0, 0, 1]), ...(item.translate ?? [0, 0])],
         ['a', 'b', 'c', 'd', 'x', 'y'],
         (values) =>
@@ -306,215 +187,346 @@ export const placementFields = (
           }),
       ),
     ),
-    ...colourRows(multiply, add, placement),
-    row(
-      'Ratio',
-      input(item.ratio ?? 0, (ratio) => placement({ ratio })),
-    ),
-    row(
-      'Name',
-      input(item.name ?? '', (name) => placement({ name }), 'line'),
-    ),
-    row(
-      'Clip depth',
-      input(item.clipDepth ?? 0, (clipDepth) => placement({ clipDepth })),
-    ),
-    ...(item.clipActions ?? []).map((clip, index) =>
-      row(
-        `Clip action ${index}`,
-        bitChecks(CLIP_EVENTS, clip.events, (events) =>
-          send({ kind: 'clipAction', offset: item.offset, index, events }),
-        ),
+    field(
+      'Multiply',
+      placementColour(
+        'colorTransform',
+        item.colorTransform ?? 0xffffffff,
+        placement,
       ),
+    ),
+    field('Add', placementColour('colorAdd', item.colorAdd ?? 0, placement)),
+    field(
+      'Ratio',
+      numberField(item.ratio ?? 0, (ratio) => placement({ ratio })),
+    ),
+    field(
+      'Name',
+      textField(item.name ?? '', (name) => placement({ name })),
+    ),
+    field(
+      'Clip depth',
+      numberField(item.clipDepth ?? 0, (clipDepth) => placement({ clipDepth })),
+    ),
+    ...clips,
+    addMenu(
+      'Clip script',
+      CLIP_EVENTS.map(([name, bit]) => ({
+        id: String(bit),
+        label: name,
+        icon: '{ }',
+      })),
+      (events) =>
+        vscode.postMessage({
+          kind: 'addScript',
+          label: `${movie().name} @${item.depth} on ${bitNames(Number(events), CLIP_EVENTS)}`,
+          to: { kind: 'clip', offset: item.offset, events: Number(events) },
+        }),
     ),
   ];
 };
 
-/** The fields of a frame item that is not a placement, or nothing for an action */
-export const frameItemFields = (
+/** The block of one item of a frame: its fields, remove, duplicate and order */
+export const frameItemBlock = (
   item: FrameItem,
-  remove: HTMLElement,
-): HTMLElement[] => {
+  site: ItemSite,
+): HTMLElement => {
+  const key = `item:${site.timeline}:${site.frame}:${item.offset}`;
+  const remove = () =>
+    send({
+      kind: 'removeItem',
+      timeline: site.timeline,
+      frame: site.frame,
+      offset: item.offset,
+    });
+  const common = {
+    key,
+    kind: itemKind(item),
+    title: itemTitle(item),
+    summary: itemSummary(item),
+    onRemove: remove,
+    onMove: moveItemBy(site),
+  };
+  const at = { timeline: site.timeline, frame: site.frame };
+
   switch (item.type) {
     case 'placeObject':
-      return placementFields(item, remove);
+      return blockCard({
+        ...common,
+        body: () => placementBody(item),
+        onDuplicate: () =>
+          send({
+            kind: 'placeObject',
+            ...at,
+            depth: item.depth + 1,
+            character: item.character ?? 1,
+            matrix: item.matrix,
+            translate: item.translate,
+            name: item.name,
+          }),
+      });
     case 'frameLabel':
-      return [
-        row(
-          'Label',
-          input(
-            item.label,
-            (label) => send({ kind: 'frameLabel', offset: item.offset, label }),
-            'line',
+      return blockCard({
+        ...common,
+        body: () => [
+          field(
+            'Label',
+            textField(item.label, (label) =>
+              send({ kind: 'frameLabel', offset: item.offset, label }),
+            ),
           ),
-          short(
-            input(item.flags, (flags) =>
+          field(
+            'Flags',
+            numberField(item.flags, (flags) =>
               send({ kind: 'frameLabel', offset: item.offset, flags }),
             ),
-            'flags',
           ),
-          short(
-            input(item.frame, (frame) =>
-              send({ kind: 'frameLabel', offset: item.offset, frame }),
+          field(
+            'Frame',
+            numberField(
+              item.frame,
+              (frame) =>
+                send({ kind: 'frameLabel', offset: item.offset, frame }),
+              'The frame the label names',
             ),
-            'frame the label names',
           ),
-          remove,
-        ),
-      ];
+        ],
+        onDuplicate: () =>
+          send({ kind: 'addFrameLabel', ...at, label: item.label }),
+      });
     case 'removeObject':
-      return [
-        row(
-          'Remove @',
-          input(item.depth, (depth) =>
-            send({ kind: 'removeObjectDepth', offset: item.offset, depth }),
+      return blockCard({
+        ...common,
+        body: () => [
+          field(
+            'Depth',
+            numberField(item.depth, (depth) =>
+              send({ kind: 'removeObjectDepth', offset: item.offset, depth }),
+            ),
           ),
-          remove,
-        ),
-      ];
+        ],
+      });
     case 'backgroundColor':
-      return [
-        row(
-          'Background',
-          input(
-            item.color,
-            (color) =>
+      return blockCard({
+        ...common,
+        body: () => [
+          field(
+            'Colour',
+            colourField(
+              [
+                (item.color >>> 16) & 255,
+                (item.color >>> 8) & 255,
+                item.color & 255,
+                (item.color >>> 24) & 255,
+              ],
+              ([r, g, b, a]) =>
+                send({
+                  kind: 'backgroundColor',
+                  offset: item.offset,
+                  color: ((a << 24) | (r << 16) | (g << 8) | b) >>> 0,
+                }),
+            ),
+          ),
+          field(
+            'ARGB',
+            hexField(item.color, (color) =>
               send({ kind: 'backgroundColor', offset: item.offset, color }),
-            'hex',
+            ),
           ),
-          remove,
-        ),
-      ];
+        ],
+        onDuplicate: () =>
+          send({ kind: 'addBackgroundColor', ...at, color: item.color }),
+      });
     case 'initAction':
-      return [
-        row(
-          'Init action',
-          characterPicker(item.sprite, (sprite) =>
-            send({ kind: 'initAction', offset: item.offset, sprite }),
+      return blockCard({
+        ...common,
+        open: true,
+        body: () => [
+          field(
+            'Sprite',
+            characterPicker(item.sprite, (sprite) =>
+              send({ kind: 'initAction', offset: item.offset, sprite }),
+            ),
           ),
-          remove,
-        ),
-      ];
+          scriptBlock({
+            label: `init #${item.sprite}`,
+            block: item.block,
+            tab: `${movie().name} #${site.timeline} frame ${site.frame} init #${item.sprite}`,
+            open: true,
+          }),
+        ],
+      });
+    case 'action': {
+      const flow = site.flow?.(item.block);
+
+      return scriptBlock({
+        label: `frame ${site.frame} script`,
+        block: item.block,
+        tab: `${movie().name} #${site.timeline} frame ${site.frame}`,
+        remove: {
+          kind: 'removeItem',
+          timeline: site.timeline,
+          frame: site.frame,
+          offset: item.offset,
+        },
+        onMove: moveItemBy(site),
+        open: true,
+        whenLabel: 'Does',
+        when: flow && (() => flow),
+      });
+    }
     default:
-      return [];
+      return blockCard({ ...common, body: () => [] });
   }
 };
 
-/** Every field of a button record: states, character, depth, matrix, colour and the unknown floats */
-export const buttonRecordFields = (
+/** Every field of a button record, which can also be moved among the button's records */
+export const buttonRecordBlock = (
   id: number,
   record: ButtonRecord,
   index: number,
-): HTMLElement[] => {
+  count: number,
+): HTMLElement => {
   const write = (
     change: Omit<Extract<AptEdit, { kind: 'buttonRecord' }>, 'kind' | 'offset'>,
   ) => send({ kind: 'buttonRecord', offset: record.offset, ...change });
 
-  return [
-    row(
-      `Record ${index}`,
-      bitChecks(BUTTON_STATES, record.flags, (flags) => write({ flags })),
-      button('×', () => send({ kind: 'removeButtonRecord', id, index })),
-    ),
-    row(
-      '',
-      characterPicker(record.character, (character) => write({ character })),
-      short(
-        input(record.depth, (depth) => write({ depth })),
-        'depth',
+  return blockCard({
+    key: `record:${id}:${record.offset}`,
+    kind: 'buttonRecord',
+    title: `Record ${index}`,
+    summary: buttonRecordSummary(record),
+    onRemove: () => send({ kind: 'removeButtonRecord', id, index }),
+    onDuplicate: () =>
+      send({
+        kind: 'addButtonRecord',
+        id,
+        flags: record.flags,
+        character: record.character,
+        depth: record.depth + 1,
+        matrix: record.matrix,
+        translate: record.translate,
+        color: record.color,
+        unknown: record.unknown,
+      }),
+    onMove: (by) => {
+      const to = index + by;
+
+      if (to >= 0 && to < count) {
+        send({ kind: 'moveButtonRecord', id, from: index, to });
+      }
+    },
+    body: () => [
+      field(
+        'States',
+        flagToggles(BUTTON_STATES, record.flags, (flags) => write({ flags })),
       ),
-    ),
-    row(
-      'Matrix',
-      ...numberInputs(
-        [...record.matrix, ...record.translate],
-        ['a', 'b', 'c', 'd', 'x', 'y'],
-        (values) =>
-          write({
-            matrix: [values[0], values[1], values[2], values[3]],
-            translate: [values[4], values[5]],
-          }),
+      field(
+        'Character',
+        characterPicker(record.character, (character) => write({ character })),
       ),
-    ),
-    row(
-      'Colour',
-      ...numberInputs(record.color, ['R', 'G', 'B', 'A'], (color) =>
-        write({ color }),
+      field(
+        'Depth',
+        numberField(record.depth, (depth) => write({ depth })),
       ),
-    ),
-    row(
-      'Unknown',
-      ...numberInputs(record.unknown, ['+52', '+56', '+60', '+64'], (unknown) =>
-        write({ unknown }),
+      field(
+        'Matrix',
+        tupleFields(
+          [...record.matrix, ...record.translate],
+          ['a', 'b', 'c', 'd', 'x', 'y'],
+          (values) =>
+            write({
+              matrix: [values[0], values[1], values[2], values[3]],
+              translate: [values[4], values[5]],
+            }),
+        ),
       ),
-    ),
-  ];
+      field(
+        'Colour',
+        colourField(floatsToBytes(record.color), (bytes) =>
+          write({ color: bytesToFloats(bytes) }),
+        ),
+      ),
+      field(
+        'Unknown',
+        tupleFields(record.unknown, ['+52', '+56', '+60', '+64'], (unknown) =>
+          write({ unknown }),
+        ),
+      ),
+    ],
+  });
 };
 
 /** Every field of one run of a Text character */
-export const textRecordFields = (
+export const textRunBlock = (
   character: Extract<Character, { type: 'text' }>,
   record: TextRecord,
   index: number,
-): HTMLElement[] => {
+): HTMLElement => {
   const write = (change: TextRecordChange) =>
     send({ kind: 'textRecord', id: character.id, index, change });
 
-  return [
-    row(
-      `Run ${index}`,
-      characterPicker(record.font, (font) => write({ font })),
-      button('×', () =>
-        send({ kind: 'removeTextRecord', id: character.id, index }),
+  return blockCard({
+    key: `run:${character.id}:${record.offset}`,
+    kind: 'textRun',
+    title: `Run ${index}`,
+    summary: `font #${record.font} · ${record.glyphs.length} glyphs`,
+    onRemove: () => send({ kind: 'removeTextRecord', id: character.id, index }),
+    onDuplicate: () =>
+      send({ kind: 'addTextRecord', id: character.id, font: record.font }),
+    body: () => [
+      field(
+        'Font',
+        characterPicker(record.font, (font) => write({ font })),
       ),
-    ),
-    row(
-      'Colour',
-      ...numberInputs(record.color, ['R', 'G', 'B', 'A'], (color) =>
-        write({ color }),
+      field(
+        'Colour',
+        colourField(floatsToBytes(record.color), (bytes) =>
+          write({ color: bytesToFloats(bytes) }),
+        ),
       ),
-    ),
-    row(
-      'Pen',
-      ...numberInputs(record.penOffset, ['x', 'y'], (penOffset) =>
-        write({ penOffset }),
+      field(
+        'Pen',
+        tupleFields(record.penOffset, ['x', 'y'], (penOffset) =>
+          write({ penOffset }),
+        ),
       ),
-      short(
-        input(record.textHeight, (textHeight) => write({ textHeight })),
-        'text height',
+      field(
+        'Height',
+        numberField(record.textHeight, (textHeight) => write({ textHeight })),
       ),
-    ),
-    row(
-      'Unknown',
-      ...numberInputs(record.unknown, ['+20', '+24', '+28', '+32'], (unknown) =>
-        write({ unknown }),
+      field(
+        'Unknown',
+        tupleFields(record.unknown, ['+20', '+24', '+28', '+32'], (unknown) =>
+          write({ unknown }),
+        ),
       ),
-    ),
-    row(
-      'Glyphs',
-      listInput(
-        record.glyphs
-          .map((glyph) => `${glyph.index}:${glyph.advance}`)
-          .join(', '),
-        2,
-        (pairs) =>
-          write({
-            glyphs: pairs.map(([glyph, advance]) => ({
-              index: glyph,
-              advance,
-            })),
-          }),
+      field(
+        'Glyphs',
+        listField(
+          record.glyphs
+            .map((glyph) => `${glyph.index}:${glyph.advance}`)
+            .join(', '),
+          2,
+          (pairs) =>
+            write({
+              glyphs: pairs.map(([glyph, advance]) => ({
+                index: glyph,
+                advance,
+              })),
+            }),
+        ),
       ),
-    ),
-  ];
+    ],
+  });
 };
 
-/** The conditions of a button action, as checkboxes */
-export const buttonConditionChecks = (
+/** The conditions of a button action, as toggles */
+export const buttonConditionToggles = (
   id: number,
   index: number,
   condition: number,
 ): HTMLSpanElement =>
-  bitChecks(BUTTON_CONDITIONS, condition, (value) =>
+  flagToggles(BUTTON_CONDITIONS, condition, (value) =>
     send({ kind: 'buttonAction', id, index, condition: value }),
   );

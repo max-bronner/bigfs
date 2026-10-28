@@ -392,6 +392,21 @@ your mod's archives.
   index and its texture. Any other `_type` is a labelled placeholder. The
   Engine panel has a **Gadgets** section listing each one with its bound
   values, overridable like any other value.
+- **changed** The details, inspector and timeline panels are a block
+  editor: every record (movie header, character, frame, placement, button
+  record, action, export, import, `.const` item) is a collapsible card with a
+  type icon, id or name and summary, its fields as labelled typed inputs
+  (numbers, colour swatch with R, G, B, A, flag toggles, character pickers
+  with search), and VS Code theme colours throughout.
+- **new** **＋ Add block** menus offer only the record kinds that fit the
+  spot; frame items and button records reorder by drag handle or Alt+↑ and
+  Alt+↓ (each one undo step); cards duplicate and delete inline; and the
+  keyboard moves between cards, opens and closes them and reorders.
+- **new** Script blocks show the decompiled ActionScript in place as a
+  highlighted code field. It compiles when you leave it, underlines the error
+  and writes nothing until it compiles; **Open in tab** is still on each
+  script block. The toolbar's **Text view** button asks for the whole movie
+  as text.
 - ActionScript as a small JavaScript-like language, editable and compiled
   back to bytecode; see [docs/apt-scripts.md](docs/apt-scripts.md). A script
   is only offered once compiling it is checked to give back the same code,

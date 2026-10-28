@@ -16,6 +16,7 @@ import {
   parseMotionScript,
   tweensAsScript,
 } from '../../formats/apt/motionScript';
+import { blockCard } from './blocks/blockCard';
 import { send, showDetails } from './details';
 import { button, byId } from './dom';
 import { currentPlayer, goToFrame, render, showMode, view } from './stage';
@@ -729,7 +730,16 @@ export const showTimeline = (): void => {
 
   const previous = panel.querySelector('.grid')?.scrollLeft ?? 0;
 
-  panel.replaceChildren(bar, ...forms, scroller);
+  panel.replaceChildren(
+    blockCard({
+      key: 'timeline',
+      kind: 'timeline',
+      title: 'Timeline',
+      summary: `${frameCount} frame${frameCount === 1 ? '' : 's'}`,
+      open: true,
+      body: () => [bar, ...forms, scroller],
+    }),
+  );
   scroller.scrollLeft = previous;
   markPlayhead();
 };

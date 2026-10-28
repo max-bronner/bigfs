@@ -710,6 +710,7 @@ export const renderHtml = (
     <button id="forward" title="Next frame (. or → with nothing selected)">›</button>
     <select id="speed" title="Playback speed; 1× is the game's 30 frames a second ([ and ] to change)">${SPEEDS.map((speed) => `<option value="${speed}"${speed === 1 ? ' selected' : ''}>${speed}×</option>`).join('')}</select>
     <span id="frame-label"></span>
+    <button id="toggleTextView" title="Show the whole movie as text">Text view</button>
   </div>
   <div class="toolbar">
     <label title="O"><input type="checkbox" id="show-origin" checked> Origin</label>
