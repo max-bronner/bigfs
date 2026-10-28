@@ -5,8 +5,8 @@ import { mkdir, rm, writeFile } from 'fs/promises';
 import {
   computeArchiveLayout,
   serializeIndexTable,
-} from '../../binary/bigFormat';
-import type { BigFileEntry } from '../../binary/bigFormat';
+} from '../../formats/big/bigFormat';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { ArchiveModel } from '../../model/archiveModel';
 import { GameViewModel } from '../../model/gameViewModel';
 

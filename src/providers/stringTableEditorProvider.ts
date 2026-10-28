@@ -5,7 +5,7 @@ import {
   keepLineBreaks,
   parseCsf,
   writeCsf,
-} from '../formats/csf';
+} from '../formats/csf/csf';
 import {
   parseStringRecords,
   quoteStringText,

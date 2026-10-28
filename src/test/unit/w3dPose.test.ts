@@ -1,7 +1,7 @@
 import * as assert from 'assert';
-import { poseAt, skin } from '../../formats/w3dPose';
-import type { W3dAnimation } from '../../formats/w3dAnimation';
-import type { SceneMesh, SceneSkeleton } from '../../formats/w3dScene';
+import { poseAt, skin } from '../../formats/w3d/w3dPose';
+import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
+import type { SceneMesh, SceneSkeleton } from '../../formats/w3d/w3dScene';
 
 const half = Math.SQRT1_2;
 const skeleton: SceneSkeleton = {

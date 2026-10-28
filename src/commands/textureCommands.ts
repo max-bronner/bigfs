@@ -1,15 +1,14 @@
 import * as vscode from 'vscode';
 import { toUri } from '../platform/commandTarget';
 import type { CommandTarget } from '../platform/commandTarget';
-import { decodeDds, decodeTga } from '../tools/textureTools';
-import type { DecodedTexture } from '../tools/textureTools';
+import { decodeDds, decodeTga } from '../formats/texture/textureTools';
+import type { DecodedTexture } from '../formats/texture/textureTools';
 import {
   DdsFormat,
-  decodePng,
   encodeDds,
-  encodePng,
   encodeTga,
-} from '../formats/textureEncode';
+} from '../formats/texture/textureEncode';
+import { decodePng, encodePng } from '../node/png';
 
 /**
  * Texture round trips: export a TGA or DDS as PNG to edit anywhere, import a

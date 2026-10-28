@@ -2,7 +2,7 @@ import {
   decodeWindows1252,
   encodeWindows1252,
   unencodableCharacters,
-} from '../core/windows1252';
+} from '../../core/windows1252';
 /**
  * The `.csf` compiled string table, ported from mint's
  * `crates/sage/str/src/csf.rs` (layout from `GameText.cpp`'s `parseCSF`):

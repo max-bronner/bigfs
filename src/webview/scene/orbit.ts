@@ -1,4 +1,4 @@
-import type { Vec3 } from '../../formats/w3dPose';
+import type { Vec3 } from '../../formats/w3d/w3dPose';
 
 /**
  * An orbit camera around a point, Z up as in the games: drag to orbit,

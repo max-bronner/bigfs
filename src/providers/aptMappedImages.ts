@@ -1,5 +1,5 @@
-import type { EntryLocator } from '../formats/entryLocator';
-import { imageExtent, isRotated, mappedUv } from '../formats/mappedImage';
+import type { EntryLocator } from '../services/entryLocator';
+import { imageExtent, isRotated, mappedUv } from '../formats/mappedImage/mappedImage';
 import type { SageIniIndex } from '../language/sageIniIndex';
 import { loadMappedTexture, readMappedImage } from '../language/mappedImagePreview';
 import type { PageMappedImage, TexturePixels } from '../webview/apt/protocol';

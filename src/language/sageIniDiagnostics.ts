@@ -17,7 +17,7 @@ import type { SageIniSchema } from '../formats/ini/sageIniSchema';
 import type { SageIniIndex } from './sageIniIndex';
 import type { SageIniDocuments } from './sageIniDocuments';
 import { includeExists, resolveIncludeUri } from './sageIniInclude';
-import type { EntryLocator } from '../formats/entryLocator';
+import type { EntryLocator } from '../services/entryLocator';
 import {
   CHECK_ASSETS_SETTING,
   checkedAssetDiagnostics,

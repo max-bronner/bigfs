@@ -1,5 +1,5 @@
-import type { Tool } from './toolRegistry';
-import { decompressEar, isEarWrapped } from '../formats/refpack';
+import type { Tool } from '../../services/toolRegistry';
+import { decompressEar, isEarWrapped } from '../refpack/refpack';
 
 /**
  * Decoders for the texture formats the games ship: Truevision TGA and

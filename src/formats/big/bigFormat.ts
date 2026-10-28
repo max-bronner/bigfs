@@ -1,4 +1,4 @@
-import { isContainedPath } from '../core/paths';
+import { isContainedPath } from '../../core/paths';
 
 /**
  * The BIG archive binary format: a header, an index table listing every entry

@@ -1,6 +1,6 @@
 import { readdir, stat } from 'fs/promises';
 import * as path from 'path';
-import { readArchiveIndexTable } from '../binary/archiveFile';
+import { readArchiveIndexTable } from '../node/archiveFile';
 import { orderInstallFiles } from './gameView';
 import type { GameFile, InstallFiles } from './gameView';
 

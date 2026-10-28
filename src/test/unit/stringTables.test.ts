@@ -4,7 +4,7 @@ import {
   keepLineBreaks,
   parseCsf,
   writeCsf,
-} from '../../formats/csf';
+} from '../../formats/csf/csf';
 import { unencodableCharacters } from '../../core/windows1252';
 import {
   parseStringRecords,

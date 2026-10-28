@@ -5,8 +5,8 @@ import {
   parseHeader,
   parseIndexTable,
   serializeIndexTable,
-} from '../../binary/bigFormat';
-import type { BigFileEntry } from '../../binary/bigFormat';
+} from '../../formats/big/bigFormat';
+import type { BigFileEntry } from '../../formats/big/bigFormat';
 
 /** Entries holding their content as pending data, the shape a write starts from */
 const createEntries = (

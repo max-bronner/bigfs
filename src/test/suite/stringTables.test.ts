@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { parseCsf } from '../../formats/csf';
+import { parseCsf } from '../../formats/csf/csf';
 
 /** The `.str` language and the conversion command, end to end */
 suite('String tables', () => {

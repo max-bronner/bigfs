@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { MapEdit, applyMapEdit } from '../../formats/map/mapEdit';
 import { MapFile, parseMap, writeMap } from '../../formats/map/mapFile';
-import { compressEar } from '../../formats/refpack';
+import { compressEar } from '../../formats/refpack/refpack';
 import { buildMap } from './mapSynth';
 
 const waypoint = (id: number, x: number): MapEdit => ({

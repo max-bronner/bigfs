@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { parseCsf } from '../formats/csf';
+import { parseCsf } from '../formats/csf/csf';
 import { strRecord } from '../formats/str/sageStringRecords';
 import { parseStringTable } from '../formats/str/sageStringTable';
 import { labelsInText } from './model/gameTextLabels';

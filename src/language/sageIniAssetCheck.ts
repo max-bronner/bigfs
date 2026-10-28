@@ -6,7 +6,7 @@ import {
   window,
   workspace,
 } from 'vscode';
-import type { EntryLocator } from '../formats/entryLocator';
+import type { EntryLocator } from '../services/entryLocator';
 import { BASE_SETTING } from '../model/baseGameFolders';
 import { decideAssetCheck } from './model/assetCheckPolicy';
 import type { AssetCheckMode } from './model/assetCheckPolicy';

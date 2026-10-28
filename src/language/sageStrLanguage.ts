@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { parseCsf, writeCsf } from '../formats/csf';
+import { parseCsf, writeCsf } from '../formats/csf/csf';
 import { parseStringRecords, quoteStringText } from '../formats/str/sageStringRecords';
 import {
   decodeIniText,

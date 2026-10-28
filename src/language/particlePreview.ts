@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { readWorkspaceText } from './workspaceText';
-import type { EntryLocator } from '../formats/entryLocator';
+import type { EntryLocator } from '../services/entryLocator';
 import {
   applyValueEdits,
   findParticleDefinitions,
@@ -15,9 +15,9 @@ import type {
   ParticleDef,
 } from '../formats/particles/particleIni';
 import { keyEdits } from '../formats/particles/particleKeys';
-import type { ModelScene } from '../formats/w3dScene';
-import { buildW3dScene } from '../formats/w3dScene';
-import { createToolRegistry } from '../tools/toolRegistry';
+import type { ModelScene } from '../formats/w3d/w3dScene';
+import { buildW3dScene } from '../formats/w3d/w3dScene';
+import { createToolRegistry } from '../services/toolRegistry';
 import { duplicateDefinition } from './model/duplicateDefinition';
 import type { KeyKind, KeyValue } from '../formats/particles/particleKeys';
 import { webviewPage } from '../providers/webviewPage';
