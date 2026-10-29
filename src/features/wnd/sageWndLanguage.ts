@@ -2,15 +2,23 @@ import * as vscode from 'vscode';
 import { openDocument } from '../../services/ini/workspaceText';
 import { parseWnd, toBoxes } from '../../formats/wnd/wndLayout';
 import type { WndBox, WndWindow } from '../../formats/wnd/wndLayout';
-import { imageExtent, isRotated, mappedUv } from '../../formats/mappedImage/mappedImage';
+import {
+  imageExtent,
+  isRotated,
+  mappedUv,
+} from '../../formats/mappedImage/mappedImage';
 import type { UvRect } from '../../formats/mappedImage/mappedImage';
 import type { EntryLocator } from '../../services/entryLocator';
 import { encodePng } from '../../node/png';
-import { loadMappedTexture, readMappedImage } from '../preview/mappedImagePreview';
+import {
+  loadMappedTexture,
+  readMappedImage,
+} from '../preview/mappedImagePreview';
 import type { GameLanguage } from '../../services/ini/gameLanguage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 
 /**
  * Language support for `.wnd` window layouts: problems, an outline of the
@@ -205,30 +213,29 @@ const foldsOf = (
     ];
   });
 
-/** The preview panel of one document, redrawn as it changes */
-class WndPreview {
-  private static readonly panels = new Map<string, WndPreview>();
-  private readonly panel: vscode.WebviewPanel;
+/** Creates the preview panel of one document, redrawn as it changes */
+const createWndPreview = (
+  document: vscode.TextDocument,
+  services: WndPreviewServices | undefined,
+  onClose: () => void,
+) => {
   /** Images already resolved, by lowercased name; `null` for a name nothing defines */
-  private readonly images = new Map<string, Promise<ResolvedImage | null>>();
+  const images = new Map<string, Promise<ResolvedImage | null>>();
   /** Textures the page already has */
-  private readonly sent = new Set<string>();
-  private version = 0;
+  const sent = new Set<string>();
+  let version = 0;
 
-  private constructor(
-    private readonly document: vscode.TextDocument,
-    private readonly services?: WndPreviewServices,
-  ) {
-    this.panel = vscode.window.createWebviewPanel(
-      'bigfs.wndPreview',
-      `Layout: ${document.uri.path.slice(document.uri.path.lastIndexOf('/') + 1)}`,
-      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      { enableScripts: true, localResourceRoots: [] },
-    );
-    this.panel.webview.html = renderPreviewHtml();
-    this.panel.webview.onDidReceiveMessage(async (message) => {
+  const panel = createSingletonPanel({
+    viewType: 'bigfs.wndPreview',
+    title: `Layout: ${document.uri.path.slice(document.uri.path.lastIndexOf('/') + 1)}`,
+    column: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+    options: { enableScripts: true, localResourceRoots: [] },
+    render: ({ webview }) => {
+      webview.html = renderPreviewHtml();
+    },
+    onMessage: async (message: { kind?: string; offset?: unknown }) => {
       if (message?.kind === 'ready') {
-        void this.update();
+        void update();
       } else if (message?.kind === 'reveal') {
         const position = document.positionAt(Number(message.offset));
         const editor = await vscode.window.showTextDocument(
@@ -242,50 +249,28 @@ class WndPreview {
           vscode.TextEditorRevealType.InCenter,
         );
       }
-    });
-    this.panel.onDidDispose(() =>
-      WndPreview.panels.delete(document.uri.toString()),
-    );
-  }
-
-  public static show(
-    document: vscode.TextDocument,
-    services?: WndPreviewServices,
-  ): void {
-    const key = document.uri.toString();
-    const existing = WndPreview.panels.get(key);
-
-    if (existing) {
-      existing.panel.reveal(vscode.ViewColumn.Beside, true);
-
-      return;
-    }
-
-    WndPreview.panels.set(key, new WndPreview(document, services));
-  }
-
-  public static refresh(document: vscode.TextDocument): void {
-    void WndPreview.panels.get(document.uri.toString())?.update();
-  }
+    },
+    onDispose: onClose,
+  });
 
   /**
    * The image a `MappedImage` of this name draws: its texture as a PNG data
    * URI, and the rect of it the definition's `Coords` cover
    */
-  private resolveImage(name: string): Promise<ResolvedImage | null> {
+  const resolveImage = (name: string): Promise<ResolvedImage | null> => {
     const key = name.toLowerCase();
-    let found = this.images.get(key);
+    let cached = images.get(key);
 
-    if (!found) {
-      found = this.loadImage(name).catch(() => null);
-      this.images.set(key, found);
+    if (!cached) {
+      cached = loadImage(name).catch(() => null);
+      images.set(key, cached);
     }
 
-    return found;
-  }
+    return cached;
+  };
 
-  private async loadImage(name: string): Promise<ResolvedImage | null> {
-    const { index, locator } = this.services ?? {};
+  const loadImage = async (name: string): Promise<ResolvedImage | null> => {
+    const { index, locator } = services ?? {};
     const definition = index?.findDefinitions('MappedImage', name)[0];
 
     if (!locator || !definition) {
@@ -310,15 +295,15 @@ class WndPreview {
       },
       dataUri: `data:image/png;base64,${Buffer.from(encodePng(texture)).toString('base64')}`,
     };
-  }
+  };
 
-  private async update(): Promise<void> {
-    const version = ++this.version;
-    const { index, gameLanguage } = this.services ?? {};
+  const update = async (): Promise<void> => {
+    const current = ++version;
+    const { index, gameLanguage } = services ?? {};
 
     await gameLanguage?.ensure();
 
-    const boxes = toBoxes(parseWnd(this.document.getText()).windows, {
+    const boxes = toBoxes(parseWnd(document.getText()).windows, {
       text: (value) => index?.findString(value)?.text,
     });
     const names = new Set<string>();
@@ -332,35 +317,62 @@ class WndPreview {
 
     collect(boxes);
 
-    const images: Record<string, PreviewImage> = {};
+    const found: Record<string, PreviewImage> = {};
     const textures: Record<string, string> = {};
 
     for (const name of names) {
-      const resolved = await this.resolveImage(name);
+      const resolved = await resolveImage(name);
 
       if (resolved) {
-        images[name] = resolved.image;
+        found[name] = resolved.image;
 
-        if (!this.sent.has(resolved.image.texture)) {
+        if (!sent.has(resolved.image.texture)) {
           textures[resolved.image.texture] = resolved.dataUri;
         }
       }
     }
 
     // A newer edit is already on its way; its message carries the textures
-    if (version !== this.version) {
+    if (current !== version) {
       return;
     }
 
-    Object.keys(textures).forEach((id) => this.sent.add(id));
-    void this.panel.webview.postMessage({
+    Object.keys(textures).forEach((id) => sent.add(id));
+    void panel.post({
       kind: 'layout',
       boxes,
-      images,
+      images: found,
       textures,
     });
-  }
-}
+  };
+
+  return {
+    show: () =>
+      panel.show({ column: vscode.ViewColumn.Beside, preserveFocus: true }),
+    update,
+  };
+};
+
+const openWndPreviews = new Map<string, ReturnType<typeof createWndPreview>>();
+
+/** Opens the layout preview of a document, or brings the open one forward */
+const showWndPreview = (
+  document: vscode.TextDocument,
+  services?: WndPreviewServices,
+): void => {
+  const key = document.uri.toString();
+  const preview =
+    openWndPreviews.get(key) ??
+    createWndPreview(document, services, () => openWndPreviews.delete(key));
+
+  openWndPreviews.set(key, preview);
+  preview.show();
+};
+
+/** Draws the document again in its preview, if one is open */
+const refreshWndPreview = (document: vscode.TextDocument): void => {
+  void openWndPreviews.get(document.uri.toString())?.update();
+};
 
 /** The preview page: the windows drawn at their creation resolution */
 export const renderPreviewHtml = (): string => {
@@ -405,7 +417,7 @@ export const registerSageWndLanguage = (
         return diagnostic;
       }),
     );
-    WndPreview.refresh(document);
+    refreshWndPreview(document);
   };
 
   vscode.workspace.textDocuments.forEach(refresh);
@@ -492,11 +504,11 @@ export const registerSageWndLanguage = (
           : vscode.window.activeTextEditor?.document;
 
         if (document) {
-          WndPreview.show(document, services);
+          showWndPreview(document, services);
         } else if (uri) {
           void vscode.workspace
             .openTextDocument(uri)
-            .then((opened) => WndPreview.show(opened, services));
+            .then((opened) => showWndPreview(opened, services));
         }
       },
     ),

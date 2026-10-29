@@ -3,9 +3,16 @@ import { createParseCache } from '../../services/ini/workspaceText';
 import type { EntryLocator } from '../../services/entryLocator';
 import { toPlayableAudio } from '../../formats/audio/audioTools';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { findAssetReferences } from '../../formats/ini/sageIniAssets';
-import { audioDefinitionOf, resolveAudio } from '../../game/audio/sageAudioResolve';
-import type { AudioLookup, AudioVariant } from '../../game/audio/sageAudioResolve';
+import {
+  audioDefinitionOf,
+  resolveAudio,
+} from '../../game/audio/sageAudioResolve';
+import type {
+  AudioLookup,
+  AudioVariant,
+} from '../../game/audio/sageAudioResolve';
 import { forEachBlock } from '../../formats/ini/sageIniParser';
 import type { SageDocument, SageToken } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
@@ -55,55 +62,49 @@ export const soundCandidates = (name: string): string[] => {
     : SOUND_EXTENSIONS.map((extension) => `${base}.${extension}`);
 };
 
-class SoundPanel {
-  private static current?: SoundPanel;
-  private readonly panel: vscode.WebviewPanel;
-  private ready: Promise<void>;
+/** Creates the small player panel, opened on the first sound and reused after */
+const createSoundPanel = () => {
+  let ready = Promise.resolve();
+  let markReady = () => {};
 
-  public static get(): SoundPanel {
-    SoundPanel.current ??= new SoundPanel();
-    return SoundPanel.current;
-  }
-
-  private constructor() {
-    this.panel = vscode.window.createWebviewPanel(
-      'bigfs.soundPlayer',
-      'Sound',
-      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [],
-      },
-    );
-
-    let markReady = () => {};
-
-    this.ready = new Promise((resolve) => {
-      markReady = resolve;
-    });
-    this.panel.webview.onDidReceiveMessage((message) => {
+  const panel = createSingletonPanel({
+    viewType: 'bigfs.soundPlayer',
+    title: 'Sound',
+    column: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+    options: {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [],
+    },
+    render: ({ webview }) => {
+      ready = new Promise((resolve) => {
+        markReady = resolve;
+      });
+      webview.html = renderHtml();
+    },
+    onMessage: (message: { kind?: string }) => {
       if (message?.kind === 'ready') {
         markReady();
       }
-    });
-    this.panel.onDidDispose(() => {
-      SoundPanel.current = undefined;
-    });
-    this.panel.webview.html = renderHtml();
-  }
+    },
+  });
 
-  public async play(name: string, bytes: Uint8Array, mime: string) {
-    this.panel.reveal(undefined, true);
-    await this.ready;
-    await this.panel.webview.postMessage({
+  /** Plays the bytes in the panel, opening it first if it is closed */
+  const play = async (name: string, bytes: Uint8Array, mime: string) => {
+    panel.show({ preserveFocus: true });
+    await ready;
+    await panel.post({
       kind: 'play',
       name,
       mime,
       data: Buffer.from(bytes).toString('base64'),
     });
-  }
-}
+  };
+
+  return { play };
+};
+
+const soundPanel = createSoundPanel();
 
 const renderHtml = (): string => {
   return webviewPage({
@@ -165,13 +166,9 @@ const playSound = async (
       continue;
     }
     if (candidate.endsWith('.wav')) {
-      await SoundPanel.get().play(
-        candidate,
-        toPlayableAudio(bytes).wav,
-        'audio/wav',
-      );
+      await soundPanel.play(candidate, toPlayableAudio(bytes).wav, 'audio/wav');
     } else {
-      await SoundPanel.get().play(candidate, bytes, 'audio/mpeg');
+      await soundPanel.play(candidate, bytes, 'audio/mpeg');
     }
     return candidate;
   }
@@ -292,14 +289,12 @@ export const describeSound = async (
   return text;
 };
 
-/** A lens on every audio definition block that plays one of its variants */
-class SoundLensProvider implements vscode.CodeLensProvider {
-  public constructor(private readonly documents: SageIniDocuments) {}
-
-  public async provideCodeLenses(
-    document: vscode.TextDocument,
-  ): Promise<vscode.CodeLens[]> {
-    const parsed = await this.documents.parse(document);
+/** Creates the lens on every audio definition block that plays one of its variants */
+const createSoundLensProvider = (
+  documents: SageIniDocuments,
+): vscode.CodeLensProvider => ({
+  async provideCodeLenses(document) {
+    const parsed = await documents.parse(document);
     const keywords = AUDIO_KEYWORDS.map((keyword) => keyword.toLowerCase());
 
     return parsed.blocks.flatMap((block) => {
@@ -318,8 +313,8 @@ class SoundLensProvider implements vscode.CodeLensProvider {
           ]
         : [];
     });
-  }
-}
+  },
+});
 
 export const registerSoundPlayer = (
   selector: vscode.DocumentSelector,
@@ -329,7 +324,7 @@ export const registerSoundPlayer = (
 ): vscode.Disposable[] => [
   vscode.languages.registerCodeLensProvider(
     selector,
-    new SoundLensProvider(documents),
+    createSoundLensProvider(documents),
   ),
   vscode.commands.registerCommand(
     'bigfs.playSound',

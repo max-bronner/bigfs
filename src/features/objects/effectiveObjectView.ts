@@ -1,7 +1,11 @@
 import * as vscode from 'vscode';
 import { composeLineage } from '../../game/objects/effectiveObject';
 import type { LineageStep } from '../../game/objects/effectiveObject';
-import { parseSageIni, stripComment, tokenize } from '../../formats/ini/sageIniParser';
+import {
+  parseSageIni,
+  stripComment,
+  tokenize,
+} from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
@@ -116,42 +120,42 @@ export const composeEffective = async (
   return [...notes, composeLineage(lineage, first.header)].join('\n');
 };
 
-class EffectiveObjects implements vscode.TextDocumentContentProvider {
-  private readonly changed = new vscode.EventEmitter<vscode.Uri>();
-  public readonly onDidChange = this.changed.event;
+/** Creates the content provider of the effective views, which can redraw them */
+const createEffectiveObjects = (
+  documents: SageIniDocuments,
+  index: SageIniIndex,
+) => {
+  const changed = new vscode.EventEmitter<vscode.Uri>();
 
-  public constructor(
-    private readonly documents: SageIniDocuments,
-    private readonly index: SageIniIndex,
-  ) {}
+  return {
+    onDidChange: changed.event,
 
-  /** Asks for one view again, the next time it is shown */
-  public update(uri: vscode.Uri): void {
-    this.changed.fire(uri);
-  }
+    /** Asks for one view again, the next time it is shown */
+    update: (uri: vscode.Uri): void => changed.fire(uri),
 
-  /** Redraws every effective view open, after an INI edit */
-  public refresh(): void {
-    for (const document of vscode.workspace.textDocuments) {
-      if (document.uri.scheme === SCHEME) {
-        this.changed.fire(document.uri);
+    /** Redraws every effective view open, after an INI edit */
+    refresh: (): void => {
+      for (const document of vscode.workspace.textDocuments) {
+        if (document.uri.scheme === SCHEME) {
+          changed.fire(document.uri);
+        }
       }
-    }
-  }
+    },
 
-  public async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
-    const query = new URLSearchParams(uri.query);
+    async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+      const query = new URLSearchParams(uri.query);
 
-    return (
-      (await composeEffective(
-        this.documents,
-        this.index,
-        vscode.Uri.parse(query.get('uri') ?? ''),
-        Number(query.get('line')),
-      )) ?? `; ${uri.path.slice(1)} is no longer where it was`
-    );
-  }
-}
+      return (
+        (await composeEffective(
+          documents,
+          index,
+          vscode.Uri.parse(query.get('uri') ?? ''),
+          Number(query.get('line')),
+        )) ?? `; ${uri.path.slice(1)} is no longer where it was`
+      );
+    },
+  };
+};
 
 /** The effective view of the template written at a line */
 const effectiveUri = (uri: vscode.Uri, line: number, name: string) =>
@@ -164,9 +168,9 @@ const effectiveUri = (uri: vscode.Uri, line: number, name: string) =>
     }).toString(),
   });
 
-/** A lens over every ChildObject and ObjectReskin header */
-class EffectiveLensProvider implements vscode.CodeLensProvider {
-  public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+/** Creates a lens over every ChildObject and ObjectReskin header */
+const createEffectiveLensProvider = (): vscode.CodeLensProvider => ({
+  provideCodeLenses(document) {
     const lenses: vscode.CodeLens[] = [];
 
     for (let line = 0; line < document.lineCount; line++) {
@@ -189,15 +193,15 @@ class EffectiveLensProvider implements vscode.CodeLensProvider {
       }
     }
     return lenses;
-  }
-}
+  },
+});
 
 export const registerEffectiveObjects = (
   selector: vscode.DocumentSelector,
   documents: SageIniDocuments,
   index: SageIniIndex,
 ): vscode.Disposable[] => {
-  const provider = new EffectiveObjects(documents, index);
+  const provider = createEffectiveObjects(documents, index);
   // Edits outside the editor change a lineage too
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.ini');
 
@@ -205,7 +209,7 @@ export const registerEffectiveObjects = (
     vscode.workspace.registerTextDocumentContentProvider(SCHEME, provider),
     vscode.languages.registerCodeLensProvider(
       selector,
-      new EffectiveLensProvider(),
+      createEffectiveLensProvider(),
     ),
     watcher,
     watcher.onDidChange(() => provider.refresh()),

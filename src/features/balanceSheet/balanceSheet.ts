@@ -1,18 +1,25 @@
 import * as vscode from 'vscode';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { BALANCE_SHEET_SCRIPT } from './balanceSheetScript';
 import {
   STAT_COLUMNS,
   readObjectStats,
   readWeaponStats,
 } from '../../game/objects/objectStats';
-import type { ObjectStats, StatColumn, StatValue } from '../../game/objects/objectStats';
+import type {
+  ObjectStats,
+  StatColumn,
+  StatValue,
+} from '../../game/objects/objectStats';
 import { forEachBlock } from '../../formats/ini/sageIniParser';
 import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { createParseCache, readWorkspaceText } from '../../services/ini/workspaceText';
-import type { ParseCache } from '../../services/ini/workspaceText';
+import {
+  createParseCache,
+  readWorkspaceText,
+} from '../../services/ini/workspaceText';
 
 /**
  * The balance sheet: every unit and building with its cost, build time,
@@ -63,89 +70,69 @@ const cellOf = (uri: string, value: StatValue, from?: string): SheetCell => ({
   from,
 });
 
-class BalanceSheet {
-  private static current?: BalanceSheet;
-  private readonly panel: vscode.WebviewPanel;
-  private readonly parses: ParseCache;
-  private readonly disposables: vscode.Disposable[] = [];
-  public rows: SheetRow[] = [];
+/** What the page sends: a row and a column by name, never a place in a file */
+interface FromSheetPage {
+  kind?: string;
+  row?: string;
+  column?: string;
+  value?: string;
+  old?: string;
+}
 
-  public static show(
-    documents: SageIniDocuments,
-    index: SageIniIndex,
-  ): BalanceSheet {
-    if (BalanceSheet.current) {
-      BalanceSheet.current.panel.reveal();
-    } else {
-      BalanceSheet.current = new BalanceSheet(documents, index);
-    }
-    return BalanceSheet.current;
-  }
+const createBalanceSheet = (
+  documents: SageIniDocuments,
+  index: SageIniIndex,
+) => {
+  const parses = createParseCache(documents);
+  let rows: SheetRow[] = [];
+  let loaded: Promise<void> | undefined;
 
-  private constructor(
-    private readonly documents: SageIniDocuments,
-    private readonly index: SageIniIndex,
-  ) {
-    this.parses = createParseCache(documents);
-    this.panel = vscode.window.createWebviewPanel(
-      'bigfs.balanceSheet',
-      'Balance Sheet',
-      vscode.ViewColumn.Active,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [],
-      },
-    );
-    this.panel.webview.html = renderHtml();
-    this.disposables.push(
-      this.panel.webview.onDidReceiveMessage((message) =>
-        this.receive(message).catch((error: unknown) =>
-          this.panel.webview.postMessage({
-            kind: 'notice',
-            message: error instanceof Error ? error.message : String(error),
-          }),
+  const panel = createSingletonPanel<FromSheetPage>({
+    viewType: 'bigfs.balanceSheet',
+    title: 'Balance Sheet',
+    column: vscode.ViewColumn.Active,
+    options: {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [],
+    },
+    render: ({ webview }) => {
+      parses.clear();
+      webview.html = renderHtml();
+      return [
+        vscode.workspace.onDidChangeTextDocument(({ document }) =>
+          parses.delete(document.uri),
         ),
+      ];
+    },
+    onMessage: (message): Promise<unknown> =>
+      receive(message).catch((error: unknown) =>
+        panel.post({
+          kind: 'notice',
+          message: error instanceof Error ? error.message : String(error),
+        }),
       ),
-      vscode.workspace.onDidChangeTextDocument(({ document }) =>
-        this.parses.delete(document.uri),
-      ),
-    );
-    this.panel.onDidDispose(() => {
-      BalanceSheet.current = undefined;
-      this.disposables.forEach((disposable) => disposable.dispose());
-    });
-  }
-
-  private loaded?: Promise<void>;
+  });
 
   /** Resolves once the table has been built and sent at least once */
-  public whenLoaded(): Promise<void> {
-    return this.loaded ?? Promise.resolve();
-  }
+  const whenLoaded = (): Promise<void> => loaded ?? Promise.resolve();
 
   /**
    * The page names a row and a column only; where the value is written is
    * looked up here, so the page can never point an edit at another file.
    */
-  public async receive(message: {
-    kind?: string;
-    row?: string;
-    column?: string;
-    value?: string;
-    old?: string;
-  }): Promise<void> {
+  const receive = async (message: FromSheetPage): Promise<void> => {
     switch (message?.kind) {
       case 'ready':
-        this.loaded = this.refresh();
-        await this.loaded;
+        loaded = refresh();
+        await loaded;
         break;
       case 'refresh':
-        this.parses.clear();
-        await this.refresh();
+        parses.clear();
+        await refresh();
         break;
       case 'open': {
-        const row = this.rowNamed(message.row);
+        const row = rowNamed(message.row);
 
         if (!row) {
           return;
@@ -162,24 +149,18 @@ class BalanceSheet {
         break;
       }
       case 'edit':
-        await this.edit(message);
+        await edit(message);
         break;
     }
-  }
+  };
 
-  private rowNamed(name: unknown): SheetRow | undefined {
-    return this.rows.find((row) => row.name === name);
-  }
+  const rowNamed = (name: unknown): SheetRow | undefined =>
+    rows.find((row) => row.name === name);
 
   /** Writes one value where it is written, and saves a file that was clean */
-  private async edit(change: {
-    row?: string;
-    column?: string;
-    value?: string;
-    old?: string;
-  }): Promise<void> {
+  const edit = async (change: FromSheetPage): Promise<void> => {
     const value = String(change.value ?? '').trim();
-    const cell = this.rowNamed(change.row)?.cells[change.column as StatColumn];
+    const cell = rowNamed(change.row)?.cells[change.column as StatColumn];
 
     if (!value || /\s/.test(value)) {
       throw new Error('A value is one word or number');
@@ -198,8 +179,8 @@ class BalanceSheet {
     );
 
     if (document.getText(range) !== change.old) {
-      this.parses.delete(uri);
-      await this.refresh();
+      parses.delete(uri);
+      await refresh();
       throw new Error(
         'The file changed since the table was built; it has been refreshed',
       );
@@ -213,20 +194,20 @@ class BalanceSheet {
     if (!wasDirty) {
       await document.save();
     }
-    this.parses.delete(uri);
-    await this.refresh();
-  }
+    parses.delete(uri);
+    await refresh();
+  };
 
   /** The top-level block a definition opens */
-  private async blockAt(
+  const blockAt = async (
     uri: vscode.Uri,
     line: number,
     texts: Map<string, Promise<string[]>>,
   ): Promise<
     { parsed: SageDocument; block: SageBlock; lines: string[] } | undefined
-  > {
+  > => {
     // The index can still list a file deleted a moment ago
-    const parsed = await this.parses.get(uri);
+    const parsed = await parses.get(uri);
 
     if (!parsed) {
       return undefined;
@@ -250,20 +231,19 @@ class BalanceSheet {
       texts.set(key, text);
     }
     return { parsed, block: found, lines: await text };
-  }
+  };
 
-  private async build(): Promise<SheetRow[]> {
-    await this.index.whenReady();
+  const build = async (): Promise<SheetRow[]> => {
+    await index.whenReady();
 
     const objects = new Map<string, { stats: ObjectStats; uri: string }>();
     const texts = new Map<string, Promise<string[]>>();
-    const lookupMacro = (name: string) => this.index.findMacro(name)?.value;
+    const lookupMacro = (name: string) => index.findMacro(name)?.value;
 
     for (const keyword of OBJECT_KEYWORDS) {
-      for (const name of this.index.getNames(keyword)) {
-        const [place] = this.index.findDefinitions(keyword, name);
-        const found =
-          place && (await this.blockAt(place.uri, place.line, texts));
+      for (const name of index.getNames(keyword)) {
+        const [place] = index.findDefinitions(keyword, name);
+        const found = place && (await blockAt(place.uri, place.line, texts));
 
         if (found && !objects.has(name.toLowerCase())) {
           objects.set(name.toLowerCase(), {
@@ -277,7 +257,7 @@ class BalanceSheet {
       }
     }
 
-    const rows: SheetRow[] = [...objects.values()].map(({ stats, uri }) => {
+    const built: SheetRow[] = [...objects.values()].map(({ stats, uri }) => {
       const cells: SheetRow['cells'] = {};
       let selectable = stats.selectable;
 
@@ -328,7 +308,7 @@ class BalanceSheet {
     // The primary weapon's numbers, from the weapon's own definition
     const users = new Map<string, number>();
 
-    for (const row of rows) {
+    for (const row of built) {
       const weapon = row.cells.weapon?.value.toLowerCase();
 
       if (weapon) {
@@ -336,8 +316,8 @@ class BalanceSheet {
       }
     }
     for (const [weapon, count] of users) {
-      const [place] = this.index.findDefinitions('Weapon', weapon);
-      const found = place && (await this.blockAt(place.uri, place.line, texts));
+      const [place] = index.findDefinitions('Weapon', weapon);
+      const found = place && (await blockAt(place.uri, place.line, texts));
 
       if (!found) {
         continue;
@@ -348,7 +328,7 @@ class BalanceSheet {
         lookupMacro,
       });
 
-      for (const row of rows) {
+      for (const row of built) {
         if (row.cells.weapon?.value.toLowerCase() !== weapon) {
           continue;
         }
@@ -371,7 +351,7 @@ class BalanceSheet {
       }
     }
     // Damage a second, from the weapon's total damage and its delay in milliseconds
-    for (const row of rows) {
+    for (const row of built) {
       const damage = Number(row.cells.damage?.value);
       const delay = Number(row.cells.delay?.value);
 
@@ -382,19 +362,28 @@ class BalanceSheet {
         };
       }
     }
-    return rows;
-  }
+    return built;
+  };
 
-  private async refresh(): Promise<void> {
-    await this.panel.webview.postMessage({ kind: 'loading' });
-    this.rows = await this.build();
-    await this.panel.webview.postMessage({
+  const refresh = async (): Promise<void> => {
+    await panel.post({ kind: 'loading' });
+    rows = await build();
+    await panel.post({
       kind: 'rows',
       columns: [...STAT_COLUMNS, 'dps'],
-      rows: this.rows,
+      rows,
     });
-  }
-}
+  };
+
+  return {
+    show: panel.show,
+    whenLoaded,
+    receive,
+    get rows() {
+      return rows;
+    },
+  };
+};
 
 const renderHtml = (): string => {
   return webviewPage({
@@ -434,7 +423,11 @@ const renderHtml = (): string => {
 export const registerBalanceSheet = (
   documents: SageIniDocuments,
   index: SageIniIndex,
-): vscode.Disposable =>
-  vscode.commands.registerCommand('bigfs.openBalanceSheet', () =>
-    BalanceSheet.show(documents, index),
-  );
+): vscode.Disposable => {
+  const sheet = createBalanceSheet(documents, index);
+
+  return vscode.commands.registerCommand('bigfs.openBalanceSheet', () => {
+    sheet.show();
+    return sheet;
+  });
+};

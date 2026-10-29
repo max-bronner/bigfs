@@ -1,5 +1,8 @@
 import * as vscode from 'vscode';
-import { duplicateDefinition, strRecord } from '../../game/objects/duplicateDefinition';
+import {
+  duplicateDefinition,
+  strRecord,
+} from '../../game/objects/duplicateDefinition';
 import type { SageBlock } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
@@ -125,15 +128,12 @@ const duplicate = async (
   return { name: newName, line: newLine, labels: added };
 };
 
-/** Offers the duplicate on any file-scope definition the cursor is in */
-class DuplicateActionProvider implements vscode.CodeActionProvider {
-  public constructor(private readonly documents: SageIniDocuments) {}
-
-  public async provideCodeActions(
-    document: vscode.TextDocument,
-    range: vscode.Range,
-  ): Promise<vscode.CodeAction[]> {
-    const parsed = await this.documents.parse(document);
+/** Creates the provider that offers the duplicate on any file-scope definition the cursor is in */
+const createDuplicateActionProvider = (
+  documents: SageIniDocuments,
+): vscode.CodeActionProvider => ({
+  async provideCodeActions(document, range) {
+    const parsed = await documents.parse(document);
     const block = blockAt(parsed.blocks, range.start.line);
 
     if (!block?.name || !block.isClosed) {
@@ -151,8 +151,8 @@ class DuplicateActionProvider implements vscode.CodeActionProvider {
       arguments: [document.uri, block.startLine],
     };
     return [action];
-  }
-}
+  },
+});
 
 export const registerDuplicateDefinition = (
   selector: vscode.DocumentSelector,
@@ -161,7 +161,7 @@ export const registerDuplicateDefinition = (
 ): vscode.Disposable[] => [
   vscode.languages.registerCodeActionsProvider(
     selector,
-    new DuplicateActionProvider(documents),
+    createDuplicateActionProvider(documents),
     { providedCodeActionKinds: [vscode.CodeActionKind.Refactor] },
   ),
   vscode.commands.registerCommand(
