@@ -3,6 +3,7 @@ import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { AUDIO_NAMESPACES, EVA_NAMESPACES } from '../../game/audio/sageAudioFields';
 import { isModFile, isReportableKind } from '../../game/ini-tools/unusedPolicy';
 import { findBaseGameFolders } from '../../services/archives/baseGameFolders';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * "Find Unused Definitions": every definition in the workspace's own files
@@ -83,7 +84,7 @@ export const registerUnusedDefinitions = (
 
   return [
     collection,
-    vscode.commands.registerCommand('bigfs.findUnusedDefinitions', async () => {
+    registerCommand('bigfs.findUnusedDefinitions', async () => {
       const count = await find();
 
       if (count) {
@@ -98,7 +99,7 @@ export const registerUnusedDefinitions = (
       }
       return count;
     }),
-    vscode.commands.registerCommand('bigfs.clearUnusedDefinitions', () =>
+    registerCommand('bigfs.clearUnusedDefinitions', () =>
       collection.clear(),
     ),
   ];

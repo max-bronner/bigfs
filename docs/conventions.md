@@ -151,11 +151,14 @@ The detail and worked examples are in `.claude/skills/naming/references/comments
 
 ## Settings and context keys
 
-Settings and context keys are read and written through `platform/`, which
-holds their names in one place; a feature does not call
-`workspace.getConfiguration()` or `setContext` with a string of its own. Until
-the platform helpers land (`refactor-plan.md`, W7), keep each key a named
-constant beside the code that owns it.
+Settings, context keys and commands go through `platform/`, which holds their
+names in one place. `settings.ts` has one typed accessor per contributed
+configuration key (`settings.baseGameFolder.get()`) and `onDidChangeSetting`;
+`contextKeys.ts` sets the `when`-clause keys; `commands.ts` registers a
+command with its thrown error reported once to the user and the log. A feature
+does not call `workspace.getConfiguration()`, `setContext` or
+`commands.registerCommand` itself, and a new setting gets an accessor in
+`createSettings.ts` beside its entry in `package.json`.
 
 ## Tests
 

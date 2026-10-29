@@ -17,6 +17,7 @@ import { forEachBlock } from '../../formats/ini/sageIniParser';
 import type { SageDocument, SageToken } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * Sounds played from the INI: a "Play" lens on every audio definition, play
@@ -326,13 +327,13 @@ export const registerSoundPlayer = (
     selector,
     createSoundLensProvider(documents),
   ),
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.playSound',
     (name: string, near?: string) =>
       locator &&
       playSound(locator, name, near ? vscode.Uri.parse(near) : undefined),
   ),
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.playAudioEvent',
     async (name?: string, near?: string) => {
       if (!locator) {

@@ -19,6 +19,7 @@ import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
 import { webviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * Language support for `.wnd` window layouts: problems, an outline of the
@@ -496,7 +497,7 @@ export const registerSageWndLanguage = (
       '+',
       ' ',
     ),
-    vscode.commands.registerCommand(
+    registerCommand(
       'bigfs.showWndPreview',
       (uri?: vscode.Uri) => {
         const document = uri

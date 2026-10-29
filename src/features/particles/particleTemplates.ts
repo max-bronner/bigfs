@@ -4,6 +4,7 @@ import {
   PARTICLE_TEMPLATES,
   templateSnippet,
 } from '../../formats/particles/particleTemplates';
+import { registerCommand } from '../../platform/commands';
 
 /** The command that inserts a particle system template into an INI file */
 
@@ -25,7 +26,7 @@ const freeName = (text: string, base: string): string => {
  * cursor is in, or at the cursor's line
  */
 export const registerParticleTemplates = (): vscode.Disposable =>
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.newParticleSystem',
     /** `label` picks a template without asking, for automation */
     async (label?: string) => {

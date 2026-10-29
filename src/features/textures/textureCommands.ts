@@ -9,6 +9,8 @@ import {
   encodeTga,
 } from '../../formats/texture/textureEncode';
 import { decodePng, encodePng } from '../../node/png';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * Texture round trips: export a TGA or DDS as PNG to edit anywhere, import a
@@ -64,7 +66,7 @@ const run = (task: () => Promise<void>) => async () => {
     await task();
   } catch (error) {
     void vscode.window.showErrorMessage(
-      error instanceof Error ? error.message : String(error),
+      describeError(error),
     );
   }
 };
@@ -73,7 +75,7 @@ export const registerTextureCommands = (
   context: vscode.ExtensionContext,
 ): void => {
   context.subscriptions.push(
-    vscode.commands.registerCommand(
+    registerCommand(
       'bigfs.exportPng',
       (target: CommandTarget) =>
         run(async () => {
@@ -103,7 +105,7 @@ export const registerTextureCommands = (
           }
         })(),
     ),
-    vscode.commands.registerCommand(
+    registerCommand(
       'bigfs.importImage',
       (target: CommandTarget) =>
         run(async () => {
@@ -150,7 +152,7 @@ export const registerTextureCommands = (
           );
         })(),
     ),
-    vscode.commands.registerCommand(
+    registerCommand(
       'bigfs.convertPng',
       (target: CommandTarget) =>
         run(async () => {

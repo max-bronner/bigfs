@@ -4,12 +4,10 @@ import {
   Range,
   commands,
   window,
-  workspace,
 } from 'vscode';
 import type { EntryLocator } from '../../services/entryLocator';
-import { BASE_SETTING } from '../../services/archives/baseGameFolders';
+import { settings } from '../../platform/settings';
 import { decideAssetCheck } from '../../game/ini-tools/assetCheckPolicy';
-import type { AssetCheckMode } from '../../game/ini-tools/assetCheckPolicy';
 import { closestNames } from '../../formats/ini/sageIniFormat';
 import {
   findAssetReferences,
@@ -26,8 +24,6 @@ import type { SageDocument } from '../../formats/ini/sageIniParser';
  * with no base game folder configured it switches itself off and says so
  * once (`assetCheckPolicy`).
  */
-
-export const CHECK_ASSETS_SETTING = 'bigfs.ini.checkAssets';
 
 const EXTENSIONS: Record<AssetKind, RegExp> = {
   model: /\.w3d$/,
@@ -79,7 +75,7 @@ const hintNoBaseGame = () => {
       if (choice) {
         void commands.executeCommand(
           'workbench.action.openSettings',
-          BASE_SETTING,
+          settings.baseGameFolder.key,
         );
       }
     });
@@ -87,8 +83,7 @@ const hintNoBaseGame = () => {
 
 /** Whether references are checked, given the setting and what is in reach */
 export const shouldCheckAssets = (names: Set<string>): boolean => {
-  const configuration = workspace.getConfiguration();
-  const mode = configuration.get<AssetCheckMode>(CHECK_ASSETS_SETTING, 'auto');
+  const mode = settings.iniCheckAssets.get();
   let models = 0;
 
   if (mode === 'auto') {
@@ -101,7 +96,7 @@ export const shouldCheckAssets = (names: Set<string>): boolean => {
 
   const decision = decideAssetCheck(
     mode,
-    Boolean(configuration.get<string>(BASE_SETTING)?.trim()),
+    Boolean(settings.baseGameFolder.get().trim()),
     models,
   );
 

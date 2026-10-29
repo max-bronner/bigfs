@@ -141,11 +141,11 @@ export const registerFileCommands = (
   register: RegisterNodeCommand,
   archiveModel: ArchiveModel,
 ): void => {
-  register('newFile', ([target]) => createFile(target));
-  register('newFolder', ([target]) => createFolder(target));
-  register('rename', ([target]) => renameNode(target));
-  register('addFiles', ([target]) => addFiles(archiveModel, target));
-  register('delete', async (targets) => {
+  register('bigfs.newFile', ([target]) => createFile(target));
+  register('bigfs.newFolder', ([target]) => createFolder(target));
+  register('bigfs.rename', ([target]) => renameNode(target));
+  register('bigfs.addFiles', ([target]) => addFiles(archiveModel, target));
+  register('bigfs.delete', async (targets) => {
     await deleteNodes(archiveModel, targets);
   });
 };

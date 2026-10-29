@@ -1,5 +1,5 @@
 ﻿import type { Event } from 'vscode';
-import { workspace } from 'vscode';
+import { settings } from '../../platform/settings';
 import {
   TreeItem,
   TreeDataProvider,
@@ -55,15 +55,12 @@ const rowName = (element: ExplorerNode): string =>
       ? element.node.name
       : element.name;
 
-/** Setting choosing between the per archive view and the game view */
-export const VIEW_SETTING = 'bigfs.explorer.view';
-
 /** Ends the context value of a row in a read-only source, which package.json keeps the edit items off */
 const READ_ONLY_SUFFIX = 'ReadOnly';
 
 /** Whether the explorer shows the game view rather than every archive */
 export const isGameViewShown = (): boolean =>
-  workspace.getConfiguration().get<string>(VIEW_SETTING) === 'game';
+  settings.explorerView.get() === 'game';
 
 /**
  * Tree row of the game view. A file opens the copy the game loads; its

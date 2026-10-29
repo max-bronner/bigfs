@@ -1,5 +1,6 @@
 import { window } from 'vscode';
 import type { ExtensionContext, LogOutputChannel } from 'vscode';
+import { setCommandLog } from '../platform/commands';
 import { ArchiveModel } from './archives/archiveModel';
 import { GameViewModel } from './archives/gameViewModel';
 import { EntryLocator } from './entryLocator';
@@ -43,6 +44,7 @@ export interface Services {
  */
 export const createServices = (context: ExtensionContext): Services => {
   const log = window.createOutputChannel('bigFS', { log: true });
+  setCommandLog(log);
   const archives = new ArchiveModel(log);
   const tools = createToolRegistry();
 

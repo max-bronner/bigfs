@@ -1,6 +1,7 @@
 import { compressEar, decompressEar, isEarWrapped } from '../refpack/refpack';
 import { decodeWindows1252, encodeWindows1252 } from '../../core/windows1252';
 import { createByteReader, type ByteReader } from '../../core/byteReader';
+import { describeError } from '../../core/errors';
 
 /**
  * SAGE `.map` and `.bse` files, ported from mint's `crates/sage/map` and
@@ -430,7 +431,7 @@ export const parseMapBody = (
       read();
     } catch (error) {
       map.problems.push(
-        `${what}: ${error instanceof Error ? error.message : error}`,
+        `${what}: ${describeError(error)}`,
       );
     }
   };

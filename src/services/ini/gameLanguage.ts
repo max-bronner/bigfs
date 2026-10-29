@@ -1,4 +1,4 @@
-import { EventEmitter, window, workspace } from 'vscode';
+import { EventEmitter, window } from 'vscode';
 import type { Disposable, Memento } from 'vscode';
 import type { ArchiveModel } from '../archives/archiveModel';
 import {
@@ -6,6 +6,7 @@ import {
   chooseLanguage,
   installedLanguages,
 } from '../../game/text/gameLanguage';
+import { onDidChangeSetting, settings } from '../../platform/settings';
 import type { SageIniIndex } from './sageIniIndex';
 
 /**
@@ -15,7 +16,6 @@ import type { SageIniIndex } from './sageIniIndex';
  * installed, else asks once and remembers the answer in the workspace.
  */
 
-const SETTING = 'bigfs.language';
 const REMEMBERED = 'bigfs.language.chosen';
 
 export class GameLanguage implements Disposable {
@@ -32,10 +32,8 @@ export class GameLanguage implements Disposable {
     private readonly state: Memento,
     private readonly index: SageIniIndex,
   ) {
-    this.subscription = workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(SETTING)) {
-        void this.ensure();
-      }
+    this.subscription = onDidChangeSetting([settings.language], () => {
+      void this.ensure();
     });
   }
 
@@ -62,7 +60,7 @@ export class GameLanguage implements Disposable {
   public async ensure(): Promise<string | undefined> {
     const installed = await this.installed();
     const choice = chooseLanguage(
-      workspace.getConfiguration().get<string>(SETTING, AUTO_LANGUAGE),
+      settings.language.get(),
       installed,
       this.state.get<string>(REMEMBERED),
     );
@@ -106,10 +104,8 @@ export class GameLanguage implements Disposable {
   private async remember(language: string): Promise<void> {
     await this.state.update(REMEMBERED, language);
 
-    const configuration = workspace.getConfiguration();
-
-    if (configuration.get<string>(SETTING, AUTO_LANGUAGE) !== AUTO_LANGUAGE) {
-      await configuration.update(SETTING, language);
+    if (settings.language.get() !== AUTO_LANGUAGE) {
+      await settings.language.update(language);
     }
   }
 

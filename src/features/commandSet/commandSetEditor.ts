@@ -23,6 +23,7 @@ import { parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * The CommandSet editor: a set's buttons in their slots, as the player sees
@@ -322,7 +323,7 @@ export const registerCommandSetEditor = (
       selector,
       createCommandSetLensProvider(),
     ),
-    vscode.commands.registerCommand(
+    registerCommand(
       'bigfs.editCommandSet',
       /** With `message`, acts as the page does, for automation */
       async (uri?: vscode.Uri, name?: string, message?: FromCommandSetPage) => {

@@ -18,6 +18,7 @@ import {
   revertSnapshot,
   saveSnapshot,
 } from '../../platform/webview/snapshotEditor';
+import { describeError } from '../../core/errors';
 
 /**
  * Editor for `.map` and `.bse` files: terrain relief with objects and start
@@ -266,7 +267,7 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
       } catch (error) {
         void panel.webview.postMessage({
           kind: 'notice',
-          message: error instanceof Error ? error.message : String(error),
+          message: describeError(error),
         });
       }
 

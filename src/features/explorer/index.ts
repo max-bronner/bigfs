@@ -1,13 +1,12 @@
-import { ConfigurationTarget, commands, window, workspace } from 'vscode';
+import { ConfigurationTarget, window, workspace } from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
 import { SCHEME } from '../../constants';
+import { registerCommand } from '../../platform/commands';
+import { setContextKey } from '../../platform/contextKeys';
+import { onDidChangeSetting, settings } from '../../platform/settings';
 import { BigFileSystemProvider } from './fileSystemProvider';
-import {
-  BigTreeDataProvider,
-  VIEW_SETTING,
-  isGameViewShown,
-} from './treeDataProvider';
+import { BigTreeDataProvider, isGameViewShown } from './treeDataProvider';
 import { BigDragAndDropController } from './dragAndDropController';
 import { createNodeCommandRegister } from './commandCenter';
 import { registerFileCommands } from './fileCommands';
@@ -27,9 +26,6 @@ export const registerExplorer = (
   { archives, gameView }: Services,
 ): void => {
   // scanned and hasArchives gate the welcome views declared in package.json
-  const setContextKey = (key: string, value: boolean) =>
-    commands.executeCommand('setContext', `bigfs.${key}`, value);
-
   const markScanned = async () => {
     await setContextKey('hasArchives', archives.getArchiveRoots().length > 0);
     await setContextKey('scanned', true);
@@ -44,23 +40,18 @@ export const registerExplorer = (
 
   // The context key picks which of the two view buttons the title bar shows
   const showView = (isGame: boolean) =>
-    workspace
-      .getConfiguration()
-      .update(
-        VIEW_SETTING,
-        isGame ? 'game' : 'archives',
-        ConfigurationTarget.Workspace,
-      );
+    settings.explorerView.update(
+      isGame ? 'game' : 'archives',
+      ConfigurationTarget.Workspace,
+    );
 
   void setContextKey('gameView', isGameViewShown());
   context.subscriptions.push(
-    commands.registerCommand('bigfs.showGameView', () => showView(true)),
-    commands.registerCommand('bigfs.showArchiveView', () => showView(false)),
-    workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(VIEW_SETTING)) {
-        void setContextKey('gameView', isGameViewShown());
-        treeDataProvider.refresh();
-      }
+    registerCommand('bigfs.showGameView', () => showView(true)),
+    registerCommand('bigfs.showArchiveView', () => showView(false)),
+    onDidChangeSetting([settings.explorerView], () => {
+      void setContextKey('gameView', isGameViewShown());
+      treeDataProvider.refresh();
     }),
     workspace.registerFileSystemProvider(SCHEME, fileSystemProvider, {
       isCaseSensitive: false,
@@ -84,7 +75,7 @@ export const registerExplorer = (
   registerClipboardCommands(registerNodeCommand, archives);
   context.subscriptions.push(
     ...registerModCommands(registerNodeCommand, archives),
-    commands.registerCommand('bigfs.refreshArchives', async () => {
+    registerCommand('bigfs.refreshArchives', async () => {
       await setContextKey('scanned', false);
 
       try {

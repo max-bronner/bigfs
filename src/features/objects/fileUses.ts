@@ -5,6 +5,7 @@ import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { FILE_USES } from '../../services/ini/sageIniIndex';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * Where the INI files use a model or animation file, for viewers that
@@ -35,7 +36,7 @@ export const registerFileUses = (
   documents: SageIniDocuments,
   index: SageIniIndex,
 ): vscode.Disposable[] => [
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.findFileUses',
     async (fileName: string): Promise<FileUse[]> => {
       const texts = new Map<string, Promise<string[]>>();
@@ -72,7 +73,7 @@ export const registerFileUses = (
       );
     },
   ),
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.findModelForAnimation',
     async (fileName: string): Promise<string | undefined> => {
       const clip = fileName.toLowerCase().replace(/\.w3d$/, '');

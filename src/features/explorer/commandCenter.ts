@@ -1,6 +1,5 @@
-﻿import { commands, window } from 'vscode';
-import type { ExtensionContext, TreeView } from 'vscode';
-import { SCHEME } from '../../constants';
+﻿import type { ExtensionContext, TreeView } from 'vscode';
+import { registerCommand } from '../../platform/commands';
 import { isGameRow, isVirtualNode } from '../../services/archives/explorerRow';
 import { toEntryDirectory } from '../../services/archives/gameViewModel';
 import type { ExplorerNode } from '../../services/archives/explorerRow';
@@ -12,29 +11,29 @@ import type { VirtualNode } from '../../services/archives/virtualNode';
  */
 export type NodeCommandRun = (targets: VirtualNode[]) => Promise<void>;
 
-/**
- * Callback a command module is handed to register one command; `name` is the
- * id without the `bigfs.` prefix
- */
-export type RegisterNodeCommand = (name: string, run: NodeCommandRun) => void;
+/** Callback a command module is handed to register one command by its full `bigfs.x` id */
+export type RegisterNodeCommand = (id: string, run: NodeCommandRun) => void;
 
 /**
  * Commands a game view folder can be handed to: they read the files below it.
  * Any command that changes an archive needs a folder of one archive.
  */
-const GAME_FOLDER_COMMANDS = new Set(['extract', 'overrideInFolder']);
+const GAME_FOLDER_COMMANDS = new Set([
+  'bigfs.extract',
+  'bigfs.overrideInFolder',
+]);
 
 /**
  * Creates the register callback the command modules are handed: it resolves
- * the nodes a command was invoked on, reports a thrown error to the user, and
- * disposes each command with the extension.
+ * the nodes a command was invoked on and disposes each command with the
+ * extension.
  */
 export const createNodeCommandRegister = (
   context: ExtensionContext,
   treeView: TreeView<ExplorerNode>,
 ): RegisterNodeCommand => {
   const getTargets = (
-    name: string,
+    id: string,
     target?: ExplorerNode,
     selection?: ExplorerNode[],
   ): VirtualNode[] => {
@@ -63,7 +62,7 @@ export const createNodeCommandRegister = (
         return ref?.kind === 'entry' ? [ref.node] : [];
       }
 
-      const directory = GAME_FOLDER_COMMANDS.has(name)
+      const directory = GAME_FOLDER_COMMANDS.has(id)
         ? toEntryDirectory(row.node)
         : undefined;
 
@@ -71,28 +70,20 @@ export const createNodeCommandRegister = (
     });
   };
 
-  return (name, run) => {
+  return (id, run) => {
     const execute = async (
       target?: ExplorerNode,
       selection?: ExplorerNode[],
     ): Promise<void> => {
-      const targets = getTargets(name, target, selection);
+      const targets = getTargets(id, target, selection);
 
       if (!targets.length) {
         return; // nothing of ours in the selection, so there is nothing to act on
       }
 
-      try {
-        await run(targets);
-      } catch (error) {
-        window.showErrorMessage(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
+      await run(targets);
     };
 
-    context.subscriptions.push(
-      commands.registerCommand(`${SCHEME}.${name}`, execute),
-    );
+    context.subscriptions.push(registerCommand(id, execute));
   };
 };

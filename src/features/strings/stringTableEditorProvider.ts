@@ -24,6 +24,7 @@ import {
   revertSnapshot,
   saveSnapshot,
 } from '../../platform/webview/snapshotEditor';
+import { describeError } from '../../core/errors';
 
 /**
  * Table editors for string tables: `.str` as an alternative view of the text
@@ -115,7 +116,7 @@ const connect = (
     } catch (error) {
       await panel.webview.postMessage({
         kind: 'notice',
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
     }
 

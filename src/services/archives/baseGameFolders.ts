@@ -1,12 +1,12 @@
 import { execFile } from 'child_process';
 import { readdir } from 'fs/promises';
-import { workspace } from 'vscode';
 import {
   detectInstallKind,
   orderLayers,
   parseRegistryPath,
 } from '../../game/install/installLayers';
 import type { InstallKind } from '../../game/install/installLayers';
+import { settings } from '../../platform/settings';
 
 /**
  * The install folders the settings name as the game beneath the workspace:
@@ -15,9 +15,6 @@ import type { InstallKind } from '../../game/install/installLayers';
  * of the game is made of; retail finds BFME II in the registry, and so does
  * this when the setting is empty (mint `games/rotwk/src/base_install.rs`).
  */
-
-export const BASE_SETTING = 'bigfs.baseGameFolder';
-export const UNDERLYING_SETTING = 'bigfs.underlyingGameFolder';
 
 const BFME2_KEY =
   'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\lotrbfme2.exe';
@@ -46,9 +43,8 @@ const registryBfme2 = (): Promise<string | undefined> =>
 
 /** The base game folders, the highest layer first, those that exist */
 export const findBaseGameFolders = async (): Promise<string[]> => {
-  const configuration = workspace.getConfiguration();
-  const base = configuration.get<string>(BASE_SETTING)?.trim();
-  const named = configuration.get<string>(UNDERLYING_SETTING)?.trim();
+  const base = settings.baseGameFolder.get().trim();
+  const named = settings.underlyingGameFolder.get().trim();
   const folders: string[] = [];
 
   if (base) {

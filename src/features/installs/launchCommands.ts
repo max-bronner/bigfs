@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import path from 'path';
+import { describeError } from '../../core/errors';
 import { planLaunch } from '../../node/launchPlan';
+import { registerCommand } from '../../platform/commands';
+import { onDidChangeSetting, settings } from '../../platform/settings';
 
 /**
  * "Launch Game with Mod": starts the game with `-mod "<folder>"`, the way
@@ -9,9 +12,6 @@ import { planLaunch } from '../../node/launchPlan';
  * copying files into the install. Unsaved editors are saved first, since the
  * game reads the files on disk.
  */
-
-export const EXECUTABLE_SETTING = 'bigfs.game.executable';
-export const ARGUMENTS_SETTING = 'bigfs.game.arguments';
 
 type Target = vscode.Uri | { resourceUri?: vscode.Uri } | undefined;
 
@@ -30,13 +30,10 @@ const askExecutable = async (): Promise<string | undefined> => {
   if (!picked?.[0]) {
     return undefined;
   }
-  await vscode.workspace
-    .getConfiguration()
-    .update(
-      EXECUTABLE_SETTING,
-      picked[0].fsPath,
-      vscode.ConfigurationTarget.Global,
-    );
+  await settings.gameExecutable.update(
+    picked[0].fsPath,
+    vscode.ConfigurationTarget.Global,
+  );
   return picked[0].fsPath;
 };
 
@@ -68,9 +65,7 @@ const modFolderOf = async (target: Target): Promise<string | undefined> => {
 };
 
 const launch = async (target: Target): Promise<void> => {
-  const settings = vscode.workspace.getConfiguration();
-  const executable =
-    settings.get<string>(EXECUTABLE_SETTING) || (await askExecutable());
+  const executable = settings.gameExecutable.get() || (await askExecutable());
 
   if (!executable) {
     return;
@@ -87,7 +82,7 @@ const launch = async (target: Target): Promise<void> => {
   const plan = planLaunch(
     executable,
     modFolder,
-    settings.get<string[]>(ARGUMENTS_SETTING, []),
+    settings.gameArguments.get(),
   );
 
   await new Promise<void>((resolve, reject) => {
@@ -122,7 +117,7 @@ export const registerLaunchCommands = (
   button.command = 'bigfs.launchGame';
 
   const showButton = () => {
-    if (vscode.workspace.getConfiguration().get<string>(EXECUTABLE_SETTING)) {
+    if (settings.gameExecutable.get()) {
       button.show();
     } else {
       button.hide();
@@ -132,22 +127,15 @@ export const registerLaunchCommands = (
   showButton();
   context.subscriptions.push(
     button,
-    vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration(EXECUTABLE_SETTING)) {
-        showButton();
+    onDidChangeSetting([settings.gameExecutable], showButton),
+    registerCommand('bigfs.launchGame', async (target: Target) => {
+      try {
+        await launch(target);
+      } catch (error) {
+        void vscode.window.showErrorMessage(
+          `Could not start the game: ${describeError(error)}`,
+        );
       }
     }),
-    vscode.commands.registerCommand(
-      'bigfs.launchGame',
-      async (target: Target) => {
-        try {
-          await launch(target);
-        } catch (error) {
-          void vscode.window.showErrorMessage(
-            `Could not start the game: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      },
-    ),
   );
 };

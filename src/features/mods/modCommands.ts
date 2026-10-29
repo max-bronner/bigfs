@@ -18,9 +18,9 @@ import { getNodeUri } from '../../services/archives/nodeAddress';
 import { skippedFromPackage } from '../../node/modPackage';
 import { recordPackedArchive } from '../../services/archives/packagedOutputs';
 import { formatCount } from '../../core/messages';
-import { SCHEME } from '../../constants';
 import type { RegisterNodeCommand } from '../explorer/commandCenter';
 import { decodeWindows1252 } from '../../core/windows1252';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * The commands a mod is made with: pack a folder into a `.big`, copy files
@@ -334,21 +334,16 @@ export const registerModCommands = (
   register: RegisterNodeCommand,
   archiveModel: ArchiveModel,
 ): Disposable[] => {
-  register('overrideInFolder', (targets) =>
+  register('bigfs.overrideInFolder', (targets) =>
     overrideInFolder(archiveModel, targets),
   );
 
-  const report = (error: unknown) =>
-    window.showErrorMessage(
-      error instanceof Error ? error.message : String(error),
-    );
-
   return [
-    commands.registerCommand(`${SCHEME}.packFolder`, (folder?: Uri) =>
-      folder ? packFolder(folder).catch(report) : undefined,
+    registerCommand('bigfs.packFolder', (folder?: Uri) =>
+      folder ? packFolder(folder) : undefined,
     ),
-    commands.registerCommand(`${SCHEME}.searchArchives`, () =>
-      searchArchives(archiveModel).catch(report),
+    registerCommand('bigfs.searchArchives', () =>
+      searchArchives(archiveModel),
     ),
   ];
 };

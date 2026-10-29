@@ -3,6 +3,7 @@ import { getTexturePath, parseDat, parseRu } from './aptGeometry';
 import type { DatLocation } from './aptGeometry';
 import { parseAptMovie, parseConst, parseSpriteFrames } from './aptMovie';
 import type { AptMovie, Character, ConstFile, Frame } from './aptMovie';
+import { describeError } from '../../core/errors';
 
 /**
  * Whether a movie and the files beside it hold together, as the game
@@ -72,7 +73,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
   } catch (error) {
     report(
       'error',
-      `The movie does not parse: ${error instanceof Error ? error.message : error}`,
+      `The movie does not parse: ${describeError(error)}`,
     );
     return problems;
   }
@@ -96,7 +97,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
     } catch (error) {
       report(
         'error',
-        `${datName}: ${error instanceof Error ? error.message : error}`,
+        `${datName}: ${describeError(error)}`,
         { file: datName },
       );
     }
@@ -109,7 +110,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
     } catch (error) {
       report(
         'error',
-        `The script ${where} does not decode: ${error instanceof Error ? error.message : error}`,
+        `The script ${where} does not decode: ${describeError(error)}`,
         { character },
       );
     }
@@ -151,7 +152,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
         } catch (error) {
           report(
             'error',
-            `The timeline of ${describe(character)} does not parse: ${error instanceof Error ? error.message : error}`,
+            `The timeline of ${describe(character)} does not parse: ${describeError(error)}`,
             { character: character.id },
           );
         }
@@ -185,7 +186,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
         } catch (error) {
           report(
             'error',
-            `${file}: ${error instanceof Error ? error.message : error}`,
+            `${file}: ${describeError(error)}`,
             { character: character.id, file },
           );
         }

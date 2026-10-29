@@ -24,6 +24,7 @@ import {
 import { decodeIniText } from '../../core/windows1252';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * **Check Translations**: compares the workspace's string tables language
@@ -248,7 +249,7 @@ const fill = async (
 export const registerTranslationCheck = (
   archiveModel: ArchiveModel,
 ): vscode.Disposable =>
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.checkTranslations',
     /** `fill` names the languages to fill without asking, for automation */
     async (options?: { fill?: string[] }) => {
