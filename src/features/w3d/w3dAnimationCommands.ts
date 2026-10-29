@@ -13,6 +13,7 @@ import {
   trimAnimation,
   writeW3dAnimation,
 } from '../../formats/w3d/w3dAnimationEdit';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * **Edit W3D Animation…** on a `.w3d` file, in an archive or a folder:
@@ -135,7 +136,7 @@ const askEdit = async (
 };
 
 export const registerW3dAnimationCommands = (): vscode.Disposable =>
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.editW3dAnimation',
     /** With `edit` and `name`, runs without asking, for automation */
     async (target?: unknown, edit?: AnimationEdit, name?: string) => {

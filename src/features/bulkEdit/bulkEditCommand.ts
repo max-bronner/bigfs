@@ -19,6 +19,7 @@ import { replaceInLines } from '../../formats/ini/iniTextEdits';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * "Bulk Edit INI Values…": asks for blocks, conditions, a field and a
@@ -116,7 +117,7 @@ export const registerBulkEdit = (
   documents: SageIniDocuments,
   archiveModel: ArchiveModel,
 ): vscode.Disposable =>
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.bulkEditIni',
     /**
      * With a query, runs it without asking; `confirm: false` applies it

@@ -60,6 +60,8 @@ import type { EngineValues } from '../../webview/apt/avm/engine';
 import { resolveMappedImages } from './aptMappedImages';
 import { createNonce } from '../../platform/webview/webviewNonce';
 import { decodeWindows1252 } from '../../core/windows1252';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * Custom editor for `.apt` movies: a list of every character, a stage that
@@ -401,7 +403,7 @@ export class AptDocument implements vscode.CustomDocument {
           texture = (await this.tools.use(decodeTgaTool)(bytes)).levels[0];
         } catch (error) {
           problems.push(
-            `${path}: ${error instanceof Error ? error.message : error}`,
+            `${path}: ${describeError(error)}`,
           );
         }
       }
@@ -463,7 +465,7 @@ export class AptDocument implements vscode.CustomDocument {
           }
         } catch (error) {
           problems.push(
-            `#${character.id}: ${error instanceof Error ? error.message : error}`,
+            `#${character.id}: ${describeError(error)}`,
           );
         }
       }),
@@ -870,10 +872,10 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       provider.scriptTabs,
       provider.textView,
       provider.problems,
-      vscode.commands.registerCommand('bigfs.checkAptMovies', () =>
+      registerCommand('bigfs.checkAptMovies', () =>
         provider.checkWorkspace(archiveModel),
       ),
-      vscode.commands.registerCommand(
+      registerCommand(
         'bigfs.renameAptMovie',
         async (target?: unknown, name?: string) => {
           try {
@@ -890,24 +892,24 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             return renamed;
           } catch (error) {
             void vscode.window.showErrorMessage(
-              error instanceof Error ? error.message : String(error),
+              describeError(error),
             );
             return undefined;
           }
         },
       ),
-      vscode.commands.registerCommand(
+      registerCommand(
         'bigfs.deleteAptMovie',
         (target?: unknown, confirmed?: boolean) =>
           deleteMovie(movieHost, target, confirmed === true),
       ),
       // The page's ways into script tabs, for automation and tests
-      vscode.commands.registerCommand(
+      registerCommand(
         'bigfs.aptOpenScript',
         async (uri: vscode.Uri, block: number, label = `block ${block}`) =>
           provider.scriptTabs!.open(opened(uri), block, label),
       ),
-      vscode.commands.registerCommand(
+      registerCommand(
         'bigfs.aptAddScript',
         async (uri: vscode.Uri, site: ScriptSite, label = 'new script') => {
           const document = opened(uri);
@@ -925,7 +927,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         supportsMultipleEditorsPerDocument: false,
       }),
       // The same edit path the page uses, for automation and tests
-      vscode.commands.registerCommand(
+      registerCommand(
         'bigfs.aptApplyEdit',
         async (uri: vscode.Uri, edit?: AptEdit) => {
           const document = provider.open.get(uri.toString());
@@ -1215,7 +1217,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             found = [
               {
                 severity: 'error',
-                message: `Cannot read the movie: ${error instanceof Error ? error.message : error}`,
+                message: `Cannot read the movie: ${describeError(error)}`,
               },
             ];
           }
@@ -1492,7 +1494,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
         texts: await this.textsOf([...walk.movies.values()]),
       };
     } catch (error) {
-      return failed(error instanceof Error ? error.message : String(error));
+      return failed(describeError(error));
     }
   }
 
@@ -1657,7 +1659,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
     const report = (error: unknown) =>
       post({
         kind: 'error',
-        message: error instanceof Error ? error.message : String(error),
+        message: describeError(error),
       });
 
     this.redraws.set(document, async () => {
@@ -1694,7 +1696,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
             );
           } catch (error) {
             script = {
-              text: `Cannot decode: ${error instanceof Error ? error.message : error}`,
+              text: `Cannot decode: ${describeError(error)}`,
               mode: 'listing' as const,
             };
           }
@@ -1833,7 +1835,7 @@ export class AptEditorProvider implements vscode.CustomEditorProvider<AptDocumen
       } catch (error) {
         await post({
           kind: 'notice',
-          message: error instanceof Error ? error.message : String(error),
+          message: describeError(error),
         });
 
         if (message?.kind === 'ready') {

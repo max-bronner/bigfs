@@ -6,6 +6,7 @@ import {
 import type { SageBlock } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * "Duplicate Definition…": copies the file-scope block at the cursor under a
@@ -164,7 +165,7 @@ export const registerDuplicateDefinition = (
     createDuplicateActionProvider(documents),
     { providedCodeActionKinds: [vscode.CodeActionKind.Refactor] },
   ),
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.duplicateDefinition',
     (uri?: vscode.Uri, line?: number, name?: string) => {
       const editor = vscode.window.activeTextEditor;

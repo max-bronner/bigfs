@@ -1,7 +1,8 @@
 import * as os from 'os';
 import * as vscode from 'vscode';
 import { SCHEME } from '../../constants';
-import { BASE_SETTING, UNDERLYING_SETTING } from '../../services/archives/baseGameFolders';
+import { registerCommand } from '../../platform/commands';
+import { settings } from '../../platform/settings';
 import { findInstalls, systemHost } from '../../node/installDiscovery';
 import type { FoundInstall } from '../../node/installDiscovery';
 
@@ -55,10 +56,9 @@ const pick = async (installs: FoundInstall[]): Promise<void> => {
     return;
   }
 
-  const configuration = vscode.workspace.getConfiguration();
   const target = vscode.ConfigurationTarget.Global;
 
-  await configuration.update(BASE_SETTING, picked.install.folder, target);
+  await settings.baseGameFolder.update(picked.install.folder, target);
 
   const underlying =
     picked.install.game.id === 'rotwk'
@@ -66,7 +66,7 @@ const pick = async (installs: FoundInstall[]): Promise<void> => {
       : undefined;
 
   if (underlying) {
-    await configuration.update(UNDERLYING_SETTING, underlying.folder, target);
+    await settings.underlyingGameFolder.update(underlying.folder, target);
   }
 };
 
@@ -78,17 +78,12 @@ export const registerInstallDetectCommands = (
   context: vscode.ExtensionContext,
   whenReady: Promise<void>,
 ): void => {
-  const isUnset = (): boolean => {
-    const configuration = vscode.workspace.getConfiguration();
-
-    return (
-      !configuration.get<string>(BASE_SETTING)?.trim() &&
-      !configuration.get<string>(UNDERLYING_SETTING)?.trim()
-    );
-  };
+  const isUnset = (): boolean =>
+    !settings.baseGameFolder.get().trim() &&
+    !settings.underlyingGameFolder.get().trim();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand(`${SCHEME}.findGameInstalls`, async () => {
+    registerCommand('bigfs.findGameInstalls', async () => {
       const installs = await detect();
 
       if (!installs.length) {

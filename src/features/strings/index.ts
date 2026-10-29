@@ -8,6 +8,7 @@ import {
   STR_TABLE_VIEW_TYPE,
   StrTableEditorProvider,
 } from './stringTableEditorProvider';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * Registers the string features: the STR language, the `.str` and `.csf`
@@ -18,7 +19,7 @@ export const registerStrings = (
   { archives, gameLanguage }: Services,
 ): void => {
   context.subscriptions.push(
-    commands.registerCommand('bigfs.chooseLanguage', () =>
+    registerCommand('bigfs.chooseLanguage', () =>
       gameLanguage.choose(),
     ),
   );
@@ -33,7 +34,7 @@ export const registerStrings = (
       new CsfEditorProvider(),
       { supportsMultipleEditorsPerDocument: true },
     ),
-    commands.registerCommand('bigfs.openStringTable', (uri?: Uri) => {
+    registerCommand('bigfs.openStringTable', (uri?: Uri) => {
       const target = uri ?? window.activeTextEditor?.document.uri;
 
       return target

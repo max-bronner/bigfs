@@ -20,7 +20,7 @@ import { Archive } from './archive';
 import type { EntryChange, EntrySource } from './archive';
 import { createSources, findSourceFor, getPathInSource } from './archiveSource';
 import { findArchives } from '../../node/installScan';
-import { BASE_SETTING, UNDERLYING_SETTING } from './baseGameFolders';
+import { onDidChangeSetting, settings } from '../../platform/settings';
 import type { ArchiveSource } from './archiveSource';
 import {
   ReadOnlySourceError,
@@ -177,14 +177,12 @@ export class ArchiveModel {
       workspace.onDidChangeWorkspaceFolders(() => {
         void this.scanWorkspace();
       }),
-      workspace.onDidChangeConfiguration((event) => {
-        if (
-          event.affectsConfiguration(BASE_SETTING) ||
-          event.affectsConfiguration(UNDERLYING_SETTING)
-        ) {
+      onDidChangeSetting(
+        [settings.baseGameFolder, settings.underlyingGameFolder],
+        () => {
           void this.scanWorkspace();
-        }
-      }),
+        },
+      ),
     ];
   }
 
