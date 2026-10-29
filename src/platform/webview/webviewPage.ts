@@ -13,21 +13,28 @@ export interface WebviewPage {
   allow?: { img?: string; media?: string; script?: string };
   /** Script files loaded before the inline script, from `allow.script` */
   scriptFiles?: string[];
+  /**
+   * The page's `style-src` in full, in place of its nonce, for a page that
+   * needs `'unsafe-inline'`, which a nonce in the same directive disables
+   */
+  styleSources?: string;
 }
 
+/** Renders a webview page's HTML, with a fresh nonce on its policy, style and scripts */
 export const webviewPage = ({
   style,
   body,
   script,
   allow = {},
   scriptFiles = [],
+  styleSources,
 }: WebviewPage): string => {
   const nonce = createNonce();
   const policy = [
     "default-src 'none'",
     allow.img && `img-src ${allow.img}`,
     allow.media && `media-src ${allow.media}`,
-    `style-src 'nonce-${nonce}'`,
+    `style-src ${styleSources ?? `'nonce-${nonce}'`}`,
     `script-src 'nonce-${nonce}'${allow.script ? ` ${allow.script}` : ''}`,
   ]
     .filter(Boolean)

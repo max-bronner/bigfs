@@ -7,12 +7,23 @@ import type {
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import type { Problem } from '../../formats/apt/aptIntegrity';
-import type { EngineValues } from './avm/engine';
 
 /**
  * The messages between the APT editor and its page. Shared by both sides,
  * so it must stay free of DOM and Node types.
  */
+
+/** What the user set, kept per movie between sessions */
+export interface EngineValues {
+  /** Values that win over what the movie holds, by path from the root */
+  overrides?: Record<string, string>;
+  /** Values `GetExtern`/`extern.` answer, by key */
+  externs?: Record<string, string>;
+  /** What calls into the engine return, by function name */
+  returns: Record<string, string>;
+  /** Before overrides: values only for names nothing set */
+  values?: Record<string, string>;
+}
 
 /** A movie as the page draws it: parsed, with its geometry and texture names */
 export type PageMovie = AptMovie & {

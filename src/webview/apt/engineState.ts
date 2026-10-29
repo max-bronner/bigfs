@@ -1,7 +1,6 @@
 import { Engine } from './avm/engine';
-import type { EngineValues } from './avm/engine';
 import { getVsCodeApi } from '../shared/vscodeApi';
-import type { FromPage, PageMovie } from './protocol';
+import type { EngineValues, FromPage, PageMovie } from './protocol';
 
 const vscode = getVsCodeApi<FromPage>();
 

@@ -3,12 +3,22 @@ import { createAptMovie } from '../../formats/apt/aptCreate';
 import { APT_VIEW_TYPE } from './viewTypes';
 import { toUri } from '../../services/archives/commandTarget';
 import type { CommandTarget } from '../../services/archives/commandTarget';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { registerCommand } from '../../platform/commands';
 import { describeError } from '../../core/errors';
+import type { AptDocument } from './aptDocument';
+import type { ScriptSite } from './aptDocumentEdits';
+import type { AptEditorProvider } from './aptEditorProvider';
+import { deleteMovie, renameMovie } from './aptMovieFiles';
+import type { MovieHost } from './aptMovieFiles';
+import { checkAptWorkspace } from './aptWorkspaceCheck';
 
 /**
- * "New APT Movie": writes an empty movie's `.apt`, `.const` and `.dat` into
- * a folder, loose or inside an archive, and opens it in the APT editor.
+ * The APT commands. "New APT Movie" writes an empty movie's `.apt`, `.const`
+ * and `.dat` into a folder, loose or inside an archive, and opens it in the
+ * APT editor; the rest check, rename and delete movies, or reach into an open
+ * editor the way its page does.
  */
 
 type Target = CommandTarget;
@@ -146,7 +156,37 @@ const newMovie = async (
   return aptUri;
 };
 
-export const registerAptCommands = (context: vscode.ExtensionContext): void => {
+const openedDocument = (
+  editor: AptEditorProvider,
+  uri: vscode.Uri,
+): AptDocument => {
+  const document = editor.findDocument(uri.toString());
+
+  if (!document) {
+    throw new Error(`${uri.toString()} is not open in the APT editor`);
+  }
+  return document;
+};
+
+/** Registers the APT commands, the ones into an open movie through `editor` */
+export const registerAptCommands = (
+  context: vscode.ExtensionContext,
+  editor: AptEditorProvider,
+  archiveModel: ArchiveModel,
+): void => {
+  const movieHost: MovieHost = {
+    archiveModel,
+    async editOpen(uri, edit) {
+      const document = editor.findDocument(uri.toString());
+
+      if (!document) {
+        return false;
+      }
+      await editor.edit(document, edit);
+      return true;
+    },
+  };
+
   context.subscriptions.push(
     registerCommand(
       'bigfs.newAptMovie',
@@ -159,6 +199,79 @@ export const registerAptCommands = (context: vscode.ExtensionContext): void => {
           );
           return undefined;
         }
+      },
+    ),
+    registerCommand('bigfs.checkAptMovies', () =>
+      checkAptWorkspace(archiveModel, editor.problems, (key) =>
+        editor.findDocument(key),
+      ),
+    ),
+    registerCommand(
+      'bigfs.renameAptMovie',
+      async (target?: unknown, name?: string) => {
+        try {
+          const renamed = await renameMovie(movieHost, target, name);
+
+          // Reopened under its new name when it was asked for from the editor
+          if (renamed && !name) {
+            await vscode.commands.executeCommand(
+              'vscode.openWith',
+              renamed,
+              APT_VIEW_TYPE,
+            );
+          }
+          return renamed;
+        } catch (error) {
+          void vscode.window.showErrorMessage(
+            describeError(error),
+          );
+          return undefined;
+        }
+      },
+    ),
+    registerCommand(
+      'bigfs.deleteAptMovie',
+      (target?: unknown, confirmed?: boolean) =>
+        deleteMovie(movieHost, target, confirmed === true),
+    ),
+    // The page's ways into script tabs, for automation and tests
+    registerCommand(
+      'bigfs.aptOpenScript',
+      async (uri: vscode.Uri, block: number, label = `block ${block}`) =>
+        editor.openScript(openedDocument(editor, uri), block, label),
+    ),
+    registerCommand(
+      'bigfs.aptAddScript',
+      async (uri: vscode.Uri, site: ScriptSite, label = 'new script') => {
+        const document = openedDocument(editor, uri);
+
+        return editor.openScript(
+          document,
+          await editor.addScript(document, site),
+          label,
+        );
+      },
+    ),
+    // The same edit path the page uses, for automation and tests
+    registerCommand(
+      'bigfs.aptApplyEdit',
+      async (uri: vscode.Uri, edit?: AptEdit) => {
+        const document = openedDocument(editor, uri);
+
+        if (!edit) {
+          return {
+            pageReady: editor.isPageReady(document),
+            ...editor.shownImports(document),
+          };
+        }
+
+        const result = await editor.edit(document, edit);
+
+        await editor.redraw(document);
+        return {
+          ...result,
+          pageReady: editor.isPageReady(document),
+        };
       },
     ),
   );

@@ -1,5 +1,5 @@
 import type { AptInstruction } from '../../../formats/apt/aptBytecode';
-import type { PageMovie } from '../protocol';
+import type { EngineValues, PageMovie } from '../protocol';
 import { soundEventOf } from './movieLoad';
 import { AsObject } from './value';
 import type { Value } from './value';
@@ -52,18 +52,6 @@ export interface FunctionEntry {
 export interface SoundAsked {
   event: string;
   count: number;
-}
-
-/** What the user set, kept per movie between sessions */
-export interface EngineValues {
-  /** Values that win over what the movie holds, by path from the root */
-  overrides?: Record<string, string>;
-  /** Values `GetExtern`/`extern.` answer, by key */
-  externs?: Record<string, string>;
-  /** What calls into the engine return, by function name */
-  returns: Record<string, string>;
-  /** Before overrides: values only for names nothing set */
-  values?: Record<string, string>;
 }
 
 const parseNumber = (text: string): number => {
