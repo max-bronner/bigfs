@@ -4,7 +4,7 @@ import {
   decompileBlock,
   findBlockPointers,
 } from '../../formats/apt/aptScript';
-import type { AptDocument } from './aptEditorProvider';
+import type { AptDocument } from './aptDocument';
 
 /**
  * Action blocks as documents: each opens in an ordinary editor tab as

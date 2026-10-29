@@ -9,7 +9,7 @@ import { saveMovieText } from '../../formats/apt/text/save/saveMovieText';
 import { TextSaveError } from '../../formats/apt/text/save/textSaveError';
 import type { TextSave } from '../../formats/apt/text/save/saveMovieText';
 import { toUri } from '../../services/archives/commandTarget';
-import type { AptDocument } from './aptEditorProvider';
+import type { AptDocument } from './aptDocument';
 import { registerCommand } from '../../platform/commands';
 import { describeError } from '../../core/errors';
 

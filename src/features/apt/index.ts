@@ -9,13 +9,18 @@ export const registerApt = (
   context: ExtensionContext,
   { tools, locator, archives, gameLanguage, iniIndex }: Services,
 ): void => {
-  context.subscriptions.push(
-    AptEditorProvider.register(tools, locator, archives, context.extensionUri, {
+  const editor = AptEditorProvider.register(
+    tools,
+    locator,
+    archives,
+    context.extensionUri,
+    {
       gameLanguage,
       index: iniIndex,
       state: context.workspaceState,
-    }),
-    registerAptTextLanguage(),
+    },
   );
-  registerAptCommands(context);
+
+  context.subscriptions.push(editor, registerAptTextLanguage());
+  registerAptCommands(context, editor, archives);
 };
