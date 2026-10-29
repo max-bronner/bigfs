@@ -268,9 +268,11 @@ operation says *what changes*; nothing else.
 ```mermaid
 flowchart TD
   CMD["a command or a drop"] --> ACT["actions: resolve conflicts, confirm"]
-  ACT --> OP["archiveModel operation"]
+  ACT --> OP["archiveOperations, behind archiveModel"]
   OP --> PLAN["a list of EntryChange"]
-  PLAN --> APPLY["Archive.applyChanges"]
+  PLAN --> POLICY{"archivePolicy: is the source read-only?"}
+  POLICY -->|yes| DENY["NoPermissions, nothing written"]
+  POLICY -->|no| APPLY["Archive.applyChanges"]
 
   subgraph runner["one sequence, in the archive's queue"]
     APPLY --> ENT["change the entries"]
@@ -288,6 +290,14 @@ flowchart TD
 
 The queue is per archive and shared with reads, so a reload triggered by the
 watcher cannot land in the middle of a save.
+
+`ArchiveModel` is a façade over four modules in `services/archives/`:
+`archiveScanner` finds and watches the archives, `archiveRegistry` looks them
+up, resolves uris and reads them in the background, `archivePolicy` holds the
+one decision on whether a source is read-only, and `archiveOperations` holds
+the mutations and transfers. Every write path asks `archivePolicy`: the file
+system provider before it calls the model, and each operation in its single
+apply, so a base game source outside the workspace is never written to.
 
 | operation | changes | touches disk |
 | --- | --- | --- |
