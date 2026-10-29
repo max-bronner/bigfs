@@ -52,6 +52,14 @@ const PAGES = [
   { name: 'commandset', entry: 'src/webview/commandset/main.ts' },
   // The W3D viewer's model view
   { name: 'model', entry: 'src/webview/model/main.ts' },
+  // The map editor's page
+  { name: 'map', entry: 'src/webview/map/main.ts' },
+  // The Create-a-Hero editor's page
+  { name: 'cah', entry: 'src/webview/cah/main.ts' },
+  // The string table editor's page
+  { name: 'strings', entry: 'src/webview/strings/main.ts' },
+  // The map script viewer's page
+  { name: 'scripts', entry: 'src/webview/scripts/main.ts' },
 ];
 
 /** Options every bundle shares */
