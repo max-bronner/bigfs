@@ -1,5 +1,5 @@
 import { decodeBlock, printListing } from './aptBytecode';
-import { CompileError, compileScript, normalize } from './aptCompiler';
+import { compileScript, normalize } from './aptCompiler';
 import { LiftMode, lift } from './aptDecompiler';
 import {
   AptReader,
@@ -11,6 +11,7 @@ import {
 import { ScriptError, parseScript } from './aptScriptParser';
 import { printStatements } from './aptScriptSyntax';
 import { AptImage } from './writer/aptImage';
+import { describeError } from '../../core/errors';
 
 /**
  * Reading and replacing action blocks as script text.
@@ -32,13 +33,6 @@ export interface BlockScript {
   /** Why a better mode was not possible */
   note?: string;
 }
-
-const describe = (error: unknown) =>
-  error instanceof ScriptError ||
-  error instanceof CompileError ||
-  error instanceof Error
-    ? error.message
-    : String(error);
 
 /** Compiles into a scratch image and decodes the result back */
 const recompile = (text: string, constants: readonly ConstItem[]) => {
@@ -73,7 +67,7 @@ export const decompileBlock = (
 
       note = `The ${mode} form did not compile back to the same code`;
     } catch (error) {
-      note = `The ${mode} form failed: ${describe(error)}`;
+      note = `The ${mode} form failed: ${describeError(error)}`;
     }
   }
 
@@ -226,6 +220,6 @@ export const checkScript = (
           line: error.line,
           column: error.column,
         }
-      : { message: describe(error) };
+      : { message: describeError(error) };
   }
 };

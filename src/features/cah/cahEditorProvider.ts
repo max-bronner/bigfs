@@ -40,6 +40,7 @@ import type {
   SnapshotDocument,
   SnapshotFormat,
 } from "../../platform/webview/snapshotEditor";
+import { describeError } from '../../core/errors';
 
 /**
  * The editor for Create-a-Hero files (`MyHero_<id>.cah`), loose or inside a
@@ -391,7 +392,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
       } catch (error) {
         await panel.webview.postMessage({
           kind: "notice",
-          message: error instanceof Error ? error.message : String(error),
+          message: describeError(error),
         });
       }
       await send();

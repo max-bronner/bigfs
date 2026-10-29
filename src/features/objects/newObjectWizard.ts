@@ -25,6 +25,7 @@ import type { ArchiveModel } from '../../services/archives/archiveModel';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * "New Unit, Hero or Building…": makes a new object from an existing one
@@ -529,7 +530,7 @@ export const registerNewObjectWizard = (
     return { name: request.name, left };
   };
 
-  return vscode.commands.registerCommand(
+  return registerCommand(
     'bigfs.newObject',
     async (given?: NewObjectRequest) => {
       const request = given ?? (await ask());

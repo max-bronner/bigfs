@@ -4,6 +4,7 @@ import { decompileBlock } from '../aptScript';
 import { movieToText } from './fromMovie';
 import type { ScriptText } from './textModel';
 import { printMovieText } from './printer';
+import { describeError } from '../../../core/errors';
 
 /** Reads every action block of a movie as the text shows it */
 export const blockScripts =
@@ -25,9 +26,7 @@ export const blockScripts =
     } catch (error) {
       return {
         mode: 'listing',
-        text: `; the block at ${block} cannot be read: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        text: `; the block at ${block} cannot be read: ${describeError(error)}`,
         block,
       };
     }

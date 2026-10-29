@@ -17,6 +17,7 @@ import { parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * **Armor Table**: every armor in the workspace and its archives against
@@ -216,7 +217,7 @@ export const registerArmorTable = (
 ): vscode.Disposable => {
   const table = createArmorTable(context, documents, index);
 
-  return vscode.commands.registerCommand(
+  return registerCommand(
     'bigfs.showArmorTable',
     async (message?: FromArmorPage) => {
       table.show();

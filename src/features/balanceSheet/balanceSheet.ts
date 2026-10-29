@@ -20,6 +20,8 @@ import {
   createParseCache,
   readWorkspaceText,
 } from '../../services/ini/workspaceText';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * The balance sheet: every unit and building with its cost, build time,
@@ -109,7 +111,7 @@ const createBalanceSheet = (
       receive(message).catch((error: unknown) =>
         panel.post({
           kind: 'notice',
-          message: error instanceof Error ? error.message : String(error),
+          message: describeError(error),
         }),
       ),
   });
@@ -426,7 +428,7 @@ export const registerBalanceSheet = (
 ): vscode.Disposable => {
   const sheet = createBalanceSheet(documents, index);
 
-  return vscode.commands.registerCommand('bigfs.openBalanceSheet', () => {
+  return registerCommand('bigfs.openBalanceSheet', () => {
     sheet.show();
     return sheet;
   });

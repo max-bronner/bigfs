@@ -3,6 +3,7 @@ import type { EntryLocator } from '../../services/entryLocator';
 import { PREVIEW_VIEW_TYPE } from '../preview/previewEditorProvider';
 import { findAssetReferences } from '../../formats/ini/sageIniAssets';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * Every model, animation, texture and sound an INI file names is a link that
@@ -10,8 +11,6 @@ import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
  * the model drawn on its skeleton, a sound in the audio preview, whose
  * player starts only on a click.
  */
-
-const OPEN_ASSET = 'bigfs.openAsset';
 
 /** Creates the links from every asset an INI file names to its viewer */
 const createAssetLinkProvider = (
@@ -29,7 +28,7 @@ const createAssetLinkProvider = (
           reference.end,
         ),
         vscode.Uri.parse(
-          `command:${OPEN_ASSET}?${encodeURIComponent(
+          `command:bigfs.openAsset?${encodeURIComponent(
             JSON.stringify([reference.candidates, document.uri.toString()]),
           )}`,
         ),
@@ -50,8 +49,8 @@ export const registerAssetLinks = (
     selector,
     createAssetLinkProvider(documents),
   ),
-  vscode.commands.registerCommand(
-    OPEN_ASSET,
+  registerCommand(
+    'bigfs.openAsset',
     async (candidates: string[], near: string) => {
       for (const candidate of candidates) {
         const uri = await locator.findUri(candidate, vscode.Uri.parse(near));

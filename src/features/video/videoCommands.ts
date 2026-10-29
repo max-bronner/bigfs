@@ -6,6 +6,8 @@ import { decodePng } from '../../node/png';
 import { Vp6Movie } from '../../formats/vp6/container';
 import { MAX_SIDE, encodeMovie, resizeRgba } from '../../formats/vp6/encodeMovie';
 import type { FrameSource } from '../../formats/vp6/encodeMovie';
+import { registerCommand } from '../../platform/commands';
+import { settings } from '../../platform/settings';
 import { webviewPage } from '../../platform/webview/webviewPage';
 import { ffmpegSource, probe, run } from '../../node/ffmpeg';
 import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
@@ -20,8 +22,6 @@ import type { CommandTarget } from '../../services/archives/commandTarget';
  * codec). The result is decoded again before it is saved, and opens in the
  * movie preview.
  */
-
-export const FFMPEG_SETTING = 'bigfs.ffmpegPath';
 
 const IMAGE = /\.(png|tga|dds)$/i;
 const VIDEO = /\.(mp4|m4v|mov|webm|ogv|ogg|mkv|avi|wmv|mpg|mpeg|gif|bik|vp6)$/i;
@@ -42,9 +42,7 @@ const decodeImage = (name: string, bytes: Uint8Array) =>
 
 /** The FFmpeg to use: the setting's, else one on the PATH, else none */
 const findFfmpeg = async (): Promise<string | undefined> => {
-  const configured = vscode.workspace
-    .getConfiguration()
-    .get<string>(FFMPEG_SETTING);
+  const configured = settings.ffmpegPath.get();
 
   for (const candidate of [configured, 'ffmpeg'].filter(Boolean) as string[]) {
     try {
@@ -244,9 +242,7 @@ const rateOf = (fps: number): [number, number] => {
 
 /** Frames between forced key frames, from the setting */
 const keyInterval = (fps: number): number => {
-  const seconds = vscode.workspace
-    .getConfiguration()
-    .get<number>('bigfs.vp6.keyFrameSeconds', 2);
+  const seconds = settings.vp6KeyFrameSeconds.get();
 
   return seconds > 0 ? Math.max(1, Math.round(seconds * fps)) : 1;
 };
@@ -352,7 +348,7 @@ const convert = async (target: Target): Promise<vscode.Uri | undefined> => {
       } else {
         if (!BROWSER_VIDEO.test(input.path)) {
           throw new Error(
-            `Reading ${path.extname(input.path)} needs FFmpeg; install it or set ${FFMPEG_SETTING}`,
+            `Reading ${path.extname(input.path)} needs FFmpeg; install it or set ${settings.ffmpegPath.key}`,
           );
         }
 
@@ -497,18 +493,6 @@ export const registerVideoCommands = (
   context: vscode.ExtensionContext,
 ): void => {
   context.subscriptions.push(
-    vscode.commands.registerCommand(
-      'bigfs.convertToVp6',
-      async (target: Target) => {
-        try {
-          return await convert(target);
-        } catch (error) {
-          void vscode.window.showErrorMessage(
-            error instanceof Error ? error.message : String(error),
-          );
-          return undefined;
-        }
-      },
-    ),
+    registerCommand('bigfs.convertToVp6', (target: Target) => convert(target)),
   );
 };

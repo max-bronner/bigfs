@@ -1,5 +1,5 @@
-﻿import { commands, env } from 'vscode';
-import { SCHEME } from '../../constants';
+﻿import { env } from 'vscode';
+import { setContextKey } from '../../platform/contextKeys';
 import {
   copyNodes,
   getTargetDirectory,
@@ -49,11 +49,7 @@ export const registerClipboardCommands = (
   ): Promise<void> => {
     clipboard = content;
 
-    await commands.executeCommand(
-      'setContext',
-      `${SCHEME}.hasClipboard`,
-      Boolean(content),
-    );
+    await setContextKey('hasClipboard', Boolean(content));
   };
 
   /**
@@ -108,22 +104,22 @@ export const registerClipboardCommands = (
     }
   };
 
-  register('cut', async (targets) => {
+  register('bigfs.cut', async (targets) => {
     await setClipboard({ nodes: [...targets], operation: 'cut' });
   });
 
-  register('copy', async (targets) => {
+  register('bigfs.copy', async (targets) => {
     await setClipboard({ nodes: [...targets], operation: 'copy' });
   });
 
-  register('paste', ([target]) => paste(target));
-  register('duplicate', (targets) => duplicate(targets));
+  register('bigfs.paste', ([target]) => paste(target));
+  register('bigfs.duplicate', (targets) => duplicate(targets));
 
-  register('copyPath', async (targets) => {
+  register('bigfs.copyPath', async (targets) => {
     await env.clipboard.writeText(targets.map(getAbsolutePath).join('\n'));
   });
 
-  register('copyRelativePath', async (targets) => {
+  register('bigfs.copyRelativePath', async (targets) => {
     await env.clipboard.writeText(targets.map(getEntryPath).join('\n'));
   });
 };

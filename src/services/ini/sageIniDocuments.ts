@@ -4,6 +4,7 @@ import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import type { SageGame, SageIniSchema } from '../../formats/ini/sageIniSchema';
 import { isFragmentPath, parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
+import { onDidChangeSetting, settings } from '../../platform/settings';
 
 /**
  * Reads the schema once and parses each open document once per edit, so every
@@ -21,9 +22,6 @@ const SCHEMA_PATH = ['assets', 'sageIniSchema.json'];
 /** How many parses are kept, roughly one per document open at a time */
 const PARSE_CACHE_LIMIT = 8;
 
-/** Setting naming the game whose grammar applies */
-const GAME_SETTING = 'bigfs.ini.game';
-
 export class SageIniDocuments implements Disposable {
   private schema?: Promise<SageIniSchema>;
   private parses = new Map<string, { version: number; parsed: SageDocument }>();
@@ -40,12 +38,10 @@ export class SageIniDocuments implements Disposable {
       workspace.onDidCloseTextDocument((document) =>
         this.parses.delete(document.uri.toString()),
       ),
-      workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration(GAME_SETTING)) {
-          this.schema = undefined;
-          this.parses.clear();
-          this.onDidChangeSchemaEmitter.fire();
-        }
+      onDidChangeSetting([settings.iniGame], () => {
+        this.schema = undefined;
+        this.parses.clear();
+        this.onDidChangeSchemaEmitter.fire();
       }),
       this.onDidChangeSchemaEmitter,
     ];
@@ -94,9 +90,7 @@ export class SageIniDocuments implements Disposable {
     const uri = Uri.joinPath(this.extensionUri, ...SCHEMA_PATH);
     const content = await workspace.fs.readFile(uri);
 
-    const game = workspace
-      .getConfiguration()
-      .get<SageGame>(GAME_SETTING, 'rotwk');
+    const game: SageGame = settings.iniGame.get();
 
     return createSageIniSchema(
       JSON.parse(new TextDecoder().decode(content)),

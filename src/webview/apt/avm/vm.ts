@@ -23,6 +23,7 @@ import type {
   StageHost,
   Value,
 } from './value';
+import { describeError } from '../../../core/errors';
 
 /**
  * Runs the movie's ActionScript bytecode against the preview's clips: an
@@ -1233,7 +1234,7 @@ export class Vm implements NativeHost {
       this.engine.log(
         error instanceof Halt
           ? `script stopped in ${what}: ${error.message}`
-          : `script failed in ${what}: ${error instanceof Error ? error.message : String(error)}`,
+          : `script failed in ${what}: ${describeError(error)}`,
       );
       return undefined;
     } finally {

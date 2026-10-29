@@ -18,10 +18,8 @@ import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { includeExists, resolveIncludeUri } from '../../services/ini/sageIniInclude';
 import type { EntryLocator } from '../../services/entryLocator';
-import {
-  CHECK_ASSETS_SETTING,
-  checkedAssetDiagnostics,
-} from './sageIniAssetCheck';
+import { onDidChangeSetting, settings } from '../../platform/settings';
+import { checkedAssetDiagnostics } from './sageIniAssetCheck';
 
 /**
  * Keeps the Problems panel current for every open SAGE INI document: what
@@ -53,9 +51,6 @@ const toDiagnostic = (
   return diagnostic;
 };
 
-/** Setting choosing whether references to unknown names are reported */
-const CHECK_REFERENCES_SETTING = 'bigfs.ini.checkReferences';
-
 /**
  * Builds a diagnostic for every value of a reference field that names
  * nothing in any namespace the field can point into
@@ -65,9 +60,7 @@ const getReferenceDiagnostics = async (
   schema: SageIniSchema,
   index: SageIniIndex,
 ): Promise<Diagnostic[]> => {
-  const mode = workspace
-    .getConfiguration()
-    .get<'auto' | 'on' | 'off'>(CHECK_REFERENCES_SETTING, 'auto');
+  const mode = settings.iniCheckReferences.get();
 
   if (mode === 'off') {
     return [];
@@ -92,7 +85,6 @@ const getReferenceDiagnostics = async (
 };
 
 /** Setting choosing whether game-text labels nothing defines are reported */
-export const CHECK_STRINGS_SETTING = 'bigfs.ini.checkStrings';
 
 /** Records the base game's tables alone hold many more of */
 const AUTO_MINIMUM_STRINGS = 1000;
@@ -106,9 +98,7 @@ const getStringDiagnostics = async (
   parsed: SageDocument,
   index: SageIniIndex,
 ): Promise<Diagnostic[]> => {
-  const mode = workspace
-    .getConfiguration()
-    .get<'auto' | 'on' | 'off'>(CHECK_STRINGS_SETTING, 'auto');
+  const mode = settings.iniCheckStrings.get();
 
   if (mode === 'off') {
     return [];
@@ -249,15 +239,14 @@ export const watchSageIniDiagnostics = (
       collection.delete(document.uri),
     ),
     documents.onDidChangeSchema(checkAll),
-    workspace.onDidChangeConfiguration((event) => {
-      if (
-        event.affectsConfiguration(CHECK_REFERENCES_SETTING) ||
-        event.affectsConfiguration(CHECK_STRINGS_SETTING) ||
-        event.affectsConfiguration(CHECK_ASSETS_SETTING)
-      ) {
-        checkAll();
-      }
-    }),
+    onDidChangeSetting(
+      [
+        settings.iniCheckReferences,
+        settings.iniCheckStrings,
+        settings.iniCheckAssets,
+      ],
+      checkAll,
+    ),
   ];
 
   return {

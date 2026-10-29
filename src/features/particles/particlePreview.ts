@@ -24,6 +24,8 @@ import { webviewPage } from '../../platform/webview/webviewPage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { EffectLibrary } from './effectLibrary';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * The particle preview: a "Preview" lens on every `FXParticleSystem`,
@@ -355,7 +357,7 @@ const createParticlePreview = (
       .catch(async (error: unknown) => {
         await panel.post({
           kind: 'notice',
-          message: error instanceof Error ? error.message : String(error),
+          message: describeError(error),
         });
       });
   };
@@ -619,7 +621,7 @@ export const registerParticlePreview = (
     selector,
     createParticleLensProvider(),
   ),
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.previewParticles',
     (uri?: vscode.Uri, name?: string) => {
       const editor = vscode.window.activeTextEditor;

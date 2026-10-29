@@ -10,6 +10,7 @@ import { toUri } from '../../services/archives/commandTarget';
 import type { CommandTarget } from '../../services/archives/commandTarget';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { registerTranslationCheck } from '../translations/translationCheck';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * Language support for `.str` string tables: problems, an outline of labels,
@@ -262,7 +263,7 @@ export const registerSageStrLanguage = (
           return end > start ? [new vscode.FoldingRange(start, end)] : [];
         }),
     }),
-    vscode.commands.registerCommand('bigfs.convertStringTable', convert),
+    registerCommand('bigfs.convertStringTable', convert),
     registerTranslationCheck(archiveModel),
   );
 };

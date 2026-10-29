@@ -14,6 +14,7 @@ import { decodeWindows1252 } from '../../core/windows1252';
 import { diagnoseText } from '../iniLanguage/sageIniValidation';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * **Package Mod…**: packs a mod folder into one archive after showing what
@@ -131,7 +132,7 @@ export const registerPackageMod = (
   baseLayers: () => Promise<string[]>,
   documents: SageIniDocuments,
 ): vscode.Disposable =>
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.packageMod',
     async (
       given?: PackageRequest,

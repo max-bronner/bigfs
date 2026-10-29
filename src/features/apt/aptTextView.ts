@@ -10,6 +10,8 @@ import { TextSaveError } from '../../formats/apt/text/save/textSaveError';
 import type { TextSave } from '../../formats/apt/text/save/saveMovieText';
 import { toUri } from '../../services/archives/commandTarget';
 import type { AptDocument } from './aptEditorProvider';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * The text view of an APT movie: the whole movie, `.apt` and `.const`, as
@@ -135,10 +137,10 @@ export class AptTextView
       vscode.workspace.onDidCloseTextDocument((document) =>
         this.diagnostics.delete(document.uri),
       ),
-      vscode.commands.registerCommand('bigfs.openAptText', (target?: unknown) =>
+      registerCommand('bigfs.openAptText', (target?: unknown) =>
         this.open(target),
       ),
-      vscode.commands.registerCommand(
+      registerCommand(
         'bigfs.reopenAptVisual',
         (target?: unknown) => this.reopenVisual(target),
       ),
@@ -251,7 +253,7 @@ export class AptTextView
         entry = { mtime, document: await this.host.load(movie) };
       } catch (error) {
         throw vscode.FileSystemError.Unavailable(
-          error instanceof Error ? error.message : String(error),
+          describeError(error),
         );
       }
       this.loaded.set(key, entry);
@@ -282,7 +284,7 @@ export class AptTextView
       );
     } catch (error) {
       throw vscode.FileSystemError.Unavailable(
-        `${document.name}.apt cannot be read as text: ${error instanceof Error ? error.message : String(error)}`,
+        `${document.name}.apt cannot be read as text: ${describeError(error)}`,
       );
     }
     const rendered = {
@@ -361,7 +363,7 @@ export class AptTextView
         ]);
       }
       throw vscode.FileSystemError.Unavailable(
-        `The movie was not changed: ${error instanceof Error ? error.message : String(error)}`,
+        `The movie was not changed: ${describeError(error)}`,
       );
     }
 

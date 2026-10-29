@@ -3,6 +3,8 @@ import { createAptMovie } from '../../formats/apt/aptCreate';
 import { APT_VIEW_TYPE } from './viewTypes';
 import { toUri } from '../../services/archives/commandTarget';
 import type { CommandTarget } from '../../services/archives/commandTarget';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * "New APT Movie": writes an empty movie's `.apt`, `.const` and `.dat` into
@@ -146,14 +148,14 @@ const newMovie = async (
 
 export const registerAptCommands = (context: vscode.ExtensionContext): void => {
   context.subscriptions.push(
-    vscode.commands.registerCommand(
+    registerCommand(
       'bigfs.newAptMovie',
       async (target: Target, options?: NewMovieOptions) => {
         try {
           return await newMovie(target, options);
         } catch (error) {
           void vscode.window.showErrorMessage(
-            error instanceof Error ? error.message : String(error),
+            describeError(error),
           );
           return undefined;
         }

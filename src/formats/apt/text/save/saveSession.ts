@@ -12,6 +12,7 @@ import type {
 import { movieToText } from '../fromMovie';
 import type { MovieText, ScriptText } from '../textModel';
 import { TextSaveError } from './textSaveError';
+import { describeError } from '../../../../core/errors';
 
 /** A script one or more places run, and what the text wants it to be */
 export interface ScriptSite {
@@ -167,7 +168,7 @@ export const createSaveSession = (
         return start;
       } catch (error) {
         throw new TextSaveError(
-          `The script does not compile: ${error instanceof Error ? error.message : String(error)}`,
+          `The script does not compile: ${describeError(error)}`,
           script.line ?? line,
         );
       }

@@ -251,5 +251,5 @@ export const registerExtractCommands = (
   register: RegisterNodeCommand,
   archiveModel: ArchiveModel,
 ): void => {
-  register('extract', (targets) => extractNodes(archiveModel, targets));
+  register('bigfs.extract', (targets) => extractNodes(archiveModel, targets));
 };

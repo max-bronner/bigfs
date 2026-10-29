@@ -1,5 +1,6 @@
 import type { ScriptSite, SaveSession } from './saveSession';
 import { TextSaveError } from './textSaveError';
+import { describeError } from '../../../../core/errors';
 
 /** Compiles every script the text changed, once per block */
 export const saveScripts = (session: SaveSession): void => {
@@ -41,7 +42,7 @@ export const saveScripts = (session: SaveSession): void => {
       session.replaceScript(block, changed.after);
     } catch (error) {
       throw new TextSaveError(
-        `The script does not compile: ${error instanceof Error ? error.message : String(error)}`,
+        `The script does not compile: ${describeError(error)}`,
         changed.after.line,
       );
     }

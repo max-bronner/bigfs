@@ -18,7 +18,10 @@ import { decodeIniText } from '../../core/windows1252';
 import { diffDefinitions } from '../../game/objects/definitionDiff';
 import type { DefinitionDiff } from '../../game/objects/definitionDiff';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
+import { settings } from '../../platform/settings';
 import { SageIniDocuments } from '../../services/ini/sageIniDocuments';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * **Compare with Base Game**: what the workspace's mod adds and changes
@@ -26,7 +29,6 @@ import { SageIniDocuments } from '../../services/ini/sageIniDocuments';
  * with a diff for each changed file.
  */
 
-const BASE_SETTING = 'bigfs.baseGameFolder';
 const BASE_SCHEME = 'bigfs-base';
 
 /** File types a text diff makes sense for */
@@ -140,9 +142,7 @@ export const registerModDiffCommands = (
   useOutputStore(context.globalState);
 
   const baseFolder = async (): Promise<string | undefined> => {
-    const configured = vscode.workspace
-      .getConfiguration()
-      .get<string>(BASE_SETTING);
+    const configured = settings.baseGameFolder.get();
 
     if (configured) {
       return configured;
@@ -157,9 +157,10 @@ export const registerModDiffCommands = (
       })) ?? [];
 
     if (picked) {
-      await vscode.workspace
-        .getConfiguration()
-        .update(BASE_SETTING, picked.fsPath, vscode.ConfigurationTarget.Global);
+      await settings.baseGameFolder.update(
+        picked.fsPath,
+        vscode.ConfigurationTarget.Global,
+      );
     }
 
     return picked?.fsPath;
@@ -324,7 +325,7 @@ export const registerModDiffCommands = (
         return entry ? decodeIniText(await readBaseEntry(entry)) : '';
       },
     }),
-    vscode.commands.registerCommand('bigfs.compareWithBaseGame', async () => {
+    registerCommand('bigfs.compareWithBaseGame', async () => {
       const folders = await baseLayers();
 
       if (!folders.length) {
@@ -338,7 +339,7 @@ export const registerModDiffCommands = (
         await compare(folders);
       } catch (error) {
         void vscode.window.showErrorMessage(
-          `Comparing with the base game failed: ${error instanceof Error ? error.message : String(error)}`,
+          `Comparing with the base game failed: ${describeError(error)}`,
         );
       }
     }),

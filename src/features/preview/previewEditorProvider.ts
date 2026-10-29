@@ -10,6 +10,7 @@ import { Vp6Movie } from '../../formats/vp6/container';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
 import type { EntryLocator } from '../../services/entryLocator';
 import { createNonce } from '../../platform/webview/webviewNonce';
+import { describeError } from '../../core/errors';
 
 /** The file's name, as the INI files write it */
 const basename = (uri: vscode.Uri) =>
@@ -152,7 +153,7 @@ const buildMessage = async (
   } catch (error) {
     return {
       kind: 'error',
-      message: error instanceof Error ? error.message : String(error),
+      message: describeError(error),
     };
   }
 };
@@ -558,7 +559,7 @@ export class PreviewEditorProvider
         } catch (error) {
           await panel.webview.postMessage({
             kind: 'videoError',
-            message: error instanceof Error ? error.message : String(error),
+            message: describeError(error),
           });
         }
       } else if (received?.kind === 'animation') {
@@ -575,7 +576,7 @@ export class PreviewEditorProvider
         } catch (error) {
           reply = {
             kind: 'animationError',
-            message: error instanceof Error ? error.message : String(error),
+            message: describeError(error),
           };
         }
 

@@ -18,6 +18,8 @@ import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { FromPage, ToPage } from '../../webview/particles/protocol';
+import { registerCommand } from '../../platform/commands';
+import { describeError } from '../../core/errors';
 
 /**
  * The object preview: an object as the game composes it, on the particle
@@ -56,7 +58,7 @@ const REDRAW_DELAY = 300;
 
 const noticeOf = (error: unknown): ToPage => ({
   kind: 'notice',
-  message: error instanceof Error ? error.message : String(error),
+  message: describeError(error),
 });
 
 /** Creates the preview of one object; `onClose` runs when its panel is closed */
@@ -356,7 +358,7 @@ export const registerObjectPreview = (
     selector,
     createObjectActionProvider(),
   ),
-  vscode.commands.registerCommand(
+  registerCommand(
     'bigfs.previewObject',
     async (uri?: vscode.Uri, line?: number) => {
       const editor = vscode.window.activeTextEditor;

@@ -9,6 +9,7 @@ import {
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
+import { registerCommand } from '../../platform/commands';
 
 /**
  * "Show Effective Definition" on a `ChildObject` or `ObjectReskin`: a
@@ -222,7 +223,7 @@ export const registerEffectiveObjects = (
         provider.refresh();
       }
     }),
-    vscode.commands.registerCommand(
+    registerCommand(
       'bigfs.showEffectiveObject',
       async (uri?: vscode.Uri, line?: number) => {
         const editor = vscode.window.activeTextEditor;
