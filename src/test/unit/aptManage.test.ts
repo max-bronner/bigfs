@@ -7,7 +7,8 @@ import {
   parseConst,
   parseSpriteFrames,
 } from '../../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 
 suite('APT characters in use', () => {
   test('placements, exports and texture styles keep a character; removed, its slot is empty', () => {

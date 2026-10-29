@@ -17,7 +17,8 @@ import {
   tween,
 } from '../../formats/apt/aptTimeline';
 import type { FrameState } from '../../formats/apt/aptTimeline';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 import {
   parseMotionScript,
   tweensAsScript,

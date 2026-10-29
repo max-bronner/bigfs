@@ -8,7 +8,7 @@ import {
   replaceBlock,
 } from '../../formats/apt/aptScript';
 import { parseScript } from '../../formats/apt/aptScriptParser';
-import { AptImage } from '../../formats/apt/aptWriter';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 import { buildMovie } from './apt.test';
 
 /** Compiles a script into a fresh image and reads it back as text */

@@ -1,21 +1,18 @@
 import * as assert from 'assert';
 import { CHARACTER_SIGNATURE, parseConst } from '../../formats/apt/aptMovie';
-import {
-  blockScripts,
-  movieText,
-  saveMovieText,
-  TextSaveError,
-} from '../../formats/apt/movieTextEdits';
-import type { TextSave } from '../../formats/apt/movieTextEdits';
+import { blockScripts, movieText } from '../../formats/apt/text/movieText';
+import { saveMovieText } from '../../formats/apt/text/save/saveMovieText';
+import { TextSaveError } from '../../formats/apt/text/save/textSaveError';
+import type { TextSave } from '../../formats/apt/text/save/saveMovieText';
+import { movieToText } from '../../formats/apt/text/fromMovie';
+import { textBlocks } from '../../formats/apt/text/lineTree';
 import {
   composeMatrix,
   f32Bits,
   formatF32,
-  movieToText,
-  parseMovieText,
-  printMovieText,
-  textBlocks,
-} from '../../formats/apt/movieText';
+} from '../../formats/apt/text/numbers';
+import { parseMovieText } from '../../formats/apt/text/parser';
+import { printMovieText } from '../../formats/apt/text/printer';
 import { buildFullMovie } from './aptFullEdit.test';
 import { Image, buildConst } from './aptSynth';
 

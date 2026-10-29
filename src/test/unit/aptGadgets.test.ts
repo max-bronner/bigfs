@@ -11,7 +11,7 @@ import {
 } from '../../formats/apt/aptGadgets';
 import type { FrameItem } from '../../formats/apt/aptMovie';
 import { parseScript } from '../../formats/apt/aptScriptParser';
-import { AptImage } from '../../formats/apt/aptWriter';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 import { Engine } from '../../webview/apt/avm/engine';
 import {
   bindingsOf,

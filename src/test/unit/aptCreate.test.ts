@@ -2,7 +2,8 @@ import * as assert from 'assert';
 import { createAptMovie } from '../../formats/apt/aptCreate';
 import { parseDat } from '../../formats/apt/aptGeometry';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 
 suite('New APT movies', () => {
   test('a new movie reads back with its screen and exported sprites', () => {

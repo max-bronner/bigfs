@@ -7,7 +7,7 @@ import {
 import { OPERATORS, STACK_EFFECT } from './aptDecompiler';
 import { ConstItem } from './aptMovie';
 import { Expr, FuncDef, Keyword, Operand, Stmt } from './aptScriptSyntax';
-import { AptImage } from './aptWriter';
+import { AptImage } from './writer/aptImage';
 
 /**
  * Compiles the script language back into APT bytecode. Every construct has

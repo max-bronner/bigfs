@@ -10,7 +10,7 @@ import {
 } from './aptMovie';
 import { ScriptError, parseScript } from './aptScriptParser';
 import { printStatements } from './aptScriptSyntax';
-import { AptImage } from './aptWriter';
+import { AptImage } from './writer/aptImage';
 import { describeError } from '../../core/errors';
 
 /**

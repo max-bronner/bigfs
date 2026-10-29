@@ -1,4 +1,4 @@
-import type { AptEdit } from '../../../formats/apt/aptWriter';
+import type { AptEdit } from '../../../formats/apt/writer/aptEdit';
 import type { FromPage, ToPage } from '../protocol';
 import { send } from '../details';
 import { getVsCodeApi } from '../../shared/vscodeApi';

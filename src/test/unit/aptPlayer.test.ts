@@ -3,7 +3,7 @@ import { behaviourOf } from '../../formats/apt/aptBehaviour';
 import { compileScript } from '../../formats/apt/aptCompiler';
 import type { FrameItem } from '../../formats/apt/aptMovie';
 import { parseScript } from '../../formats/apt/aptScriptParser';
-import { AptImage } from '../../formats/apt/aptWriter';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 import { OVER, Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
 

@@ -1,4 +1,4 @@
-import { AptImage } from './aptWriter';
+import { AptImage } from './writer/aptImage';
 
 /**
  * Builds a new, empty APT movie: the `.apt` memory image, the `.const` that

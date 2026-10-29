@@ -11,12 +11,10 @@ import type {
   Frame,
   FrameItem,
 } from '../../formats/apt/aptMovie';
-import {
-  AptImage,
-  applyAptEdit,
-  changeConstItem,
-} from '../../formats/apt/aptWriter';
-import type { AptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
+import { changeConstItem } from '../../formats/apt/writer/changeConstItem';
+import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { Image, buildConst } from './aptSynth';
 
 /**

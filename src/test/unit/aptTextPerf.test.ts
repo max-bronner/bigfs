@@ -1,12 +1,10 @@
 import * as assert from 'assert';
 import { parseConst } from '../../formats/apt/aptMovie';
-import {
-  alignLists,
-  blockScripts,
-  movieText,
-  saveMovieText,
-} from '../../formats/apt/movieTextEdits';
-import { movieToText, parseMovieText } from '../../formats/apt/movieText';
+import { blockScripts, movieText } from '../../formats/apt/text/movieText';
+import { alignLists } from '../../formats/apt/text/save/alignLists';
+import { saveMovieText } from '../../formats/apt/text/save/saveMovieText';
+import { movieToText } from '../../formats/apt/text/fromMovie';
+import { parseMovieText } from '../../formats/apt/text/parser';
 import { buildLargeMovie } from './aptLarge';
 
 /** Generous: the work takes a fraction of this, a quadratic walk takes many times it */
