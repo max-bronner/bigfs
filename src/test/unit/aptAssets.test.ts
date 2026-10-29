@@ -4,7 +4,8 @@ import { createAptMovie } from '../../formats/apt/aptCreate';
 import { parseDat, parseRu } from '../../formats/apt/aptGeometry';
 import type { RuRun } from '../../formats/apt/aptGeometry';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 import { decodeTga } from '../../formats/texture/textureTools';
 
 const newMovie = () => {

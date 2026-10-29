@@ -9,7 +9,8 @@ import {
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { createAptMovie } from '../../formats/apt/aptCreate';
 import { parseConst } from '../../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 
 /**
  * An import resolves to the movie the game would load: a loose movie at an

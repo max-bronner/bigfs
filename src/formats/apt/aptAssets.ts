@@ -8,8 +8,8 @@ import {
 } from './aptGeometry';
 import type { RuRun } from './aptGeometry';
 import { parseAptMovie } from './aptMovie';
-import { applyAptEdit } from './aptWriter';
-import type { AptImage } from './aptWriter';
+import { applyAptEdit } from './writer/applyAptEdit';
+import type { AptImage } from './writer/aptImage';
 
 /**
  * Edits that reach past the `.apt` into the files beside it: a shape's

@@ -4,7 +4,8 @@ import path from 'path';
 import { mkdir, readdir, readFile, rm, writeFile } from 'fs/promises';
 import { createAptMovie } from '../../formats/apt/aptCreate';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
 
 /**
  * A movie handled as a whole: renamed with every file it has, and the

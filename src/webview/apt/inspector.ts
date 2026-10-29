@@ -1,6 +1,6 @@
 import { PLACE_FLAGS } from '../../formats/apt/aptMovie';
 import type { FrameItem, Matrix2 } from '../../formats/apt/aptMovie';
-import type { PlacementChange } from '../../formats/apt/aptWriter';
+import type { PlacementChange } from '../../formats/apt/writer/aptEdit';
 import { send } from './details';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';

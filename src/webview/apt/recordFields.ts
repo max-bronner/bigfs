@@ -10,7 +10,7 @@ import type {
   PlacementChange,
   PlacementField,
   TextRecordChange,
-} from '../../formats/apt/aptWriter';
+} from '../../formats/apt/writer/aptEdit';
 import { send } from './details';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';

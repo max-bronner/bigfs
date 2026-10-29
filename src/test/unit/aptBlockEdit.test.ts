@@ -1,7 +1,8 @@
 import * as assert from 'assert';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
-import type { AptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
+import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { buildFullMovie } from './aptFullEdit.test';
 
 /** Applies edits to the full movie and reads it back */

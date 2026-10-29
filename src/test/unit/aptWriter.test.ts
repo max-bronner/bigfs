@@ -4,8 +4,9 @@ import {
   parseConst,
   parseSpriteFrames,
 } from '../../formats/apt/aptMovie';
-import { AptImage, applyAptEdit } from '../../formats/apt/aptWriter';
-import type { AptEdit } from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
+import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { buildMovie } from './apt.test';
 
 /** Applies edits to the synthetic movie and parses the result */

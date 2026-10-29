@@ -12,16 +12,14 @@ import {
   parseSpriteFrames,
 } from '../../formats/apt/aptMovie';
 import type { AptMovie, ConstFile, Frame } from '../../formats/apt/aptMovie';
-import {
-  AptImage,
-  applyAptEdit,
-  changeConstItem,
-} from '../../formats/apt/aptWriter';
+import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
+import { AptImage } from '../../formats/apt/writer/aptImage';
+import { changeConstItem } from '../../formats/apt/writer/changeConstItem';
 import type {
   AptEdit,
   ConstItemChange,
   EditResult,
-} from '../../formats/apt/aptWriter';
+} from '../../formats/apt/writer/aptEdit';
 import {
   addBlock,
   appendConstItems,

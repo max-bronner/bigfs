@@ -1,6 +1,6 @@
 import type { Character, Frame } from '../../formats/apt/aptMovie';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
-import type { AptEdit } from '../../formats/apt/aptWriter';
+import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { byId } from './dom';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';

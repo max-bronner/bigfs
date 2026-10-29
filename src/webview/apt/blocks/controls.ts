@@ -1,4 +1,4 @@
-import type { PlacementChange } from '../../../formats/apt/aptWriter';
+import type { PlacementChange } from '../../../formats/apt/writer/aptEdit';
 import { describeCharacter } from '../describeCharacter';
 import { movie } from '../state';
 import {
