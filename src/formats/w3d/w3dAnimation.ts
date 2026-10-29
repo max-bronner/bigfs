@@ -11,6 +11,8 @@
  * whole frames, so a player only interpolates between neighbours.
  */
 
+import { createByteReader, type ByteReader } from '../../core/byteReader';
+
 export type ChannelKind = 'x' | 'y' | 'z' | 'rotation' | 'visibility' | 'other';
 
 /** A channel sampled at every frame; missing frames are `undefined` */
@@ -76,51 +78,8 @@ const FILTER_TABLE = (() => {
   return table;
 })();
 
-class Reader {
-  private readonly view: DataView;
-  public at = 0;
-
-  public constructor(public readonly bytes: Uint8Array) {
-    this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  }
-
-  public need(count: number): void {
-    if (this.at + count > this.bytes.length) {
-      throw new Error('An animation channel ends early');
-    }
-  }
-
-  public u8(): number {
-    this.need(1);
-
-    return this.bytes[this.at++];
-  }
-
-  public u16(): number {
-    this.need(2);
-    this.at += 2;
-
-    return this.view.getUint16(this.at - 2, true);
-  }
-
-  public u32(): number {
-    this.need(4);
-    this.at += 4;
-
-    return this.view.getUint32(this.at - 4, true);
-  }
-
-  public f32(): number {
-    this.need(4);
-    this.at += 4;
-
-    return this.view.getFloat32(this.at - 4, true);
-  }
-
-  public floats(count: number): number[] {
-    return Array.from({ length: count }, () => this.f32());
-  }
-}
+const readFloats = (reader: ByteReader, count: number): number[] =>
+  Array.from({ length: count }, () => reader.f32());
 
 const readChunks = (bytes: Uint8Array) => {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -223,29 +182,29 @@ const sampleKeys = (
 
 /** Rebuilds adaptive-delta values: frame 0 stored, then 16-frame blocks of deltas */
 const readAdaptiveDelta = (
-  reader: Reader,
+  reader: ByteReader,
   width: number,
   eightBit: boolean,
   count: number,
 ): number[][] => {
   const scale = reader.f32();
-  const values = [reader.floats(width)];
+  const values = [readFloats(reader, width)];
   const blockBytes = eightBit ? 16 : 8;
 
   for (let block = 0; block * 16 + 1 < count; block++) {
     for (let component = 0; component < width; component++) {
       const step = FILTER_TABLE[reader.u8()] * scale * (eightBit ? 1 / 16 : 1);
 
-      reader.need(blockBytes);
+      const deltas = reader.bytes(blockBytes);
 
       for (let index = 0; index < 16; index++) {
         const frame = block * 16 + index + 1;
         let delta: number;
 
         if (eightBit) {
-          delta = reader.bytes[reader.at + index] - 128;
+          delta = deltas[index] - 128;
         } else {
-          const byte = reader.bytes[reader.at + (index >> 1)];
+          const byte = deltas[index >> 1];
           const nibble = index & 1 ? byte >> 4 : byte & 15;
 
           delta = nibble >= 8 ? nibble - 16 : nibble;
@@ -257,8 +216,6 @@ const readAdaptiveDelta = (
             values[frame - 1][component] + step * delta;
         }
       }
-
-      reader.at += blockBytes;
     }
   }
 
@@ -296,7 +253,9 @@ const readChannel = (
   flavor: number,
   frames: number,
 ): SampledChannel | undefined => {
-  const reader = new Reader(payload);
+  const reader = createByteReader(payload, true, {
+    describeOverrun: () => 'An animation channel ends early',
+  });
 
   switch (type) {
     case CHUNK.ANIMATION_CHANNEL: {
@@ -314,7 +273,7 @@ const readChannel = (
       const target = channel(pivot, kind, frames, type);
 
       for (let frame = first; frame <= last; frame++) {
-        set(target, frame, reader.floats(widthOf(kind)));
+        set(target, frame, readFloats(reader, widthOf(kind)));
       }
 
       return target;
@@ -329,8 +288,7 @@ const readChannel = (
       const fallback = reader.u8() !== 0;
       const target = channel(pivot, 'visibility', frames);
 
-      reader.need(Math.ceil((last - first + 1) / 8));
-      readBits(target, first, last, fallback, payload.subarray(reader.at));
+      readBits(target, first, last, fallback, reader.bytes(Math.max(0, Math.ceil((last - first + 1) / 8))));
 
       return target;
     }
@@ -359,7 +317,7 @@ const readChannel = (
           keys.push({
             frame: raw & 0x7fffffff,
             hold: raw >>> 31 === 1,
-            value: reader.floats(width),
+            value: readFloats(reader, width),
           });
         }
 
@@ -422,7 +380,7 @@ const readChannel = (
           times.map((raw) => ({
             frame: raw & 0x7fff,
             hold: raw >>> 15 === 1,
-            value: reader.floats(width),
+            value: readFloats(reader, width),
           })),
         );
       } else if (deltaType === 1 || deltaType === 2) {

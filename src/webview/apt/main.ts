@@ -3,17 +3,12 @@ import { keepAnswers } from './engineState';
 import { setGameText } from './gameText';
 import { movieArrived, storeTextures } from './movieLoads';
 import { byId, escapeHtml } from './dom';
-import {
-  describe,
-  GO_TO_FRAME,
-  send,
-  showDetails,
-  showScript,
-  vscode,
-} from './details';
+import { describeCharacter } from './describeCharacter';
+import { GO_TO_FRAME, send, showDetails, showScript } from './details';
+import { getVsCodeApi } from '../shared/vscodeApi';
 import { scriptSaved } from './blocks/scriptBlock';
 import { installBlockStyles } from './blocks/blockStyles';
-import type { ToPage } from './protocol';
+import type { FromPage, ToPage } from './protocol';
 import { showAtlas } from './atlas';
 import './gadgets';
 import { mappedImagesArrived } from './mappedSurfaces';
@@ -37,6 +32,8 @@ import {
 } from './stage';
 import { SPEEDS } from './protocol';
 import { movie, state } from './state';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * The APT editor page: the character list, the stage that draws the
@@ -112,7 +109,7 @@ const showList = () => {
     ...movie()
       .characters.filter(
         (character) =>
-          !needle || describe(character).toLowerCase().includes(needle),
+          !needle || describeCharacter(character).toLowerCase().includes(needle),
       )
       .map((character) => {
         const element = document.createElement('div');
@@ -120,7 +117,7 @@ const showList = () => {
         element.className =
           'row' + (character.id === state.selected ? ' selected' : '');
         element.dataset.id = String(character.id);
-        element.textContent = describe(character);
+        element.textContent = describeCharacter(character);
         element.onclick = () => select(character.id);
         // Dragged onto the stage, it is placed in the shown timeline
         element.draggable = character.type !== 'movie';

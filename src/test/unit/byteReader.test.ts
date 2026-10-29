@@ -84,4 +84,29 @@ suite('Byte reader', () => {
     assert.throws(() => reader.cstring(), ByteReaderOverrunError);
     assert.strictEqual(reader.offset, 0);
   });
+
+  test('a window bounds reads and keeps offsets absolute', () => {
+    const reader = createByteReader(new Uint8Array([9, 1, 2, 3, 4, 9]), true, { start: 1, end: 5 });
+    assert.strictEqual(reader.offset, 1);
+    assert.strictEqual(reader.remaining, 4);
+    assert.strictEqual(reader.u32(), 0x04030201);
+    assert.throws(() => reader.u8(), ByteReaderOverrunError);
+    assert.throws(() => reader.seek(0), ByteReaderOverrunError);
+    assert.throws(() => reader.seek(6), ByteReaderOverrunError);
+    reader.seek(5);
+    assert.strictEqual(reader.remaining, 0);
+  });
+
+  test('a window ends a string that has no terminator inside it', () => {
+    const reader = createByteReader(new Uint8Array([0x61, 0x62, 0]), true, { end: 2 });
+    assert.throws(() => reader.cstring(), ByteReaderOverrunError);
+  });
+
+  test('describeOverrun words the error', () => {
+    const reader = createByteReader(new Uint8Array(2), true, {
+      describeOverrun: (offset, requested, length) => `${requested}@${offset}/${length}`,
+    });
+    reader.u8();
+    assert.throws(() => reader.u32(), /^ByteReaderOverrunError: 4@1\/2$|4@1\/2/);
+  });
 });

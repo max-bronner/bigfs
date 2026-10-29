@@ -4,8 +4,9 @@ export class ByteReaderOverrunError extends Error {
     readonly offset: number,
     readonly requested: number,
     readonly length: number,
+    message = `Read of ${requested} bytes at offset ${offset} overruns the ${length} bytes available`,
   ) {
-    super(`Read of ${requested} bytes at offset ${offset} overruns the ${length} bytes available`);
+    super(message);
     this.name = 'ByteReaderOverrunError';
   }
 }
@@ -33,18 +34,37 @@ export interface ByteReader {
   skip(length: number): void;
 }
 
+/** Narrows a reader to part of its bytes, or words the error a format shows for an overrun */
+export interface ByteReaderOptions {
+  /** Offset of the first readable byte, which is also where the cursor starts; 0 by default */
+  start?: number;
+  /** Offset after the last readable byte; the length of the bytes by default */
+  end?: number;
+  /** The message of the `ByteReaderOverrunError`, for a format whose users see its own wording */
+  describeOverrun?: (offset: number, requested: number, length: number) => string;
+}
+
 /**
  * Creates a reader over `bytes`, little-endian unless `littleEndian` is false.
- * Every read is bounded by the bytes present and throws `ByteReaderOverrunError`
- * instead of returning partial data.
+ * Every read is bounded by the bytes present, or by `options.end`, and throws
+ * `ByteReaderOverrunError` instead of returning partial data. Offsets always
+ * count from the start of `bytes`, whatever `options.start` is.
  */
-export const createByteReader = (bytes: Uint8Array, littleEndian = true): ByteReader => {
+export const createByteReader = (
+  bytes: Uint8Array,
+  littleEndian = true,
+  options: ByteReaderOptions = {},
+): ByteReader => {
+  const { start: first = 0, describeOverrun } = options;
+  const end = Math.min(options.end ?? bytes.byteLength, bytes.byteLength);
+  const overrun = (at: number, requested: number) =>
+    new ByteReaderOverrunError(at, requested, end, describeOverrun?.(at, requested, end));
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let offset = 0;
+  let offset = first;
 
   const claim = (length: number): number => {
-    if (!Number.isInteger(length) || length < 0 || length > bytes.byteLength - offset) {
-      throw new ByteReaderOverrunError(offset, length, bytes.byteLength);
+    if (!Number.isInteger(length) || length < 0 || length > end - offset) {
+      throw overrun(offset, length);
     }
     const start = offset;
     offset += length;
@@ -64,7 +84,7 @@ export const createByteReader = (bytes: Uint8Array, littleEndian = true): ByteRe
       return offset;
     },
     get remaining() {
-      return bytes.byteLength - offset;
+      return end - offset;
     },
     u8: () => view.getUint8(claim(1)),
     u16: () => view.getUint16(claim(2), littleEndian),
@@ -76,18 +96,18 @@ export const createByteReader = (bytes: Uint8Array, littleEndian = true): ByteRe
       return bytes.slice(start, start + length);
     },
     cstring: () => {
-      const end = bytes.indexOf(0, offset);
-      if (end === -1) {
-        throw new ByteReaderOverrunError(offset, bytes.byteLength - offset + 1, bytes.byteLength);
+      const terminator = bytes.subarray(0, end).indexOf(0, offset);
+      if (terminator === -1) {
+        throw overrun(offset, end - offset + 1);
       }
       const start = offset;
-      offset = end + 1;
-      return latin1(start, end - start);
+      offset = terminator + 1;
+      return latin1(start, terminator - start);
     },
     ascii: (length) => latin1(claim(length), length),
     seek: (target) => {
-      if (!Number.isInteger(target) || target < 0 || target > bytes.byteLength) {
-        throw new ByteReaderOverrunError(target, 0, bytes.byteLength);
+      if (!Number.isInteger(target) || target < first || target > end) {
+        throw overrun(target, 0);
       }
       offset = target;
     },

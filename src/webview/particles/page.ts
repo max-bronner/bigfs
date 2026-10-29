@@ -5,10 +5,9 @@ import type {
   Vec3,
 } from '../../formats/particles/particleIni';
 import type { FromPage, SceneMessage } from './protocol';
+import { getVsCodeApi } from '../shared/vscodeApi';
 
-declare const acquireVsCodeApi: () => { postMessage(message: FromPage): void };
-
-const api = acquireVsCodeApi();
+const api = getVsCodeApi<FromPage>();
 
 export const post = (message: FromPage): void => api.postMessage(message);
 

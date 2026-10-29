@@ -11,7 +11,10 @@ import type {
   PlacementField,
   TextRecordChange,
 } from '../../formats/apt/aptWriter';
-import { send, vscode } from './details';
+import { send } from './details';
+import { getVsCodeApi } from '../shared/vscodeApi';
+import type { FromPage } from './protocol';
+
 import { addMenu } from './blocks/addMenu';
 import { blockCard } from './blocks/blockCard';
 import {
@@ -37,6 +40,8 @@ import {
 import { scriptBlock } from './blocks/scriptBlock';
 import { BUTTON_CONDITIONS, CLIP_EVENTS, bitNames } from './scriptSites';
 import { movie } from './state';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * The blocks of the records a movie stores: placements, the other frame

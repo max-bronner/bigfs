@@ -1,10 +1,13 @@
 import type { AptEdit } from '../../../formats/apt/aptWriter';
-import type { ToPage } from '../protocol';
-import { send, vscode } from '../details';
+import type { FromPage, ToPage } from '../protocol';
+import { send } from '../details';
+import { getVsCodeApi } from '../../shared/vscodeApi';
 import { state } from '../state';
 import { blockCard } from './blockCard';
 import { action, field } from './controls';
 import { scriptField } from './scriptField';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * A script block: where the script runs, then its decompiled text as code,

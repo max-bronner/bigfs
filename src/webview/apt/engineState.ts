@@ -1,7 +1,9 @@
 import { Engine } from './avm/engine';
 import type { EngineValues } from './avm/engine';
-import { vscode } from './details';
-import type { PageMovie } from './protocol';
+import { getVsCodeApi } from '../shared/vscodeApi';
+import type { FromPage, PageMovie } from './protocol';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * The one engine boundary of the page: what the shown movie asks of the

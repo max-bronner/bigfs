@@ -3,6 +3,7 @@ import type {
   ArmorTableMessage,
   FromArmorPage,
 } from '../../game/objects/armorTable';
+import { getVsCodeApi } from '../shared/vscodeApi';
 
 /**
  * The armor table's page: armors down, damage types across, a cell an
@@ -10,11 +11,7 @@ import type {
  * greyed. Low percentages (resists) are tinted green, above 100 red.
  */
 
-declare const acquireVsCodeApi: () => {
-  postMessage(message: FromArmorPage): void;
-};
-
-const vscode = acquireVsCodeApi();
+const vscode = getVsCodeApi<FromArmorPage>();
 const table = document.getElementById('table') as HTMLTableElement;
 const filter = document.getElementById('filter') as HTMLInputElement;
 const summary = document.getElementById('summary')!;

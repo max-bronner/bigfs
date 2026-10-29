@@ -3,6 +3,7 @@ import type {
   EditorSlot,
   FromCommandSetPage,
 } from '../../game/objects/commandSetEdit';
+import { getVsCodeApi } from '../shared/vscodeApi';
 
 /**
  * The CommandSet editor's page: slots in rows of five, each a button with
@@ -10,11 +11,7 @@ import type {
  * slot to add.
  */
 
-declare const acquireVsCodeApi: () => {
-  postMessage(message: FromCommandSetPage): void;
-};
-
-const vscode = acquireVsCodeApi();
+const vscode = getVsCodeApi<FromCommandSetPage>();
 const grid = document.getElementById('grid')!;
 const COLUMNS = 5;
 

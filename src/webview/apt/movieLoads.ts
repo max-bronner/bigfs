@@ -1,8 +1,10 @@
-import { vscode } from './details';
+import { getVsCodeApi } from '../shared/vscodeApi';
 import { mergeGameText } from './gameText';
-import type { PageMovie, ToPage, TexturePixels } from './protocol';
+import type { FromPage, PageMovie, ToPage, TexturePixels } from './protocol';
 import { movieKey, movieNamed } from './resolve';
 import { state } from './state';
+
+const vscode = getVsCodeApi<FromPage>();
 
 /**
  * The movies scripts load (`loadMovie`): the page asks the editor for a

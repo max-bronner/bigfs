@@ -197,4 +197,21 @@ suite('W3D model for a skeleton', () => {
     );
     assert.strictEqual(findAnimation([], 'A.B'), undefined);
   });
+
+  test('a channel that ends early fails with a message', () => {
+    assert.throws(
+      () =>
+        parseW3dAnimations(
+          chunk(
+            0x200,
+            concat(
+              header(4, false),
+              // frames 1 to 2 need two floats, only one follows
+              chunk(0x202, concat(u16(1, 2, 1, 2, 1, 0), floats(5))),
+            ),
+          ),
+        ),
+      /animation channel ends early/,
+    );
+  });
 });
