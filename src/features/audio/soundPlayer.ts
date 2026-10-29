@@ -18,6 +18,7 @@ import type { SageDocument, SageToken } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { registerCommand } from '../../platform/commands';
+import type { FromSoundPage, ToSoundPage } from '../../webview/audio/protocol';
 
 /**
  * Sounds played from the INI: a "Play" lens on every audio definition, play
@@ -64,27 +65,28 @@ export const soundCandidates = (name: string): string[] => {
 };
 
 /** Creates the small player panel, opened on the first sound and reused after */
-const createSoundPanel = () => {
+const createSoundPanel = (extensionUri: vscode.Uri) => {
+  const scripts = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
   let ready = Promise.resolve();
   let markReady = () => {};
 
-  const panel = createSingletonPanel({
+  const panel = createSingletonPanel<FromSoundPage, ToSoundPage>({
     viewType: 'bigfs.soundPlayer',
     title: 'Sound',
     column: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
     options: {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [],
+      localResourceRoots: [scripts],
     },
     render: ({ webview }) => {
       ready = new Promise((resolve) => {
         markReady = resolve;
       });
-      webview.html = renderHtml();
+      webview.html = renderHtml(webview, scripts);
     },
-    onMessage: (message: { kind?: string }) => {
-      if (message?.kind === 'ready') {
+    onMessage: (message) => {
+      if (message.kind === 'ready') {
         markReady();
       }
     },
@@ -105,11 +107,14 @@ const createSoundPanel = () => {
   return { play };
 };
 
-const soundPanel = createSoundPanel();
+type SoundPanel = ReturnType<typeof createSoundPanel>;
 
-const renderHtml = (): string => {
+const renderHtml = (webview: vscode.Webview, scripts: vscode.Uri): string => {
   return webviewPage({
-    allow: { media: 'blob:' },
+    allow: { media: 'blob:', script: webview.cspSource },
+    scriptFiles: [
+      webview.asWebviewUri(vscode.Uri.joinPath(scripts, 'sound.js')).toString(),
+    ],
     style: `
   body { padding: 10px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   audio { width: 100%; margin: 6px 0 12px; }
@@ -121,36 +126,12 @@ const renderHtml = (): string => {
 <audio id="audio" controls></audio>
 <div class="muted">Played before</div>
 <ul id="history"></ul>`,
-    script: `
-const vscode = acquireVsCodeApi();
-const audio = document.getElementById('audio');
-const history = [];
-const play = (entry) => {
-  document.getElementById('name').textContent = entry.name;
-  audio.src = entry.url;
-  audio.play().catch(() => {});
-};
-window.addEventListener('message', ({ data }) => {
-  if (data.kind !== 'play') return;
-  const bytes = Uint8Array.from(atob(data.data), (c) => c.charCodeAt(0));
-  const entry = { name: data.name, url: URL.createObjectURL(new Blob([bytes], { type: data.mime })) };
-  history.unshift(entry);
-  history.splice(12);
-  document.getElementById('history').replaceChildren(...history.map((each) => {
-    const item = document.createElement('li');
-    item.textContent = each.name;
-    item.onclick = () => play(each);
-    return item;
-  }));
-  play(entry);
-});
-vscode.postMessage({ kind: 'ready' });
-`,
   });
 };
 
 /** Finds a sound by any of its candidate names and plays it */
 const playSound = async (
+  soundPanel: SoundPanel,
   locator: EntryLocator,
   name: string,
   near?: vscode.Uri,
@@ -318,69 +299,80 @@ const createSoundLensProvider = (
 });
 
 export const registerSoundPlayer = (
+  extensionUri: vscode.Uri,
   selector: vscode.DocumentSelector,
   documents: SageIniDocuments,
   index: SageIniIndex,
   locator: EntryLocator | undefined,
-): vscode.Disposable[] => [
-  vscode.languages.registerCodeLensProvider(
-    selector,
-    createSoundLensProvider(documents),
-  ),
-  registerCommand(
-    'bigfs.playSound',
-    (name: string, near?: string) =>
-      locator &&
-      playSound(locator, name, near ? vscode.Uri.parse(near) : undefined),
-  ),
-  registerCommand(
-    'bigfs.playAudioEvent',
-    async (name?: string, near?: string) => {
-      if (!locator) {
-        return undefined;
-      }
-      await index.whenReady();
+): vscode.Disposable[] => {
+  const soundPanel = createSoundPanel(extensionUri);
 
-      if (!name) {
-        const picked = await vscode.window.showQuickPick(
-          AUDIO_KEYWORDS.flatMap((keyword) => index.getNames(keyword)),
-          { placeHolder: 'The audio event to play' },
-        );
-
-        if (!picked) {
+  return [
+    vscode.languages.registerCodeLensProvider(
+      selector,
+      createSoundLensProvider(documents),
+    ),
+    registerCommand(
+      'bigfs.playSound',
+      (name: string, near?: string) =>
+        locator &&
+        playSound(
+          soundPanel,
+          locator,
+          name,
+          near ? vscode.Uri.parse(near) : undefined,
+        ),
+    ),
+    registerCommand(
+      'bigfs.playAudioEvent',
+      async (name?: string, near?: string) => {
+        if (!locator) {
           return undefined;
         }
-        name = picked;
-      }
+        await index.whenReady();
 
-      const variants = await resolveAudio(
-        name,
-        createAudioLookup(index, documents),
-      );
+        if (!name) {
+          const picked = await vscode.window.showQuickPick(
+            AUDIO_KEYWORDS.flatMap((keyword) => index.getNames(keyword)),
+            { placeHolder: 'The audio event to play' },
+          );
 
-      if (!variants.length) {
-        void vscode.window.showWarningMessage(`${name} names no sound`);
-        return undefined;
-      }
+          if (!picked) {
+            return undefined;
+          }
+          name = picked;
+        }
 
-      // One click, one file: several variants ask which, never chain
-      const picked =
-        variants.length === 1
-          ? variants[0]
-          : (
-              await vscode.window.showQuickPick(variants.map(toPickItem), {
-                placeHolder: `${name}: which sound to play`,
-                matchOnDescription: true,
-              })
-            )?.variant;
+        const variants = await resolveAudio(
+          name,
+          createAudioLookup(index, documents),
+        );
 
-      return picked
-        ? playSound(
-            locator,
-            picked.file,
-            near ? vscode.Uri.parse(near) : undefined,
-          )
-        : undefined;
-    },
-  ),
-];
+        if (!variants.length) {
+          void vscode.window.showWarningMessage(`${name} names no sound`);
+          return undefined;
+        }
+
+        // One click, one file: several variants ask which, never chain
+        const picked =
+          variants.length === 1
+            ? variants[0]
+            : (
+                await vscode.window.showQuickPick(variants.map(toPickItem), {
+                  placeHolder: `${name}: which sound to play`,
+                  matchOnDescription: true,
+                })
+              )?.variant;
+
+        return picked
+          ? playSound(
+              soundPanel,
+              locator,
+              picked.file,
+              near ? vscode.Uri.parse(near) : undefined,
+            )
+          : undefined;
+      },
+    ),
+  ];
+};

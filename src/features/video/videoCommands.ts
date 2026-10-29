@@ -4,7 +4,11 @@ import os from 'os';
 import path from 'path';
 import { decodePng } from '../../node/png';
 import { Vp6Movie } from '../../formats/vp6/container';
-import { MAX_SIDE, encodeMovie, resizeRgba } from '../../formats/vp6/encodeMovie';
+import {
+  MAX_SIDE,
+  encodeMovie,
+  resizeRgba,
+} from '../../formats/vp6/encodeMovie';
 import type { FrameSource } from '../../formats/vp6/encodeMovie';
 import { registerCommand } from '../../platform/commands';
 import { settings } from '../../platform/settings';
@@ -12,6 +16,7 @@ import { webviewPage } from '../../platform/webview/webviewPage';
 import { ffmpegSource, probe, run } from '../../node/ffmpeg';
 import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
 import { toUri } from '../../services/archives/commandTarget';
+import type { FromVideoPage, ToVideoPage } from '../../webview/video/protocol';
 import type { CommandTarget } from '../../services/archives/commandTarget';
 
 /**
@@ -66,26 +71,27 @@ class BrowserFrames {
     duration: number;
   }>;
 
-  public constructor(file: vscode.Uri) {
+  public constructor(file: vscode.Uri, extensionUri: vscode.Uri) {
     const folder = vscode.Uri.joinPath(file, '..');
+    const scripts = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
 
     this.panel = vscode.window.createWebviewPanel(
       'bigfs.videoFrames',
       `Reading ${path.basename(file.path)}`,
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-      { enableScripts: true, localResourceRoots: [folder] },
+      { enableScripts: true, localResourceRoots: [folder, scripts] },
     );
 
     let failed: (error: Error) => void = () => {};
 
     this.meta = new Promise((resolve, reject) => {
       failed = reject;
-      this.panel.webview.onDidReceiveMessage((message) => {
-        if (message?.kind === 'meta') {
+      this.panel.webview.onDidReceiveMessage((message: FromVideoPage) => {
+        if (message.kind === 'meta') {
           resolve(message);
-        } else if (message?.kind === 'error') {
-          reject(new Error(String(message.message)));
-        } else if (message?.kind === 'frame') {
+        } else if (message.kind === 'error') {
+          reject(new Error(message.message));
+        } else if (message.kind === 'frame') {
           this.pending.get(message.index)?.(new Uint8Array(message.data));
           this.pending.delete(message.index);
         }
@@ -96,7 +102,8 @@ class BrowserFrames {
     );
     this.panel.webview.html = browserPage(
       this.panel.webview.asWebviewUri(file),
-      this.panel.webview.cspSource,
+      this.panel.webview,
+      scripts,
     );
   }
 
@@ -108,13 +115,15 @@ class BrowserFrames {
   ): Promise<Uint8Array> {
     return new Promise((resolve) => {
       this.pending.set(index, resolve);
-      void this.panel.webview.postMessage({
+      const request: ToVideoPage = {
         kind: 'frame',
         index,
         time,
         width,
         height,
-      });
+      };
+
+      void this.panel.webview.postMessage(request);
     });
   }
 
@@ -123,40 +132,20 @@ class BrowserFrames {
   }
 }
 
-const browserPage = (video: vscode.Uri, source: string): string => {
+const browserPage = (
+  video: vscode.Uri,
+  webview: vscode.Webview,
+  scripts: vscode.Uri,
+): string => {
   return webviewPage({
-    allow: { media: source },
+    allow: { media: webview.cspSource, script: webview.cspSource },
+    scriptFiles: [
+      webview.asWebviewUri(vscode.Uri.joinPath(scripts, 'video.js')).toString(),
+    ],
     style: `body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); padding: 10px; } canvas { max-width: 100%; }`,
     body: `<div id="status">Reading frames…</div>
 <video id="video" src="${video}" muted preload="auto" hidden></video>
 <canvas id="canvas"></canvas>`,
-    script: `
-const vscode = acquireVsCodeApi();
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const context = canvas.getContext('2d', { willReadFrequently: true });
-video.addEventListener('loadedmetadata', () =>
-  vscode.postMessage({ kind: 'meta', width: video.videoWidth, height: video.videoHeight, duration: video.duration }));
-video.addEventListener('error', () =>
-  vscode.postMessage({ kind: 'error', message: 'This video cannot be read here; install FFmpeg, or convert it to WebM first' }));
-let queue = Promise.resolve();
-window.addEventListener('message', ({ data }) => {
-  if (data.kind !== 'frame') return;
-  queue = queue.then(() => new Promise((resolve) => {
-    const draw = () => {
-      canvas.width = data.width;
-      canvas.height = data.height;
-      context.drawImage(video, 0, 0, data.width, data.height);
-      const pixels = context.getImageData(0, 0, data.width, data.height).data;
-      document.getElementById('status').textContent = 'Frame ' + (data.index + 1);
-      vscode.postMessage({ kind: 'frame', index: data.index, data: new Uint8Array(pixels.buffer) });
-      resolve();
-    };
-    if (Math.abs(video.currentTime - data.time) < 1e-6 && video.readyState >= 2) draw();
-    else { video.addEventListener('seeked', draw, { once: true }); video.currentTime = data.time; }
-  }));
-});
-`,
   });
 };
 
@@ -247,7 +236,10 @@ const keyInterval = (fps: number): number => {
   return seconds > 0 ? Math.max(1, Math.round(seconds * fps)) : 1;
 };
 
-const convert = async (target: Target): Promise<vscode.Uri | undefined> => {
+const convert = async (
+  target: Target,
+  extensionUri: vscode.Uri,
+): Promise<vscode.Uri | undefined> => {
   let input = toUri(target);
 
   if (!input) {
@@ -352,7 +344,7 @@ const convert = async (target: Target): Promise<vscode.Uri | undefined> => {
           );
         }
 
-        const browser = new BrowserFrames(file);
+        const browser = new BrowserFrames(file, extensionUri);
         const meta = await browser.meta;
 
         stop = () => browser.dispose();
@@ -493,6 +485,8 @@ export const registerVideoCommands = (
   context: vscode.ExtensionContext,
 ): void => {
   context.subscriptions.push(
-    registerCommand('bigfs.convertToVp6', (target: Target) => convert(target)),
+    registerCommand('bigfs.convertToVp6', (target: Target) =>
+      convert(target, context.extensionUri),
+    ),
   );
 };

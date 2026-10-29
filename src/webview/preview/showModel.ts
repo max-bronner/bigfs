@@ -1,23 +1,18 @@
 import { poseAt } from "../../formats/w3d/w3dPose";
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import type { W3dAnimation } from "../../formats/w3d/w3dAnimation";
-import type { ModelScene } from "../../formats/w3d/w3dScene";
 import { createModelRenderer } from "../scene/modelRenderer";
 import { createOrbit } from "../scene/orbit";
+import type { FileUse, ModelMessage } from "./protocol";
 
 /**
  * The W3D viewer's model view: the model textured and skinned, its
  * skeleton's animations to play on it, its bones as a toggle (B), off
  * whenever there are meshes to show, the HLOD level of detail to draw, a
- * toggle for the meshes marked hidden and one for collision boxes. The preview page calls `showModel`
- * with the extension's message and gets back the controls later messages
- * drive.
+ * toggle for the meshes marked hidden and one for collision boxes. The preview page calls
+ * `showModel` with the extension's message and gets back the controls later
+ * messages drive.
  */
-
-export interface ModelMessage extends ModelScene {
-  /** The model an animation file is shown on, found by its skeleton */
-  shownOn?: string;
-}
 
 interface Host {
   main: HTMLElement;
@@ -26,14 +21,6 @@ interface Host {
       | { kind: "animation"; file: string }
       | { kind: "reveal"; uri: string; line: number },
   ) => void;
-}
-
-/** A line of an INI file that names the shown file */
-interface FileUse {
-  uri: string;
-  line: number;
-  field: string;
-  owner?: string;
 }
 
 export interface ModelControl {
@@ -52,7 +39,7 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 
 const OWN = "#own";
 
-const showModel = (
+export const showModel = (
   message: ModelMessage,
   { main, post }: Host,
 ): ModelControl | undefined => {
@@ -349,6 +336,3 @@ const showModel = (
   }
   return control;
 };
-
-// The preview page's own script calls it
-(globalThis as { showModel?: typeof showModel }).showModel = showModel;

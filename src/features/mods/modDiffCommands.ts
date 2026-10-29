@@ -11,7 +11,11 @@ import {
   readBaseEntry,
 } from '../../node/modDiff';
 import { findBaseGameFolders } from '../../services/archives/baseGameFolders';
-import { packedArchives, useOutputStore } from '../../services/archives/packagedOutputs';
+import {
+  packedArchives,
+  useOutputStore,
+} from '../../services/archives/packagedOutputs';
+import type { FromModDiffPage } from '../../webview/mods/protocol';
 import { webviewPage } from '../../platform/webview/webviewPage';
 import { registerPackageMod } from './packageModCommand';
 import { decodeIniText } from '../../core/windows1252';
@@ -59,6 +63,8 @@ const definitionLines = (diff: DefinitionDiff): string[] => {
 const MAX_DEFINITIONS = 60;
 
 const renderReport = (
+  webview: vscode.Webview,
+  scripts: vscode.Uri,
   results: ComparedFile[],
   folder: string,
   archives: number,
@@ -98,6 +104,12 @@ const renderReport = (
       .join('');
 
   return webviewPage({
+    allow: { script: webview.cspSource },
+    scriptFiles: [
+      webview
+        .asWebviewUri(vscode.Uri.joinPath(scripts, 'modDiff.js'))
+        .toString(),
+    ],
     style: `
   body { padding: 8px 16px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   input { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 4px; }
@@ -117,17 +129,6 @@ ${groups
       `<details ${key === 'same' ? '' : 'open'} data-group="${key}"><summary>${title} (${files.length})</summary><table>${rows(files)}</table></details>`,
   )
   .join('')}`,
-    script: `
-  const vscode = acquireVsCodeApi();
-  document.getElementById('filter').addEventListener('input', (event) => {
-    const text = event.target.value.toLowerCase();
-    document.querySelectorAll('tr[data-path]').forEach((row) => { row.hidden = text && !row.dataset.path.toLowerCase().includes(text); });
-  });
-  document.body.addEventListener('click', (event) => {
-    const button = event.target.closest('button[data-action]');
-    if (button) vscode.postMessage({ action: button.dataset.action, path: button.closest('tr').dataset.path });
-  });
-`,
   });
 };
 
@@ -137,6 +138,7 @@ export const registerModDiffCommands = (
 ): void => {
   let base: { folder: string; index: BaseIndex } | undefined;
   const documents = new SageIniDocuments(context.extensionUri);
+  const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
 
   context.subscriptions.push(documents);
   useOutputStore(context.globalState);
@@ -278,39 +280,39 @@ export const registerModDiffCommands = (
           'bigfs.modDiff',
           'Mod against Base Game',
           vscode.ViewColumn.Active,
-          { enableScripts: true, localResourceRoots: [] },
+          { enableScripts: true, localResourceRoots: [scripts] },
         );
 
         panel.webview.html = renderReport(
+          panel.webview,
+          scripts,
           results,
           folder,
           indexed.archives,
           indexed.unreadable,
           definitions,
         );
-        panel.webview.onDidReceiveMessage(
-          async (message: { action: string; path: string }) => {
-            const modUri = byPath.get(message.path);
+        panel.webview.onDidReceiveMessage(async (message: FromModDiffPage) => {
+          const modUri = byPath.get(message.path);
 
-            if (!modUri) {
-              return;
-            }
+          if (!modUri) {
+            return;
+          }
 
-            if (message.action === 'diff') {
-              await vscode.commands.executeCommand(
-                'vscode.diff',
-                vscode.Uri.from({
-                  scheme: BASE_SCHEME,
-                  path: `/${message.path}`,
-                }),
-                modUri,
-                `${message.path.slice(message.path.lastIndexOf('/') + 1)} (base ↔ mod)`,
-              );
-            } else {
-              await vscode.commands.executeCommand('vscode.open', modUri);
-            }
-          },
-        );
+          if (message.action === 'diff') {
+            await vscode.commands.executeCommand(
+              'vscode.diff',
+              vscode.Uri.from({
+                scheme: BASE_SCHEME,
+                path: `/${message.path}`,
+              }),
+              modUri,
+              `${message.path.slice(message.path.lastIndexOf('/') + 1)} (base ↔ mod)`,
+            );
+          } else {
+            await vscode.commands.executeCommand('vscode.open', modUri);
+          }
+        });
       },
     );
 

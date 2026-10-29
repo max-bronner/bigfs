@@ -8,6 +8,6 @@ export const registerBalanceSheet = (
   { iniDocuments, iniIndex }: Services,
 ): void => {
   context.subscriptions.push(
-    registerBalanceSheetCommand(iniDocuments, iniIndex),
+    registerBalanceSheetCommand(context.extensionUri, iniDocuments, iniIndex),
   );
 };
