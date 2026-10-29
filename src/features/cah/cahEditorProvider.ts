@@ -25,6 +25,21 @@ import type { SageIniIndex } from "../../services/ini/sageIniIndex";
 import { createParseCache } from "../../services/ini/workspaceText";
 import { CAH_SCRIPT } from "./cahViewScript";
 import { webviewPage } from "../../platform/webview/webviewPage";
+import {
+  addSnapshotView,
+  backupSnapshot,
+  createSnapshotDocument,
+  isReadOnlyFile,
+  readSnapshotSource,
+  recordSnapshotEdit,
+  redrawSnapshotViews,
+  revertSnapshot,
+  saveSnapshot,
+} from "../../platform/webview/snapshotEditor";
+import type {
+  SnapshotDocument,
+  SnapshotFormat,
+} from "../../platform/webview/snapshotEditor";
 
 /**
  * The editor for Create-a-Hero files (`MyHero_<id>.cah`), loose or inside a
@@ -65,19 +80,20 @@ export interface CahServices {
   locator: EntryLocator;
 }
 
-class CahDocument implements vscode.CustomDocument {
-  public constructor(
-    public readonly uri: vscode.Uri,
-    public record: CahRecord,
-    public readonly original: ParsedCah,
-    public readonly readOnly: boolean,
-    private readonly onDispose: () => void,
-  ) {}
+/** An open hero file: its record, and the file as it was opened */
+type CahDocument = SnapshotDocument<CahRecord> & { original: ParsedCah };
 
-  public dispose(): void {
-    this.onDispose();
-  }
-}
+const CAH_FORMAT: SnapshotFormat<CahRecord> = {
+  read: (bytes) => parseCah(bytes).record,
+  write: (record) => {
+    const problem = cahRecordProblem(record);
+
+    if (problem) {
+      throw new Error(problem);
+    }
+    return writeCah(record);
+  },
+};
 
 const whole = (text: string | undefined, what: string): number => {
   const value = Number(text);
@@ -144,7 +160,6 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     vscode.CustomDocumentEditEvent<CahDocument>
   >();
   public readonly onDidChangeCustomDocument = this.changes.event;
-  private readonly redraws = new Map<CahDocument, Set<() => Promise<void>>>();
   private readonly parses: ReturnType<typeof createParseCache>;
   private system?: Promise<HeroSystem | undefined>;
 
@@ -164,27 +179,14 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
   ): Promise<CahDocument> {
-    const source = context.backupId ? vscode.Uri.parse(context.backupId) : uri;
-    const original = parseCah(await vscode.workspace.fs.readFile(source));
-    const stat = await vscode.workspace.fs.stat(uri).then(
-      (found) => found,
-      () => undefined,
-    );
-    const readOnly =
-      ((stat?.permissions ?? 0) & vscode.FilePermission.Readonly) !== 0;
-    const document: CahDocument = new CahDocument(
+    const original = parseCah(await readSnapshotSource(uri, context.backupId));
+    const document = createSnapshotDocument(
       uri,
       cloneCahRecord(original.record),
-      original,
-      readOnly,
-      () => this.redraws.delete(document),
+      await isReadOnlyFile(uri),
     );
 
-    return document;
-  }
-
-  private redraw(document: CahDocument): void {
-    this.redraws.get(document)?.forEach((send) => void send());
+    return Object.assign(document, { original });
   }
 
   /** Applies a change to a copy, records the undo step, and redraws */
@@ -193,28 +195,15 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     label: string,
     mutate: (record: CahRecord) => void,
   ): void {
-    if (document.readOnly) {
+    if (document.isReadOnly) {
       throw new Error("This hero file is read-only");
     }
 
-    const before = document.record;
-    const after = cloneCahRecord(before);
+    const after = cloneCahRecord(document.snapshot);
 
     mutate(after);
-    document.record = after;
-    this.changes.fire({
-      document,
-      label,
-      undo: () => {
-        document.record = before;
-        this.redraw(document);
-      },
-      redo: () => {
-        document.record = after;
-        this.redraw(document);
-      },
-    });
-    this.redraw(document);
+    recordSnapshotEdit(this.changes, document, label, after);
+    redrawSnapshotViews(document);
   }
 
   /** The create-a-hero tables, read once from the first INI that holds a `CreateAHeroSystem` */
@@ -265,7 +254,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
 
   private async view(document: CahDocument) {
     const { index, gameLanguage } = this.services;
-    const record = document.record;
+    const record = document.snapshot;
 
     await index.whenReady().catch(() => undefined);
     await gameLanguage.ensure().catch(() => undefined);
@@ -337,7 +326,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     const crc = computeCahCrc(record);
 
     return {
-      readOnly: document.readOnly,
+      readOnly: document.isReadOnly,
       hasSystem: system !== undefined,
       name: record.name,
       id: record.id,
@@ -408,14 +397,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
       await send();
     });
 
-    let sends = this.redraws.get(document);
-
-    if (!sends) {
-      sends = new Set();
-      this.redraws.set(document, sends);
-    }
-    sends.add(send);
-    panel.onDidDispose(() => sends?.delete(send));
+    addSnapshotView(document, panel, send);
   }
 
   private handle(document: CahDocument, message: PageMessage): void {
@@ -428,7 +410,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
       case "setName": {
         const name = value;
 
-        if (name === document.record.name) {
+        if (name === document.snapshot.name) {
           return;
         }
         return this.change(document, "Rename hero", (record) => {
@@ -510,14 +492,14 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
         });
       }
       case "removeBling":
-        if (!document.record.blings[at]) {
+        if (!document.snapshot.blings[at]) {
           throw new Error("The bling list changed; try again");
         }
         return this.change(document, "Remove bling", (record) => {
           record.blings.splice(at, 1);
         });
       case "setBling": {
-        if (!document.record.blings[at]) {
+        if (!document.snapshot.blings[at]) {
           throw new Error("The bling list changed; try again");
         }
 
@@ -542,50 +524,30 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     }
   }
 
-  private bytesOf(document: CahDocument): Uint8Array {
-    const problem = cahRecordProblem(document.record);
-
-    if (problem) {
-      throw new Error(problem);
-    }
-    return writeCah(document.record);
-  }
-
   public async saveCustomDocument(document: CahDocument): Promise<void> {
-    if (document.readOnly) {
+    if (document.isReadOnly) {
       throw new Error(
         "This hero file is read-only (a game install is never written to). Use Save As to keep a copy.",
       );
     }
-    await vscode.workspace.fs.writeFile(document.uri, this.bytesOf(document));
+    await saveSnapshot(document, CAH_FORMAT);
   }
 
-  public async saveCustomDocumentAs(
+  public saveCustomDocumentAs(
     document: CahDocument,
     destination: vscode.Uri,
   ): Promise<void> {
-    await vscode.workspace.fs.writeFile(destination, this.bytesOf(document));
+    return saveSnapshot(document, CAH_FORMAT, destination);
   }
 
-  public async revertCustomDocument(document: CahDocument): Promise<void> {
-    document.record = parseCah(
-      await vscode.workspace.fs.readFile(document.uri),
-    ).record;
-    this.redraw(document);
+  public revertCustomDocument(document: CahDocument): Promise<void> {
+    return revertSnapshot(document, CAH_FORMAT);
   }
 
-  public async backupCustomDocument(
+  public backupCustomDocument(
     document: CahDocument,
     context: vscode.CustomDocumentBackupContext,
   ): Promise<vscode.CustomDocumentBackup> {
-    await vscode.workspace.fs.writeFile(
-      context.destination,
-      this.bytesOf(document),
-    );
-
-    return {
-      id: context.destination.toString(),
-      delete: () => vscode.workspace.fs.delete(context.destination),
-    };
+    return backupSnapshot(document, CAH_FORMAT, context);
   }
 }
