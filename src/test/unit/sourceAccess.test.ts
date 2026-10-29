@@ -18,7 +18,7 @@ suite('source access', () => {
   });
 
   test('a write, delete or rename into the base game is rejected before it reaches an archive', () => {
-    // Writes, deletes and renames all pass through this check in ArchiveModel.apply
+    // Writes, deletes and renames all pass through this check in archivePolicy
     assert.throws(
       () => assertWritableSource(baseSource),
       (error: unknown) =>
