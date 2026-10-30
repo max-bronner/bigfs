@@ -1,20 +1,20 @@
 import type * as vscode from 'vscode';
-import type { EntryLocator } from '../../services/entryLocator';
+import type { EntryLocator } from './entryLocator';
 import {
   findParticleDefinitions,
   readFxList,
   readParticleDef,
   referencedNames,
-} from '../../formats/particles/particleIni';
+} from '../formats/particles/particleIni';
 import type {
   FxListDef,
   IniDefinition,
   ParticleDef,
-} from '../../formats/particles/particleIni';
-import { encodePng } from '../../node/png';
-import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
-import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { readWorkspaceText } from '../../services/ini/workspaceText';
+} from '../formats/particles/particleIni';
+import { encodePng } from '../node/png';
+import { decodeDds, decodeTga } from '../formats/texture/textureTools';
+import type { SageIniIndex } from './ini/sageIniIndex';
+import { readWorkspaceText } from './ini/workspaceText';
 
 /**
  * The definitions and textures an effect needs to play: every particle

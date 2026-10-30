@@ -1,24 +1,20 @@
 import {
-  Diagnostic,
-  DiagnosticSeverity,
   ProgressLocation,
-  Range,
   commands,
   languages,
   window,
   workspace,
 } from 'vscode';
-import type { Disposable, Uri } from 'vscode';
+import type { Diagnostic, Disposable, Uri } from 'vscode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { getFileNodes } from '../../services/archives/virtualNode';
 import { getNodeUri } from '../../services/archives/nodeAddress';
 import { formatCount } from '../../core/messages';
-import { isFragmentPath, parseSageIni } from '../../formats/ini/sageIniParser';
-import { findSageIniProblems } from '../../formats/ini/sageIniProblems';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { decodeIniText } from '../../core/windows1252';
 import type { EntryLocator } from '../../services/entryLocator';
-import { assetNamesToCheck, getAssetDiagnostics } from './sageIniAssetCheck';
+import { assetNamesToCheck } from '../../services/ini/sageIniAssetCheck';
+import { diagnoseIniText } from '../../services/ini/diagnoseIniText';
 import { registerCommand } from '../../platform/commands';
 
 /**
@@ -30,41 +26,6 @@ import { registerCommand } from '../../platform/commands';
 
 /** INI files a validation reads */
 const INI_PATTERN = /\.(ini|inc|bhav)$/i;
-
-/** Builds the diagnostics of one file from its text; assets are checked when their names are given */
-export const diagnoseText = (
-  text: string,
-  path: string,
-  schema: Awaited<ReturnType<SageIniDocuments['getSchema']>>,
-  assetNames?: Set<string>,
-): Diagnostic[] => {
-  const lines = text.split(/\r?\n/);
-  const parsed = parseSageIni(lines, schema, {
-    isFragment: isFragmentPath(path),
-  });
-
-  const assets = assetNames
-    ? getAssetDiagnostics(parsed, assetNames, 'bigFS validation')
-    : [];
-
-  return findSageIniProblems(parsed, schema)
-    .map(({ line, start, end, message, severity }) => {
-      const diagnostic = new Diagnostic(
-        new Range(line, start, line, end ?? lines[line]?.length ?? start),
-        message,
-        severity === 'error'
-          ? DiagnosticSeverity.Error
-          : severity === 'hint'
-            ? DiagnosticSeverity.Information
-            : DiagnosticSeverity.Warning,
-      );
-
-      diagnostic.source = 'bigFS validation';
-
-      return diagnostic;
-    })
-    .concat(assets);
-};
 
 /** Registers `bigfs.validateIni`, which fills its own diagnostic collection */
 export const registerSageIniValidation = (
@@ -112,7 +73,7 @@ export const registerSageIniValidation = (
               fileCount += 1;
               results.push([
                 getNodeUri(node),
-                diagnoseText(
+                diagnoseIniText(
                   decodeIniText(content),
                   node.entryPath,
                   schema,
@@ -136,7 +97,7 @@ export const registerSageIniValidation = (
           fileCount += 1;
           results.push([
             uri,
-            diagnoseText(
+            diagnoseIniText(
               decodeIniText(await workspace.fs.readFile(uri)),
               uri.path,
               schema,

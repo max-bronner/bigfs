@@ -3,7 +3,7 @@ import { modelCandidates } from '../../formats/w3d/w3dModelFinder';
 import { findAnimation, parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
-import { createToolRegistry } from '../../services/toolRegistry';
+import { createToolRegistry } from '../../core/toolRegistry';
 import { chunk, concat, floats, hierarchy, name } from './w3d.test';
 
 const u16 = (...values: number[]) =>

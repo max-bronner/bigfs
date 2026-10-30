@@ -12,7 +12,7 @@ import { encodePng } from '../../node/png';
 import {
   loadMappedTexture,
   readMappedImage,
-} from '../preview/mappedImagePreview';
+} from '../../services/mappedImagePreview';
 import type { GameLanguage } from '../../services/ini/gameLanguage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import type {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../../constants';
-import { createLineReader, resolveSlots } from '../commandSet/commandSetPreview';
+import { createLineReader, resolveSlots } from '../../services/ini/commandSetPreview';
 import { hotkeyClashes } from '../../game/ini-tools/hotkeys';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';

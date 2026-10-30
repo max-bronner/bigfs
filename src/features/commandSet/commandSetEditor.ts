@@ -6,8 +6,8 @@ import {
   commandSetSlots,
   createLineReader,
   resolveSlots,
-} from './commandSetPreview';
-import { createMappedImagePreview } from '../preview/mappedImagePreview';
+} from '../../services/ini/commandSetPreview';
+import { createMappedImagePreview } from '../../services/mappedImagePreview';
 import { hotkeyClashes } from '../../game/ini-tools/hotkeys';
 import {
   commandSetHeader,

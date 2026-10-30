@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ToolBox } from '../../services/toolRegistry';
+import type { ToolBox } from '../../core/toolRegistry';
 import type { EntryLocator } from '../../services/entryLocator';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import type { AptEdit, EditResult } from '../../formats/apt/writer/aptEdit';

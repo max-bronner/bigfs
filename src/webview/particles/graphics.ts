@@ -1,4 +1,4 @@
-import { createModelRenderer } from '../scene/modelRenderer';
+import { createModelRenderer } from '../shared/modelRenderer';
 import type { ParticleDef } from '../../formats/particles/particleIni';
 import type { Particle } from '../../formats/particles/particleSimulation';
 import type { Basis } from './camera';

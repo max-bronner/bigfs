@@ -5,18 +5,19 @@ import type { Services } from '../../services/createServices';
 import { watchSageIniDialect } from '../../services/ini/sageIniDialect';
 import { watchSageIniDiagnostics } from './sageIniDiagnostics';
 import { registerSageIniValidation } from './sageIniValidation';
-import { createCommandSetPreview } from '../commandSet/commandSetPreview';
-import { registerAssetLinks } from '../objects/assetLinks';
-import { registerFileUses } from '../objects/fileUses';
-import { registerUnusedDefinitions } from '../objects/unusedDefinitions';
+import { createCommandSetPreview } from '../../services/ini/commandSetPreview';
+import { registerAssetLinks } from './assetLinks';
+import { registerFileUses } from './fileUses';
+import { registerUnusedDefinitions } from './unusedDefinitions';
 import { watchHotkeyClashes } from './hotkeyDiagnostics';
 import {
   createCallHierarchyProvider,
   createTypeHierarchyProvider,
 } from './sageIniHierarchy';
-import { registerDuplicateDefinition } from '../objects/duplicateDefinition';
-import { createAudioLookup, describeSound } from '../audio/soundPlayer';
-import { createMappedImagePreview } from '../preview/mappedImagePreview';
+import { registerDuplicateDefinition } from './duplicateDefinition';
+import { createAudioLookup } from '../../services/ini/audioLookup';
+import { describeSound } from './soundHover';
+import { createMappedImagePreview } from '../../services/mappedImagePreview';
 import {
   SAGE_INI_CODE_ACTION_KINDS,
   createSageIniCodeActionProvider,

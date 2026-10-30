@@ -1,4 +1,4 @@
-import type { Tool } from '../../services/toolRegistry';
+import type { Tool } from '../../core/toolRegistry';
 
 /**
  * Turns a `.wav` entry into something a webview's audio element can play.

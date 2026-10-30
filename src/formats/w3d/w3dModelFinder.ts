@@ -1,4 +1,4 @@
-import type { ToolBox } from '../../services/toolRegistry';
+import type { ToolBox } from '../../core/toolRegistry';
 import { parseW3dTool } from './w3dTools';
 import type { LoadFile } from './w3dScene';
 

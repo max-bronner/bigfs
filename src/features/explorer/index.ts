@@ -8,22 +8,18 @@ import { onDidChangeSetting, settings } from '../../platform/settings';
 import { BigFileSystemProvider } from './fileSystemProvider';
 import { BigTreeDataProvider, isGameViewShown } from './treeDataProvider';
 import { BigDragAndDropController } from './dragAndDropController';
-import { createNodeCommandRegister } from './commandCenter';
+import { createNodeCommandRegistrar } from '../../services/archives/nodeCommands';
 import { registerFileCommands } from './fileCommands';
 import { registerExtractCommands } from './extractCommands';
 import { registerClipboardCommands } from './clipboardCommands';
-import { registerModCommands } from '../mods/modCommands';
 
 /**
  * Registers the archive explorer: the `bigfs` file system, the tree view with
  * its archive and game views, and the commands on its rows.
- *
- * The mod commands are registered here rather than in `features/mods`
- * because one of them is a row command, which needs this tree view.
  */
 export const registerExplorer = (
   context: ExtensionContext,
-  { archives, gameView }: Services,
+  { archives, gameView, explorerSelection }: Services,
 ): void => {
   // scanned and hasArchives gate the welcome views declared in package.json
   const markScanned = async () => {
@@ -67,14 +63,17 @@ export const registerExplorer = (
   });
 
   context.subscriptions.push(treeView);
+  explorerSelection.attach(treeView);
 
-  const registerNodeCommand = createNodeCommandRegister(context, treeView);
+  const registerNodeCommand = createNodeCommandRegistrar(
+    context,
+    explorerSelection,
+  );
 
   registerFileCommands(registerNodeCommand, archives);
   registerExtractCommands(registerNodeCommand, archives);
   registerClipboardCommands(registerNodeCommand, archives);
   context.subscriptions.push(
-    ...registerModCommands(registerNodeCommand, archives),
     registerCommand('bigfs.refreshArchives', async () => {
       await setContextKey('scanned', false);
 

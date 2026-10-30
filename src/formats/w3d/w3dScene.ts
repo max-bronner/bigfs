@@ -1,4 +1,4 @@
-import type { ToolBox } from "../../services/toolRegistry";
+import type { ToolBox } from "../../core/toolRegistry";
 import { decodeDdsTool, decodeTgaTool } from "../texture/textureTools";
 import type { RgbaImage } from "../texture/textureTools";
 import { parseW3dTool } from "./w3dTools";

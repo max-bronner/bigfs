@@ -1,5 +1,5 @@
 import { findAssetReferences } from './sageIniAssets';
-import { referencedNames } from '../../game/audio/sageAudioValues';
+import { referencedNames } from './sageAudioValues';
 import { declarationOf } from './sageIniNames';
 import { CONSTANT_NAME } from './sageReferenceFields';
 import { isFragmentPath, parseSageIni } from './sageIniParser';

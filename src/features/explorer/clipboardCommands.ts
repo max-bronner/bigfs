@@ -6,7 +6,7 @@ import {
   transferNodes,
 } from './fileActions';
 import { getTopLevelNodes } from '../../services/archives/virtualNode';
-import type { RegisterNodeCommand } from './commandCenter';
+import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 

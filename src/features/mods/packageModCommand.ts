@@ -11,7 +11,7 @@ import {
 import type { Delivery, OverrideReport } from '../../node/modPackage';
 import { packedArchives } from '../../services/archives/packagedOutputs';
 import { decodeWindows1252 } from '../../core/windows1252';
-import { diagnoseText } from '../iniLanguage/sageIniValidation';
+import { diagnoseIniText } from '../../services/ini/diagnoseIniText';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';
 import { registerCommand } from '../../platform/commands';
@@ -58,7 +58,7 @@ const errorsIn = async (
     try {
       const text = decodeWindows1252(await vscode.workspace.fs.readFile(uri));
 
-      for (const diagnostic of diagnoseText(text, relativePath, schema)) {
+      for (const diagnostic of diagnoseIniText(text, relativePath, schema)) {
         if (diagnostic.severity === vscode.DiagnosticSeverity.Error) {
           errors.push({
             path: relativePath,

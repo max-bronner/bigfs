@@ -12,12 +12,12 @@ import {
   AUDIO_NAMESPACES,
   EVA_NAMESPACES,
   audioReferenceKind,
-} from '../../game/audio/sageAudioFields';
+} from '../../formats/ini/sageAudioFields';
 import {
   audioNamesIn,
   isAudioSentinel,
   referencedNames,
-} from '../../game/audio/sageAudioValues';
+} from '../../formats/ini/sageAudioValues';
 
 const schema = createSageIniSchema(
   JSON.parse(

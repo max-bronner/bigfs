@@ -2,9 +2,9 @@ import type { ExtensionContext } from 'vscode';
 import { createServices } from './services/createServices';
 import type { Services } from './services/createServices';
 import { registerPreview } from './features/preview';
-import { registerParticles } from './features/particles';
 import { registerBulkEdit } from './features/bulkEdit';
 import { registerObjects } from './features/objects';
+import { registerParticles } from './features/particles';
 import { registerAudio } from './features/audio';
 import { registerBalanceSheet } from './features/balanceSheet';
 import { registerArmorTable } from './features/armorTable';
@@ -15,6 +15,7 @@ import { registerScripts } from './features/scripts';
 import { registerCah } from './features/cah';
 import { registerApt } from './features/apt';
 import { registerStrings } from './features/strings';
+import { registerTranslations } from './features/translations';
 import { registerWnd } from './features/wnd';
 import { registerTextures } from './features/textures';
 import { registerW3d } from './features/w3d';
@@ -26,13 +27,14 @@ import { registerExplorer } from './features/explorer';
 /**
  * Every feature, in activation order. Providers of one kind for the same
  * language are consulted in registration order, so the INI features that
- * add lenses and code actions come before `registerIniLanguage`.
+ * add lenses and code actions come before `registerIniLanguage`, and the
+ * object preview's lens follows the effective object lens.
  */
 const FEATURES: ((context: ExtensionContext, services: Services) => void)[] = [
   registerPreview,
-  registerParticles,
   registerBulkEdit,
   registerObjects,
+  registerParticles,
   registerAudio,
   registerBalanceSheet,
   registerArmorTable,
@@ -43,6 +45,7 @@ const FEATURES: ((context: ExtensionContext, services: Services) => void)[] = [
   registerCah,
   registerApt,
   registerStrings,
+  registerTranslations,
   registerWnd,
   registerTextures,
   registerW3d,

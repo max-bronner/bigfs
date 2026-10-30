@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import { parseW3d } from "../../formats/w3d/w3dTools";
 import { buildW3dScene, visibleMeshes } from "../../formats/w3d/w3dScene";
-import { createToolRegistry } from "../../services/toolRegistry";
+import { createToolRegistry } from "../../core/toolRegistry";
 
 /** A chunk: type, size with the container bit when it holds chunks, payload */
 export const chunk = (

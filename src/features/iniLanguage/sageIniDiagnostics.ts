@@ -19,7 +19,7 @@ import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { includeExists, resolveIncludeUri } from '../../services/ini/sageIniInclude';
 import type { EntryLocator } from '../../services/entryLocator';
 import { onDidChangeSetting, settings } from '../../platform/settings';
-import { checkedAssetDiagnostics } from './sageIniAssetCheck';
+import { checkedAssetDiagnostics } from '../../services/ini/sageIniAssetCheck';
 
 /**
  * Keeps the Problems panel current for every open SAGE INI document: what

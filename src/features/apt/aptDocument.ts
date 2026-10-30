@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { decodeBlock } from '../../formats/apt/aptBytecode';
 import type { AptInstruction } from '../../formats/apt/aptBytecode';
-import type { ToolBox } from '../../services/toolRegistry';
+import type { ToolBox } from '../../core/toolRegistry';
 import { decodeTgaTool } from '../../formats/texture/textureTools';
 import type { EntryLocator } from '../../services/entryLocator';
 import {

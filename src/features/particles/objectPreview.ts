@@ -7,13 +7,13 @@ import {
   parseW3dAnimations,
 } from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
-import { createToolRegistry } from '../../services/toolRegistry';
-import { EffectLibrary } from '../particles/effectLibrary';
-import { composeEffective } from './effectiveObjectView';
+import { createToolRegistry } from '../../core/toolRegistry';
+import { EffectLibrary } from '../../services/effectLibrary';
+import { composeEffective } from '../../services/ini/effectiveObject';
 import { focusAt, readObjectScene } from '../../game/objects/objectScene';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
-import { particlePageHtml } from '../particles/particlePreview';
+import { particlePageHtml } from './particlePreview';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';

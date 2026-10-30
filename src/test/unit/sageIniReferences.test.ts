@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
-import { referencedNames } from '../../game/audio/sageAudioValues';
+import { referencedNames } from '../../formats/ini/sageAudioValues';
 import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 import {
   collectEntries,

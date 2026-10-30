@@ -18,7 +18,7 @@ import { getNodeUri } from '../../services/archives/nodeAddress';
 import { skippedFromPackage } from '../../node/modPackage';
 import { recordPackedArchive } from '../../services/archives/packagedOutputs';
 import { formatCount } from '../../core/messages';
-import type { RegisterNodeCommand } from '../explorer/commandCenter';
+import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
 import { decodeWindows1252 } from '../../core/windows1252';
 import { registerCommand } from '../../platform/commands';
 

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import type { ToolBox } from '../../services/toolRegistry';
+import { PREVIEW_VIEW_TYPE } from '../../constants';
+import type { ToolBox } from '../../core/toolRegistry';
 import {
   decodeDdsTool,
   decodeTgaTool,
@@ -31,8 +32,6 @@ const basename = (uri: vscode.Uri) =>
  * `workspace.fs`.
  */
 
-/** View type `package.json` registers the editor under */
-export const PREVIEW_VIEW_TYPE = 'bigfs.preview';
 
 /** What the page is sent to draw or play for the file */
 type PreviewMessage = Extract<

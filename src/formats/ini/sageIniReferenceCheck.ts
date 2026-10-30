@@ -1,4 +1,4 @@
-import { isAudioSentinel, referencedNames } from '../../game/audio/sageAudioValues';
+import { isAudioSentinel, referencedNames } from './sageAudioValues';
 import { CONSTANT_NAME } from './sageReferenceFields';
 import type { SageDocument } from './sageIniParser';
 import type { SageIniSchema } from './sageIniSchema';

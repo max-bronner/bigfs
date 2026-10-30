@@ -1,9 +1,10 @@
-import type { ExtensionContext, TreeView } from 'vscode';
+import type { ExtensionContext } from 'vscode';
 import { registerCommand } from '../../platform/commands';
-import { isGameRow, isVirtualNode } from '../../services/archives/explorerRow';
-import { toEntryDirectory } from '../../services/archives/gameViewModel';
-import type { ExplorerNode } from '../../services/archives/explorerRow';
-import type { VirtualNode } from '../../services/archives/virtualNode';
+import { isGameRow, isVirtualNode } from './explorerRow';
+import { toEntryDirectory } from './gameViewModel';
+import type { ExplorerNode } from './explorerRow';
+import type { ExplorerSelection } from './explorerSelection';
+import type { VirtualNode } from './virtualNode';
 
 /**
  * Body of a tree node command, handed the nodes it was invoked on. Never run
@@ -28,9 +29,9 @@ const GAME_FOLDER_COMMANDS = new Set([
  * the nodes a command was invoked on and disposes each command with the
  * extension.
  */
-export const createNodeCommandRegister = (
+export const createNodeCommandRegistrar = (
   context: ExtensionContext,
-  treeView: TreeView<ExplorerNode>,
+  explorerSelection: ExplorerSelection,
 ): RegisterNodeCommand => {
   const getTargets = (
     id: string,
@@ -41,7 +42,7 @@ export const createNodeCommandRegister = (
       ? selection
       : target
         ? [target]
-        : [...treeView.selection];
+        : [...explorerSelection.rows];
 
     // A source or a folder on disk holds no entries, so a command that acts
     // on archive content has nothing to do with it. A game view file stands

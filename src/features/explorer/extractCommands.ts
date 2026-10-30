@@ -18,7 +18,7 @@ import {
   isArchiveRoot,
 } from '../../services/archives/virtualNode';
 import { getNodeUri } from '../../services/archives/nodeAddress';
-import type { RegisterNodeCommand } from './commandCenter';
+import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 

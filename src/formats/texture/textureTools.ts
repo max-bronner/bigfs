@@ -1,4 +1,4 @@
-import type { Tool } from '../../services/toolRegistry';
+import type { Tool } from '../../core/toolRegistry';
 import { decompressEar, isEarWrapped } from '../refpack/refpack';
 
 /**

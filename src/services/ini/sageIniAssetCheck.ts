@@ -5,7 +5,7 @@ import {
   commands,
   window,
 } from 'vscode';
-import type { EntryLocator } from '../../services/entryLocator';
+import type { EntryLocator } from '../entryLocator';
 import { settings } from '../../platform/settings';
 import { decideAssetCheck } from '../../game/ini-tools/assetCheckPolicy';
 import { closestNames } from '../../formats/ini/sageIniFormat';
