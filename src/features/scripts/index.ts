@@ -7,5 +7,5 @@ export const registerScripts = (
   context: ExtensionContext,
   _services: Services,
 ): void => {
-  context.subscriptions.push(ScriptFileEditorProvider.register());
+  context.subscriptions.push(ScriptFileEditorProvider.register(context.extensionUri));
 };

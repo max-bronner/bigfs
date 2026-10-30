@@ -1,0 +1,10 @@
+/** The height of a text editor in lines: the text's own, at least two. */
+export const editorRows = (value: string): number =>
+  Math.max(2, value.split('\n').length);
+
+/**
+ * Whether the edited text differs from the original. A text field reports
+ * every line break as LF, which is not an edit of CRLF text.
+ */
+export const isEdited = (original: string, edited: string): boolean =>
+  edited !== original.replace(/\r\n?/g, '\n');

@@ -7,5 +7,5 @@ export const registerMap = (
   context: ExtensionContext,
   { iniIndex }: Services,
 ): void => {
-  context.subscriptions.push(MapEditorProvider.register(iniIndex));
+  context.subscriptions.push(MapEditorProvider.register(iniIndex, context.extensionUri));
 };

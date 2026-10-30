@@ -28,7 +28,7 @@ bundle names. Every wave passes the gate, adds no import cycle
 | **W9** | Split `archiveModel`. |
 | **W10** | Split `aptEditorProvider`. |
 | **W11** | Split `movieText`, `movieTextEdits` and `aptWriter`. |
-| **W12** | The page scripts still inlined as strings (`*Script.ts`) become bundled TypeScript pages under `webview/`, each an entry in `PAGES`. |
+| **W12** | The page scripts still inlined as strings (`*Script.ts`) become bundled TypeScript pages under `webview/`, each an entry in `PAGES`. 12a did the map, CAH, string table and script pages. |
 | **W13** | Comments, TSDoc and naming pass across the moved code (`naming` skill, `rename-backlog.md`); the layer rules go from `warn` to `error`. |
 
 ## Baseline at W1

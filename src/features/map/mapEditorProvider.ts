@@ -3,8 +3,13 @@ import { Dict, MapFile, parseMap, writeMap } from '../../formats/map/mapFile';
 import { MapEdit, applyMapEdit } from '../../formats/map/mapEdit';
 import { markSounds } from '../../formats/map/mapScriptSounds';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { MAP_VIEW_SCRIPT } from './mapViewScript';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import { pageBundle, pageBundleFolder } from '../../platform/webview/pageBundle';
+import type {
+  DictEntryView,
+  FromMapPage,
+  MapMessage,
+} from '../../webview/map/protocol';
 import {
   SnapshotDocument,
   SnapshotFormat,
@@ -40,8 +45,12 @@ const MAP_FORMAT: SnapshotFormat<MapFile> = {
   write: writeMap,
 };
 
-export const renderHtml = (): string => {
+export const renderHtml = (
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+): string => {
   return webviewPage({
+    ...pageBundle(extensionUri, webview, 'map'),
     style: `
   body { margin: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); display: grid; grid-template-columns: 300px 1fr 300px; height: 100vh; }
   #info, #side { overflow: auto; padding: 0 10px; }
@@ -105,11 +114,10 @@ export const renderHtml = (): string => {
 </section>
 <div id="notice" hidden></div>
 <datalist id="templates"></datalist><datalist id="owners"></datalist><datalist id="propertyKeys"></datalist>`,
-    script: MAP_VIEW_SCRIPT,
   });
 };
 
-const entriesOf = (dict: Dict | undefined) =>
+const entriesOf = (dict: Dict | undefined): DictEntryView[] =>
   (dict?.entries ?? []).map(({ key, value }) => ({ key, value }));
 
 /** What the page draws; the heights only when asked, as they never change */
@@ -118,7 +126,7 @@ const toMessage = (
   withHeights: boolean,
   readOnly: boolean,
   templates: string[] | undefined,
-) => ({
+): MapMessage => ({
   kind: 'map',
   readOnly,
   templates,
@@ -170,11 +178,17 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
   >();
   public readonly onDidChangeCustomDocument = this.changes.event;
 
-  public constructor(private readonly index: SageIniIndex) {}
+  public constructor(
+    private readonly index: SageIniIndex,
+    private readonly extensionUri: vscode.Uri,
+  ) {}
 
   /** One provider under two view types: the default for files under a `maps` folder, and an option for any `.map` */
-  public static register(index: SageIniIndex): vscode.Disposable {
-    const provider = new MapEditorProvider(index);
+  public static register(
+    index: SageIniIndex,
+    extensionUri: vscode.Uri,
+  ): vscode.Disposable {
+    const provider = new MapEditorProvider(index, extensionUri);
     const options = { supportsMultipleEditorsPerDocument: true };
 
     return vscode.Disposable.from(
@@ -232,8 +246,11 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     document: MapDocument,
     panel: vscode.WebviewPanel,
   ): void {
-    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
-    panel.webview.html = renderHtml();
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [pageBundleFolder(this.extensionUri)],
+    };
+    panel.webview.html = renderHtml(panel.webview, this.extensionUri);
 
     let heightsSent = false;
     const send = () => {
@@ -248,12 +265,12 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
       heightsSent = true;
     };
 
-    panel.webview.onDidReceiveMessage((message) => {
+    panel.webview.onDidReceiveMessage((message: FromMapPage) => {
       try {
         if (message?.kind === 'ready') {
           heightsSent = false;
         } else if (message?.kind === 'edit') {
-          this.edit(document, message.edit as MapEdit);
+          this.edit(document, message.edit);
         } else if (message?.kind === 'playSound') {
           // Only a click on a play button gets here; one name, one play
           if (typeof message.name === 'string' && message.name) {

@@ -10,8 +10,13 @@ import {
   parseStringRecords,
   quoteStringText,
 } from '../../formats/str/sageStringRecords';
-import { STRING_TABLE_SCRIPT } from './stringTableViewScript';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import { pageBundle, pageBundleFolder } from '../../platform/webview/pageBundle';
+import type {
+  FromStringsPage,
+  StringRow,
+  StringsToPage,
+} from '../../webview/strings/protocol';
 import {
   SnapshotDocument,
   SnapshotFormat,
@@ -36,35 +41,20 @@ import { describeError } from '../../core/errors';
 export const STR_TABLE_VIEW_TYPE = 'bigfs.strTable';
 export const CSF_VIEW_TYPE = 'bigfs.csfEditor';
 
-/** One row of the table */
-interface Row {
-  id: number;
-  label: string;
-  text: string;
-  hasText?: boolean;
-  speech?: string;
-  /** Strings under the label after the first */
-  extra?: number;
-  problems?: string[];
-}
-
 /** What the page sends */
 interface PageMessage {
-  kind:
-    | 'ready'
-    | 'setText'
-    | 'setLabel'
-    | 'setSpeech'
-    | 'add'
-    | 'remove'
-    | 'reveal';
+  kind: FromStringsPage['kind'];
   id?: number;
   label?: string;
   value?: string;
 }
 
-export const renderHtml = (): string => {
+export const renderHtml = (
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+): string => {
   return webviewPage({
+    ...pageBundle(extensionUri, webview, 'strings'),
     style: `
   body { margin: 0; padding: 8px 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
@@ -90,34 +80,43 @@ export const renderHtml = (): string => {
 <table><thead><tr><th class="label">Label</th><th>Text <span class="muted">(double-click to edit; Ctrl+Enter saves)</span></th><th class="speech" id="speechHead">Speech</th><th class="actions"></th></tr></thead><tbody id="rows"></tbody></table>
 <p><button id="more" hidden>Show more</button></p>
 <div id="notice" hidden></div>`,
-    script: STRING_TABLE_SCRIPT,
   });
 };
 
 /** Wires a page to a source of rows and a handler for its messages */
 const connect = (
   panel: vscode.WebviewPanel,
+  extensionUri: vscode.Uri,
   table: () => {
-    rows: Row[];
+    rows: StringRow[];
     hasSpeech: boolean;
     canReveal: boolean;
     summary: string;
   },
   handle: (message: PageMessage) => Promise<void> | void,
 ): (() => Thenable<boolean>) => {
-  panel.webview.options = { enableScripts: true, localResourceRoots: [] };
-  panel.webview.html = renderHtml();
+  panel.webview.options = {
+    enableScripts: true,
+    localResourceRoots: [pageBundleFolder(extensionUri)],
+  };
+  panel.webview.html = renderHtml(panel.webview, extensionUri);
 
-  const send = () => panel.webview.postMessage({ kind: 'table', ...table() });
+  const send = () => {
+    const message: StringsToPage = { kind: 'table', ...table() };
+
+    return panel.webview.postMessage(message);
+  };
 
   panel.webview.onDidReceiveMessage(async (message: PageMessage) => {
     try {
       await handle(message);
     } catch (error) {
-      await panel.webview.postMessage({
+      const notice: StringsToPage = {
         kind: 'notice',
         message: describeError(error),
-      });
+      };
+
+      await panel.webview.postMessage(notice);
     }
 
     await send();
@@ -147,6 +146,8 @@ const checkEncodable = (name: string) => {
 
 /** The `.str` table: a view over the text document */
 export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
+  public constructor(private readonly extensionUri: vscode.Uri) {}
+
   public resolveCustomTextEditor(
     document: vscode.TextDocument,
     panel: vscode.WebviewPanel,
@@ -180,6 +181,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
 
     const send = connect(
       panel,
+      this.extensionUri,
       () => {
         const all = records();
         const seen = new Map<string, number>();
@@ -318,6 +320,8 @@ const cloneCsf = (file: CsfFile): CsfFile => ({
 
 /** The `.csf` editor: the binary file as a table, saved whole */
 export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocument> {
+  public constructor(private readonly extensionUri: vscode.Uri) {}
+
   private readonly changes = new vscode.EventEmitter<
     vscode.CustomDocumentEditEvent<CsfDocument>
   >();
@@ -363,6 +367,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     };
     const send = connect(
       panel,
+      this.extensionUri,
       () => {
         const seen = new Set<string>();
 

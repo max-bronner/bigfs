@@ -19,6 +19,7 @@ export const registerCah = (
       index: iniIndex,
       gameLanguage,
       locator,
+      extensionUri: context.extensionUri,
     }),
   );
 };
