@@ -1,8 +1,12 @@
 import * as vscode from 'vscode';
 import { MapFile, parseMap } from '../../formats/map/mapFile';
 import { markSounds } from '../../formats/map/mapScriptSounds';
-import { SCRIPT_FILE_VIEW_SCRIPT } from './scriptTreeScript';
 import { webviewPage } from '../../platform/webview/webviewPage';
+import { pageBundle, pageBundleFolder } from '../../platform/webview/pageBundle';
+import type {
+  FromScriptsPage,
+  ScriptsMessage,
+} from '../../webview/scripts/protocol';
 
 /**
  * Viewer for standalone `.scb` script files: the same player, group and
@@ -22,8 +26,12 @@ class ScriptDocument implements vscode.CustomDocument {
   public dispose(): void {}
 }
 
-export const renderScriptFileHtml = (): string =>
+export const renderScriptFileHtml = (
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+): string =>
   webviewPage({
+    ...pageBundle(extensionUri, webview, 'scripts'),
     style: `
   body { margin: 0; padding: 0 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   h2 { font-size: 1.2em; margin: 10px 0 6px; }
@@ -35,14 +43,15 @@ export const renderScriptFileHtml = (): string =>
   .script label { display: flex; gap: 4px; align-items: center; }
 `,
     body: '<div id="root"></div>',
-    script: SCRIPT_FILE_VIEW_SCRIPT,
   });
 
 export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProvider<ScriptDocument> {
-  public static register(): vscode.Disposable {
+  public constructor(private readonly extensionUri: vscode.Uri) {}
+
+  public static register(extensionUri: vscode.Uri): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       SCRIPT_FILE_VIEW_TYPE,
-      new ScriptFileEditorProvider(),
+      new ScriptFileEditorProvider(extensionUri),
       { supportsMultipleEditorsPerDocument: true },
     );
   }
@@ -58,16 +67,21 @@ export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProv
     document: ScriptDocument,
     panel: vscode.WebviewPanel,
   ): void {
-    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
-    panel.webview.html = renderScriptFileHtml();
-    panel.webview.onDidReceiveMessage((message) => {
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [pageBundleFolder(this.extensionUri)],
+    };
+    panel.webview.html = renderScriptFileHtml(panel.webview, this.extensionUri);
+    panel.webview.onDidReceiveMessage((message: FromScriptsPage) => {
       if (message?.kind === 'ready') {
-        void panel.webview.postMessage({
+        const scripts: ScriptsMessage = {
           kind: 'scripts',
           name: document.uri.path.split('/').pop(),
           scripts: document.map.scripts.map(markSounds),
           problems: document.map.problems,
-        });
+        };
+
+        void panel.webview.postMessage(scripts);
       } else if (
         message?.kind === 'playSound' &&
         typeof message.name === 'string' &&

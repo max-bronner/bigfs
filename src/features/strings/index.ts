@@ -27,11 +27,11 @@ export const registerStrings = (
   context.subscriptions.push(
     window.registerCustomEditorProvider(
       STR_TABLE_VIEW_TYPE,
-      new StrTableEditorProvider(),
+      new StrTableEditorProvider(context.extensionUri),
     ),
     window.registerCustomEditorProvider(
       CSF_VIEW_TYPE,
-      new CsfEditorProvider(),
+      new CsfEditorProvider(context.extensionUri),
       { supportsMultipleEditorsPerDocument: true },
     ),
     registerCommand('bigfs.openStringTable', (uri?: Uri) => {

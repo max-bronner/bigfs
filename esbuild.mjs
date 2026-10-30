@@ -62,6 +62,14 @@ const PAGES = [
   { name: 'video', entry: 'src/webview/video/main.ts' },
   // The mod report's page
   { name: 'modDiff', entry: 'src/webview/mods/main.ts' },
+  // The map editor's page
+  { name: 'map', entry: 'src/webview/map/main.ts' },
+  // The Create-a-Hero editor's page
+  { name: 'cah', entry: 'src/webview/cah/main.ts' },
+  // The string table editor's page
+  { name: 'strings', entry: 'src/webview/strings/main.ts' },
+  // The map script viewer's page
+  { name: 'scripts', entry: 'src/webview/scripts/main.ts' },
 ];
 
 /** Options every bundle shares */

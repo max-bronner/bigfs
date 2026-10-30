@@ -23,8 +23,16 @@ import { isFragmentPath, parseSageIni } from "../../formats/ini/sageIniParser";
 import type { SageIniDocuments } from "../../services/ini/sageIniDocuments";
 import type { SageIniIndex } from "../../services/ini/sageIniIndex";
 import { createParseCache } from "../../services/ini/workspaceText";
-import { CAH_SCRIPT } from "./cahViewScript";
 import { webviewPage } from "../../platform/webview/webviewPage";
+import {
+  pageBundle,
+  pageBundleFolder,
+} from "../../platform/webview/pageBundle";
+import type {
+  CahNotice,
+  FromCahPage,
+  HeroView,
+} from "../../webview/cah/protocol";
 import {
   addSnapshotView,
   backupSnapshot,
@@ -56,18 +64,7 @@ const MAX_U32 = 0xffffffff;
 
 /** What the page sends */
 interface PageMessage {
-  kind:
-    | "ready"
-    | "setName"
-    | "setId"
-    | "setClass"
-    | "setSubclass"
-    | "setColor"
-    | "setPower"
-    | "clearPower"
-    | "addBling"
-    | "removeBling"
-    | "setBling";
+  kind: FromCahPage["kind"];
   index?: number;
   field?: string;
   value?: string;
@@ -79,6 +76,7 @@ export interface CahServices {
   index: SageIniIndex;
   gameLanguage: GameLanguage;
   locator: EntryLocator;
+  extensionUri: vscode.Uri;
 }
 
 /** An open hero file: its record, and the file as it was opened */
@@ -124,8 +122,9 @@ const toPacked = (previous: number, hex: string): number => {
   return (((previous >>> 24) << 24) | Number.parseInt(hex.slice(1), 16)) >>> 0;
 };
 
-const renderHtml = (): string =>
+const renderHtml = (webview: vscode.Webview, extensionUri: vscode.Uri): string =>
   webviewPage({
+    ...pageBundle(extensionUri, webview, "cah"),
     style: `
   body { margin: 0; padding: 8px 14px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   h2 { margin: 16px 0 6px; font-size: 1.1em; }
@@ -152,7 +151,6 @@ const renderHtml = (): string =>
 <p><button id="addBling">Add bling</button></p>
 <h2>File</h2><div class="grid" id="file"></div>
 <div id="notice" hidden></div>`,
-    script: CAH_SCRIPT,
   });
 
 /** The hero file editor: the binary file as a form, saved whole */
@@ -253,7 +251,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     return parsed && blockAtLine(parsed, definition.line)?.fields;
   }
 
-  private async view(document: CahDocument) {
+  private async view(document: CahDocument): Promise<Omit<HeroView, "kind">> {
     const { index, gameLanguage } = this.services;
     const record = document.snapshot;
 
@@ -276,7 +274,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     const groupOrder = (upgrade: string) => orders.get(upgrade.toLowerCase());
     const chosenClass = system?.classes[record.classIndex];
     const chosenSubclass = chosenClass?.subclasses[record.subclassIndex];
-    const blings = [];
+    const blings: HeroView["blings"] = [];
 
     for (const [at, bling] of record.blings.entries()) {
       const binder = system?.binders.find(
@@ -302,7 +300,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
       });
     }
 
-    const powers = [];
+    const powers: HeroView["powers"] = [];
 
     for (const [slot, power] of record.powers.entries()) {
       const fields = power.button
@@ -376,24 +374,33 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     document: CahDocument,
     panel: vscode.WebviewPanel,
   ): void {
-    panel.webview.options = { enableScripts: true, localResourceRoots: [] };
-    panel.webview.html = renderHtml();
+    const { extensionUri } = this.services;
+
+    panel.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [pageBundleFolder(extensionUri)],
+    };
+    panel.webview.html = renderHtml(panel.webview, extensionUri);
 
     const send = async () => {
-      await panel.webview.postMessage({
+      const hero: HeroView = {
         kind: "hero",
         ...(await this.view(document)),
-      });
+      };
+
+      await panel.webview.postMessage(hero);
     };
 
     panel.webview.onDidReceiveMessage(async (message: PageMessage) => {
       try {
         this.handle(document, message);
       } catch (error) {
-        await panel.webview.postMessage({
+        const notice: CahNotice = {
           kind: "notice",
           message: describeError(error),
-        });
+        };
+
+        await panel.webview.postMessage(notice);
       }
       await send();
     });
