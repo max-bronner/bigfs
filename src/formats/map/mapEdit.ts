@@ -86,7 +86,7 @@ const OUTSIDE_ANY_CHUNK = { start: -1, end: -1 };
 
 const NO_BYTES = new Uint8Array(0);
 
-const join = (...parts: Uint8Array[]): Uint8Array => {
+const concatBytes = (...parts: Uint8Array[]): Uint8Array => {
   const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
   let at = 0;
 
@@ -113,14 +113,14 @@ const f32s = (...values: number[]): Uint8Array =>
   new Uint8Array(new Float32Array(values).buffer);
 
 /** Encodes a string as the map stores it: a `u16` length and the Windows-1252 bytes */
-const mapString = (text: string): Uint8Array => {
+const encodeMapString = (text: string): Uint8Array => {
   const bytes = encodeWindows1252(text);
 
   if (bytes.length > 0xffff) {
     throw new Error('A map string holds up to 65,535 characters');
   }
 
-  return join(u16(bytes.length), bytes);
+  return concatBytes(u16(bytes.length), bytes);
 };
 
 const requireFinite = (label: string, ...values: number[]): void => {
@@ -129,7 +129,7 @@ const requireFinite = (label: string, ...values: number[]): void => {
   }
 };
 
-const templateName = (text: string): string => {
+const checkTemplateName = (text: string): string => {
   const template = text.trim();
 
   if (!template || /[^\x20-\x7e]/.test(template)) {
@@ -139,7 +139,7 @@ const templateName = (text: string): string => {
   return template;
 };
 
-const nameIndex = (map: MapFile, name: string): number | undefined => {
+const findNameIndex = (map: MapFile, name: string): number | undefined => {
   for (const [index, existing] of map.names) {
     if (existing === name) {
       return index;
@@ -154,7 +154,7 @@ const internName = (
   map: MapFile,
   name: string,
 ): { map: MapFile; index: number } => {
-  const existing = nameIndex(map, name);
+  const existing = findNameIndex(map, name);
 
   if (existing !== undefined) {
     return { map, index: existing };
@@ -175,12 +175,12 @@ const internName = (
     map.body.byteOffset,
     map.body.byteLength,
   ).getUint32(4, true);
-  const entry = join(
+  const entry = concatBytes(
     Uint8Array.of(name.length),
     Uint8Array.from(name, (char) => char.charCodeAt(0)),
     u32(index),
   );
-  const body = join(
+  const body = concatBytes(
     map.body.subarray(0, 4),
     u32(count + 1),
     map.body.subarray(8, map.namesEnd),
@@ -212,12 +212,12 @@ const appendChunk = (
     named,
     at,
     at,
-    join(u32(index), u16(version), u32(payload.length), payload),
+    concatBytes(u32(index), u16(version), u32(payload.length), payload),
     parent ?? OUTSIDE_ANY_CHUNK,
   );
 };
 
-const ownerDict = (map: MapFile, owner: DictOwner): Dict | undefined =>
+const findOwnerDict = (map: MapFile, owner: DictOwner): Dict | undefined =>
   owner === 'world'
     ? map.worldInfo
     : 'side' in owner
@@ -247,14 +247,14 @@ const checkValue = (key: string, value: DictValue): void => {
 };
 
 /** Builds an `Object` chunk's payload; the dictionary's names must already be interned */
-const objectPayload = (
+const buildObjectPayload = (
   edit: Extract<MapEdit, { kind: 'objectAdd' }>,
   keyIndexes: number[],
 ): Uint8Array =>
-  join(
+  concatBytes(
     f32s(edit.x, edit.y, edit.z ?? 0, edit.angle ?? 0),
     u32(0),
-    mapString(templateName(edit.template)),
+    encodeMapString(checkTemplateName(edit.template)),
     writeDict(
       (edit.properties ?? []).map(({ key, value }, at) => ({
         key,
@@ -282,7 +282,7 @@ const addObject = (
     keyIndexes.push(interned.index);
   }
 
-  const payload = objectPayload(edit, keyIndexes);
+  const payload = buildObjectPayload(edit, keyIndexes);
 
   if (!findChunk(next.chunks, 'ObjectsList')) {
     next = appendChunk(next, undefined, 'ObjectsList', 3, NO_BYTES);
@@ -291,7 +291,7 @@ const addObject = (
   return appendChunk(next, 'ObjectsList', 'Object', 3, payload);
 };
 
-const waypointIdOf = (properties: Dict): number | undefined => {
+const readWaypointId = (properties: Dict): number | undefined => {
   const entry = properties.entries.find(
     (candidate) => candidate.key === WAYPOINT_ID_KEY,
   );
@@ -299,17 +299,17 @@ const waypointIdOf = (properties: Dict): number | undefined => {
   return entry?.value.type === 'int' ? entry.value.value : undefined;
 };
 
-const linksPayload = (links: MapWaypointLink[]): Uint8Array =>
-  join(
+const buildLinksPayload = (links: MapWaypointLink[]): Uint8Array =>
+  concatBytes(
     u32(links.length),
-    ...links.map(({ from, to }) => join(u32(from), u32(to))),
+    ...links.map(({ from, to }) => concatBytes(u32(from), u32(to))),
   );
 
 const setLinks = (map: MapFile, links: MapWaypointLink[]): MapFile => {
   const chunk = map.waypointLinksChunk;
 
   if (chunk) {
-    return spliceMap(map, chunk.start, chunk.end, linksPayload(links));
+    return spliceMap(map, chunk.start, chunk.end, buildLinksPayload(links));
   }
 
   if (findChunk(map.chunks, 'WaypointsList')) {
@@ -317,7 +317,7 @@ const setLinks = (map: MapFile, links: MapWaypointLink[]): MapFile => {
   }
 
   return links.length
-    ? appendChunk(map, undefined, 'WaypointsList', 1, linksPayload(links))
+    ? appendChunk(map, undefined, 'WaypointsList', 1, buildLinksPayload(links))
     : map;
 };
 
@@ -328,13 +328,13 @@ const deleteObject = (map: MapFile, index: number): MapFile => {
     throw new Error('There is no such object');
   }
 
-  const id = waypointIdOf(object.properties);
+  const id = readWaypointId(object.properties);
   const next = spliceMap(map, object.chunk.header, object.chunk.end, NO_BYTES);
 
   // A link to a waypoint nobody holds the id of is dead weight the game skips
   if (
     id !== undefined &&
-    !next.objects.some((other) => waypointIdOf(other.properties) === id) &&
+    !next.objects.some((other) => readWaypointId(other.properties) === id) &&
     next.waypointLinks.some((link) => link.from === id || link.to === id)
   ) {
     return setLinks(
@@ -367,7 +367,7 @@ const setLink = (
     throw new Error('A waypoint cannot link to itself');
   }
 
-  const ids = new Set(map.objects.map((o) => waypointIdOf(o.properties)));
+  const ids = new Set(map.objects.map((o) => readWaypointId(o.properties)));
 
   if (!ids.has(edit.from) || !ids.has(edit.to)) {
     throw new Error('A link joins two waypoints that are in the map');
@@ -379,12 +379,12 @@ const setLink = (
 };
 
 const writeAreas = (areas: MapTriggerArea[]): Uint8Array =>
-  join(
+  concatBytes(
     u32(areas.length),
     ...areas.map((area) =>
-      join(
-        mapString(area.name),
-        mapString(area.layerName),
+      concatBytes(
+        encodeMapString(area.name),
+        encodeMapString(area.layerName),
         u32(area.id),
         u32(area.points.length),
         ...area.points.map(([x, y]) => f32s(x, y)),
@@ -473,7 +473,7 @@ const setProperty = (
   map: MapFile,
   edit: Extract<MapEdit, { kind: 'property' }>,
 ): MapFile => {
-  const dict = ownerDict(map, edit.owner);
+  const dict = findOwnerDict(map, edit.owner);
 
   if (!dict) {
     throw new Error('There is no such dictionary');
@@ -514,7 +514,7 @@ const setProperty = (
   }
 
   const { map: named, index } = internName(map, edit.key);
-  const target = ownerDict(named, edit.owner);
+  const target = findOwnerDict(named, edit.owner);
 
   if (!target) {
     throw new Error('There is no such dictionary');
@@ -579,7 +579,7 @@ const moveObject = (
     moved,
     target.templateSpan[0],
     target.templateSpan[1],
-    mapString(templateName(edit.template)),
+    encodeMapString(checkTemplateName(edit.template)),
   );
 };
 
@@ -648,7 +648,7 @@ export const applyMapEdit = (map: MapFile, edit: MapEdit): MapFile => {
       return spliceMap(map, at, at + 12, f32s(...edit.value));
     }
     case 'dict': {
-      const dict = ownerDict(map, edit.owner);
+      const dict = findOwnerDict(map, edit.owner);
 
       if (!dict) {
         throw new Error('There is no such dictionary');

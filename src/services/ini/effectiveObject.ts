@@ -17,7 +17,7 @@ const INHERITING = ['childobject', 'objectreskin'];
 const MAX_DEPTH = 8;
 
 /** Reads a template's header line into its keyword, own name and, for an inheriting template, parent name */
-export const headerOf = (line: string) => {
+export const parseTemplateHeader = (line: string) => {
   const [keyword, name, parent] = tokenize(stripComment(line));
 
   return {
@@ -34,7 +34,7 @@ export const headerOf = (line: string) => {
  * inherits from, as the game builds it. Notes say where a parent was
  * missing or the chain stopped.
  */
-export const composeEffective = async (
+export const composeEffectiveObject = async (
   documents: SageIniDocuments,
   index: SageIniIndex,
   source: vscode.Uri,
@@ -54,7 +54,7 @@ export const composeEffective = async (
       return undefined;
     }
 
-    const header = headerOf(lines[at]);
+    const header = parseTemplateHeader(lines[at]);
 
     return {
       name: header.name,

@@ -1,4 +1,4 @@
-import { isAudioSentinel, referencedNames } from './sageAudioValues';
+import { isAudioSentinel, findReferencedNames } from './sageAudioValues';
 import { CONSTANT_NAME } from './sageReferenceFields';
 import type { SageDocument } from './sageIniParser';
 import type { SageIniSchema } from './sageIniSchema';
@@ -63,7 +63,7 @@ export const findUnresolvedReferences = (
   const unresolved: UnresolvedReference[] = [];
 
   for (const statement of parsed.statements) {
-    for (const reference of referencedNames(statement, schema)) {
+    for (const reference of findReferencedNames(statement, schema)) {
       // A sound's namespaces are one group, since which kind holds a name is
       // not something the field says; any other field is checked per
       // namespace, as each one is only trusted once enough is indexed

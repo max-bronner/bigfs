@@ -47,7 +47,7 @@ export const detectInstallKind = (fileNames: Iterable<string>): InstallKind => {
  * folder no marker file names. Layers of one rank keep the order they come
  * in, which for workspace folders is their order in the workspace.
  */
-export const layerRank = ({ kind, base }: LayerTraits): number => {
+export const getLayerRank = ({ kind, base }: LayerTraits): number => {
   if (kind === 'rotwk') {
     return 1;
   }
@@ -63,7 +63,7 @@ export const orderLayers = <T extends LayerTraits>(layers: readonly T[]): T[] =>
     .map((layer, position) => ({ layer, position }))
     .sort(
       (a, b) =>
-        layerRank(a.layer) - layerRank(b.layer) || a.position - b.position,
+        getLayerRank(a.layer) - getLayerRank(b.layer) || a.position - b.position,
     )
     .map(({ layer }) => layer);
 

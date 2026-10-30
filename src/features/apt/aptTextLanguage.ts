@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { textBlocks } from '../../formats/apt/text/lineTree';
+import { findTextBlocks } from '../../formats/apt/text/lineTree';
 import { parseMovieText } from '../../formats/apt/text/parser';
 import type { CharacterText, FrameText } from '../../formats/apt/text/textModel';
 
@@ -20,7 +20,7 @@ const lineRange = (document: vscode.TextDocument, start = 0, end = start) =>
     document.lineAt(Math.min(end, document.lineCount - 1)).text.length,
   );
 
-const frameSymbol = (
+const toFrameSymbol = (
   document: vscode.TextDocument,
   frame: FrameText,
 ): vscode.DocumentSymbol => {
@@ -38,7 +38,7 @@ const frameSymbol = (
   );
 };
 
-const characterSymbol = (
+const toCharacterSymbol = (
   document: vscode.TextDocument,
   character: CharacterText,
 ): vscode.DocumentSymbol => {
@@ -58,14 +58,14 @@ const characterSymbol = (
 
   if (character.type === 'sprite' || character.type === 'movie') {
     symbol.children = character.frames.map((frame) =>
-      frameSymbol(document, frame),
+      toFrameSymbol(document, frame),
     );
   }
   return symbol;
 };
 
 /** Finds the character id under the cursor and the line that declares it */
-const idAt = (document: vscode.TextDocument, position: vscode.Position) => {
+const findIdAt = (document: vscode.TextDocument, position: vscode.Position) => {
   const parsed = parseMovieText(document.getText());
   const site = parsed.ids.find(
     (each) =>
@@ -120,20 +120,20 @@ export const registerAptTextLanguage = (): vscode.Disposable =>
           ),
           ...movie.characters
             .filter((character) => character.line !== undefined)
-            .map((character) => characterSymbol(document, character)),
+            .map((character) => toCharacterSymbol(document, character)),
         ];
       },
     }),
     vscode.languages.registerFoldingRangeProvider(SELECTOR, {
       provideFoldingRanges(document) {
-        return textBlocks(document.getText()).map(
+        return findTextBlocks(document.getText()).map(
           (block) => new vscode.FoldingRange(block.start, block.end),
         );
       },
     }),
     vscode.languages.registerDefinitionProvider(SELECTOR, {
       provideDefinition(document, position) {
-        const found = idAt(document, position);
+        const found = findIdAt(document, position);
 
         if (!found?.declaration) {
           return undefined;
@@ -164,7 +164,7 @@ export const registerAptTextLanguage = (): vscode.Disposable =>
     }),
     vscode.languages.registerHoverProvider(SELECTOR, {
       provideHover(document, position) {
-        const found = idAt(document, position);
+        const found = findIdAt(document, position);
 
         if (!found) {
           return undefined;

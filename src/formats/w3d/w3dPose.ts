@@ -216,7 +216,7 @@ export const skin = (
 };
 
 /** Builds line segments from every bone to its parent, three floats a point */
-export const boneLines = (skeleton: SceneSkeleton, pose: Pose): number[] =>
+export const buildBoneLines = (skeleton: SceneSkeleton, pose: Pose): number[] =>
   pose.world.flatMap((bone, index) => {
     const parent = pose.world[skeleton.parents[index]];
 

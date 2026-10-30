@@ -6,7 +6,7 @@ import type { AptMovie, Frame } from './aptMovie';
  * character is removed only when this is empty: its id is a slot others
  * point at, and removing it under them would break them silently.
  */
-export const referencesTo = (
+export const findReferencesTo = (
   movie: AptMovie,
   spriteFrames: Record<number, Frame[]>,
   shapes: Record<number, RuRun[]>,

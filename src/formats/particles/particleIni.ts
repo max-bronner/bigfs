@@ -289,7 +289,7 @@ export const parseIniNumber = (text: string): number => {
 const RANGE_ZERO: Range = { low: 0, high: 0 };
 const RANGE_ONE: Range = { low: 1, high: 1 };
 
-const rangeOf = (values: SageToken[]): Range | undefined => {
+const readRange = (values: SageToken[]): Range | undefined => {
   const numbers = values.map((value) => parseIniNumber(value.text));
 
   if (numbers.length === 1 && !isNaN(numbers[0])) {
@@ -399,7 +399,7 @@ const flatVolume = (fields: Map<string, SageToken[]>): Volume => {
 
 const flatVelocity = (fields: Map<string, SageToken[]>): Velocity => {
   const range = (key: string) =>
-    rangeOf(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
+    readRange(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
 
   switch ((fields.get('velocitytype')?.[0]?.text ?? 'ORTHO').toUpperCase()) {
     case 'SPHERICAL':
@@ -467,7 +467,7 @@ const moduleVelocity = (
   fields: Map<string, SageToken[]>,
 ): Velocity => {
   const range = (key: string) =>
-    rangeOf(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
+    readRange(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
 
   switch (type.toLowerCase()) {
     case 'sphericalemissionvelocity':
@@ -517,7 +517,7 @@ const readWind = (fields: Map<string, SageToken[]>): Wind => {
 };
 
 /** Creates the field map of one module, last write winning, keyed lowercased */
-const fieldMap = (lines: IniLine[]) =>
+const createFieldMap = (lines: IniLine[]) =>
   new Map(
     lines.map((entry) => [entry.keyword.text.toLowerCase(), entry.values]),
   );
@@ -526,7 +526,7 @@ const fieldMap = (lines: IniLine[]) =>
 const applyCommonFields = (def: ParticleDef, lines: IniLine[]): void => {
   for (const { keyword, values } of lines) {
     const key = keyword.text.toLowerCase();
-    const range = rangeOf(values);
+    const range = readRange(values);
     const keySlot = /^(color|alpha)([1-8])$/.exec(key);
 
     if (keySlot) {
@@ -625,7 +625,7 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
   applyCommonFields(def, definition.lines);
 
   if (flat) {
-    const fields = fieldMap(definition.lines);
+    const fields = createFieldMap(definition.lines);
 
     def.volume = flatVolume(fields);
     def.velocity = flatVelocity(fields);
@@ -655,22 +655,22 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
   const event = modules.get('event');
 
   if (emitter) {
-    const fields = fieldMap(emitter.lines);
+    const fields = createFieldMap(emitter.lines);
 
     def.volume = flatVolume(fields);
     def.velocity = flatVelocity(fields);
   }
   if (volume) {
-    def.volume = moduleVolume(volume.type, fieldMap(volume.lines));
+    def.volume = moduleVolume(volume.type, createFieldMap(volume.lines));
   }
   if (velocity) {
-    def.velocity = moduleVelocity(velocity.type, fieldMap(velocity.lines));
+    def.velocity = moduleVelocity(velocity.type, createFieldMap(velocity.lines));
   }
   def.hasAlphaBlock = modules.has('alpha');
   if (draw) {
     def.drawModule = draw.type;
 
-    const fields = fieldMap(draw.lines);
+    const fields = createFieldMap(draw.lines);
     const totalFrames = numberOf(fields.get('totalframes') ?? [], 0);
     const framesPerRow = numberOf(fields.get('framesperrow') ?? [], 0);
 
@@ -683,10 +683,10 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
     }
   }
   if (wind) {
-    def.wind = readWind(fieldMap(wind.lines));
+    def.wind = readWind(createFieldMap(wind.lines));
   }
   if (event && /terraincollision/i.test(event.type)) {
-    const fields = fieldMap(event.lines);
+    const fields = createFieldMap(event.lines);
 
     def.event = {
       fx: fields.get('eventfx')?.[0]?.text,
@@ -704,7 +704,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
       return [];
     }
 
-    const fields = fieldMap(
+    const fields = createFieldMap(
       definition.lines.filter((line) => line.moduleIndex === index),
     );
     const system = fields.get('name')?.[0]?.text;
@@ -718,9 +718,9 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
         module: index,
         count: Math.max(1, Math.round(numberOf(fields.get('count') ?? [], 1))),
         offset: coordOf(fields.get('offset') ?? []),
-        radius: rangeOf(fields.get('radius') ?? []) ?? { ...RANGE_ZERO },
-        height: rangeOf(fields.get('height') ?? []) ?? { ...RANGE_ZERO },
-        initialDelay: rangeOf(fields.get('initialdelay') ?? []) ?? {
+        radius: readRange(fields.get('radius') ?? []) ?? { ...RANGE_ZERO },
+        height: readRange(fields.get('height') ?? []) ?? { ...RANGE_ZERO },
+        initialDelay: readRange(fields.get('initialdelay') ?? []) ?? {
           ...RANGE_ZERO,
         },
       },
@@ -732,7 +732,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
       return [];
     }
 
-    const fields = fieldMap(
+    const fields = createFieldMap(
       definition.lines.filter((line) => line.moduleIndex === index),
     );
     const name = fields.get('name')?.[0]?.text;
@@ -742,7 +742,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
           {
             name,
             module: index,
-            initialDelay: rangeOf(fields.get('initialdelay') ?? []) ?? {
+            initialDelay: readRange(fields.get('initialdelay') ?? []) ?? {
               ...RANGE_ZERO,
             },
           },
@@ -755,7 +755,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
       return [];
     }
 
-    const fields = fieldMap(
+    const fields = createFieldMap(
       definition.lines.filter((line) => line.moduleIndex === index),
     );
 
@@ -764,7 +764,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
         module.slot,
         index,
         fields,
-        rangeOf(fields.get('initialdelay') ?? []) ?? { ...RANGE_ZERO },
+        readRange(fields.get('initialdelay') ?? []) ?? { ...RANGE_ZERO },
         parseIniNumber,
       ),
     ];
@@ -774,7 +774,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
 };
 
 /** Lists the particle systems and FX lists a definition starts in turn */
-export const referencedNames = (
+export const findStartedNames = (
   def: ParticleDef | FxListDef,
 ): { systems: string[]; fxLists: string[] } =>
   'nuggets' in def
@@ -824,7 +824,7 @@ const partNames = (keyword: string, count: number): string[] => {
 };
 
 /** Lists every numeric value of a definition, in order, for sliders */
-export const numericFields = (definition: IniDefinition): NumericField[] =>
+export const findNumericFields = (definition: IniDefinition): NumericField[] =>
   definition.lines.flatMap((line) => {
     const parts = partNames(line.keyword.text, line.values.length);
 
@@ -881,11 +881,11 @@ export interface ValueEdit {
  * Computes the text edits that write `values` (by field id) over a definition's
  * tokens, keeping each token's `X:` style prefix
  */
-export const valueEdits = (
+export const computeValueEdits = (
   definition: IniDefinition,
   values: ReadonlyMap<string, number>,
 ): ValueEdit[] =>
-  numericFields(definition).flatMap((field) => {
+  findNumericFields(definition).flatMap((field) => {
     const value = values.get(field.id);
 
     if (value === undefined || value === field.value) {

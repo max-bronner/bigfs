@@ -26,7 +26,7 @@ export interface Painter {
 }
 
 /** Formats an RGBA colour as a CSS `rgba()`, its alpha multiplied by `scale` */
-export const css = (c: Rgba, scale = 1) =>
+export const toCssRgba = (c: Rgba, scale = 1) =>
   `rgba(${c[0]},${c[1]},${c[2]},${(c[3] / 255) * scale})`;
 
 const drawImage = (
@@ -83,24 +83,24 @@ export const drawPart = (
   }
 
   if (part.color && part.color[3] > 0) {
-    context.fillStyle = css(part.color);
+    context.fillStyle = toCssRgba(part.color);
     context.fillRect(left, top, width, height);
   }
 
   if (part.border && part.border[3] > 0) {
-    context.strokeStyle = css(part.border);
+    context.strokeStyle = toCssRgba(part.border);
     context.lineWidth = 1;
     context.strokeRect(left + 0.5, top + 0.5, width - 1, height - 1);
   }
 };
 
-const extentOf = (
+const getExtent = (
   { images }: Painter,
   part: WndPart | undefined,
   fallback: [number, number],
 ) => (part?.image && images[part.image] ? images[part.image].extent : fallback);
 
-const roleFinder = (parts: WndPart[]) => (role: string) =>
+const createRoleFinder = (parts: WndPart[]) => (role: string) =>
   parts.find((part) => part.role === role);
 
 /** Draws a slider as mint's `slider.rs` does: a row of segments, filled to halfway, and the thumb */
@@ -111,7 +111,7 @@ export const drawSlider = (
   vertical: boolean,
 ) => {
   const [left, top, right, bottom] = rect;
-  const find = roleFinder(parts);
+  const find = createRoleFinder(parts);
   const filled = find('bar-filled');
   const empty = find('bar-empty');
   const outline = find('outline');
@@ -144,7 +144,7 @@ export const drawSlider = (
     return;
   }
 
-  const extent = extentOf(painter, filled, extentOf(painter, empty, [6, 24]));
+  const extent = getExtent(painter, filled, getExtent(painter, empty, [6, 24]));
   const segment = extent[0] > 0 ? extent[0] : 6;
   const width = right - left;
   const filledTo = left + fraction * width;
@@ -200,7 +200,7 @@ export const drawList = (
   rect: Rect,
 ) => {
   const [left, top, right, bottom] = rect;
-  const find = roleFinder(parts);
+  const find = createRoleFinder(parts);
   const [bw, bh] = SCROLL_BUTTON;
   const bar = parts.some((part) =>
     [

@@ -14,7 +14,7 @@ export const create = <Tag extends keyof HTMLElementTagNameMap>(
 };
 
 /** Creates an input that posts, on change, the message `message` builds from its value */
-export const field = (
+export const createField = (
   value: string | number | undefined,
   readOnly: boolean,
   message: (value: string) => FromCahPage,
@@ -32,7 +32,7 @@ export const field = (
 };
 
 /** Creates a drop-down of the INI's choices; a value outside them stays selectable as "not in the INI" */
-export const choice = (
+export const createChoiceSelect = (
   options: ChoiceView[],
   value: number,
   readOnly: boolean,
@@ -63,7 +63,7 @@ export const choice = (
 };
 
 /** Creates the two grid cells of a form row: a label and the node it names */
-export const row = (label: string, node: Node): Node[] => [
+export const createFormRow = (label: string, node: Node): Node[] => [
   element('div', label, 'muted'),
   node,
 ];

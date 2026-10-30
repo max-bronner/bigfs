@@ -6,7 +6,7 @@ import { layoutText } from '../../webview/apt/paint';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
 import { resolve } from '../../webview/apt/resolve';
-import { collect, textureOf } from '../../webview/apt/scene';
+import { collect, getImageTexture } from '../../webview/apt/scene';
 import { state } from '../../webview/apt/state';
 import { colorFromApt, concatColor } from '../../webview/apt/timeline';
 
@@ -83,8 +83,8 @@ suite('APT scene', () => {
     state.textures.set('art/panel.tga', pixels);
 
     assert.strictEqual(shown.imageTextures[1], undefined);
-    assert.strictEqual(textureOf(shown, 1), pixels);
-    assert.strictEqual(textureOf(shown, 9), undefined, 'an unknown id');
+    assert.strictEqual(getImageTexture(shown, 1), pixels);
+    assert.strictEqual(getImageTexture(shown, 9), undefined, 'an unknown id');
   });
 
   test('colour transforms nest as mint concatenates them, not as alpha alone', () => {

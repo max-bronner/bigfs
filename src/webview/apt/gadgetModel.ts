@@ -1,6 +1,6 @@
 import { BINDINGS, classifySurface } from '../../formats/apt/aptGadgets';
 import type { Binding, GadgetInfo } from '../../formats/apt/aptGadgets';
-import { pathKey } from './avm/engine';
+import { toPathKey } from './avm/engine';
 import type { Engine } from './avm/engine';
 import { parseTyped } from './avm/engine';
 import type { Value } from './avm/value';
@@ -26,7 +26,7 @@ const text = (value: Value): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
 /** Gets the instance names down from the root, or nothing if one on the way has none */
-export const namePath = (instance: Instance, root: Instance): string | undefined => {
+export const getNamePath = (instance: Instance, root: Instance): string | undefined => {
   const names: string[] = [];
 
   for (let at: Instance | undefined = instance; at && at !== root; at = at.parent) {
@@ -65,7 +65,7 @@ export const findGadgets = (player: Player): Gadget[] => {
     });
 
     if (info) {
-      found.push({ ...info, instance, path: namePath(instance, player.root) });
+      found.push({ ...info, instance, path: getNamePath(instance, player.root) });
     }
   }
   return found;
@@ -82,7 +82,7 @@ export const readBinding = (
 ): Value => {
   const override =
     gadget.path !== undefined
-      ? engine.overrides.get(pathKey(`${gadget.path}.${binding.name}`))
+      ? engine.overrides.get(toPathKey(`${gadget.path}.${binding.name}`))
       : undefined;
 
   if (override !== undefined) {
@@ -119,7 +119,7 @@ export const writeBinding = (
 };
 
 /** Lists the bound variables of a gadget with what each reads as, for the panel */
-export const bindingsOf = (
+export const listBindings = (
   player: Player,
   engine: Engine,
   gadget: Gadget,
@@ -132,5 +132,5 @@ export const bindingsOf = (
     ),
     overridden:
       gadget.path !== undefined &&
-      engine.overrides.has(pathKey(`${gadget.path}.${binding.name}`)),
+      engine.overrides.has(toPathKey(`${gadget.path}.${binding.name}`)),
   }));

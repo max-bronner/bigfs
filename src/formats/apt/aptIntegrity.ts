@@ -36,10 +36,10 @@ export interface MovieAccess {
   list(relative: string): Promise<string[] | undefined>;
 }
 
-const latin1 = (bytes: Uint8Array) => String.fromCharCode(...bytes);
+const decodeLatin1 = (bytes: Uint8Array) => String.fromCharCode(...bytes);
 
 /** Reads a TGA's size from its header, or undefined when it is not one */
-export const tgaSize = (
+export const readTgaSize = (
   bytes: Uint8Array,
 ): { width: number; height: number } | undefined =>
   bytes.length >= 18 && [1, 2, 3, 9, 10, 11].includes(bytes[2])
@@ -97,7 +97,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
     }
   } else {
     try {
-      dat = parseDat(latin1(datBytes));
+      dat = parseDat(decodeLatin1(datBytes));
     } catch (error) {
       report(
         'error',
@@ -175,7 +175,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
           break;
         }
         try {
-          for (const run of parseRu(latin1(bytes))) {
+          for (const run of parseRu(decodeLatin1(bytes))) {
             if (
               run.style.kind === 'texture' &&
               !isKind(run.style.character, 'image')
@@ -220,7 +220,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
 
         const file = getTexturePath(name, character.texture, location);
         const bytes = await access.read(file);
-        const size = bytes && tgaSize(bytes);
+        const size = bytes && readTgaSize(bytes);
 
         usedTextures.add(file.toLowerCase());
         if (!bytes) {

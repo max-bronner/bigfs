@@ -4,7 +4,7 @@ import { send } from '../details';
 import { getVsCodeApi } from '../../shared/vscodeApi';
 import { state } from '../state';
 import { blockCard } from './blockCard';
-import { action, field } from './controls';
+import { action, createField } from './controls';
 import { scriptField } from './scriptField';
 
 const vscode = getVsCodeApi<FromPage>();
@@ -70,7 +70,7 @@ export const scriptBlock = (site: ScriptSite): HTMLElement => {
       placeholder.dataset.scriptBlock = String(site.block);
       placeholder.textContent = '…';
       return [
-        ...(site.when ? [field(site.whenLabel ?? 'When', site.when())] : []),
+        ...(site.when ? [createField(site.whenLabel ?? 'When', site.when())] : []),
         placeholder,
       ];
     },

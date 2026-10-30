@@ -2,7 +2,7 @@ import { encodeTga } from '../texture/textureEncode';
 import {
   getTexturePath,
   parseDat,
-  runBounds,
+  getRunBounds,
   writeDat,
   writeRu,
 } from './aptGeometry';
@@ -40,7 +40,7 @@ export const setShapeGeometry = (
     throw new Error(`#${shape} is not a shape`);
   }
 
-  const bounds = runBounds(runs);
+  const bounds = getRunBounds(runs);
 
   if (bounds) {
     applyAptEdit(image, movieOffset, {

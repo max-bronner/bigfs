@@ -278,5 +278,5 @@ export const PARTICLE_TEMPLATES: readonly ParticleTemplate[] = [
 ];
 
 /** Creates a template's snippet text: the name is the first tab stop, the texture the second */
-export const templateSnippet = (template: ParticleTemplate, name: string) =>
+export const createTemplateSnippet = (template: ParticleTemplate, name: string) =>
   `FXParticleSystem \${1:${name}}\n${template.body}\nEnd\n`;

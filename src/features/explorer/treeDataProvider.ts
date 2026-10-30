@@ -14,12 +14,12 @@ import { getNodePath, getNodeUri } from '../../services/archives/nodeAddress';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import {
-  isFolderNode,
+  isFolderRow,
   isGameRow,
-  isSourceNode,
+  isSourceRow,
   isVirtualNode,
 } from '../../services/archives/explorerRow';
-import type { ExplorerNode, FolderNode, GameRow } from '../../services/archives/explorerRow';
+import type { ExplorerRow, FolderRow, GameRow } from '../../services/archives/explorerRow';
 import { GameViewModel } from '../../services/archives/gameViewModel';
 import { getGameFiles } from '../../game/install/gameView';
 
@@ -30,7 +30,7 @@ const nameCollator = new Intl.Collator(undefined, {
 });
 
 /** Compares two rows the way the explorer orders them: directories first, then by name */
-const compareRows = (a: ExplorerNode, b: ExplorerNode): number => {
+const compareRows = (a: ExplorerRow, b: ExplorerRow): number => {
   const aIsBranch = isBranch(a);
   const bIsBranch = isBranch(b);
 
@@ -38,18 +38,18 @@ const compareRows = (a: ExplorerNode, b: ExplorerNode): number => {
     return aIsBranch ? -1 : 1;
   }
 
-  return nameCollator.compare(rowName(a), rowName(b));
+  return nameCollator.compare(getRowName(a), getRowName(b));
 };
 
 /** Whether a row holds rows below it */
-const isBranch = (element: ExplorerNode): boolean =>
+const isBranch = (element: ExplorerRow): boolean =>
   isGameRow(element)
     ? Boolean(element.node.children)
     : !isVirtualNode(element) || element.type === FileType.Directory;
 
 /** Gets the text a row is ordered by: a source's label, everything else's name */
-const rowName = (element: ExplorerNode): string =>
-  isSourceNode(element)
+const getRowName = (element: ExplorerRow): string =>
+  isSourceRow(element)
     ? element.source.label
     : isGameRow(element)
       ? element.node.name
@@ -106,7 +106,7 @@ const createGameItem = (
   return item;
 };
 
-const sortRows = (rows: ExplorerNode[]): ExplorerNode[] =>
+const sortRows = (rows: ExplorerRow[]): ExplorerRow[] =>
   rows.sort(compareRows);
 
 /**
@@ -160,15 +160,15 @@ export class BigTreeItem extends TreeItem {
  * folders on disk that hold archives, and the tree inside each archive, and an
  * archive is read only when a row of it is expanded
  */
-export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
-  private _onDidChangeTreeData: EventEmitter<ExplorerNode | undefined | void> =
-    new EventEmitter<ExplorerNode | undefined | void>();
+export class BigTreeDataProvider implements TreeDataProvider<ExplorerRow> {
+  private _onDidChangeTreeData: EventEmitter<ExplorerRow | undefined | void> =
+    new EventEmitter<ExplorerRow | undefined | void>();
 
   /**
    * Fires with one archive root to redraw that archive, or with nothing to
    * redraw the whole view
    */
-  readonly onDidChangeTreeData: Event<ExplorerNode | undefined | void> =
+  readonly onDidChangeTreeData: Event<ExplorerRow | undefined | void> =
     this._onDidChangeTreeData.event;
 
   constructor(
@@ -205,8 +205,8 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
   }
 
   /** Builds the tree item for a source, a folder on disk, a game view row or a node */
-  getTreeItem(element: ExplorerNode): TreeItem {
-    if (isSourceNode(element)) {
+  getTreeItem(element: ExplorerRow): TreeItem {
+    if (isSourceRow(element)) {
       const item = new TreeItem(
         element.source.label,
         TreeItemCollapsibleState.Expanded,
@@ -220,7 +220,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
       return item;
     }
 
-    if (isFolderNode(element)) {
+    if (isFolderRow(element)) {
       const item = new TreeItem(
         element.name,
         TreeItemCollapsibleState.Collapsed,
@@ -250,7 +250,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
   }
 
   /** Lists the rows below a row, reading an archive the first time it is expanded */
-  async getChildren(element?: ExplorerNode): Promise<ExplorerNode[]> {
+  async getChildren(element?: ExplorerRow): Promise<ExplorerRow[]> {
     if (!element && isGameViewShown()) {
       return this.listGameRows(await this.gameView.getRoot());
     }
@@ -262,7 +262,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
 
       // One source needs no row of its own, it would only add a level
       return sources.length === 1
-        ? this.listIn(sources[0].id, '')
+        ? this.listFolderRows(sources[0].id, '')
         : sortRows(sources.map((source) => ({ kind: 'source', source })));
     }
 
@@ -270,12 +270,12 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
       return this.listGameRows(element.node);
     }
 
-    if (isSourceNode(element)) {
-      return this.listIn(element.source.id, '');
+    if (isSourceRow(element)) {
+      return this.listFolderRows(element.source.id, '');
     }
 
-    if (isFolderNode(element)) {
-      return this.listIn(element.sourceId, element.path);
+    if (isFolderRow(element)) {
+      return this.listFolderRows(element.sourceId, element.path);
     }
 
     if (element.type !== FileType.Directory) {
@@ -291,7 +291,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
   }
 
   /** Lists the rows below a game view directory */
-  private listGameRows(node: GameRow['node']): ExplorerNode[] {
+  private listGameRows(node: GameRow['node']): ExplorerRow[] {
     return sortRows(
       Array.from(node.children?.values() ?? [], (child) => ({
         kind: 'game' as const,
@@ -305,10 +305,10 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
    * folders that hold archives further down. A folder with no archive anywhere
    * below it never appears
    */
-  private listIn(sourceId: string, directoryPath: string): ExplorerNode[] {
+  private listFolderRows(sourceId: string, directoryPath: string): ExplorerRow[] {
     const prefix = directoryPath ? `${directoryPath}/` : '';
-    const folders = new Map<string, FolderNode>();
-    const rows: ExplorerNode[] = [];
+    const folders = new Map<string, FolderRow>();
+    const rows: ExplorerRow[] = [];
 
     for (const archive of this.archiveModel.getArchivesOf(sourceId)) {
       if (!archive.pathInSource.startsWith(prefix)) {

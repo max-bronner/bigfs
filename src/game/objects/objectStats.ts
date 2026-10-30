@@ -126,7 +126,7 @@ const evaluateToken = (
  * call shows the number it stands for, and what is written stays on
  * `written` so an edit can replace it.
  */
-const valueOf = (
+const readStatValue = (
   statement: SageStatement,
   index = 0,
   parsed?: SageDocument,
@@ -156,7 +156,7 @@ const valueOf = (
 };
 
 /** Lists the blocks from `root` down to the innermost one holding a line */
-const chainAt = (root: SageBlock, line: number): SageBlock[] => {
+const findBlockChain = (root: SageBlock, line: number): SageBlock[] => {
   const chain = [root];
   let current = root;
 
@@ -174,7 +174,7 @@ const chainAt = (root: SageBlock, line: number): SageBlock[] => {
 };
 
 /** Lists the field statements inside a block, with the block chain holding each */
-const fieldsIn = (parsed: SageDocument, root: SageBlock) =>
+const listFieldsIn = (parsed: SageDocument, root: SageBlock) =>
   parsed.statements
     .filter(
       (statement) =>
@@ -184,7 +184,7 @@ const fieldsIn = (parsed: SageDocument, root: SageBlock) =>
     )
     .map((statement) => ({
       statement,
-      chain: chainAt(root, statement.line).slice(1),
+      chain: findBlockChain(root, statement.line).slice(1),
     }));
 
 /** Reads the stats an `Object`, `ChildObject` or `ObjectReskin` block writes; inherited ones are left to the caller */
@@ -210,7 +210,7 @@ export const readObjectStats = (
     }
   };
 
-  for (const { statement, chain } of fieldsIn(parsed, block)) {
+  for (const { statement, chain } of listFieldsIn(parsed, block)) {
     const key = statement.keyword.text.toLowerCase();
     const holder = chain[0]?.keyword.toLowerCase();
 
@@ -218,7 +218,7 @@ export const readObjectStats = (
       if (OBJECT_FIELDS[key]) {
         set(
           OBJECT_FIELDS[key],
-          valueOf(
+          readStatValue(
             statement,
             0,
             key === 'side' ? undefined : parsed,
@@ -231,17 +231,17 @@ export const readObjectStats = (
         );
       }
     } else if (holder === 'body' && key === 'maxhealth') {
-      set('health', valueOf(statement, 0, parsed, evaluation));
+      set('health', readStatValue(statement, 0, parsed, evaluation));
     } else if (holder === 'armorset' && key === 'armor') {
-      set('armor', valueOf(statement));
+      set('armor', readStatValue(statement));
     } else if (holder === 'locomotorset' && key === 'speed') {
-      set('speed', valueOf(statement, 0, parsed, evaluation));
+      set('speed', readStatValue(statement, 0, parsed, evaluation));
     } else if (
       holder === 'weaponset' &&
       key === 'weapon' &&
       statement.values[0]?.text.toUpperCase() === 'PRIMARY'
     ) {
-      set('weapon', valueOf(statement, 1));
+      set('weapon', readStatValue(statement, 1));
     }
   }
   return stats;
@@ -256,18 +256,18 @@ export const readWeaponStats = (
   const stats: WeaponStats = {};
   const nuggets: StatValue[] = [];
 
-  for (const { statement, chain } of fieldsIn(parsed, block)) {
+  for (const { statement, chain } of listFieldsIn(parsed, block)) {
     const key = statement.keyword.text.toLowerCase();
 
     if (!chain.length && key === 'attackrange') {
-      stats.range ??= valueOf(statement, 0, parsed, evaluation);
+      stats.range ??= readStatValue(statement, 0, parsed, evaluation);
     } else if (!chain.length && key === 'delaybetweenshots') {
-      stats.delay ??= valueOf(statement, 0, parsed, evaluation);
+      stats.delay ??= readStatValue(statement, 0, parsed, evaluation);
     } else if (
       chain[0]?.keyword.toLowerCase() === 'damagenugget' &&
       key === 'damage'
     ) {
-      const damage = valueOf(statement, 0, parsed, evaluation);
+      const damage = readStatValue(statement, 0, parsed, evaluation);
 
       if (damage) {
         nuggets.push(damage);

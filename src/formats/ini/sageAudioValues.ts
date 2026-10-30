@@ -1,15 +1,15 @@
 import {
   AUDIO_NAMESPACES,
   EVA_NAMESPACES,
-  audioReferenceKind,
-  lastContextSegment,
-  namespacesOfKind,
+  getAudioReferenceKind,
+  getLastContextSegment,
+  getKindNamespaces,
 } from './sageAudioFields';
 import type { AudioReferenceKind } from './sageAudioFields';
 import type { SageStatement, SageToken } from './sageIniParser';
 import type { SageIniSchema } from './sageIniSchema';
-import { parentOf } from './sageIniNames';
-import { nameOffsetIn } from './sageReferenceFields';
+import { getParent } from './sageIniNames';
+import { findNameOffset } from './sageReferenceFields';
 
 /**
  * The sound and announcer names written inside the values of an audio field,
@@ -146,11 +146,11 @@ const keyedSoundsIn = (values: readonly SageToken[]): AudioName[] =>
 
 /**
  * Finds every sound or announcer name a statement's values write. `kind` is what
- * `audioReferenceKind` answered for the statement's field; `contextName` is
+ * `getAudioReferenceKind` answered for the statement's field; `contextName` is
  * the schema's name for its context, for the one field whose layout depends
  * on the block.
  */
-export const audioNamesIn = (
+export const findAudioNames = (
   statement: Pick<SageStatement, 'keyword' | 'values'>,
   kind: AudioReferenceKind,
   contextName = '',
@@ -169,14 +169,14 @@ export const audioNamesIn = (
   // `Sound = <PHASE> <event>`: the first token is the death phase
   if (
     field === 'sound' &&
-    lastContextSegment(contextName) === 'shipslowdeathbehavior'
+    getLastContextSegment(contextName) === 'shipslowdeathbehavior'
   ) {
     return values
       .slice(1, 2)
       .flatMap((token) => nameIn(token, AUDIO_NAMESPACES));
   }
 
-  return values.flatMap((token) => nameIn(token, namespacesOfKind(kind)));
+  return values.flatMap((token) => nameIn(token, getKindNamespaces(kind)));
 };
 
 /** A name a statement's value refers to, and where it is written */
@@ -191,12 +191,12 @@ export interface ReferencedName extends AudioName {
  * header inherits from, or each value of any other reference field that names
  * something. Empty for a field that references nothing.
  */
-export const referencedNames = (
+export const findReferencedNames = (
   statement: SageStatement,
   schema: SageIniSchema,
 ): ReferencedName[] => {
   const { keyword, context, values } = statement;
-  const parent = parentOf(statement);
+  const parent = getParent(statement);
 
   if (statement.block) {
     return parent
@@ -213,10 +213,10 @@ export const referencedNames = (
   }
 
   const contextName = schema.describeContext(context);
-  const kind = audioReferenceKind(contextName, keyword.text);
+  const kind = getAudioReferenceKind(contextName, keyword.text);
 
   if (kind) {
-    return audioNamesIn(statement, kind, contextName).map((name) => ({
+    return findAudioNames(statement, kind, contextName).map((name) => ({
       ...name,
       isAudio: true,
     }));
@@ -229,7 +229,7 @@ export const referencedNames = (
       index,
     );
 
-    const offset = nameOffsetIn(keyword.text, values, index);
+    const offset = findNameOffset(keyword.text, values, index);
 
     return namespaces.length && offset !== undefined
       ? [

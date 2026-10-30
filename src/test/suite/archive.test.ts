@@ -15,7 +15,7 @@ import type { VirtualNode } from '../../services/archives/virtualNode';
 import { isVirtualNode } from '../../services/archives/explorerRow';
 
 /** Names of a node's child rows, in the order the tree lists them */
-const childNames = async (
+const readChildNames = async (
   provider: BigTreeDataProvider,
   node: VirtualNode,
 ): Promise<string[]> => {
@@ -62,7 +62,7 @@ const buildArchive = (files: { name: string; content: string }[]): Buffer => {
  * source first, so the tests address entries the way the extension does rather
  * than assuming the workspace is the only place archives come from.
  */
-const nodeUri = (nodePath: string): vscode.Uri => {
+const toNodeUri = (nodePath: string): vscode.Uri => {
   const source = vscode.workspace.workspaceFolders![0].name.toLowerCase();
 
   return vscode.Uri.from({ scheme: 'bigfs', path: `/${source}${nodePath}` });
@@ -70,14 +70,14 @@ const nodeUri = (nodePath: string): vscode.Uri => {
 
 /** Reads an entry as text, through the file system provider */
 const readText = async (nodePath: string): Promise<string> => {
-  const content = await vscode.workspace.fs.readFile(nodeUri(nodePath));
+  const content = await vscode.workspace.fs.readFile(toNodeUri(nodePath));
 
   return Buffer.from(content).toString('utf-8');
 };
 
 /** Sorted names of a directory's rows, so a test never depends on read order */
 const readNames = async (nodePath: string): Promise<string[]> => {
-  const entries = await vscode.workspace.fs.readDirectory(nodeUri(nodePath));
+  const entries = await vscode.workspace.fs.readDirectory(toNodeUri(nodePath));
 
   return entries.map(([name]) => name).sort();
 };
@@ -128,7 +128,7 @@ suite('BIG archive file system', () => {
     ]);
 
     // The watcher picks the new archive up asynchronously
-    await waitFor(() => vscode.workspace.fs.stat(nodeUri(`/${ARCHIVE_NAME}`)));
+    await waitFor(() => vscode.workspace.fs.stat(toNodeUri(`/${ARCHIVE_NAME}`)));
   });
 
   suiteTeardown(async () => {
@@ -137,7 +137,7 @@ suite('BIG archive file system', () => {
 
   test('lists the archive content', async () => {
     const entries = await vscode.workspace.fs.readDirectory(
-      nodeUri(`/${ARCHIVE_NAME}`),
+      toNodeUri(`/${ARCHIVE_NAME}`),
     );
 
     assert.deepStrictEqual(
@@ -165,8 +165,8 @@ suite('BIG archive file system', () => {
 
   test('renames an entry to a different casing', async () => {
     await vscode.workspace.fs.rename(
-      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
-      nodeUri(`/${ARCHIVE_NAME}/README.TXT`),
+      toNodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+      toNodeUri(`/${ARCHIVE_NAME}/README.TXT`),
     );
 
     assert.ok((await readNames(`/${ARCHIVE_NAME}`)).includes('README.TXT'));
@@ -176,14 +176,14 @@ suite('BIG archive file system', () => {
     );
 
     await vscode.workspace.fs.rename(
-      nodeUri(`/${ARCHIVE_NAME}/README.TXT`),
-      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+      toNodeUri(`/${ARCHIVE_NAME}/README.TXT`),
+      toNodeUri(`/${ARCHIVE_NAME}/readme.txt`),
     );
   });
 
   test('writes a new file and keeps the existing entries', async () => {
     await vscode.workspace.fs.writeFile(
-      nodeUri(`/${ARCHIVE_NAME}/Data/new.txt`),
+      toNodeUri(`/${ARCHIVE_NAME}/Data/new.txt`),
       Buffer.from('created', 'utf-8'),
     );
 
@@ -199,11 +199,11 @@ suite('BIG archive file system', () => {
 
   test('keeps a directory that has nothing stored below it', async () => {
     await vscode.workspace.fs.createDirectory(
-      nodeUri(`/${ARCHIVE_NAME}/Data/Empty`),
+      toNodeUri(`/${ARCHIVE_NAME}/Data/Empty`),
     );
 
     const { type } = await vscode.workspace.fs.stat(
-      nodeUri(`/${ARCHIVE_NAME}/Data/Empty`),
+      toNodeUri(`/${ARCHIVE_NAME}/Data/Empty`),
     );
 
     assert.strictEqual(type, vscode.FileType.Directory);
@@ -211,8 +211,8 @@ suite('BIG archive file system', () => {
 
   test('renames a file', async () => {
     await vscode.workspace.fs.rename(
-      nodeUri(`/${ARCHIVE_NAME}/Data/new.txt`),
-      nodeUri(`/${ARCHIVE_NAME}/Data/renamed.txt`),
+      toNodeUri(`/${ARCHIVE_NAME}/Data/new.txt`),
+      toNodeUri(`/${ARCHIVE_NAME}/Data/renamed.txt`),
     );
 
     assert.strictEqual(
@@ -227,8 +227,8 @@ suite('BIG archive file system', () => {
 
   test('renames a directory with everything below it', async () => {
     await vscode.workspace.fs.rename(
-      nodeUri(`/${ARCHIVE_NAME}/Data/INI`),
-      nodeUri(`/${ARCHIVE_NAME}/Data/Rules`),
+      toNodeUri(`/${ARCHIVE_NAME}/Data/INI`),
+      toNodeUri(`/${ARCHIVE_NAME}/Data/Rules`),
     );
 
     assert.strictEqual(
@@ -240,7 +240,7 @@ suite('BIG archive file system', () => {
   test('refuses to write below an existing file', async () => {
     await assert.rejects(async () => {
       await vscode.workspace.fs.writeFile(
-        nodeUri(`/${ARCHIVE_NAME}/readme.txt/nested.txt`),
+        toNodeUri(`/${ARCHIVE_NAME}/readme.txt/nested.txt`),
         Buffer.from('x', 'utf-8'),
       );
     });
@@ -253,7 +253,7 @@ suite('BIG archive file system', () => {
   });
 
   test('deletes a directory with everything below it', async () => {
-    await vscode.workspace.fs.delete(nodeUri(`/${ARCHIVE_NAME}/Data/Rules`), {
+    await vscode.workspace.fs.delete(toNodeUri(`/${ARCHIVE_NAME}/Data/Rules`), {
       recursive: true,
     });
 
@@ -286,7 +286,7 @@ suite('BIG archive file system', () => {
 
     try {
       await waitFor(() =>
-        vscode.workspace.fs.stat(nodeUri(`/mods/${ARCHIVE_NAME}/readme.txt`)),
+        vscode.workspace.fs.stat(toNodeUri(`/mods/${ARCHIVE_NAME}/readme.txt`)),
       );
 
       assert.strictEqual(
@@ -344,7 +344,7 @@ suite('BIG archive file system', () => {
     });
 
     await vscode.workspace.fs.writeFile(
-      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+      toNodeUri(`/${ARCHIVE_NAME}/readme.txt`),
       Buffer.from('changed', 'utf-8'),
     );
 
@@ -359,13 +359,13 @@ suite('BIG archive file system', () => {
 
   test('a save changes the mtime of the entry written and of no other', async () => {
     const stat = (nodePath: string) =>
-      vscode.workspace.fs.stat(nodeUri(`/${ARCHIVE_NAME}/${nodePath}`));
+      vscode.workspace.fs.stat(toNodeUri(`/${ARCHIVE_NAME}/${nodePath}`));
     const otherBefore = await stat('art/textures/unit.tga');
     const writtenBefore = await stat('readme.txt');
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     await vscode.workspace.fs.writeFile(
-      nodeUri(`/${ARCHIVE_NAME}/readme.txt`),
+      toNodeUri(`/${ARCHIVE_NAME}/readme.txt`),
       Buffer.from('saved again', 'utf-8'),
     );
 
@@ -389,7 +389,7 @@ suite('Bulk transfers', () => {
 
   /** Reads an entry through the model, so the assertions never go via a uri */
   const readEntry = async (entryPath: string): Promise<string> => {
-    const node = model.getNode(nodeUri(`/${BULK_ARCHIVE}/${entryPath}`));
+    const node = model.getNode(toNodeUri(`/${BULK_ARCHIVE}/${entryPath}`));
 
     assert.ok(node, `${entryPath} is missing`);
 
@@ -541,7 +541,7 @@ suite('Extraction layout', () => {
    * Gets the suite's archive with its index read, on every call: a watcher
    * event for the file written in setup can arrive late and drop an earlier read
    */
-  const loadedArchive = async () => {
+  const getLoadedArchive = async () => {
     const archive = model.getArchiveByPath(archiveFsPath);
 
     assert.ok(archive, 'the archive was not listed');
@@ -551,7 +551,7 @@ suite('Extraction layout', () => {
   };
 
   test('extracts an archive without the extension in the folder name', async () => {
-    const archive = await loadedArchive();
+    const archive = await getLoadedArchive();
 
     const extracted = getExtractedFiles([archive.root], targetDirectory);
 
@@ -562,7 +562,7 @@ suite('Extraction layout', () => {
   });
 
   test('extracts a folder under its own name', async () => {
-    const archive = await loadedArchive();
+    const archive = await getLoadedArchive();
     const folder = findChild(archive.root, 'data');
 
     assert.ok(folder, 'the folder is missing');
@@ -576,7 +576,7 @@ suite('Extraction layout', () => {
   });
 
   test('extracts a single file under its own name', async () => {
-    const archive = await loadedArchive();
+    const archive = await getLoadedArchive();
     const file = findChild(archive.root, 'top.txt');
 
     assert.ok(file, 'the file is missing');
@@ -641,7 +641,7 @@ suite('Lazy loading', () => {
       assert.strictEqual(archive.root.children?.size, 0);
 
       const provider = new BigTreeDataProvider(model);
-      const children = await childNames(provider, archive.root);
+      const children = await readChildNames(provider, archive.root);
 
       assert.strictEqual(archive.isLoaded, true);
       assert.deepStrictEqual(children, ['data']);

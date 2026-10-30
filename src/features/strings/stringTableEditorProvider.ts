@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import {
   CsfFile,
-  csfNameProblem,
+  describeCsfNameProblem,
   keepLineBreaks,
   parseCsf,
   writeCsf,
@@ -10,8 +10,8 @@ import {
   parseStringRecords,
   quoteStringText,
 } from '../../formats/str/sageStringRecords';
-import { webviewPage } from '../../platform/webview/webviewPage';
-import { pageBundle, pageBundleFolder } from '../../platform/webview/pageBundle';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
+import { getPageBundleOptions, getPageBundleFolder } from '../../platform/webview/pageBundle';
 import type {
   FromStringsPage,
   StringRow,
@@ -56,8 +56,8 @@ export const renderHtml = (
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
 ): string => {
-  return webviewPage({
-    ...pageBundle(extensionUri, webview, 'strings'),
+  return renderWebviewPage({
+    ...getPageBundleOptions(extensionUri, webview, 'strings'),
     style: `
   body { margin: 0; padding: 8px 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
@@ -100,7 +100,7 @@ const connect = (
 ): (() => Thenable<boolean>) => {
   panel.webview.options = {
     enableScripts: true,
-    localResourceRoots: [pageBundleFolder(extensionUri)],
+    localResourceRoots: [getPageBundleFolder(extensionUri)],
   };
   panel.webview.html = renderHtml(panel.webview, extensionUri);
 
@@ -140,7 +140,7 @@ const checkLabel = (label: string) => {
 
 /** Refuses a label or speech name the `.csf` cannot store */
 const checkEncodable = (name: string) => {
-  const problem = csfNameProblem(name);
+  const problem = describeCsfNameProblem(name);
 
   if (problem) {
     throw new Error(problem);
@@ -170,7 +170,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
     /** Finds the record a message means, refusing it if the file moved under it */
-    const recordOf = (message: PageMessage) => {
+    const findRecord = (message: PageMessage) => {
       const record = records()[message.id ?? -1];
 
       if (
@@ -223,7 +223,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
       async (message) => {
         switch (message.kind) {
           case 'setText': {
-            const record = recordOf(message);
+            const record = findRecord(message);
             const quoted = quoteStringText(message.value ?? '');
 
             return apply((edit) => {
@@ -243,7 +243,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
             });
           }
           case 'setLabel': {
-            const record = recordOf(message);
+            const record = findRecord(message);
             const label = (message.value ?? '').trim();
 
             checkLabel(label);
@@ -273,7 +273,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
             );
           }
           case 'remove': {
-            const record = recordOf(message);
+            const record = findRecord(message);
 
             return apply((edit) =>
               edit.delete(
@@ -283,7 +283,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
             );
           }
           case 'reveal': {
-            const record = recordOf(message);
+            const record = findRecord(message);
 
             await vscode.window.showTextDocument(document, {
               selection: range(record.labelSpan.start, record.labelSpan.end),
@@ -359,7 +359,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     document: CsfDocument,
     panel: vscode.WebviewPanel,
   ): void {
-    const labelOf = (file: CsfFile, message: PageMessage) => {
+    const findLabel = (file: CsfFile, message: PageMessage) => {
       const label = file.labels[message.id ?? -1];
 
       if (
@@ -407,7 +407,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
       (message) => {
         switch (message.kind) {
           case 'setText': {
-            const previous = labelOf(document.snapshot, message).strings[0]?.text;
+            const previous = findLabel(document.snapshot, message).strings[0]?.text;
             const text = keepLineBreaks(previous ?? '', message.value ?? '');
 
             if (previous === text) {
@@ -415,7 +415,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             }
 
             return this.change(document, 'Edit text', (file) => {
-              const label = labelOf(file, message);
+              const label = findLabel(file, message);
 
               if (label.strings.length) {
                 label.strings[0].text = text;
@@ -425,11 +425,11 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             });
           }
           case 'setSpeech':
-            labelOf(document.snapshot, message);
+            findLabel(document.snapshot, message);
             checkEncodable((message.value ?? '').trim());
 
             return this.change(document, 'Edit speech', (file) => {
-              const label = labelOf(file, message);
+              const label = findLabel(file, message);
               const speech = (message.value ?? '').trim();
 
               if (!label.strings.length) {
@@ -443,10 +443,10 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
 
             checkLabel(name);
             checkEncodable(name);
-            labelOf(document.snapshot, message);
+            findLabel(document.snapshot, message);
 
             return this.change(document, 'Rename label', (file) => {
-              labelOf(file, message).name = name;
+              findLabel(file, message).name = name;
             });
           }
           case 'add': {
@@ -463,7 +463,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             });
           }
           case 'remove':
-            labelOf(document.snapshot, message);
+            findLabel(document.snapshot, message);
 
             return this.change(document, 'Remove label', (file) => {
               file.labels.splice(message.id ?? -1, 1);

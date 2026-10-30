@@ -4,7 +4,7 @@ import type { PlaceSpec } from '../aptTimeline';
 import { AptImage } from './aptImage';
 
 /** Encodes a new 64-byte PlaceObject record as words, with no colour transform */
-export const placeObjectWords = (
+export const encodePlaceObject = (
   flags: number,
   depth: number,
   character: number,
@@ -33,7 +33,7 @@ export const placeObjectWords = (
 };
 
 /** Encodes the PlaceObject record of a placement or a move, its flags set by the fields given */
-export const placeSpecWords = (image: AptImage, place: PlaceSpec): number[] => {
+export const encodePlaceSpec = (image: AptImage, place: PlaceSpec): number[] => {
   const f = (value: number) =>
     new Uint32Array(new Float32Array([value]).buffer)[0];
   const flags =

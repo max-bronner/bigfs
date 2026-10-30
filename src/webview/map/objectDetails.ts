@@ -3,10 +3,10 @@ import type { MapActions } from './actions';
 import { createDictTable } from './dictionary';
 import { objectDetails } from './elements';
 import {
-  idOf,
+  getWaypointId,
   isWaypoint,
   parseValue,
-  waypointLabel,
+  formatWaypointLabel,
   waypointsById,
 } from './mapModel';
 import { sendEdit } from './messaging';
@@ -15,7 +15,7 @@ import { ROTATE_STEP, deleteSelected, rotateBy, toggleLink } from './objectEdits
 import { state } from './state';
 import type { DictValue } from '../../formats/map/mapFile';
 
-const numberField = (
+const createNumberField = (
   label: string,
   value: number,
   onCommit: (value: number) => void,
@@ -39,7 +39,7 @@ const numberField = (
 };
 
 /** Creates a field for a text, whole number or real property the object may not have yet; clearing it removes the property */
-const propertyField = (
+const createPropertyField = (
   object: ObjectView,
   label: string,
   key: string,
@@ -75,7 +75,7 @@ const propertyField = (
   return row;
 };
 
-const addPropertyRow = (object: ObjectView): HTMLDivElement => {
+const createAddPropertyRow = (object: ObjectView): HTMLDivElement => {
   const row = element('div', undefined, 'addproperty');
   const key = element('input');
 
@@ -109,8 +109,8 @@ const addPropertyRow = (object: ObjectView): HTMLDivElement => {
   return row;
 };
 
-const waypointLinks = (object: ObjectView, actions: MapActions): HTMLDivElement => {
-  const id = idOf(object);
+const createWaypointLinkSection = (object: ObjectView, actions: MapActions): HTMLDivElement => {
+  const id = getWaypointId(object);
   const section = element('div');
 
   if (id === undefined) {
@@ -132,7 +132,7 @@ const waypointLinks = (object: ObjectView, actions: MapActions): HTMLDivElement 
   for (const { link, arrow, other, otherId } of rows) {
     const line = element(
       'div',
-      `${arrow} ${other ? waypointLabel(other) : `missing #${otherId}`}`,
+      `${arrow} ${other ? formatWaypointLabel(other) : `missing #${otherId}`}`,
       'object',
     );
 
@@ -160,7 +160,7 @@ const waypointLinks = (object: ObjectView, actions: MapActions): HTMLDivElement 
     for (const [otherId, other] of ids) {
       if (otherId !== id) {
         target.append(
-          Object.assign(element('option', waypointLabel(other)), {
+          Object.assign(element('option', formatWaypointLabel(other)), {
             value: String(otherId),
           }),
         );
@@ -223,25 +223,25 @@ export const showObject = (actions: MapActions): void => {
   template.append(element('label', 'Template'), templateField);
   objectDetails.append(
     template,
-    numberField('X', object.x, (value) =>
+    createNumberField('X', object.x, (value) =>
       sendEdit({ kind: 'object', index: object.index, x: value }),
     ),
-    numberField('Y', object.y, (value) =>
+    createNumberField('Y', object.y, (value) =>
       sendEdit({ kind: 'object', index: object.index, y: value }),
     ),
-    numberField('Z offset', object.z, (value) =>
+    createNumberField('Z offset', object.z, (value) =>
       sendEdit({ kind: 'object', index: object.index, z: value }),
     ),
-    numberField('Angle °', (object.angle * 180) / Math.PI, (value) =>
+    createNumberField('Angle °', (object.angle * 180) / Math.PI, (value) =>
       sendEdit({
         kind: 'object',
         index: object.index,
         angle: (value * Math.PI) / 180,
       }),
     ),
-    propertyField(object, 'Owner / team', 'originalOwner', 'string', 'owners'),
-    propertyField(object, 'Health %', 'objectInitialHealth', 'int'),
-    propertyField(
+    createPropertyField(object, 'Owner / team', 'originalOwner', 'string', 'owners'),
+    createPropertyField(object, 'Health %', 'objectInitialHealth', 'int'),
+    createPropertyField(
       object,
       waypoint ? 'Waypoint name' : 'Name',
       waypoint ? 'waypointName' : 'objectName',
@@ -249,13 +249,13 @@ export const showObject = (actions: MapActions): void => {
     ),
   );
   if (waypoint) {
-    objectDetails.append(waypointLinks(object, actions));
+    objectDetails.append(createWaypointLinkSection(object, actions));
   }
   objectDetails.append(
     element('h3', 'Properties'),
     createDictTable(object.properties, { object: object.index }, true),
   );
   if (!state.readOnly) {
-    objectDetails.append(addPropertyRow(object));
+    objectDetails.append(createAddPropertyRow(object));
   }
 };

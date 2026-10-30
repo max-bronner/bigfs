@@ -1,7 +1,7 @@
 import { FRAGMENT_CONTEXT, ROOT_CONTEXT } from './sageIniSchema';
 import type { SageIniSchema } from './sageIniSchema';
 import type { SageStatement, SageToken } from './sageIniParser';
-import { canonicalNamespace, parentNamespace } from './sageReferenceFields';
+import { toCanonicalNamespace, getParentNamespace } from './sageReferenceFields';
 
 /**
  * Which block headers declare a name, and which of their values name another
@@ -35,7 +35,7 @@ const NOT_NESTED_DEFINITIONS: ReadonlySet<string> = new Set(['object']);
  * `InGameUI`'s `RadiusCursorTemplate`. That is read off the reference table,
  * so a title or a mod that nests another kind of definition gets it too.
  */
-export const declarationOf = (
+export const getDeclaration = (
   statement: Pick<SageStatement, 'block' | 'context' | 'keyword' | 'values'>,
   schema: SageIniSchema,
 ): Declaration | undefined => {
@@ -49,7 +49,7 @@ export const declarationOf = (
   const isFileScope =
     context === ROOT_CONTEXT ||
     (context === FRAGMENT_CONTEXT && schema.isEngineBlock(keyword.text));
-  const namespace = canonicalNamespace(keyword.text);
+  const namespace = toCanonicalNamespace(keyword.text);
 
   if (
     isFileScope ||
@@ -64,10 +64,10 @@ export const declarationOf = (
 };
 
 /** Gets the parent a `ChildObject` or `ObjectReskin` header inherits from */
-export const parentOf = (
+export const getParent = (
   statement: Pick<SageStatement, 'block' | 'keyword' | 'values'>,
 ): { token: SageToken; namespace: string } | undefined => {
-  const namespace = parentNamespace(statement.keyword.text);
+  const namespace = getParentNamespace(statement.keyword.text);
   const token = statement.values[1];
 
   return statement.block && namespace && token

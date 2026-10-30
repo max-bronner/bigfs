@@ -266,7 +266,7 @@ const BLENDS: Record<string, (gl: WebGLRenderingContext) => number> = {
 };
 
 /** Computes the flipbook cell a particle shows: its own first cell plus age times speed */
-const cellUv = (
+const computeFlipbookUv = (
   book: ParticleDef['flipbook'],
   particle: Particle,
   blend: number,
@@ -417,7 +417,7 @@ export const drawSystems = (
           !colourKeys || !readsAlpha
             ? 1
             : p.previousAlpha + (p.alpha - p.previousAlpha) * blend;
-        const uv = cellUv(def!.flipbook, p, blend);
+        const uv = computeFlipbookUv(def!.flipbook, p, blend);
 
         CORNERS.forEach((corner, c) => {
           spriteData.set(

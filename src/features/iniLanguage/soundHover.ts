@@ -8,11 +8,11 @@ import type { SageDocument, SageToken } from '../../formats/ini/sageIniParser';
 const escapeMarkdown = (text: string) =>
   text.replace(/[\\`*_{}[\]()<>#+!|-]/g, '\\$&');
 /** Most play links a hover lists before pointing to the lens instead */
-const HOVER_LINKS = 12;
+const MAX_HOVER_LINKS = 12;
 
-const code = (text: string) => `\`${text.replace(/`/g, "'")}\``;
+const toCodeSpan = (text: string) => `\`${text.replace(/`/g, "'")}\``;
 
-const commandLink = (title: string, command: string, args: unknown[]) =>
+const toCommandLink = (title: string, command: string, args: unknown[]) =>
   `[${escapeMarkdown(title)}](command:${command}?${encodeURIComponent(JSON.stringify(args)).replace(/[()]/g, (bracket) => (bracket === '(' ? '%28' : '%29'))})`;
 
 /**
@@ -39,7 +39,7 @@ export const describeSound = async (
 
   if (reference) {
     text.appendMarkdown(
-      `${code(reference.name)} — sound\n\n${commandLink('▶ Play', 'bigfs.playSound', [reference.name, documentUri.toString()])}`,
+      `${toCodeSpan(reference.name)} — sound\n\n${toCommandLink('▶ Play', 'bigfs.playSound', [reference.name, documentUri.toString()])}`,
     );
     return text;
   }
@@ -50,14 +50,14 @@ export const describeSound = async (
     return undefined;
   }
 
-  const shown = variants.slice(0, HOVER_LINKS);
+  const shown = variants.slice(0, MAX_HOVER_LINKS);
 
   text.appendMarkdown(
-    `${code(token.text)} — ${variants.length} sound${variants.length === 1 ? '' : 's'}\n\n` +
+    `${toCodeSpan(token.text)} — ${variants.length} sound${variants.length === 1 ? '' : 's'}\n\n` +
       shown
         .map(
           (variant) =>
-            `${variants.length > 1 ? `${escapeMarkdown(variant.label)}: ` : ''}${commandLink(`▶ ${variant.file}`, 'bigfs.playSound', [variant.file, documentUri.toString()])}`,
+            `${variants.length > 1 ? `${escapeMarkdown(variant.label)}: ` : ''}${toCommandLink(`▶ ${variant.file}`, 'bigfs.playSound', [variant.file, documentUri.toString()])}`,
         )
         .join(variants.length > 1 ? '\n\n' : ' · ') +
       (variants.length > shown.length

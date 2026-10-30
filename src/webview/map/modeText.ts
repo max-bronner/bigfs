@@ -12,7 +12,7 @@ export const describeMode = (mode: MapMode | undefined): string =>
       : 'Click the map to add points · Enter finishes · Backspace removes the last · Esc cancels';
 
 /** Picks the name a new trigger area gets: the first `Area <n>` no area has */
-export const nextAreaName = (taken: ReadonlySet<string>): string => {
+export const pickAreaName = (taken: ReadonlySet<string>): string => {
   let number = taken.size + 1;
 
   while (taken.has(`Area ${number}`)) {

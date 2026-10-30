@@ -26,7 +26,7 @@ import type {
 } from './textModel';
 
 /** The fields a placed button or text needs, whatever the record */
-const placementOf = (
+const copyPlacement = (
   matrix: Matrix2,
   translate: [number, number],
 ): Placement => ({
@@ -37,7 +37,7 @@ const placementOf = (
 /** Function that reads the script of a block, given its offset */
 export type ScriptReader = (block: number) => ScriptText;
 
-const itemOf = (
+const itemToText = (
   item: FrameItem,
   reader: AptReader,
   script: ScriptReader,
@@ -70,7 +70,7 @@ const itemOf = (
         character: item.character,
         placement:
           item.matrix && item.translate
-            ? placementOf(item.matrix, item.translate)
+            ? copyPlacement(item.matrix, item.translate)
             : undefined,
         colorTransform: item.colorTransform,
         colorAdd: item.colorAdd,
@@ -100,27 +100,27 @@ const itemOf = (
   }
 };
 
-const framesOf = (
+const framesToText = (
   frames: Frame[],
   reader: AptReader,
   script: ScriptReader,
 ): FrameText[] =>
   frames.map((frame, index) => ({
     index,
-    items: frame.items.map((item) => itemOf(item, reader, script)),
+    items: frame.items.map((item) => itemToText(item, reader, script)),
   }));
 
-const buttonRecordOf = (record: ButtonRecord): ButtonRecordText => ({
+const buttonRecordToText = (record: ButtonRecord): ButtonRecordText => ({
   offset: record.offset,
   flags: record.flags,
   depth: record.depth,
   character: record.character,
-  placement: placementOf(record.matrix, record.translate),
+  placement: copyPlacement(record.matrix, record.translate),
   color: [...record.color],
   unknown: [...record.unknown],
 });
 
-const characterOf = (
+const characterToText = (
   character: Character,
   reader: AptReader,
   script: ScriptReader,
@@ -140,7 +140,7 @@ const characterOf = (
                 unknown36: character.record.unknown36,
               }
             : undefined,
-        frames: framesOf(
+        frames: framesToText(
           parseFrames(
             reader,
             character.record.frameCount,
@@ -187,7 +187,7 @@ const characterOf = (
         type: 'button',
         bounds: character.bounds,
         hitTriangles: character.hitTriangles,
-        records: character.records.map(buttonRecordOf),
+        records: character.records.map(buttonRecordToText),
         actions: character.actions.map((action, index) => ({
           offset: actions + index * 8,
           condition: action.condition,
@@ -199,7 +199,7 @@ const characterOf = (
       return {
         ...head,
         type: 'sprite',
-        frames: framesOf(
+        frames: framesToText(
           parseFrames(reader, character.frameCount, character.framesOffset),
           reader,
           script,
@@ -219,7 +219,7 @@ const characterOf = (
         ...head,
         type: 'text',
         bounds: character.bounds,
-        placement: placementOf(character.matrix, character.translate),
+        placement: copyPlacement(character.matrix, character.translate),
         runs: character.records.map((run) => ({
           offset: run.offset,
           font: run.font,
@@ -277,7 +277,7 @@ export const movieToText = (
       ...entry,
     })),
     characters: movie.characters.map((character) =>
-      characterOf(character, reader, read),
+      characterToText(character, reader, read),
     ),
   };
 };

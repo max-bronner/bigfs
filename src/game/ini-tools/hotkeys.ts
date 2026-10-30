@@ -9,7 +9,7 @@
  */
 
 /** Reads the hotkey a button text marks with a single `&`, upper-cased */
-export const hotkeyOf = (text: string): string | undefined => {
+export const readHotkey = (text: string): string | undefined => {
   for (let index = 0; index < text.length - 1; index++) {
     if (text[index] !== '&') {
       continue;
@@ -36,7 +36,7 @@ export interface KeyedSlot {
 }
 
 /** Whether `unlocked` only shows once `purchase` has been bought and has gone */
-const unlockedBy = (unlocked: KeyedSlot, purchase: KeyedSlot): boolean => {
+const isUnlockedBy = (unlocked: KeyedSlot, purchase: KeyedSlot): boolean => {
   const needs = unlocked.needs ?? [];
   const grants = purchase.grants ?? [];
 
@@ -50,10 +50,10 @@ const unlockedBy = (unlocked: KeyedSlot, purchase: KeyedSlot): boolean => {
 };
 
 const canShowTogether = (a: KeyedSlot, b: KeyedSlot): boolean =>
-  !unlockedBy(a, b) && !unlockedBy(b, a);
+  !isUnlockedBy(a, b) && !isUnlockedBy(b, a);
 
 /** Finds, for each slot sharing its hotkey with others it can show beside, the slots it clashes with */
-export const hotkeyClashes = (slots: KeyedSlot[]): Map<number, number[]> => {
+export const findHotkeyClashes = (slots: KeyedSlot[]): Map<number, number[]> => {
   const byKey = new Map<string, KeyedSlot[]>();
 
   for (const keyed of slots) {

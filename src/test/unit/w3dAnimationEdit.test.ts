@@ -3,8 +3,8 @@ import { parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import {
   easeAnimation,
-  frameRateProblem,
-  rateAnimation,
+  describeFrameRateProblem,
+  setAnimationFrameRate,
   retimeAnimation,
   reverseAnimation,
   trimAnimation,
@@ -113,12 +113,12 @@ suite('W3D animation editing', () => {
   });
 
   test('a rate is a whole number of frames a second', () => {
-    assert.strictEqual(rateAnimation(animation(), 24).frameRate, 24);
-    assert.strictEqual(frameRateProblem(30), undefined);
+    assert.strictEqual(setAnimationFrameRate(animation(), 24).frameRate, 24);
+    assert.strictEqual(describeFrameRateProblem(30), undefined);
 
     for (const bad of [12.5, 0.4, 0, -5, 1001, NaN, Infinity]) {
       assert.throws(
-        () => rateAnimation(animation(), bad),
+        () => setAnimationFrameRate(animation(), bad),
         /whole number from 1 to 1000/,
         String(bad),
       );

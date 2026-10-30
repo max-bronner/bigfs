@@ -38,7 +38,7 @@ const askExecutable = async (): Promise<string | undefined> => {
 };
 
 /** Finds the mod folder to launch: what was clicked, or a workspace folder */
-const modFolderOf = async (target: Target): Promise<string | undefined> => {
+const findModFolder = async (target: Target): Promise<string | undefined> => {
   const uri = target instanceof vscode.Uri ? target : target?.resourceUri;
 
   if (uri?.scheme === 'file') {
@@ -71,7 +71,7 @@ const launch = async (target: Target): Promise<void> => {
     return;
   }
 
-  const modFolder = await modFolderOf(target);
+  const modFolder = await findModFolder(target);
 
   if (!modFolder) {
     return;

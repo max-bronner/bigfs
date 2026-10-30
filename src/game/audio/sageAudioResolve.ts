@@ -76,7 +76,7 @@ const splitWeight = (token: string): { name: string; weight?: number } => {
 const fieldsNamed = (definition: AudioDefinition, pattern: RegExp) =>
   definition.fields.filter((field) => pattern.test(field.key));
 
-const stemOf = (name: string) =>
+const getFileStem = (name: string) =>
   name.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '');
 
 /** Resolves the files `name` can play; none when nothing by that name is defined */
@@ -85,7 +85,7 @@ export const resolveAudio = async (
   lookup: AudioLookup,
 ): Promise<AudioVariant[]> => walk(stripAudioPrefix(name), lookup, [], 0);
 
-const prefixed = (prefix: string, variants: AudioVariant[]): AudioVariant[] =>
+const prefixLabels = (prefix: string, variants: AudioVariant[]): AudioVariant[] =>
   variants.map((variant) => ({
     ...variant,
     label: `${prefix} › ${variant.label}`,
@@ -154,7 +154,7 @@ const walk = async (
       for (const token of field.values) {
         const subsound = splitWeight(token).name;
 
-        variants.push(...prefixed(subsound, await follow(subsound)));
+        variants.push(...prefixLabels(subsound, await follow(subsound)));
       }
     }
     return variants;
@@ -165,21 +165,21 @@ const walk = async (
 
     for (const { side, sound } of definition.sideSounds) {
       if (sound) {
-        variants.push(...prefixed(side || '?', await follow(sound)));
+        variants.push(...prefixLabels(side || '?', await follow(sound)));
       }
     }
     return variants;
   }
 
   if (/^video$/i.test(definition.keyword)) {
-    const stem = stemOf(
+    const stem = getFileStem(
       fieldsNamed(definition, /^filename$/i)[0]?.values[0] ?? name,
     );
     const variants: AudioVariant[] = [];
 
     // The score first, as the movie starts them
     for (const event of [`${stem}_Music`, stem]) {
-      variants.push(...prefixed(event, await follow(event)));
+      variants.push(...prefixLabels(event, await follow(event)));
     }
     return variants;
   }
@@ -190,7 +190,7 @@ const walk = async (
  * Reads one block of a parsed file as an audio definition: its own fields,
  * and the sides of its `SideSound` children
  */
-export const audioDefinitionOf = (
+export const readAudioDefinition = (
   parsed: SageDocument,
   block: SageBlock,
 ): AudioDefinition => {

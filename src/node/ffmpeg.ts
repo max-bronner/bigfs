@@ -7,7 +7,7 @@ import path from 'path';
  */
 
 /** Runs a program to its end, returning its output and status */
-export const run = (
+export const runProcess = (
   command: string,
   args: string[],
 ): Promise<{ code: number | null; stdout: string; stderr: string }> =>
@@ -30,7 +30,7 @@ export const probe = async (
   ffmpeg: string,
   file: string,
 ): Promise<{ width: number; height: number; fps: number }> => {
-  const { stderr } = await run(ffmpeg, ['-hide_banner', ...INPUT, '-i', file]);
+  const { stderr } = await runProcess(ffmpeg, ['-hide_banner', ...INPUT, '-i', file]);
   const stream = /Stream #[^\n]*Video:[^\n]*/.exec(stderr)?.[0] ?? '';
   const size = /\b(\d{2,5})x(\d{2,5})\b/.exec(stream);
   const fps = /([\d.]+) (?:fps|tbr)/.exec(stream);
@@ -49,7 +49,7 @@ export const probe = async (
  * Starts FFmpeg decoding a video to raw RGBA frames at the size and rate asked
  * for. `next` resolves `undefined` at the end; `stop` kills the process.
  */
-export const ffmpegSource = (
+export const createFfmpegFrameSource = (
   ffmpeg: string,
   file: string,
   width: number,

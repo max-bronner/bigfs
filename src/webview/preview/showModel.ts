@@ -30,7 +30,7 @@ export interface ModelControl {
   /** Plays an animation on the skeleton, warning when it was made for another one */
   play(message: { file: string; animation: W3dAnimation }): void;
   /** Shows a short message in the status line */
-  notice(text: string): void;
+  showNotice(text: string): void;
   /** Where the INI files use the file, each a link to the line */
   setUses(uses: FileUse[]): void;
 }
@@ -310,7 +310,7 @@ export const showModel = (
       showFrame();
       setPlaying(true);
     },
-    notice: (text) => {
+    showNotice: (text) => {
       label.textContent = text;
     },
     setUses: (uses) => {

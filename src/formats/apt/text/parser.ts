@@ -25,10 +25,10 @@ import { composeMatrix } from './numbers';
 import {
   Fields,
   ParseError,
-  floatOf,
-  floats,
+  readFloat,
+  readFloats,
   i32,
-  integer,
+  readInteger,
   u32,
 } from './tokenizer';
 import type { Token } from './tokenizer';
@@ -101,18 +101,18 @@ const readPlacement = (
 
     switch (word.text) {
       case 'at':
-        translate = floats(value, 2, 'at') as [number, number];
+        translate = readFloats(value, 2, 'at') as [number, number];
         break;
       case 'scale':
-        scale = floats(value, 2, 'scale') as [number, number];
+        scale = readFloats(value, 2, 'scale') as [number, number];
         break;
       case 'rot':
         // Degrees are not stored, so they are read at full precision
-        floats(value, 1, 'rot');
+        readFloats(value, 1, 'rot');
         rotation = Number(value.text);
         break;
       case 'matrix':
-        matrix = floats(value, 4, 'matrix') as Matrix2;
+        matrix = readFloats(value, 4, 'matrix') as Matrix2;
         break;
       default:
         extra[word.text].read(values);
@@ -185,7 +185,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
     }
   };
 
-  const id = (token: Token, isDeclaration = false): number => {
+  const readId = (token: Token, isDeclaration = false): number => {
     const value = u32(token, 'A character id');
     const offset = token.key !== undefined ? token.key.length + 1 : 0;
 
@@ -200,7 +200,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
   };
   let currentLine = 0;
 
-  const noChildren = (node: LineNode, what: string) => {
+  const reportChildren = (node: LineNode, what: string) => {
     for (const child of node.children) {
       problems.push({
         line: child.line,
@@ -214,7 +214,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
   const keyword = (node: LineNode) =>
     node.fence ? '```' : node.tokens[0]?.text;
 
-  const scriptOf = (node: LineNode, what: string): ScriptText | undefined => {
+  const readScript = (node: LineNode, what: string): ScriptText | undefined => {
     const fences = node.children.filter((child) => child.fence);
     const others = node.children.filter((child) => !child.fence);
 
@@ -269,12 +269,12 @@ export const parseMovieText = (text: string): ParsedMovieText => {
           throw new ParseError('A frame action takes no fields');
         }
 
-        const script = scriptOf(node, 'An action');
+        const script = readScript(node, 'An action');
 
         return script && { ...origin, type: 'action', script };
       }
       case 'label': {
-        noChildren(node, 'A label');
+        reportChildren(node, 'A label');
 
         const [name, ...more] = rest;
 
@@ -283,8 +283,8 @@ export const parseMovieText = (text: string): ParsedMovieText => {
         }
 
         const fields = new Fields(more, 'label');
-        const flags = fields.optional('flags');
-        const at = fields.optional('frame');
+        const flags = fields.getOptional('flags');
+        const at = fields.getOptional('frame');
 
         fields.finish();
         if (fields.bare.length) {
@@ -304,12 +304,12 @@ export const parseMovieText = (text: string): ParsedMovieText => {
       }
       case 'place': {
         const fields = new Fields(rest, 'place');
-        const depth = i32(fields.required('depth', node.tokens), 'depth');
-        const character = fields.optional('char');
-        const name = fields.string('name');
-        const ratio = fields.optional('ratio');
-        const clip = fields.optional('clip');
-        const flags = fields.optional('flags');
+        const depth = i32(fields.getRequired('depth', node.tokens), 'depth');
+        const character = fields.getOptional('char');
+        const name = fields.getString('name');
+        const ratio = fields.getOptional('ratio');
+        const clip = fields.getOptional('clip');
+        const flags = fields.getOptional('flags');
         let isMove = false;
         let color: [number, number] | undefined;
 
@@ -335,7 +335,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
               );
             }
             return parts.map((part) =>
-              integer({ ...token, text: part }, 0, 255, 'A colour byte'),
+              readInteger({ ...token, text: part }, 0, 255, 'A colour byte'),
             );
           };
           const [r, g, b, a] = bytes(multiply);
@@ -366,13 +366,13 @@ export const parseMovieText = (text: string): ParsedMovieText => {
 
               const actionFields = new Fields(more, 'A clip action');
               const events = u32(
-                actionFields.required('events', child.tokens),
+                actionFields.getRequired('events', child.tokens),
                 'events',
               );
 
               actionFields.finish();
 
-              const script = scriptOf(child, 'A clip action');
+              const script = readScript(child, 'A clip action');
 
               if (!script) {
                 throw new ParseError('A clip action needs its script');
@@ -392,11 +392,11 @@ export const parseMovieText = (text: string): ParsedMovieText => {
           type: 'place',
           flags: 0,
           depth,
-          character: character && id(character),
+          character: character && readId(character),
           placement,
           colorTransform: color?.[0],
           colorAdd: color?.[1],
-          ratio: ratio && floatOf(ratio.text, ratio, 'ratio'),
+          ratio: ratio && readFloat(ratio.text, ratio, 'ratio'),
           name,
           clipDepth: clip && i32(clip, 'clip'),
           clipActions,
@@ -408,16 +408,16 @@ export const parseMovieText = (text: string): ParsedMovieText => {
         return item;
       }
       case 'remove': {
-        noChildren(node, 'A remove');
+        reportChildren(node, 'A remove');
 
         const fields = new Fields(rest, 'remove');
-        const depth = i32(fields.required('depth', node.tokens), 'depth');
+        const depth = i32(fields.getRequired('depth', node.tokens), 'depth');
 
         fields.finish();
         return { ...origin, type: 'remove', depth };
       }
       case 'bg': {
-        noChildren(node, 'A background colour');
+        reportChildren(node, 'A background colour');
 
         const color = rest[0];
 
@@ -442,19 +442,19 @@ export const parseMovieText = (text: string): ParsedMovieText => {
       }
       case 'initaction': {
         const fields = new Fields(rest, 'initaction');
-        const sprite = id(fields.required('sprite', node.tokens));
+        const sprite = readId(fields.getRequired('sprite', node.tokens));
 
         fields.finish();
 
-        const script = scriptOf(node, 'An init action');
+        const script = readScript(node, 'An init action');
 
         return script && { ...origin, type: 'initAction', sprite, script };
       }
       case 'unknown': {
-        noChildren(node, 'An unknown item');
+        reportChildren(node, 'An unknown item');
 
         const fields = new Fields(rest, 'unknown');
-        const type = u32(fields.required('type', node.tokens), 'type');
+        const type = u32(fields.getRequired('type', node.tokens), 'type');
 
         fields.finish();
         return { ...origin, type: 'unknown', itemType: type };
@@ -532,18 +532,18 @@ export const parseMovieText = (text: string): ParsedMovieText => {
     }
 
     const head = {
-      id: id(idToken, true),
+      id: readId(idToken, true),
       line: node.line,
       endLine: node.endLine,
     };
     const fields = new Fields(rest, typeToken.text);
     const rect = (key: string) =>
-      floats(fields.required(key, node.tokens), 4, key) as Rect;
-    const number = (key: string) => u32(fields.required(key, node.tokens), key);
+      readFloats(fields.getRequired(key, node.tokens), 4, key) as Rect;
+    const number = (key: string) => u32(fields.getRequired(key, node.tokens), key);
     const float = (key: string) => {
-      const token = fields.required(key, node.tokens);
+      const token = fields.getRequired(key, node.tokens);
 
-      return floatOf(token.text, token, key);
+      return readFloat(token.text, token, key);
     };
     const done = <T>(character: T): T => {
       fields.finish();
@@ -557,14 +557,14 @@ export const parseMovieText = (text: string): ParsedMovieText => {
       return character;
     };
     const flat = <T>(character: T): T => {
-      noChildren(node, `A ${typeToken.text}`);
+      reportChildren(node, `A ${typeToken.text}`);
       return done(character);
     };
 
     switch (typeToken.text) {
       case 'movie': {
-        const screen = fields.optional('screen');
-        const unknown36 = fields.optional('unknown36');
+        const screen = fields.getOptional('screen');
+        const unknown36 = fields.getOptional('unknown36');
         let size:
           | { width: number; height: number; unknown36: number }
           | undefined;
@@ -601,7 +601,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
           geometry: number('geometry'),
         });
       case 'edittext': {
-        const colorToken = fields.required('color', node.tokens);
+        const colorToken = fields.getRequired('color', node.tokens);
 
         if (!/^#[0-9a-f]{8}$/i.test(colorToken.text)) {
           throw new ParseError(
@@ -614,30 +614,30 @@ export const parseMovieText = (text: string): ParsedMovieText => {
         const [r, g, b, a] = [1, 3, 5, 7].map((at) =>
           parseInt(colorToken.text.slice(at, at + 2), 16),
         );
-        const fontToken = fields.required('font', node.tokens);
+        const fontToken = fields.getRequired('font', node.tokens);
 
         return flat({
           ...head,
           type: 'editText',
           bounds: rect('bounds'),
-          font: id(fontToken),
+          font: readId(fontToken),
           alignment: number('align'),
           color: ((a << 24) | (r << 16) | (g << 8) | b) >>> 0,
           fontHeight: float('height'),
           readonly: number('readonly'),
           multiline: number('multiline'),
           wordwrap: number('wordwrap'),
-          text: fields.string('text'),
-          variable: fields.string('var'),
+          text: fields.getString('text'),
+          variable: fields.getString('var'),
         });
       }
       case 'font': {
-        const glyphs = fields.optional('glyphs');
+        const glyphs = fields.getOptional('glyphs');
 
         return flat({
           ...head,
           type: 'font',
-          name: fields.string('name'),
+          name: fields.getString('name'),
           glyphs: glyphs?.text
             ? glyphs.text
                 .split(',')
@@ -660,9 +660,9 @@ export const parseMovieText = (text: string): ParsedMovieText => {
             const childFields = new Fields(more, word?.text ?? '');
 
             if (word?.text === 'record') {
-              noChildren(child, 'A button record');
+              reportChildren(child, 'A button record');
 
-              const states = childFields.required('states', child.tokens);
+              const states = childFields.getRequired('states', child.tokens);
               const flags =
                 states.text === 'none'
                   ? 0
@@ -677,10 +677,10 @@ export const parseMovieText = (text: string): ParsedMovieText => {
                       );
                     }, 0) >>> 0;
               const depth = i32(
-                childFields.required('depth', child.tokens),
+                childFields.getRequired('depth', child.tokens),
                 'depth',
               );
-              const character = id(childFields.required('char', child.tokens));
+              const character = readId(childFields.getRequired('char', child.tokens));
               let color = [1, 1, 1, 1];
               let unknown = [0, 0, 0, 0];
 
@@ -689,11 +689,11 @@ export const parseMovieText = (text: string): ParsedMovieText => {
               const placement = readPlacement(childFields.bare, {
                 color: {
                   arity: 1,
-                  read: ([value]) => (color = floats(value, 4, 'color')),
+                  read: ([value]) => (color = readFloats(value, 4, 'color')),
                 },
                 unknown: {
                   arity: 1,
-                  read: ([value]) => (unknown = floats(value, 4, 'unknown')),
+                  read: ([value]) => (unknown = readFloats(value, 4, 'unknown')),
                 },
               });
 
@@ -712,13 +712,13 @@ export const parseMovieText = (text: string): ParsedMovieText => {
               });
             } else if (word?.text === 'action') {
               const condition = u32(
-                childFields.required('condition', child.tokens),
+                childFields.getRequired('condition', child.tokens),
                 'condition',
               );
 
               childFields.finish();
 
-              const script = scriptOf(child, 'A button action');
+              const script = readScript(child, 'A button action');
 
               if (script) {
                 actions.push({
@@ -751,8 +751,8 @@ export const parseMovieText = (text: string): ParsedMovieText => {
         return flat({
           ...head,
           type: 'morph',
-          startShape: id(fields.required('start', node.tokens)),
-          endShape: id(fields.required('end', node.tokens)),
+          startShape: readId(fields.getRequired('start', node.tokens)),
+          endShape: readId(fields.getRequired('end', node.tokens)),
         });
       case 'text': {
         const bounds = rect('bounds');
@@ -774,12 +774,12 @@ export const parseMovieText = (text: string): ParsedMovieText => {
             if (word?.text !== 'run') {
               throw new ParseError('A text holds run lines');
             }
-            noChildren(child, 'A run');
+            reportChildren(child, 'A run');
 
             const runFields = new Fields(more, 'run');
-            const font = id(runFields.required('font', child.tokens));
-            const height = runFields.required('height', child.tokens);
-            const glyphs = runFields.optional('glyphs');
+            const font = readId(runFields.getRequired('font', child.tokens));
+            const height = runFields.getRequired('height', child.tokens);
+            const glyphs = runFields.getOptional('glyphs');
             let color: number[] | undefined;
             let unknown = [0, 0, 0, 0];
             let pen: number[] | undefined;
@@ -790,15 +790,15 @@ export const parseMovieText = (text: string): ParsedMovieText => {
               {
                 color: {
                   arity: 1,
-                  read: ([value]) => (color = floats(value, 4, 'color')),
+                  read: ([value]) => (color = readFloats(value, 4, 'color')),
                 },
                 unknown: {
                   arity: 1,
-                  read: ([value]) => (unknown = floats(value, 4, 'unknown')),
+                  read: ([value]) => (unknown = readFloats(value, 4, 'unknown')),
                 },
                 pen: {
                   arity: 1,
-                  read: ([value]) => (pen = floats(value, 2, 'pen')),
+                  read: ([value]) => (pen = readFloats(value, 2, 'pen')),
                 },
               },
               {},
@@ -814,7 +814,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
               color: color as TextRunText['color'],
               unknown: unknown as Rect,
               penOffset: pen as [number, number],
-              textHeight: floatOf(height.text, height, 'height'),
+              textHeight: readFloat(height.text, height, 'height'),
               glyphs: glyphs?.text
                 ? glyphs.text.split(',').map((part) => {
                     const match = /^(\d+):(-?\d+)$/.exec(part);
@@ -888,7 +888,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
                 index.endColumn,
               );
             }
-            noChildren(child, 'A constant');
+            reportChildren(child, 'A constant');
             return {
               line: child.line,
               index: at,
@@ -907,13 +907,13 @@ export const parseMovieText = (text: string): ParsedMovieText => {
         attempt(node, () => {
           const [, character, from, name, ...more] = node.tokens;
 
-          noChildren(node, 'An import');
+          reportChildren(node, 'An import');
           if (!character || !from?.isString || !name?.isString || more.length) {
             throw new ParseError('An import is import <id> "movie" "name"');
           }
           movie.imports.push({
             line: node.line,
-            character: id(character),
+            character: readId(character),
             movie: from.text,
             name: name.text,
           });
@@ -923,13 +923,13 @@ export const parseMovieText = (text: string): ParsedMovieText => {
         attempt(node, () => {
           const [, character, name, ...more] = node.tokens;
 
-          noChildren(node, 'An export');
+          reportChildren(node, 'An export');
           if (!character || !name?.isString || more.length) {
             throw new ParseError('An export is export <id> "name"');
           }
           movie.exports.push({
             line: node.line,
-            character: id(character),
+            character: readId(character),
             name: name.text,
           });
         });

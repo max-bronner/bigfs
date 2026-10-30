@@ -11,18 +11,18 @@ import {
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { decodeIniText } from '../../core/windows1252';
 import {
-  bulkChangesAcross,
+  planBulkChangesAcross,
   compileBulkQuery,
 } from '../../game/ini-tools/bulkEdit';
-import { labelsInText } from '../../game/text/gameTextLabels';
+import { findLabelsInText } from '../../game/text/gameTextLabels';
 import { insertLines, replaceInLines } from '../../formats/ini/iniTextEdits';
 import {
   isLoadedObjectPath,
-  newObjectEntryPath,
+  chooseNewObjectEntryPath,
 } from '../../game/objects/newObject';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
-import { undefinedLabels } from '../../game/text/translations';
+import { findUndefinedLabels } from '../../game/text/translations';
 
 const schema = createSageIniSchema(
   JSON.parse(
@@ -77,7 +77,7 @@ suite('INI inside archives', () => {
     const parsed = await readArchiveIndexTable(file);
     const entry = parsed.entries.find((each) => each.name === entryName)!;
     const text = decodeIniText(await readEntryData(file, entry));
-    const result = bulkChangesAcross(
+    const result = planBulkChangesAcross(
       {
         sources: [
           {
@@ -152,22 +152,22 @@ suite('INI inside archives', () => {
 
   test('a new object stays in its source file when the game loads it, else gets its own loaded file', () => {
     assert.strictEqual(
-      newObjectEntryPath('data/ini/object/men/archer.ini', 'Ranger'),
+      chooseNewObjectEntryPath('data/ini/object/men/archer.ini', 'Ranger'),
       'data/ini/object/men/archer.ini',
     );
     assert.strictEqual(
-      newObjectEntryPath('data/ini/object/includes/body.inc', 'Ranger'),
+      chooseNewObjectEntryPath('data/ini/object/includes/body.inc', 'Ranger'),
       'data/ini/object/Ranger.ini',
     );
     assert.strictEqual(
-      newObjectEntryPath(undefined, 'Ranger'),
+      chooseNewObjectEntryPath(undefined, 'Ranger'),
       'data/ini/object/Ranger.ini',
     );
   });
 
   test('labels are found in INI text without parsing it', () => {
     assert.deepStrictEqual(
-      labelsInText(
+      findLabelsInText(
         'Object A\n  DisplayName = OBJECT:A ; OBJECT:Comment\n  Pos = X:10 Y:5\nEnd',
       ),
       ['OBJECT:A'],
@@ -184,7 +184,7 @@ suite('INI inside archives', () => {
     ];
 
     assert.deepStrictEqual(
-      undefinedLabels(
+      findUndefinedLabels(
         new Map([
           ['object:a', { label: 'OBJECT:A', usedIn: 'x.ini' }],
           ['object:b', { label: 'OBJECT:B', usedIn: 'big.big/y.ini' }],

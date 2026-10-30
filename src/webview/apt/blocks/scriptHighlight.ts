@@ -141,7 +141,7 @@ export const offsetOf = (
  * Finds the span an error at a line and column underlines: the token starting
  * there, or the rest of the line when none does
  */
-export const errorSpan = (
+export const findErrorSpan = (
   text: string,
   line: number,
   column: number,

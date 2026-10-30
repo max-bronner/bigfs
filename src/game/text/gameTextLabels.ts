@@ -38,7 +38,7 @@ export const findGameTextLabels = (parsed: SageDocument): LabelToken[] =>
  * words after the first on each line, so a tool that only counts them need
  * not parse the file
  */
-export const labelsInText = (text: string): string[] =>
+export const findLabelsInText = (text: string): string[] =>
   text.split(/\r?\n/).flatMap((line) =>
     tokenize(stripComment(line))
       .slice(1)
@@ -46,16 +46,16 @@ export const labelsInText = (text: string): string[] =>
       .filter((word) => LABEL.test(word)),
   );
 
-/** Formats the diagnostic message for a label no string table defines; `labelOfMissingText` reads it back */
-export const missingTextMessage = (label: string): string =>
+/** Formats the diagnostic message for a label no string table defines; `parseMissingTextLabel` reads it back */
+export const formatMissingTextMessage = (label: string): string =>
   `No game text for '${label}' in any string table`;
 
-/** Reads the label back out of a `missingTextMessage` diagnostic */
-export const labelOfMissingText = (message: string): string | undefined =>
+/** Reads the label back out of a `formatMissingTextMessage` diagnostic */
+export const parseMissingTextLabel = (message: string): string | undefined =>
   /^No game text for '(.+)' in any string table$/.exec(message)?.[1];
 
 /** Builds a first text for a new label: its name split into words */
-export const placeholderText = (label: string): string =>
+export const createPlaceholderText = (label: string): string =>
   label
     .slice(label.indexOf(':') + 1)
     .replace(/_/g, ' ')

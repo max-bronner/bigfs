@@ -35,7 +35,7 @@ export const pushRing = (
 };
 
 /** Estimates a rough size for the camera to frame a system */
-export const reach = (def: ParticleDef | undefined): number => {
+export const estimateReach = (def: ParticleDef | undefined): number => {
   if (!def) {
     return 100;
   }
@@ -61,7 +61,7 @@ export const reach = (def: ParticleDef | undefined): number => {
 };
 
 /** Appends the outline of a system's emitter volume and a small axis cross at its origin */
-export const volumeLines = (
+export const pushVolumeLines = (
   out: number[],
   def: ParticleDef,
   origin: Vec3,

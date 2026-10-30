@@ -39,7 +39,7 @@ export interface SaveSession {
   /** Timelines whose frames are written back in the text's order */
   readonly orders: Map<number, (number[] | undefined)[]>;
   /** Reads the movie as it now stands as a text model, scripts as last known */
-  current(): MovieText;
+  readCurrentText(): MovieText;
   /** Applies an edit to the copy and records it */
   apply(edit: AptEdit): EditResult;
   /** Changes a `.const` item and records the change */
@@ -49,7 +49,7 @@ export interface SaveSession {
   /** Compiles a script to a new block; returns where it starts */
   compile(script: ScriptText, line: number): number;
   /** Notes a script the text shows at a place that runs `before`'s block */
-  script(before: ScriptText, after: ScriptText): void;
+  noteScript(before: ScriptText, after: ScriptText): void;
   /** Compiles a block's new script over it, wherever the compiler puts it */
   replaceScript(block: number, after: ScriptText): void;
 }
@@ -126,7 +126,7 @@ export const createSaveSession = (
     sites,
     orders,
 
-    current() {
+    readCurrentText() {
       text ??= movieToText(
         image.bytes,
         constBytes,
@@ -177,7 +177,7 @@ export const createSaveSession = (
       }
     },
 
-    script(before, after) {
+    noteScript(before, after) {
       if (before.block !== undefined) {
         sites.push({ block: before.block, before, after });
       }

@@ -14,7 +14,7 @@ export const stripTextStyle = (text: string): string =>
     : text;
 
 /** Gets the string table key a text names, if it is a `$` key */
-export const textKey = (text: string): string | undefined => {
+export const getTextKey = (text: string): string | undefined => {
   const plain = stripTextStyle(text);
 
   return plain.startsWith('$') && plain.length > 1 ? plain : undefined;
@@ -29,7 +29,7 @@ export const resolveAptText = (
   text: string,
   find: (label: string) => string | undefined,
 ): string => {
-  const key = textKey(text);
+  const key = getTextKey(text);
 
   if (!key) {
     return stripTextStyle(text);
@@ -45,7 +45,7 @@ export const collectTextKeys = (strings: Iterable<unknown>): string[] => {
   const keys = new Set<string>();
 
   for (const value of strings) {
-    const key = typeof value === 'string' ? textKey(value) : undefined;
+    const key = typeof value === 'string' ? getTextKey(value) : undefined;
 
     if (key) {
       keys.add(key);

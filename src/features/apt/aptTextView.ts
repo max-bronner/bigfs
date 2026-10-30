@@ -4,7 +4,7 @@ import { movieToText } from '../../formats/apt/text/fromMovie';
 import { parseMovieText } from '../../formats/apt/text/parser';
 import { printMovieText } from '../../formats/apt/text/printer';
 import type { MovieText, TextProblem } from '../../formats/apt/text/textModel';
-import { blockScripts } from '../../formats/apt/text/movieText';
+import { createScriptReader } from '../../formats/apt/text/movieText';
 import { saveMovieText } from '../../formats/apt/text/save/saveMovieText';
 import { TextSaveError } from '../../formats/apt/text/save/textSaveError';
 import type { TextSave } from '../../formats/apt/text/save/saveMovieText';
@@ -45,7 +45,7 @@ export interface TextViewHost {
 const encoder = new TextEncoder();
 
 /** Builds the text view's uri for a movie */
-export const textUriOf = (movie: vscode.Uri): vscode.Uri => {
+export const getTextUri = (movie: vscode.Uri): vscode.Uri => {
   const name = movie.path
     .slice(movie.path.lastIndexOf('/') + 1)
     .replace(/\.apt$/i, '');
@@ -58,7 +58,7 @@ export const textUriOf = (movie: vscode.Uri): vscode.Uri => {
 };
 
 /** Reads the movie uri a text view's uri names */
-export const movieUriOf = (uri: vscode.Uri): vscode.Uri =>
+export const getMovieUri = (uri: vscode.Uri): vscode.Uri =>
   vscode.Uri.parse(new URLSearchParams(uri.query).get('movie') ?? '');
 
 const toDiagnostic = (
@@ -170,7 +170,7 @@ export class AptTextView
       return undefined;
     }
 
-    const uri = textUriOf(movie);
+    const uri = getTextUri(movie);
     // A switch from the visual editor replaces it, unless it holds unsaved edits the text then shows
     const visual = vscode.window.tabGroups.all
       .flatMap((group) => group.tabs)
@@ -210,7 +210,7 @@ export class AptTextView
 
     await vscode.commands.executeCommand(
       'vscode.openWith',
-      movieUriOf(uri),
+      getMovieUri(uri),
       'bigfs.aptEditor',
     );
     await vscode.window.tabGroups.close(tabs);
@@ -221,7 +221,7 @@ export class AptTextView
     const key = movie.toString();
     const events = [...this.views]
       .map((view) => vscode.Uri.parse(view))
-      .filter((view) => movieUriOf(view).toString() === key)
+      .filter((view) => getMovieUri(view).toString() === key)
       .map((uri) => ({ type: vscode.FileChangeType.Changed, uri }));
 
     this.loaded.delete(key);
@@ -234,10 +234,10 @@ export class AptTextView
    * Gets the movie a view names: the open one, or one read from its files.
    * @throws `FileSystemError` when the movie is gone or does not read
    */
-  private async movie(
+  private async resolveMovie(
     uri: vscode.Uri,
   ): Promise<{ document: AptDocument; stamp: string }> {
-    const movie = movieUriOf(uri);
+    const movie = getMovieUri(uri);
     const key = movie.toString();
     const open = this.host.document(key);
 
@@ -271,7 +271,7 @@ export class AptTextView
   private async render(
     uri: vscode.Uri,
   ): Promise<Rendered & { document: AptDocument }> {
-    const { document, stamp } = await this.movie(uri);
+    const { document, stamp } = await this.resolveMovie(uri);
     const key = uri.toString();
     const cached = this.rendered.get(key);
 
@@ -287,7 +287,7 @@ export class AptTextView
       model = movieToText(
         apt,
         constBytes,
-        blockScripts(apt, parseConst(constBytes).items),
+        createScriptReader(apt, parseConst(constBytes).items),
       );
     } catch (error) {
       throw vscode.FileSystemError.Unavailable(
@@ -317,7 +317,7 @@ export class AptTextView
         7,
       ),
       size: encoder.encode(text).length,
-      permissions: this.host.isReadOnly(movieUriOf(uri))
+      permissions: this.host.isReadOnly(getMovieUri(uri))
         ? vscode.FilePermission.Readonly
         : undefined,
     };
@@ -334,7 +334,7 @@ export class AptTextView
    * @throws `FileSystemError` when the text does not parse or save; the movie is left as it was
    */
   public async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
-    const movie = movieUriOf(uri);
+    const movie = getMovieUri(uri);
 
     if (this.host.isReadOnly(movie)) {
       throw vscode.FileSystemError.NoPermissions(

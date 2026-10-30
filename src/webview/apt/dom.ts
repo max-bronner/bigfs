@@ -18,17 +18,17 @@ export type InputKind = 'number' | 'text' | 'line' | 'hex';
  * Creates an input that commits on change: a number, a text, a line or a hex
  * word. A number that does not parse marks the input invalid and is not committed.
  */
-export function input(
+export function createInput(
   value: unknown,
   onCommit: (value: number) => void,
   kind?: 'number' | 'hex',
 ): HTMLInputElement;
-export function input(
+export function createInput(
   value: unknown,
   onCommit: (value: string) => void,
   kind: 'text' | 'line',
 ): HTMLInputElement | HTMLTextAreaElement;
-export function input(
+export function createInput(
   value: unknown,
   onCommit: (value: never) => void,
   kind: InputKind = 'number',
@@ -67,7 +67,7 @@ export function input(
 }
 
 /** Creates a labelled row of controls */
-export const row = (label: string, ...controls: Node[]): HTMLDivElement => {
+export const createRow = (label: string, ...controls: Node[]): HTMLDivElement => {
   const element = document.createElement('div');
   const name = document.createElement('label');
 
@@ -78,7 +78,7 @@ export const row = (label: string, ...controls: Node[]): HTMLDivElement => {
 };
 
 /** Creates a button that runs `onClick` when pressed */
-export const button = (
+export const createButton = (
   label: string,
   onClick: () => void,
 ): HTMLButtonElement => {
@@ -90,7 +90,7 @@ export const button = (
 };
 
 /** Creates a section heading for the details panel */
-export const heading = (text: string): HTMLHeadingElement => {
+export const createHeading = (text: string): HTMLHeadingElement => {
   const element = document.createElement('h3');
 
   element.textContent = text;

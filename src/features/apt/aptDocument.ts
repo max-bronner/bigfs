@@ -22,10 +22,10 @@ import {
 } from '../../formats/apt/aptGeometry';
 import { addTexture, setShapeGeometry } from '../../formats/apt/aptAssets';
 import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
-import { behaviourOf } from '../../formats/apt/aptBehaviour';
+import { readBehaviour } from '../../formats/apt/aptBehaviour';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { PageMovie, TexturePixels } from '../../webview/apt/protocol';
-import { movieKey } from './aptLibrary';
+import { toMovieKey } from './aptLibrary';
 import { decodeWindows1252 } from '../../core/windows1252';
 import { describeError } from '../../core/errors';
 import { packSnapshot, unpackSnapshot } from './aptSnapshot';
@@ -39,7 +39,7 @@ export interface BuiltMovie {
 }
 
 /** Lists every action block a movie runs: frame actions, button and clip actions */
-const actionBlocks = (
+const listActionBlocks = (
   movie: AptMovie,
   spriteFrames: Record<number, Frame[]>,
 ): number[] => {
@@ -65,11 +65,11 @@ const actionBlocks = (
 };
 
 /** Reads an edited file's bytes, where an empty one is a file an edit removed */
-const removedOr = (bytes: Uint8Array): Uint8Array | undefined =>
+const unlessRemoved = (bytes: Uint8Array): Uint8Array | undefined =>
   bytes.length ? bytes : undefined;
 
 /** Reads a file, or nothing when it is not there */
-const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
+const readFileIfPresent = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
   try {
     return await vscode.workspace.fs.readFile(uri);
   } catch {
@@ -83,11 +83,11 @@ const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
  * `Name.CONST` beside `name.apt` is. Looks nowhere else, so a movie reads its
  * own copy before any other archive's.
  */
-const readOwn = async (
+const readOwnFile = async (
   aptUri: vscode.Uri,
   relative: string,
 ): Promise<Uint8Array | undefined> => {
-  const exact = await tryRead(
+  const exact = await readFileIfPresent(
     vscode.Uri.joinPath(vscode.Uri.joinPath(aptUri, '..'), relative),
   );
 
@@ -97,10 +97,8 @@ const readOwn = async (
 
   const found = await findBeside(aptUri, relative, vscode.FileType.File);
 
-  return found ? tryRead(found) : undefined;
+  return found ? readFileIfPresent(found) : undefined;
 };
-
-const latin1 = decodeWindows1252;
 
 /**
  * One open movie: the `.apt` image being edited, the files beside it, and
@@ -152,11 +150,11 @@ export class AptDocument implements vscode.CustomDocument {
     this.parsedConst = parseConst(constBytes);
     this.read = (relative) =>
       this.files.has(relative)
-        ? Promise.resolve(removedOr(this.files.get(relative)!))
-        : this.cached(
+        ? Promise.resolve(unlessRemoved(this.files.get(relative)!))
+        : this.readCached(
             relative,
             async () =>
-              (await readOwn(uri, relative)) ??
+              (await readOwnFile(uri, relative)) ??
               (await locator.read(
                 relative.slice(relative.lastIndexOf('/') + 1),
                 uri,
@@ -175,7 +173,7 @@ export class AptDocument implements vscode.CustomDocument {
       .replace(/\.apt$/i, '');
     const apt = await vscode.workspace.fs.readFile(uri);
     const constBytes =
-      (await readOwn(uri, `${name}.const`)) ??
+      (await readOwnFile(uri, `${name}.const`)) ??
       (await locator.read(`${name}.const`, uri));
 
     if (!constBytes) {
@@ -224,7 +222,7 @@ export class AptDocument implements vscode.CustomDocument {
     this.cache.clear();
   }
 
-  private cached(
+  private readCached(
     key: string,
     load: () => Promise<Uint8Array | undefined>,
   ): Promise<Uint8Array | undefined> {
@@ -262,7 +260,7 @@ export class AptDocument implements vscode.CustomDocument {
   }
 
   /** Decodes a texture once, however often the movie is redrawn */
-  private async texture(path: string, problems: string[]) {
+  private async loadTexture(path: string, problems: string[]) {
     if (!this.textures.has(path)) {
       const bytes = await this.read(path);
       let texture: TexturePixels | undefined;
@@ -297,7 +295,7 @@ export class AptDocument implements vscode.CustomDocument {
     const apt = this.image.bytes;
     const movie = parseAptMovie(apt, this.constFile.movieOffset);
     const datBytes = await this.read(`${this.name}.dat`);
-    const dat = datBytes ? parseDat(latin1(datBytes)) : new Map();
+    const dat = datBytes ? parseDat(decodeWindows1252(datBytes)) : new Map();
     const spriteFrames: Record<number, Frame[]> = {};
 
     const shapes: Record<number, RuRun[]> = {};
@@ -315,7 +313,7 @@ export class AptDocument implements vscode.CustomDocument {
               `${this.name}_geometry/${character.geometry}.ru`,
             );
 
-            shapes[character.id] = ru ? parseRu(latin1(ru)) : [];
+            shapes[character.id] = ru ? parseRu(decodeWindows1252(ru)) : [];
 
             if (!ru) {
               problems.push(`geometry of shape #${character.id}`);
@@ -342,10 +340,10 @@ export class AptDocument implements vscode.CustomDocument {
 
     const textures: Record<string, TexturePixels> = {};
     // Movies drawn together can name the same path; each reads its own
-    const textureKey = (path: string) => `${movieKey(this.name)}/${path}`;
+    const textureKey = (path: string) => `${toMovieKey(this.name)}/${path}`;
 
     for (const path of new Set(Object.values(imageTextures))) {
-      const texture = await this.texture(path, problems);
+      const texture = await this.loadTexture(path, problems);
 
       if (texture) {
         textures[textureKey(path)] = texture;
@@ -378,8 +376,8 @@ export class AptDocument implements vscode.CustomDocument {
         ...movie,
         name: this.name,
         spriteFrames,
-        behaviours: this.behaviours(movie, spriteFrames),
-        code: this.code(movie, spriteFrames),
+        behaviours: this.readBehaviours(movie, spriteFrames),
+        code: this.decodeActionBlocks(movie, spriteFrames),
         consts: this.constFile.items.map((item) => item.value),
         shapes,
         imageTextures,
@@ -390,13 +388,13 @@ export class AptDocument implements vscode.CustomDocument {
   }
 
   /** Decodes every action block for the preview to run, leaving out one that fails */
-  private code(
+  private decodeActionBlocks(
     movie: AptMovie,
     spriteFrames: Record<number, Frame[]>,
   ): Record<number, AptInstruction[]> {
     const code: Record<number, AptInstruction[]> = {};
 
-    for (const block of actionBlocks(movie, spriteFrames)) {
+    for (const block of listActionBlocks(movie, spriteFrames)) {
       try {
         code[block] = decodeBlock(this.image.bytes, block);
       } catch {
@@ -407,15 +405,15 @@ export class AptDocument implements vscode.CustomDocument {
   }
 
   /** Works out what each action block does to timelines, for the preview to play */
-  private behaviours(
+  private readBehaviours(
     movie: AptMovie,
     spriteFrames: Record<number, Frame[]>,
   ): Record<number, Behaviour> {
     const behaviours: Record<number, Behaviour> = {};
 
-    for (const block of actionBlocks(movie, spriteFrames)) {
+    for (const block of listActionBlocks(movie, spriteFrames)) {
       try {
-        behaviours[block] = behaviourOf(
+        behaviours[block] = readBehaviour(
           this.image.bytes,
           block,
           this.constFile.items,
@@ -451,7 +449,7 @@ export class AptDocument implements vscode.CustomDocument {
       this.image,
       this.constFile.movieOffset,
       this.name,
-      dat ? latin1(dat) : '',
+      dat ? decodeWindows1252(dat) : '',
       { width, height, pixels },
     );
 

@@ -10,7 +10,7 @@ export interface ScriptTreeOptions {
 }
 
 /** Renders a call as text, with a play button after each parameter that names a sound */
-const callNodes = (call: SoundCall, options: ScriptTreeOptions): Node[] => {
+const renderCall = (call: SoundCall, options: ScriptTreeOptions): Node[] => {
   const nodes: Node[] = [
     document.createTextNode(call.name + (call.parameters.length ? '(' : '')),
   ];
@@ -34,23 +34,23 @@ const callNodes = (call: SoundCall, options: ScriptTreeOptions): Node[] => {
   return nodes;
 };
 
-const joined = (
+const joinCalls = (
   calls: SoundCall[],
   separator: string,
   options: ScriptTreeOptions,
 ): Node[] =>
   calls.flatMap((call, at) => [
     ...(at ? [document.createTextNode(separator)] : []),
-    ...callNodes(call, options),
+    ...renderCall(call, options),
   ]);
 
-const callsAfter = (
+const renderCallsAfter = (
   title: string,
   list: SoundCall[],
   options: ScriptTreeOptions,
 ): Node[] =>
   list.length
-    ? [document.createTextNode(`${title} `), ...joined(list, '; ', options)]
+    ? [document.createTextNode(`${title} `), ...joinCalls(list, '; ', options)]
     : [];
 
 const renderNodes = (
@@ -94,12 +94,12 @@ const renderNodes = (
               document.createTextNode('IF '),
               ...node.conditions.flatMap((and, at) => [
                 ...(at ? [document.createTextNode(' OR ')] : []),
-                ...joined(and, ' AND ', options),
+                ...joinCalls(and, ' AND ', options),
               ]),
             ]
           : [],
-        callsAfter('THEN', node.actions, options),
-        callsAfter('ELSE', node.actionsFalse, options),
+        renderCallsAfter('THEN', node.actions, options),
+        renderCallsAfter('ELSE', node.actionsFalse, options),
       ].filter((part) => part.length);
 
       parts.forEach((part, at) => {

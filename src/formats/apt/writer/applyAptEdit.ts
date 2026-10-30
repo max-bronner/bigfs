@@ -4,7 +4,7 @@ import { applyCharacterEdit } from './applyCharacterEdit';
 import { applyFrameItemEdit } from './applyFrameItemEdit';
 import { applyImportExportEdit } from './applyImportExportEdit';
 import { applyTextRecordEdit } from './applyTextRecordEdit';
-import { applyTimelineEdit, editedTimelineFrames } from './applyTimelineEdit';
+import { applyTimelineEdit, computeEditedTimelineFrames } from './applyTimelineEdit';
 import type { AptEdit, EditResult } from './aptEdit';
 import type { AptImage } from './aptImage';
 
@@ -72,7 +72,7 @@ export const applyAptEdit = (
       return applyAptEdit(image, movieOffset, {
         kind: 'setTimeline',
         timeline: edit.timeline,
-        frames: editedTimelineFrames(image, movie, edit),
+        frames: computeEditedTimelineFrames(image, movie, edit),
       });
   }
 };

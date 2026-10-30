@@ -3,13 +3,13 @@ import os from 'os';
 import path from 'path';
 import { listBaseArchives } from '../../node/modDiff';
 import {
-  defaultPackageFolder,
-  overrideReport,
-  reportMarkdown,
-  skippedFromPackage,
+  getDefaultPackageFolder,
+  buildOverrideReport,
+  renderOverrideReport,
+  isSkippedFromPackage,
 } from '../../node/modPackage';
 import type { Delivery, OverrideReport } from '../../node/modPackage';
-import { packedArchives } from '../../services/archives/packagedOutputs';
+import { getPackedArchives } from '../../services/archives/packagedOutputs';
 import { decodeWindows1252 } from '../../core/windows1252';
 import { diagnoseIniText } from '../../services/ini/diagnoseIniText';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
@@ -44,7 +44,7 @@ export interface PackageRequest {
  * Checks the mod folder's INI files and lists their errors. They are checked
  * here because a file nobody opened has no diagnostics in the Problems panel.
  */
-const errorsIn = async (
+const findIniErrors = async (
   files: { uri: vscode.Uri; relativePath: string }[],
   documents: SageIniDocuments,
 ) => {
@@ -76,7 +76,7 @@ const errorsIn = async (
   return errors;
 };
 
-const ask = async (): Promise<PackageRequest | undefined> => {
+const askPackageRequest = async (): Promise<PackageRequest | undefined> => {
   const folders = vscode.workspace.workspaceFolders ?? [];
   const folder =
     folders.length === 1
@@ -143,7 +143,7 @@ export const registerPackageMod = (
     async (
       given?: PackageRequest,
     ): Promise<{ report: OverrideReport; packed: number } | undefined> => {
-      const request = given ?? (await ask());
+      const request = given ?? (await askPackageRequest());
 
       if (!request) {
         return undefined;
@@ -151,25 +151,25 @@ export const registerPackageMod = (
 
       const layers = await baseLayers();
       const listed = (await listFiles(request.folder)).filter(
-        (file) => !skippedFromPackage(file.relativePath),
+        (file) => !isSkippedFromPackage(file.relativePath),
       );
       const files = listed.map((file) => file.relativePath);
       const archives = layers.length
-        ? (await listBaseArchives(layers, { exclude: packedArchives() }))
+        ? (await listBaseArchives(layers, { exclude: getPackedArchives() }))
             .archives
         : [];
-      const report = overrideReport(
+      const report = buildOverrideReport(
         files,
         request.name,
         archives,
         request.delivery,
       );
-      const problems = await errorsIn(listed, documents);
+      const problems = await findIniErrors(listed, documents);
 
       if (request.confirm !== false) {
         const document = await vscode.workspace.openTextDocument({
           language: 'markdown',
-          content: reportMarkdown(
+          content: renderOverrideReport(
             report,
             request.name,
             request.delivery,
@@ -199,7 +199,7 @@ export const registerPackageMod = (
         (await vscode.window.showSaveDialog({
           defaultUri: vscode.Uri.file(
             path.join(
-              defaultPackageFolder(request.folder.fsPath, layers, os.homedir()),
+              getDefaultPackageFolder(request.folder.fsPath, layers, os.homedir()),
               request.name,
             ),
           ),
@@ -216,7 +216,7 @@ export const registerPackageMod = (
           location: vscode.ProgressLocation.Notification,
           title: `Packing ${path.basename(target.fsPath)}`,
         },
-        () => packFolderInto(request.folder, target, skippedFromPackage),
+        () => packFolderInto(request.folder, target, isSkippedFromPackage),
       );
 
       void vscode.window.showInformationMessage(

@@ -1,5 +1,5 @@
 import type { TreeView } from 'vscode';
-import type { ExplorerNode } from './explorerRow';
+import type { ExplorerRow } from './explorerRow';
 
 /**
  * Rows selected in the archive explorer, readable by the node commands of any
@@ -8,14 +8,14 @@ import type { ExplorerNode } from './explorerRow';
  */
 export interface ExplorerSelection {
   /** Rows selected now; empty until the explorer attaches its tree view */
-  readonly rows: readonly ExplorerNode[];
+  readonly rows: readonly ExplorerRow[];
   /** Hands over the tree view the selection is read from */
-  attach(treeView: TreeView<ExplorerNode>): void;
+  attach(treeView: TreeView<ExplorerRow>): void;
 }
 
 /** Creates the explorer selection the services hold for the session */
 export const createExplorerSelection = (): ExplorerSelection => {
-  let treeView: TreeView<ExplorerNode> | undefined;
+  let treeView: TreeView<ExplorerRow> | undefined;
 
   return {
     get rows() {

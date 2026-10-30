@@ -3,7 +3,7 @@ import type {
   NumericField,
 } from '../../formats/particles/particleIni';
 import type { FxEffect } from '../../formats/particles/fxEffects';
-import { effectLength } from '../../formats/particles/fxEffects';
+import { getEffectLength } from '../../formats/particles/fxEffects';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
 import { $, library, post, state, world } from './page';
 
@@ -45,7 +45,7 @@ const rootList = () =>
 const delayFrames = (ms: number) => Math.ceil((ms * STEP_HZ) / 1000);
 
 /** Counts the frames a nugget's systems take: emitting, then their last particle's life */
-const duration = (system: string): number | undefined => {
+const getDurationFrames = (system: string): number | undefined => {
   const def = library.systems.get(system.toLowerCase());
 
   if (!def) {
@@ -83,9 +83,9 @@ export const applyMuting = (): void => {
   }
 };
 
-const span = (list: FxListDef): number => {
+const getSpanFrames = (list: FxListDef): number => {
   const ends = list.nuggets.map((nugget) => {
-    const end = duration(nugget.system);
+    const end = getDurationFrames(nugget.system);
 
     return delayFrames(nugget.initialDelay.high) + (end ?? 0);
   });
@@ -94,7 +94,7 @@ const span = (list: FxListDef): number => {
     ...list.effects.map(
       (effect) =>
         delayFrames(effect.initialDelay.low) +
-        (effectLength(effect) / 1000) * STEP_HZ,
+        (getEffectLength(effect) / 1000) * STEP_HZ,
     ),
   ];
 
@@ -129,7 +129,7 @@ export const drawTimeline = (): void => {
   }
 
   const ctx = canvas.getContext('2d')!;
-  const frames = span(list);
+  const frames = getSpanFrames(list);
   const x = (frame: number) =>
     LABEL + (Math.min(frame, frames) / frames) * (width - LABEL - PAD);
 
@@ -162,7 +162,7 @@ export const drawTimeline = (): void => {
     const off = solo !== undefined ? index !== solo : muted.has(index);
     const start = delayFrames(nugget.initialDelay.low);
     const late = delayFrames(nugget.initialDelay.high);
-    const length = duration(nugget.system);
+    const length = getDurationFrames(nugget.system);
     const live = alive.get(nugget.system.toLowerCase()) ?? 0;
 
     ctx.fillStyle = off ? 'rgba(255,255,255,0.35)' : '#ddd';
@@ -212,7 +212,7 @@ export const drawTimeline = (): void => {
     const top = PAD + (list.nuggets.length + list.sounds.length + index) * ROW;
     const approximated = !!effect.approximation;
     const at = x(delayFrames(effect.initialDelay.low));
-    const length = (effectLength(effect) / 1000) * STEP_HZ;
+    const length = (getEffectLength(effect) / 1000) * STEP_HZ;
 
     ctx.fillStyle = approximated ? '#ddd' : 'rgba(255,255,255,0.35)';
     ctx.fillText(
@@ -396,7 +396,7 @@ export const renderTimeline = (restart: () => void): void => {
     const width = view.clientWidth - LABEL - PAD;
     const ms =
       ((event.clientX - drag.startX) / width) *
-      (span(original) / STEP_HZ) *
+      (getSpanFrames(original) / STEP_HZ) *
       1000;
 
     for (const [id, value] of drag.delays) {

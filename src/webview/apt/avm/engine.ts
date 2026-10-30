@@ -1,6 +1,6 @@
 import type { AptInstruction } from '../../../formats/apt/aptBytecode';
 import type { EngineValues, PageMovie } from '../protocol';
-import { soundEventOf } from './movieLoad';
+import { getSoundEvent } from './movieLoad';
 import { AsObject } from './value';
 import type { Value } from './value';
 import type { EngineHooks, Vm } from './vm';
@@ -92,7 +92,7 @@ export const parseTyped = (text: string): Value => {
   return quoted ? (quoted[1] ?? quoted[2]) : trimmed;
 };
 
-/** `stringUses` counts, built once per movie */
+/** `countStringUses` counts, built once per movie */
 const usesByMovie = new WeakMap<PageMovie, Map<string, number>>();
 
 /**
@@ -100,7 +100,7 @@ const usesByMovie = new WeakMap<PageMovie, Map<string, number>>();
  * from a constant pool. A function its code stores under a name it never
  * names again is one only the engine can call.
  */
-export const stringUses = (movie: PageMovie): Map<string, number> => {
+export const countStringUses = (movie: PageMovie): Map<string, number> => {
   const known = usesByMovie.get(movie);
 
   if (known) {
@@ -211,7 +211,7 @@ const MAX_READS = 2000;
  * `_root.side` and `_level0:side` are one. The last name alone is never a
  * match: `menu.side` is not `side`.
  */
-export const pathKey = (path: string): string =>
+export const toPathKey = (path: string): string =>
   path
     .trim()
     .toLowerCase()
@@ -223,7 +223,7 @@ const externKey = (name: string) => name.trim().toLowerCase();
 
 /** The engine side of a run: what the movie asks of the game, and the answers the user gave */
 export class Engine implements EngineHooks {
-  /** Values that win over the movie's, typed as written, by `pathKey` */
+  /** Values that win over the movie's, typed as written, by `toPathKey` */
   public readonly overrides = new Map<string, string>();
   /** Values `GetExtern` answers before anything the movie wrote, by extern key */
   public readonly externOverrides = new Map<string, string>();
@@ -234,7 +234,7 @@ export class Engine implements EngineHooks {
   >();
   /** What calls into the engine return, typed as written, by lowercased name */
   public readonly returns = new Map<string, string>();
-  /** Variables the movie read, by `pathKey`; at most `MAX_READS` */
+  /** Variables the movie read, by `toPathKey`; at most `MAX_READS` */
   public readonly reads = new Map<string, ReadValue>();
   /** Externs the movie asked for, by lowercased name */
   public readonly externs = new Map<string, Seen>();
@@ -270,7 +270,7 @@ export class Engine implements EngineHooks {
 
   /** Starts a fresh run of a movie: what was seen goes, what the user set stays */
   public reset(movie: PageMovie): void {
-    this.uses = stringUses(movie);
+    this.uses = countStringUses(movie);
     this.reads.clear();
     this.externs.clear();
     this.calls.clear();
@@ -327,7 +327,7 @@ export class Engine implements EngineHooks {
       this.overrideExtern(name.trim().slice('extern.'.length), text);
       return;
     }
-    this.store(this.overrides, pathKey(name), text);
+    this.store(this.overrides, toPathKey(name), text);
   }
 
   /** Sets or clears (empty text) the override of an extern */
@@ -407,7 +407,7 @@ export class Engine implements EngineHooks {
       return value;
     }
 
-    const key = pathKey(path);
+    const key = toPathKey(path);
     let seen = this.reads.get(key);
 
     if (!seen && this.reads.size < MAX_READS) {
@@ -454,7 +454,7 @@ export class Engine implements EngineHooks {
       `engine: ${name}(${args.map((arg) => JSON.stringify(arg)).join(', ')})`,
     );
 
-    const sound = soundEventOf(name, args);
+    const sound = getSoundEvent(name, args);
 
     if (sound) {
       this.heard(sound);

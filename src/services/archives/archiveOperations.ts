@@ -46,7 +46,7 @@ export interface TransferResult {
 export type ArchiveLookup = Pick<
   ArchiveRegistry,
   | 'fireChanged'
-  | 'getArchiveContext'
+  | 'requireResolvedUri'
   | 'getArchiveOf'
   | 'getNode'
   | 'groupByArchive'
@@ -188,7 +188,7 @@ export const createArchiveOperations = (
 
   const operations: ArchiveOperations = {
     async writeFile(uri, content) {
-      const { archive, entryPath } = lookup.getArchiveContext(uri);
+      const { archive, entryPath } = lookup.requireResolvedUri(uri);
 
       if (!entryPath) {
         throw FileSystemError.NoPermissions('Cannot write to the archive root');
@@ -209,7 +209,7 @@ export const createArchiveOperations = (
       const byArchive = new Map<Archive, EntryChange[]>();
 
       for (const { uri, content } of files) {
-        const { archive, entryPath } = lookup.getArchiveContext(uri);
+        const { archive, entryPath } = lookup.requireResolvedUri(uri);
 
         if (!entryPath) {
           throw FileSystemError.NoPermissions(
@@ -229,7 +229,7 @@ export const createArchiveOperations = (
     },
 
     async createDirectory(uri) {
-      const { archive, entryPath } = lookup.getArchiveContext(uri);
+      const { archive, entryPath } = lookup.requireResolvedUri(uri);
 
       if (!entryPath) {
         throw FileSystemError.NoPermissions('Cannot create the archive root');
@@ -263,8 +263,8 @@ export const createArchiveOperations = (
     },
 
     async rename(oldUri, newUri) {
-      const source = lookup.getArchiveContext(oldUri);
-      const target = lookup.getArchiveContext(newUri);
+      const source = lookup.requireResolvedUri(oldUri);
+      const target = lookup.requireResolvedUri(newUri);
 
       if (source.archive !== target.archive) {
         throw FileSystemError.NoPermissions('Cannot move between archives');

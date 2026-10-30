@@ -26,12 +26,12 @@ export const REPORTABLE_KINDS: ReadonlySet<string> = new Set(
 export const isReportableKind = (keyword: string): boolean =>
   REPORTABLE_KINDS.has(keyword.toLowerCase());
 
-const normal = (path: string): string =>
+const normalizeFolderPath = (path: string): string =>
   path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
-const within = (path: string, folder: string): boolean => {
-  const inner = normal(path);
-  const outer = normal(folder);
+const isPathWithin = (path: string, folder: string): boolean => {
+  const inner = normalizeFolderPath(path);
+  const outer = normalizeFolderPath(folder);
 
   return outer !== '' && (inner === outer || inner.startsWith(`${outer}/`));
 };
@@ -45,5 +45,5 @@ export const isModFile = (
   workspaceFolders: readonly string[],
   baseGameFolders: readonly string[],
 ): boolean =>
-  workspaceFolders.some((folder) => within(path, folder)) &&
-  !baseGameFolders.some((folder) => within(path, folder));
+  workspaceFolders.some((folder) => isPathWithin(path, folder)) &&
+  !baseGameFolders.some((folder) => isPathWithin(path, folder));

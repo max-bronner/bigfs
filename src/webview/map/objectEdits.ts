@@ -1,5 +1,5 @@
 import { sendEdit } from './messaging';
-import { turnedAngle } from './mapModel';
+import { turnAngle } from './mapModel';
 import type { ObjectView } from './protocol';
 import { state } from './state';
 
@@ -11,7 +11,7 @@ export const rotateBy = (object: ObjectView, step: number): void => {
   sendEdit({
     kind: 'object',
     index: object.index,
-    angle: turnedAngle(object.angle, step),
+    angle: turnAngle(object.angle, step),
   });
 };
 

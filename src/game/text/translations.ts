@@ -50,7 +50,7 @@ const CSF_LANGUAGES = [
 ];
 
 /** Detects the language a table is in, from its path, else its header, else `unknown` */
-export const languageOf = (path: string, csfLanguage?: number): string => {
+export const detectTableLanguage = (path: string, csfLanguage?: number): string => {
   const segments = path
     .toLowerCase()
     .split(/[\\/]/)
@@ -90,7 +90,7 @@ export interface LanguageGap {
 }
 
 /** Finds every language's missing labels, against the union of all of them */
-export const translationGaps = (tables: StringTable[]): LanguageGap[] => {
+export const findTranslationGaps = (tables: StringTable[]): LanguageGap[] => {
   const languages = new Map<string, StringTable[]>();
 
   for (const table of tables) {
@@ -141,9 +141,9 @@ export interface UndefinedLabel {
 /**
  * Finds the labels INI files use that none of the tables define in any language.
  * A label defined in one language only is a translation gap, not a missing
- * string, so it is left to `translationGaps`.
+ * string, so it is left to `findTranslationGaps`.
  */
-export const undefinedLabels = (
+export const findUndefinedLabels = (
   used: ReadonlyMap<string, { label: string; usedIn: string }>,
   tables: readonly StringTable[],
 ): UndefinedLabel[] =>

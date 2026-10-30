@@ -37,7 +37,7 @@ export const MAX_SIDE = 255 * 16;
 
 /**
  * Encodes a movie in EA's VP6 container, with a key frame every two seconds
- * unless `keyInterval` says otherwise.
+ * unless `getKeyInterval` says otherwise.
  * @returns `undefined` when `cancelled` stopped the encode
  */
 export const encodeMovie = async (

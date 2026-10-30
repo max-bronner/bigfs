@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import {
-  fieldOf,
-  labelled,
+  findField,
+  splitLabelledItems,
   parseWnd,
   toBoxes,
 } from '../../formats/wnd/wndLayout';
@@ -52,7 +52,7 @@ suite('WND layouts', () => {
 
   test('records read by label, with or without commas', () => {
     assert.deepStrictEqual(
-      labelled('UPPERLEFT: 1 2 BOTTOMRIGHT:3 4, NAME: "Times New Roman"'),
+      splitLabelledItems('UPPERLEFT: 1 2 BOTTOMRIGHT:3 4, NAME: "Times New Roman"'),
       [
         ['UPPERLEFT', ['1', '2']],
         ['BOTTOMRIGHT', ['3', '4']],
@@ -175,7 +175,7 @@ suite('WND layouts', () => {
       'WINDOW\n NAME = "a";\n NAME = "b";\nEND',
     ).windows;
 
-    assert.strictEqual(fieldOf(window, 'NAME')?.value, '"b"');
+    assert.strictEqual(findField(window, 'NAME')?.value, '"b"');
   });
 
   test('text goes through the string table and keeps its font and colours', () => {

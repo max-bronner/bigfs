@@ -12,8 +12,8 @@ import type {
   Matrix2,
 } from "../../formats/apt/aptMovie";
 import type { PageMovie } from "./protocol";
-import { movieNameOf } from "./avm/movieLoad";
-import { displayList, framesOf } from "./timeline";
+import { getMovieName } from "./avm/movieLoad";
+import { buildDisplayList, getFrames } from "./timeline";
 import type { ColorTransform } from "./timeline";
 
 /**
@@ -253,7 +253,7 @@ export class Player implements StageHost {
       return;
     }
 
-    const name = movieNameOf(url);
+    const name = getMovieName(url);
 
     if (!name) {
       log(`${JSON.stringify(url)} names no movie`);
@@ -309,7 +309,7 @@ export class Player implements StageHost {
     clip.id = rootId;
     clip.character = movie.characters[rootId];
     clip.missing = undefined;
-    clip.frames = framesOf(movie, clip.character);
+    clip.frames = getFrames(movie, clip.character);
     clip.frame = 0;
     clip.playing = true;
     clip.visible = true;
@@ -324,7 +324,7 @@ export class Player implements StageHost {
     // Runs inside the drain of the script queue: what these queue follows
     this.queueInitActions(movie, clip);
     this.enter(clip, 0);
-    this.options.log?.(`loadMovie: ${movie.name} is in ${describe(clip)}`);
+    this.options.log?.(`loadMovie: ${movie.name} is in ${describeInstance(clip)}`);
     this.idle();
   }
 
@@ -402,7 +402,7 @@ export class Player implements StageHost {
    * goto each other take turns instead of nesting without end.
    */
   public idle(): void {
-    if (!this.vm || this.draining || this.vm.busy) {
+    if (!this.vm || this.draining || this.vm.isBusy) {
       return;
     }
     this.draining = true;
@@ -695,7 +695,7 @@ export class Player implements StageHost {
       placed: id,
       placedItem: place.placedItem,
       matrixItem: place.matrixItem,
-      frames: found ? framesOf(found.movie, found.character) : [],
+      frames: found ? getFrames(found.movie, found.character) : [],
       frame: 0,
       playing: true,
       children: new Map(),
@@ -768,7 +768,7 @@ export class Player implements StageHost {
   private syncTimeline(timeline: Instance): void {
     const kept = new Map<string, Instance>();
 
-    for (const placement of displayList(timeline.frames, timeline.frame)) {
+    for (const placement of buildDisplayList(timeline.frames, timeline.frame)) {
       const key = String(placement.depth);
       const existing = timeline.children.get(key);
       if (
@@ -879,13 +879,13 @@ export class Player implements StageHost {
     for (const action of button.character.actions) {
       if (action.condition & condition) {
         if (vm) {
-          this.options.log?.(`${name} on ${describe(button)}`);
+          this.options.log?.(`${name} on ${describeInstance(button)}`);
           vm.runBlock(owner, action.block, button);
         } else {
           this.run(
             owner,
             button.movie.behaviours[action.block],
-            `${name} on ${describe(button)}`,
+            `${name} on ${describeInstance(button)}`,
           );
         }
       }
@@ -1024,7 +1024,7 @@ export class Player implements StageHost {
 }
 
 /** Describes an instance for the log: its name, character id and path */
-export const describe = (instance: Instance): string =>
+export const describeInstance = (instance: Instance): string =>
   (instance.name ? `"${instance.name}" ` : "") +
   `#${instance.id}${instance.path ? " @" + instance.path : ""}`;
 

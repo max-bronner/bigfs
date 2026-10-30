@@ -71,7 +71,7 @@ export const readArmorRows = (
     });
 
 /** Lists every damage type any row writes, `DEFAULT` first */
-export const damageTypes = (rows: ArmorRow[]): string[] => {
+export const listDamageTypes = (rows: ArmorRow[]): string[] => {
   const types = new Set(rows.flatMap((row) => Object.keys(row.cells)));
 
   types.delete('DEFAULT');
@@ -94,7 +94,7 @@ const UNARMORED = '100%';
  * every type at the point it is read: a type line before it is overwritten,
  * one after it wins. A type neither line reaches lets everything through.
  */
-export const shownArmor = (row: ArmorRow, type: string): ArmorShown => {
+export const resolveShownArmor = (row: ArmorRow, type: string): ArmorShown => {
   const own = row.cells[type];
   const fallback = row.cells.DEFAULT;
 
@@ -114,7 +114,7 @@ export type ArmorEdit =
  * is not taken over; a new line goes last so it wins, except `DEFAULT`,
  * which goes first so it does not wipe the types already written.
  */
-export const armorEdit = (
+export const planArmorEdit = (
   row: ArmorRow,
   type: string,
   value: string,
@@ -122,7 +122,7 @@ export const armorEdit = (
 ): ArmorEdit => {
   const cell = row.cells[type];
 
-  if (cell && !shownArmor(row, type).inherited) {
+  if (cell && !resolveShownArmor(row, type).inherited) {
     return {
       kind: 'replace',
       line: cell.line,
@@ -139,7 +139,7 @@ export const armorEdit = (
 };
 
 /** Parses what a person typed into a percentage as the INI writes it, or undefined */
-export const armorValue = (typed: string): string | undefined => {
+export const parseArmorValue = (typed: string): string | undefined => {
   const match = /^\s*(-?\d+(?:\.\d+)?)\s*%?\s*$/.exec(typed);
 
   return match ? `${Number(match[1])}%` : undefined;

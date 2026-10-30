@@ -56,11 +56,11 @@ export const saveMovieText = (
   saveConstants(session, before, after);
   saveImports(session, before, after);
   saveCharacters(session, after);
-  saveExports(session, session.current(), after);
+  saveExports(session, session.readCurrentText(), after);
   saveTimelines(session, after);
   saveScripts(session);
   writeOrders(session);
-  checkSavedText(after, session.current());
+  checkSavedText(after, session.readCurrentText());
 
   return {
     apt:

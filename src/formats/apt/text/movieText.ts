@@ -10,7 +10,7 @@ import { describeError } from '../../../core/errors';
  * Creates the reader `movieToText` decompiles each action block of a movie
  * with, falling back to a comment when the block cannot be read
  */
-export const blockScripts =
+export const createScriptReader =
   (apt: Uint8Array, constants: readonly ConstItem[]) =>
   (block: number): ScriptText => {
     try {
@@ -36,7 +36,7 @@ export const blockScripts =
   };
 
 /** Prints a movie and its `.const` as text, every script decompiled */
-export const movieText = (
+export const printMovieFiles = (
   apt: Uint8Array,
   constBytes: Uint8Array,
   name?: string,
@@ -45,7 +45,7 @@ export const movieText = (
     movieToText(
       apt,
       constBytes,
-      blockScripts(apt, parseConst(constBytes).items),
+      createScriptReader(apt, parseConst(constBytes).items),
     ),
     name,
   );

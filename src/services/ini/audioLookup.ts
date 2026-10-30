@@ -1,5 +1,5 @@
 import { createParseCache } from './workspaceText';
-import { audioDefinitionOf } from '../../game/audio/sageAudioResolve';
+import { readAudioDefinition } from '../../game/audio/sageAudioResolve';
 import type { AudioLookup } from '../../game/audio/sageAudioResolve';
 import { forEachBlock } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
@@ -45,11 +45,11 @@ export const createAudioLookup = (
         continue;
       }
 
-      let found: ReturnType<typeof audioDefinitionOf> | undefined;
+      let found: ReturnType<typeof readAudioDefinition> | undefined;
 
       forEachBlock(parsed.blocks, (block) => {
         if (!found && block.startLine === place.line) {
-          found = audioDefinitionOf(parsed, block);
+          found = readAudioDefinition(parsed, block);
         }
       });
       if (found) {

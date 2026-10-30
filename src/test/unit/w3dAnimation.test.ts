@@ -1,22 +1,22 @@
 import * as assert from 'assert';
-import { modelCandidates } from '../../formats/w3d/w3dModelFinder';
+import { listModelCandidates } from '../../formats/w3d/w3dModelFinder';
 import { findAnimation, parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
 import { createToolRegistry } from '../../core/toolRegistry';
-import { chunk, concat, floats, hierarchy, name } from './w3d.test';
+import { buildChunk, concatBytes, encodeFloats, hierarchy, encodeName } from './w3d.test';
 
 const u16 = (...values: number[]) =>
   new Uint8Array(Uint16Array.from(values).buffer);
 const u8 = (...values: number[]) => Uint8Array.from(values);
 
 /** An animation header: version, name, skeleton, frames, rate (and flavour) */
-const header = (frames: number, compressed: boolean, flavor = 0) => {
+const buildHeader = (frames: number, compressed: boolean, flavor = 0) => {
   const bytes = new Uint8Array(44);
   const view = new DataView(bytes.buffer);
 
-  bytes.set(name('UNIT_RUN', 16), 4);
-  bytes.set(name('UNIT_SKL', 16), 20);
+  bytes.set(encodeName('UNIT_RUN', 16), 4);
+  bytes.set(encodeName('UNIT_SKL', 16), 20);
   view.setUint32(36, frames, true);
 
   if (compressed) {
@@ -26,7 +26,7 @@ const header = (frames: number, compressed: boolean, flavor = 0) => {
     view.setUint32(40, 15, true);
   }
 
-  return chunk(compressed ? 0x281 : 0x201, bytes);
+  return buildChunk(compressed ? 0x281 : 0x201, bytes);
 };
 
 const values = (
@@ -42,15 +42,15 @@ const values = (
 suite('W3D animations', () => {
   test('dense, bit and motion channels sample at every frame', () => {
     const [animation] = parseW3dAnimations(
-      concat(
-        chunk(
+      concatBytes(
+        buildChunk(
           0x200,
-          concat(
-            header(4, false),
+          concatBytes(
+            buildHeader(4, false),
             // z of bone 1, frames 1 to 2
-            chunk(0x202, concat(u16(1, 2, 1, 2, 1, 0), floats(5, 6))),
+            buildChunk(0x202, concatBytes(u16(1, 2, 1, 2, 1, 0), encodeFloats(5, 6))),
             // visibility of bone 1, frames 0 to 3: shown on 0 and 2
-            chunk(0x203, concat(u16(0, 3, 0, 1), u8(0, 0b0101))),
+            buildChunk(0x203, concatBytes(u16(0, 3, 0, 1), u8(0, 0b0101))),
           ),
           true,
         ),
@@ -65,31 +65,31 @@ suite('W3D animations', () => {
 
   test('time-coded keys blend, and a held key steps', () => {
     const [animation] = parseW3dAnimations(
-      chunk(
+      buildChunk(
         0x280,
-        concat(
-          header(5, true, 0),
+        concatBytes(
+          buildHeader(5, true, 0),
           // x of bone 2: 0 at frame 0, 8 at frame 4
-          chunk(
+          buildChunk(
             0x282,
-            concat(
+            concatBytes(
               new Uint8Array(Uint32Array.of(2).buffer),
               u16(2),
               u8(1, 0),
               new Uint8Array(Uint32Array.of(0).buffer),
-              floats(0),
+              encodeFloats(0),
               new Uint8Array(Uint32Array.of(4).buffer),
-              floats(8),
+              encodeFloats(8),
             ),
           ),
           // motion channel, y of bone 2: 0 at 0, then 10 held from frame 2
-          chunk(
+          buildChunk(
             0x284,
-            concat(
+            concatBytes(
               u8(0, 0, 1, 1),
               u16(2, 2),
               u16(0, 0x8000 | 2),
-              floats(0, 10),
+              encodeFloats(0, 10),
             ),
           ),
         ),
@@ -103,18 +103,18 @@ suite('W3D animations', () => {
 
   test('adaptive deltas rebuild from frame 0 and hold their last value', () => {
     const [animation] = parseW3dAnimations(
-      chunk(
+      buildChunk(
         0x280,
-        concat(
-          header(5, true, 1),
+        concatBytes(
+          buildHeader(5, true, 1),
           // three frames: 5, then +1, then -2, at a step of 1e0
-          chunk(
+          buildChunk(
             0x282,
-            concat(
+            concatBytes(
               new Uint8Array(Uint32Array.of(3).buffer),
               u16(1),
               u8(1, 0),
-              floats(1, 5),
+              encodeFloats(1, 5),
               u8(8, 0xe1, 0, 0, 0, 0, 0, 0, 0),
             ),
           ),
@@ -127,11 +127,11 @@ suite('W3D animations', () => {
   });
 
   test('an animation file shows on its skeleton, ready to play', async () => {
-    const file = chunk(
+    const file = buildChunk(
       0x200,
-      concat(
-        header(2, false),
-        chunk(0x202, concat(u16(0, 1, 1, 2, 1, 0), floats(0, 3))),
+      concatBytes(
+        buildHeader(2, false),
+        buildChunk(0x202, concatBytes(u16(0, 1, 1, 2, 1, 0), encodeFloats(0, 3))),
       ),
       true,
     );
@@ -149,7 +149,7 @@ suite('W3D animations', () => {
 suite('W3D model for a skeleton', () => {
   test("the unit's skinned model is tried first, never the skeleton itself", () => {
     assert.deepStrictEqual(
-      modelCandidates('GUArcher_SKL', [
+      listModelCandidates('GUArcher_SKL', [
         'guarcher_atka.w3d',
         'GUArcher_SKL.w3d',
         'guarcher.w3d',
@@ -202,12 +202,12 @@ suite('W3D model for a skeleton', () => {
     assert.throws(
       () =>
         parseW3dAnimations(
-          chunk(
+          buildChunk(
             0x200,
-            concat(
-              header(4, false),
+            concatBytes(
+              buildHeader(4, false),
               // frames 1 to 2 need two floats, only one follows
-              chunk(0x202, concat(u16(1, 2, 1, 2, 1, 0), floats(5))),
+              buildChunk(0x202, concatBytes(u16(1, 2, 1, 2, 1, 0), encodeFloats(5))),
             ),
           ),
         ),

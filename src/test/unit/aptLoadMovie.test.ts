@@ -7,9 +7,9 @@ import { AptImage } from '../../formats/apt/writer/aptImage';
 import { Engine } from '../../webview/apt/avm/engine';
 import {
   isWindowTarget,
-  levelOf,
-  movieNameOf,
-  soundEventOf,
+  parseLevel,
+  getMovieName,
+  getSoundEvent,
 } from '../../webview/apt/avm/movieLoad';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
@@ -110,12 +110,12 @@ const library =
 
 suite('APT loading movies and playing movie sounds', () => {
   test('a URL names a movie by its file stem', () => {
-    assert.strictEqual(movieNameOf('InGameHeroSelect.swf'), 'ingameheroselect');
-    assert.strictEqual(movieNameOf('art\\Skirmish.apt'), 'skirmish');
-    assert.strictEqual(movieNameOf('Palantir'), 'palantir');
-    assert.strictEqual(movieNameOf('.swf'), undefined);
-    assert.strictEqual(levelOf('_level2'), 2);
-    assert.strictEqual(levelOf('_level0.a'), undefined);
+    assert.strictEqual(getMovieName('InGameHeroSelect.swf'), 'ingameheroselect');
+    assert.strictEqual(getMovieName('art\\Skirmish.apt'), 'skirmish');
+    assert.strictEqual(getMovieName('Palantir'), 'palantir');
+    assert.strictEqual(getMovieName('.swf'), undefined);
+    assert.strictEqual(parseLevel('_level2'), 2);
+    assert.strictEqual(parseLevel('_level0.a'), undefined);
     assert.ok(isWindowTarget('_blank') && isWindowTarget(''));
     assert.ok(!isWindowTarget('_level0.slot'));
   });
@@ -217,19 +217,19 @@ suite('APT loading movies and playing movie sounds', () => {
 
   test('a PlaySound command is recognised however it is scoped', () => {
     assert.strictEqual(
-      soundEventOf('FSCommand:PlaySound', ['Gui_Click']),
+      getSoundEvent('FSCommand:PlaySound', ['Gui_Click']),
       'Gui_Click',
     );
     assert.strictEqual(
-      soundEventOf('FSCommand:AptMenu::PlaySound', ['Gui_Click']),
+      getSoundEvent('FSCommand:AptMenu::PlaySound', ['Gui_Click']),
       'Gui_Click',
     );
     assert.strictEqual(
-      soundEventOf('GameCode', ['AptMenu::PlaySound', 'A', 'B']),
+      getSoundEvent('GameCode', ['AptMenu::PlaySound', 'A', 'B']),
       'A,B',
     );
-    assert.strictEqual(soundEventOf('FSCommand:Other', ['x']), undefined);
-    assert.strictEqual(soundEventOf('FSCommand:PlaySound', []), undefined);
+    assert.strictEqual(getSoundEvent('FSCommand:Other', ['x']), undefined);
+    assert.strictEqual(getSoundEvent('FSCommand:PlaySound', []), undefined);
   });
 
   test('movie sounds are listed and logged, and play only when allowed', () => {

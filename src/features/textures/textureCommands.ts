@@ -18,10 +18,10 @@ import { describeError } from '../../core/errors';
  * a game format. Each works on files loose or inside an archive.
  */
 
-const uriOf = (target: CommandTarget): vscode.Uri | undefined =>
+const resolveTargetUri = (target: CommandTarget): vscode.Uri | undefined =>
   toUri(target) ?? vscode.window.activeTextEditor?.document.uri;
 
-const fileName = (uri: vscode.Uri) =>
+const getFileName = (uri: vscode.Uri) =>
   uri.path.slice(uri.path.lastIndexOf('/') + 1);
 
 const decodeTexture = (uri: vscode.Uri, bytes: Uint8Array): DecodedTexture =>
@@ -80,7 +80,7 @@ export const registerTextureCommands = (
       'bigfs.exportPng',
       (target: CommandTarget) =>
         run(async () => {
-          const source = uriOf(target);
+          const source = resolveTargetUri(target);
 
           if (!source) {
             return;
@@ -92,7 +92,7 @@ export const registerTextureCommands = (
           );
           const output = await pickOutput(
             source,
-            fileName(source).replace(/\.[^.]+$/, '.png'),
+            getFileName(source).replace(/\.[^.]+$/, '.png'),
           );
 
           if (output) {
@@ -101,7 +101,7 @@ export const registerTextureCommands = (
               encodePng(texture.levels[0]),
             );
             void vscode.window.showInformationMessage(
-              `Exported ${fileName(output)}`,
+              `Exported ${getFileName(output)}`,
             );
           }
         })(),
@@ -110,7 +110,7 @@ export const registerTextureCommands = (
       'bigfs.importImage',
       (target: CommandTarget) =>
         run(async () => {
-          const destination = uriOf(target);
+          const destination = resolveTargetUri(target);
 
           if (!destination) {
             return;
@@ -136,7 +136,7 @@ export const registerTextureCommands = (
           if (
             (image.width !== first.width || image.height !== first.height) &&
             (await vscode.window.showWarningMessage(
-              `The image is ${image.width}×${image.height}; ${fileName(destination)} is ${first.width}×${first.height}. Replace it anyway?`,
+              `The image is ${image.width}×${image.height}; ${getFileName(destination)} is ${first.width}×${first.height}. Replace it anyway?`,
               { modal: true },
               'Replace',
             )) !== 'Replace'
@@ -149,7 +149,7 @@ export const registerTextureCommands = (
             encodeLike(image, original, /\.dds$/i.test(destination.path)),
           );
           void vscode.window.showInformationMessage(
-            `Replaced ${fileName(destination)} (${original.format})`,
+            `Replaced ${getFileName(destination)} (${original.format})`,
           );
         })(),
     ),
@@ -157,7 +157,7 @@ export const registerTextureCommands = (
       'bigfs.convertPng',
       (target: CommandTarget) =>
         run(async () => {
-          const source = uriOf(target);
+          const source = resolveTargetUri(target);
 
           if (!source) {
             return;
@@ -215,13 +215,13 @@ export const registerTextureCommands = (
 
           const output = await pickOutput(
             source,
-            fileName(source).replace(/\.png$/i, `.${choice.extension}`),
+            getFileName(source).replace(/\.png$/i, `.${choice.extension}`),
           );
 
           if (output) {
             await vscode.workspace.fs.writeFile(output, choice.encode(image));
             void vscode.window.showInformationMessage(
-              `Wrote ${fileName(output)}`,
+              `Wrote ${getFileName(output)}`,
             );
           }
         })(),

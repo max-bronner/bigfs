@@ -24,7 +24,7 @@ export const onMappedImages = (run: () => void): void => {
  * Gets the mapped image of a name, asking the editor for it on first use:
  * undefined while it has not answered, null when the INI does not define it.
  */
-export const mappedImage = (name: string): PageMappedImage | null | undefined => {
+export const getMappedImage = (name: string): PageMappedImage | null | undefined => {
   const key = name.toLowerCase();
 
   if (!known.has(key) && !asked.has(key)) {

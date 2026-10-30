@@ -1,6 +1,6 @@
-import { boneLines, poseAt, skin } from "../../formats/w3d/w3dPose";
+import { buildBoneLines, poseAt, skin } from "../../formats/w3d/w3dPose";
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
-import { visibleMeshes } from "../../formats/w3d/w3dScene";
+import { getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { ModelScene } from "../../formats/w3d/w3dScene";
 import type { W3dBlend } from "../../formats/w3d/w3dTools";
 
@@ -156,7 +156,7 @@ export const createModelRenderer = (
   let textures: WebGLTexture[] = [];
   let pose: Pose | undefined;
 
-  const buffer = (
+  const uploadBuffer = (
     target: number,
     data: ArrayBufferView,
     usage: number = gl.STATIC_DRAW,
@@ -256,10 +256,10 @@ export const createModelRenderer = (
           hasNormals: !!mesh.normals,
           alphaTest: mesh.alphaTest,
           blend: mesh.blend,
-          position: buffer(gl.ARRAY_BUFFER, mesh.positions, usage),
-          normal: mesh.normals && buffer(gl.ARRAY_BUFFER, mesh.normals, usage),
-          uv: mesh.uvs && buffer(gl.ARRAY_BUFFER, mesh.uvs),
-          index: buffer(
+          position: uploadBuffer(gl.ARRAY_BUFFER, mesh.positions, usage),
+          normal: mesh.normals && uploadBuffer(gl.ARRAY_BUFFER, mesh.normals, usage),
+          uv: mesh.uvs && uploadBuffer(gl.ARRAY_BUFFER, mesh.uvs),
+          index: uploadBuffer(
             gl.ELEMENT_ARRAY_BUFFER,
             narrow ? Uint16Array.from(mesh.indices) : mesh.indices,
           ),
@@ -300,7 +300,7 @@ export const createModelRenderer = (
     });
   };
 
-  const bind = (
+  const bindAttribute = (
     location: number,
     data: WebGLBuffer | undefined,
     size: number,
@@ -359,7 +359,7 @@ export const createModelRenderer = (
     gl.disable(gl.BLEND);
 
     // Opaque first, so what blends over it finds it in the depth buffer
-    const visible = visibleMeshes(scene, { lod, showHidden });
+    const visible = getMeshVisibility(scene, { lod, showHidden });
     const shown = showMeshes
       ? drawables.filter((each) => visible[each.mesh])
       : [];
@@ -381,9 +381,9 @@ export const createModelRenderer = (
         gl.bindTexture(gl.TEXTURE_2D, drawable.texture);
         gl.uniform1i(uniform("tex"), 0);
       }
-      bind(attributes.position, drawable.position, 3);
-      bind(attributes.normal, drawable.normal, 3);
-      bind(attributes.uv, drawable.uv, 2);
+      bindAttribute(attributes.position, drawable.position, 3);
+      bindAttribute(attributes.normal, drawable.normal, 3);
+      bindAttribute(attributes.uv, drawable.uv, 2);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, drawable.index);
       gl.drawElements(gl.TRIANGLES, drawable.count, drawable.indexType, 0);
     }
@@ -393,16 +393,16 @@ export const createModelRenderer = (
     if (showBoxes && boxVertices) {
       gl.uniform1i(uniform("useSolid"), 1);
       gl.uniform4fv(uniform("solid"), BOX_COLOUR);
-      bind(attributes.normal, undefined, 3);
-      bind(attributes.uv, undefined, 2);
-      bind(attributes.position, boxBuffer, 3);
+      bindAttribute(attributes.normal, undefined, 3);
+      bindAttribute(attributes.uv, undefined, 2);
+      bindAttribute(attributes.position, boxBuffer, 3);
       gl.drawArrays(gl.LINES, 0, boxVertices);
     }
 
     const skeleton = scene.skeleton;
     const lines =
       showBones && skeleton
-        ? boneLines(skeleton, pose ?? poseAtBind(skeleton))
+        ? buildBoneLines(skeleton, pose ?? poseAtBind(skeleton))
         : [];
 
     if (lines.length) {
@@ -411,9 +411,9 @@ export const createModelRenderer = (
       gl.uniform4fv(uniform("solid"), BONE_COLOUR);
       gl.bindBuffer(gl.ARRAY_BUFFER, boneBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
-      bind(attributes.normal, undefined, 3);
-      bind(attributes.uv, undefined, 2);
-      bind(attributes.position, boneBuffer, 3);
+      bindAttribute(attributes.normal, undefined, 3);
+      bindAttribute(attributes.uv, undefined, 2);
+      bindAttribute(attributes.position, boneBuffer, 3);
       gl.drawArrays(gl.LINES, 0, lines.length / 3);
       gl.drawArrays(gl.POINTS, 0, lines.length / 3);
       gl.enable(gl.DEPTH_TEST);

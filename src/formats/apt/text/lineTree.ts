@@ -151,7 +151,7 @@ export const buildTree = (
 };
 
 /** Lists the lines each block of a text spans: every line with lines indented under it, and every fence */
-export const textBlocks = (text: string): { start: number; end: number }[] => {
+export const findTextBlocks = (text: string): { start: number; end: number }[] => {
   const blocks: { start: number; end: number }[] = [];
   const visit = (nodes: LineNode[]) => {
     for (const node of nodes) {

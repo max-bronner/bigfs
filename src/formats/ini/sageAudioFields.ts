@@ -34,7 +34,7 @@ export const EVA_NAMESPACES = ['NewEvaEvent', 'PredefinedEvaEvent'] as const;
 export type AudioReferenceKind = 'audio' | 'eva';
 
 /** Gets the namespaces a kind of audio reference resolves into */
-export const namespacesOfKind = (
+export const getKindNamespaces = (
   kind: AudioReferenceKind,
 ): readonly string[] => (kind === 'audio' ? AUDIO_NAMESPACES : EVA_NAMESPACES);
 
@@ -196,7 +196,7 @@ const SCOPED_AUDIO_FIELDS: Record<string, readonly string[] | '*'> = {
 };
 
 /** Gets the last segment of a context's path name, lowercased */
-export const lastContextSegment = (contextName: string): string =>
+export const getLastContextSegment = (contextName: string): string =>
   contextName.split('>').pop()?.trim().toLowerCase() ?? '';
 
 /**
@@ -204,7 +204,7 @@ export const lastContextSegment = (contextName: string): string =>
  * `contextName` is the schema's name for the context the field sits in, such
  * as `FXList > Sound`; only its last segment is read.
  */
-export const audioReferenceKind = (
+export const getAudioReferenceKind = (
   contextName: string,
   field: string,
 ): AudioReferenceKind | undefined => {
@@ -214,7 +214,7 @@ export const audioReferenceKind = (
     return undefined;
   }
 
-  const scoped = SCOPED_AUDIO_FIELDS[lastContextSegment(contextName)];
+  const scoped = SCOPED_AUDIO_FIELDS[getLastContextSegment(contextName)];
 
   if (scoped === '*' || scoped?.includes(name)) {
     return 'audio';

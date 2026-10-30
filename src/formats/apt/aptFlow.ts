@@ -28,7 +28,7 @@ export interface Jump {
   play: boolean;
 }
 
-/** Summary of how a timeline flows, as `timelineFlow` reads it */
+/** Summary of how a timeline flows, as `readTimelineFlow` reads it */
 export interface TimelineFlow {
   labels: FrameLabel[];
   /** Frames whose script stops the timeline there */
@@ -45,7 +45,7 @@ const own = (commands: TimelineCommand[]) =>
   commands.filter((command) => command.target.length === 0);
 
 /** Reads a timeline's labels, stops, plays and jumps from its lifted behaviours */
-export const timelineFlow = (
+export const readTimelineFlow = (
   frames: readonly Frame[],
   behaviours: Readonly<Record<number, Behaviour>>,
   characters: readonly (Character | undefined)[],

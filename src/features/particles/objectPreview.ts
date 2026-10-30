@@ -9,11 +9,11 @@ import {
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
 import { createToolRegistry } from '../../core/toolRegistry';
 import { EffectLibrary } from '../../services/effectLibrary';
-import { composeEffective } from '../../services/ini/effectiveObject';
-import { focusAt, readObjectScene } from '../../game/objects/objectScene';
+import { composeEffectiveObject } from '../../services/ini/effectiveObject';
+import { findSceneFocus, readObjectScene } from '../../game/objects/objectScene';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
-import { particlePageHtml } from './particlePreview';
+import { renderParticlePage } from './particlePreview';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
@@ -37,7 +37,7 @@ const STATE =
 const MAX_EFFECT_REFERENCES = 512;
 
 /** Finds the object template written around a line */
-const objectAt = (parsed: SageDocument, line: number) =>
+const findObjectAt = (parsed: SageDocument, line: number) =>
   parsed.blocks.find(
     (block) =>
       TEMPLATE.test(block.keyword) &&
@@ -46,7 +46,7 @@ const objectAt = (parsed: SageDocument, line: number) =>
   );
 
 /** Finds the object template a name defines, wherever it has moved to in the file */
-const objectNamed = (parsed: SageDocument, name: string) =>
+const findObjectNamed = (parsed: SageDocument, name: string) =>
   parsed.blocks.find(
     (block) =>
       TEMPLATE.test(block.keyword) &&
@@ -56,7 +56,7 @@ const objectNamed = (parsed: SageDocument, name: string) =>
 /** Milliseconds after an edit before the preview is drawn again */
 const REDRAW_DELAY = 300;
 
-const noticeOf = (error: unknown): ToPage => ({
+const toNotice = (error: unknown): ToPage => ({
   kind: 'notice',
   message: describeError(error),
 });
@@ -79,7 +79,7 @@ const createObjectPreview = (
   let isReady = false;
 
   const redrawSoon = createDebouncer(() => {
-    send().catch((error: unknown) => panel.post(noticeOf(error)));
+    send().catch((error: unknown) => panel.post(toNotice(error)));
   }, REDRAW_DELAY);
 
   const panel = createSingletonPanel<FromPage, ToPage>({
@@ -92,7 +92,7 @@ const createObjectPreview = (
       localResourceRoots: [scripts],
     },
     render: ({ webview }) => {
-      webview.html = particlePageHtml(
+      webview.html = renderParticlePage(
         webview.cspSource,
         webview
           .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
@@ -110,7 +110,7 @@ const createObjectPreview = (
       ];
     },
     onMessage: (message): Promise<unknown> =>
-      receive(message).catch((error: unknown) => panel.post(noticeOf(error))),
+      receive(message).catch((error: unknown) => panel.post(toNotice(error))),
     onDispose: () => {
       isReady = false;
       onClose();
@@ -139,11 +139,11 @@ const createObjectPreview = (
       (await readWorkspaceText(uri)).split(/\r?\n/),
       schema,
     );
-    const header = objectNamed(source, name)?.startLine;
+    const header = findObjectNamed(source, name)?.startLine;
     const composed =
       header === undefined
         ? undefined
-        : await composeEffective(documents, index, uri, header);
+        : await composeEffectiveObject(documents, index, uri, header);
 
     if (header === undefined || composed === undefined) {
       await panel.post({
@@ -197,7 +197,7 @@ const createObjectPreview = (
     await panel.post({
       kind: 'object',
       object: scene,
-      focus: focusAt(source, header + focusOffset, scene),
+      focus: findSceneFocus(source, header + focusOffset, scene),
     });
   };
 
@@ -265,7 +265,7 @@ const showObjectPreview = async (
     (await readWorkspaceText(uri)).split(/\r?\n/),
     await documents.getSchema(),
   );
-  const object = objectAt(parsed, line);
+  const object = findObjectAt(parsed, line);
 
   if (!object) {
     void vscode.window.showInformationMessage(

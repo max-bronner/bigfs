@@ -15,7 +15,7 @@ const vscode = getVsCodeApi<FromCommandSetPage>();
 const grid = document.getElementById('grid')!;
 const COLUMNS = 5;
 
-const slotElement = (number: number, slot: EditorSlot | undefined) => {
+const createSlotElement = (number: number, slot: EditorSlot | undefined) => {
   const element = document.createElement('div');
   const label = document.createElement('span');
 
@@ -106,7 +106,7 @@ window.addEventListener(
 
     grid.replaceChildren(
       ...Array.from({ length: count }, (_, at) =>
-        slotElement(at + 1, bySlot.get(at + 1)),
+        createSlotElement(at + 1, bySlot.get(at + 1)),
       ),
     );
   },

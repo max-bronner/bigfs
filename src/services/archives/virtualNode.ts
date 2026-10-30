@@ -33,7 +33,7 @@ export const isArchiveRoot = (node: VirtualNode): boolean => !node.entryPath;
  * (`data/ini2` beside `data/ini`) is a sibling. The archive root holds every
  * other node, but its empty path has no prefix to test.
  */
-export const isInside = (node: VirtualNode, other: VirtualNode): boolean =>
+export const isBelow = (node: VirtualNode, other: VirtualNode): boolean =>
   node.archive === other.archive &&
   (isArchiveRoot(other)
     ? !isArchiveRoot(node)
@@ -104,11 +104,11 @@ export const buildVirtualTree = (
 };
 
 /** Rewrites the entry path of a node and of everything below it, after a move */
-const reEntryPath = (node: VirtualNode, entryPath: string): void => {
+const rewriteEntryPaths = (node: VirtualNode, entryPath: string): void => {
   node.entryPath = entryPath;
 
   node.children?.forEach((child) =>
-    reEntryPath(child, joinEntryPath(entryPath, child.name)),
+    rewriteEntryPaths(child, joinEntryPath(entryPath, child.name)),
   );
 };
 
@@ -184,7 +184,7 @@ export const moveNode = (
   node.name = name;
   node.parent = parent;
   parent.children?.set(name.toLowerCase(), node);
-  reEntryPath(node, joinEntryPath(parent.entryPath, name));
+  rewriteEntryPaths(node, joinEntryPath(parent.entryPath, name));
 };
 
 /** Copies a node and everything below it to another path of the tree */
@@ -322,5 +322,5 @@ export const getTopLevelNodes = (
   nodes: readonly VirtualNode[],
 ): VirtualNode[] =>
   nodes.filter(
-    (node) => !nodes.some((other) => other !== node && isInside(node, other)),
+    (node) => !nodes.some((other) => other !== node && isBelow(node, other)),
   );

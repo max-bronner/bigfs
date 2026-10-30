@@ -8,18 +8,18 @@ import {
 } from '../../webview/cah/heroText';
 import {
   filterObjects,
-  idOf,
-  insidePolygon,
+  getWaypointId,
+  isInsidePolygon,
   isStart,
-  nameOf,
+  getObjectName,
   parseValue,
   projectToCanvas,
   shadeRelief,
-  turnedAngle,
+  turnAngle,
   unprojectFromCanvas,
   waypointsById,
 } from '../../webview/map/mapModel';
-import { describeMode, nextAreaName } from '../../webview/map/modeText';
+import { describeMode, pickAreaName } from '../../webview/map/modeText';
 import type { ObjectView } from '../../webview/map/protocol';
 import {
   countScripts,
@@ -27,7 +27,7 @@ import {
   describeScript,
 } from '../../webview/shared/scriptTreeText';
 import type { ScriptTreeNode } from '../../webview/shared/scriptTreeText';
-import { editorRows, isEdited } from '../../webview/strings/cellText';
+import { countEditorRows, isEdited } from '../../webview/strings/cellText';
 import {
   describeCount,
   filterRows,
@@ -70,7 +70,7 @@ suite('Page scripts', () => {
     test('a start position is a waypoint named for a player', () => {
       assert.strictEqual(isStart(waypoint(1, 'Player_2_Start')), true);
       assert.strictEqual(isStart(waypoint(1, 'Rally')), false);
-      assert.strictEqual(nameOf(waypoint(1, 'Rally')), 'Rally');
+      assert.strictEqual(getObjectName(waypoint(1, 'Rally')), 'Rally');
     });
 
     test('waypoints are found by id and the first of a repeated id wins', () => {
@@ -78,7 +78,7 @@ suite('Page scripts', () => {
       const found = waypointsById([first, waypoint(3, 'B'), waypoint(4, 'C')]);
 
       assert.strictEqual(found.get(3), first);
-      assert.strictEqual(idOf(first), 3);
+      assert.strictEqual(getWaypointId(first), 3);
       assert.deepStrictEqual([...found.keys()], [3, 4]);
     });
 
@@ -102,8 +102,8 @@ suite('Page scripts', () => {
         [0, 10],
       ];
 
-      assert.strictEqual(insidePolygon([5, 5], square), true);
-      assert.strictEqual(insidePolygon([15, 5], square), false);
+      assert.strictEqual(isInsidePolygon([5, 5], square), true);
+      assert.strictEqual(isInsidePolygon([15, 5], square), false);
     });
 
     test('world units project to canvas pixels and back', () => {
@@ -139,8 +139,8 @@ suite('Page scripts', () => {
     });
 
     test('an angle turns within minus pi and pi', () => {
-      assert.ok(Math.abs(turnedAngle(Math.PI - 0.1, 0.2) - (-Math.PI + 0.1)) < 1e-9);
-      assert.strictEqual(turnedAngle(0, 0.5), 0.5);
+      assert.ok(Math.abs(turnAngle(Math.PI - 0.1, 0.2) - (-Math.PI + 0.1)) < 1e-9);
+      assert.strictEqual(turnAngle(0, 0.5), 0.5);
     });
 
     test('the object filter matches template and name', () => {
@@ -152,8 +152,8 @@ suite('Page scripts', () => {
     });
 
     test('a new area takes the first free number and the hint follows the mode', () => {
-      assert.strictEqual(nextAreaName(new Set()), 'Area 1');
-      assert.strictEqual(nextAreaName(new Set(['Area 2', 'Other'])), 'Area 3');
+      assert.strictEqual(pickAreaName(new Set()), 'Area 1');
+      assert.strictEqual(pickAreaName(new Set(['Area 2', 'Other'])), 'Area 3');
       assert.strictEqual(describeMode(undefined), '');
       assert.ok(
         describeMode({ kind: 'place', template: 'Orc', waypoint: false }).includes('place Orc'),
@@ -224,8 +224,8 @@ suite('Page scripts', () => {
     test('LF text read back from a field is not an edit of CRLF text', () => {
       assert.strictEqual(isEdited('a\r\nb', 'a\nb'), false);
       assert.strictEqual(isEdited('a\r\nb', 'a\nc'), true);
-      assert.strictEqual(editorRows('one'), 2);
-      assert.strictEqual(editorRows('1\n2\n3'), 3);
+      assert.strictEqual(countEditorRows('one'), 2);
+      assert.strictEqual(countEditorRows('1\n2\n3'), 3);
     });
   });
 

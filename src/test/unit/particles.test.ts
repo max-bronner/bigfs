@@ -2,13 +2,13 @@ import * as assert from 'assert';
 import {
   applyValueEdits,
   findParticleDefinitions,
-  numericFields,
+  findNumericFields,
   readFxList,
   readParticleDef,
-  valueEdits,
+  computeValueEdits,
 } from '../../formats/particles/particleIni';
 import type { ParticleDef } from '../../formats/particles/particleIni';
-import { effectsAt } from '../../formats/particles/fxEffects';
+import { getEffectStateAt } from '../../formats/particles/fxEffects';
 import { ParticleWorld } from '../../formats/particles/particleSimulation';
 
 // Synthetic definitions: field names are the games' grammar, values invented
@@ -96,9 +96,9 @@ const definitionsOf = (text: string) => findParticleDefinitions(text);
 
 const worldOf = (...defs: ParticleDef[]) =>
   new ParticleWorld({
-    system: (name) =>
+    findSystem: (name) =>
       defs.find((def) => def.name.toLowerCase() === name.toLowerCase()),
-    fxList: () => undefined,
+    findFxList: () => undefined,
   });
 
 suite('Particle systems', () => {
@@ -255,13 +255,13 @@ End
     ).effects.map((effect) => [effect]);
     const effects = [flash[0], shake[0], scorch[0]];
 
-    assert.deepStrictEqual(effectsAt(effects, 29, 30), {
+    assert.deepStrictEqual(getEffectStateAt(effects, 29, 30), {
       shake: 0,
       scorches: [],
     });
 
     // 1100 ms: the flash is at its peak, the shake and the scorch have begun
-    const peak = effectsAt(effects, 33, 30);
+    const peak = getEffectStateAt(effects, 33, 30);
 
     assert.deepStrictEqual(peak.flash?.color, [0, 0, 1]);
     assert.ok(peak.flash!.alpha > 0.4);
@@ -269,11 +269,11 @@ End
     assert.deepStrictEqual(peak.scorches, [30]);
 
     // 3000 ms: flash and shake are over, the scorch stays
-    assert.deepStrictEqual(effectsAt(effects, 90, 30), {
+    assert.deepStrictEqual(getEffectStateAt(effects, 90, 30), {
       shake: 0,
       scorches: [30],
     });
-    assert.deepStrictEqual(effectsAt(effects, 33, 30), peak);
+    assert.deepStrictEqual(getEffectStateAt(effects, 33, 30), peak);
   });
 
   test('a light pulse that writes no times still fades out', () => {
@@ -293,20 +293,20 @@ End
       rise: 0,
       fall: 300,
     });
-    assert.ok(effectsAt([pulse], 0, 30).flash);
-    assert.strictEqual(effectsAt([pulse], 15, 30).flash, undefined);
+    assert.ok(getEffectStateAt([pulse], 0, 30).flash);
+    assert.strictEqual(getEffectStateAt([pulse], 15, 30).flash, undefined);
   });
 
   test('slider values are written back over the tokens they came from', () => {
     const [sparks] = definitionsOf(BLOCK);
-    const fields = numericFields(sparks);
+    const fields = findNumericFields(sparks);
     const red = fields.find(
       (field) => field.keyword === 'Color1' && field.part === 'R',
     )!;
     const size = fields.find(
       (field) => field.keyword === 'Size' && field.part === 'max',
     )!;
-    const edits = valueEdits(
+    const edits = computeValueEdits(
       sparks,
       new Map([
         [red.id, 128.4],

@@ -4,7 +4,7 @@ import {
   findParticleDefinitions,
   readFxList,
   readParticleDef,
-  referencedNames,
+  findStartedNames,
 } from '../formats/particles/particleIni';
 import type {
   FxListDef,
@@ -91,7 +91,7 @@ export class EffectLibrary {
     const notes = new Set<string>();
     const queue = [...names];
     const visit = (def: ParticleDef | FxListDef) => {
-      const { systems: reached, fxLists: lists } = referencedNames(def);
+      const { systems: reached, fxLists: lists } = findStartedNames(def);
 
       reached.forEach((name) => queue.push({ name, list: false }));
       lists.forEach((name) => queue.push({ name, list: true }));
@@ -168,7 +168,7 @@ export class EffectLibrary {
         );
       }
       if (def.particleName) {
-        const texture = await this.texture(def.particleName);
+        const texture = await this.loadTexture(def.particleName);
 
         textures[def.particleName.toLowerCase()] = texture;
         if (!texture) {
@@ -181,7 +181,7 @@ export class EffectLibrary {
     return { systems, fxLists, textures, notes: [...notes] };
   }
 
-  private texture(name: string): Promise<string | null> {
+  private loadTexture(name: string): Promise<string | null> {
     const key = name.toLowerCase();
     let entry = this.textures.get(key);
 

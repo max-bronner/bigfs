@@ -82,4 +82,4 @@ export const renameLabels = (
     labels: [...labels].map(([from, to]) => ({ from, to })),
   };
 };
-export { strRecord } from '../../formats/str/sageStringRecords';
+export { formatStrRecord as strRecord } from '../../formats/str/sageStringRecords';

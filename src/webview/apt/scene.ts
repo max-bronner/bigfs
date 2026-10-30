@@ -6,7 +6,7 @@ import { state } from './state';
 import {
   IDENTITY_COLOR,
   concatColor,
-  displayList,
+  buildDisplayList,
   type ColorTransform,
 } from './timeline';
 
@@ -97,11 +97,11 @@ export interface HitArea {
  * red, green, blue and add terms, and the instance's own alpha, which a
  * script may have changed
  */
-export const placedColor = (child: Instance): ColorTransform => {
+export const getPlacedColor = (child: Instance): ColorTransform => {
   const depth = Number(child.path.split('/').pop());
   const placement =
     child.parent && !child.dynamic && Number.isInteger(depth)
-      ? displayList(child.parent.frames, child.parent.frame).find(
+      ? buildDisplayList(child.parent.frames, child.parent.frame).find(
           (each) =>
             each.depth === depth &&
             each.born === child.born &&
@@ -182,7 +182,7 @@ export const collect = (
       visit(
         child,
         place(child),
-        concatColor(color, placedColor(child)),
+        concatColor(color, getPlacedColor(child)),
         childTop,
         out,
         [
@@ -211,7 +211,7 @@ export const collect = (
  * texture of the character the exporting movie names, as mint's apt-viewer
  * resolves it through the library
  */
-export const textureOf = (
+export const getImageTexture = (
   movie: PageMovie,
   id: number,
 ): HTMLCanvasElement | undefined => {
@@ -221,7 +221,7 @@ export const textureOf = (
 };
 
 /** Gets the box a leaf covers in its own space */
-export const localBounds = (leaf: Leaf): Rect => {
+export const getLocalBounds = (leaf: Leaf): Rect => {
   const { character } = leaf;
 
   if (!character) {
@@ -231,7 +231,7 @@ export const localBounds = (leaf: Leaf): Rect => {
     return character.bounds;
   }
 
-  const texture = textureOf(leaf.movie, leaf.id);
+  const texture = getImageTexture(leaf.movie, leaf.id);
 
   return [0, 0, texture?.width ?? 64, texture?.height ?? 64];
 };
@@ -273,10 +273,10 @@ const intersect = (a: Rect, b: Rect): Rect | undefined => {
 
 /** The box a leaf covers, cut to its masks unless they are not applied */
 const leafBounds = (leaf: Leaf, masked: boolean): Rect | undefined => {
-  let box: Rect | undefined = transformRect(leaf.matrix, localBounds(leaf));
+  let box: Rect | undefined = transformRect(leaf.matrix, getLocalBounds(leaf));
 
   for (const mask of masked ? (leaf.masks ?? []) : []) {
-    const area = boundsOf(mask, true);
+    const area = getLeafBounds(mask, true);
 
     box = box && area && intersect(box, area);
   }
@@ -287,7 +287,7 @@ const leafBounds = (leaf: Leaf, masked: boolean): Rect | undefined => {
  * Gets the box around everything the leaves draw; with `masked`, only what
  * their masks let show
  */
-export const boundsOf = (leaves: Leaf[], masked = false): Rect | undefined =>
+export const getLeafBounds = (leaves: Leaf[], masked = false): Rect | undefined =>
   union(
     leaves.flatMap((leaf) => {
       const box = leafBounds(leaf, masked);

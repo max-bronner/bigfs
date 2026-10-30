@@ -160,7 +160,7 @@ export class BoolDecoder {
 }
 
 /** Reads one branch of a VP6 tree: `a` when the decision is false, `b` when it is true */
-export const tree = <T>(
+export const readBranch = <T>(
   bc: BoolDecoder,
   prob: number,
   a: () => T,
@@ -183,12 +183,12 @@ const weight = (a: number, b: number) =>
 const not = (value: number) => ~value & 255;
 
 /** Huffman code built from token or zero-run probabilities, for frames coded with Huffman */
-export class Huff {
+export class HuffmanCode {
   private readonly codes = new Uint16Array(MAX_ELEMS);
   private readonly bits = new Uint8Array(MAX_ELEMS);
 
   /** Creates the code for DC or AC tokens from their bool-coder probabilities */
-  public static fromTokenProbs(p: readonly number[]): Huff {
+  public static fromTokenProbs(p: readonly number[]): HuffmanCode {
     const w = new Array<number>(12).fill(0);
 
     w[11] = weight(p[0], p[1]);
@@ -220,11 +220,11 @@ export class Huff {
     w[9] = weight(c4root, p[10]);
     w[10] = weight(c4root, not(p[10]));
 
-    return Huff.build(w);
+    return HuffmanCode.build(w);
   }
 
   /** Creates the code for zero runs from their bool-coder probabilities */
-  public static fromZeroRunProbs(p: readonly number[]): Huff {
+  public static fromZeroRunProbs(p: readonly number[]): HuffmanCode {
     const w = new Array<number>(9).fill(0);
     let root = weight(p[0], p[1]);
 
@@ -244,10 +244,10 @@ export class Huff {
     w[6] = weight(root2, p[7]);
     w[7] = weight(root2, not(p[7]));
 
-    return Huff.build(w);
+    return HuffmanCode.build(w);
   }
 
-  private static build(weights: number[]): Huff {
+  private static build(weights: number[]): HuffmanCode {
     const nodes: Node[] = [];
 
     // Leaves sorted by weight, the higher symbol first among equals
@@ -286,7 +286,7 @@ export class Huff {
       // Children below the insertion point moved; their indices did not
     }
 
-    const huff = new Huff();
+    const huff = new HuffmanCode();
     const stack: [number, number, number][] = [[nodes.length - 1, 0, 0]];
 
     while (stack.length) {

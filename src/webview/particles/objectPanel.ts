@@ -62,18 +62,18 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] =>
   Object.assign(document.createElement(tag), properties);
 
-const same = (a: string | undefined, b: string | undefined) =>
+const isSameName = (a: string | undefined, b: string | undefined) =>
   a?.toLowerCase() === b?.toLowerCase();
 
 /** Lists the effects switched on, in order */
-export const enabledEffects = (): Effect[] =>
+export const listEnabledEffects = (): Effect[] =>
   objectView.elements.filter((each) => each.on);
 
 /** Gets where a bone of the shown model stands now, relative to the model; the origin for an unknown bone */
-export const bonePosition = (name: string | undefined): Vec3 => {
+export const getBonePosition = (name: string | undefined): Vec3 => {
   const { skeleton, pose } = objectView;
   const at = name
-    ? (skeleton?.names.findIndex((each) => same(each, name)) ?? -1)
+    ? (skeleton?.names.findIndex((each) => isSameName(each, name)) ?? -1)
     : -1;
 
   return at >= 0 && pose ? ([...pose.world[at].t] as Vec3) : [0, 0, 0];
@@ -100,14 +100,14 @@ export const advanceAnimation = (seconds: number): void => {
 };
 
 /** Takes the skeleton of the model the page now shows, or none, then restarts the effects */
-export const modelShown = (skeleton: SceneSkeleton | undefined): void => {
+export const setShownModel = (skeleton: SceneSkeleton | undefined): void => {
   objectView.skeleton = skeleton;
   setPose();
   restart();
 };
 
 /** Takes a loaded animation, or none when it was not found, warning when it was made for another skeleton */
-export const animationLoaded = (
+export const setLoadedAnimation = (
   name: string,
   animation: W3dAnimation | undefined,
 ): void => {
@@ -121,7 +121,7 @@ export const animationLoaded = (
   if (
     animation &&
     objectView.skeleton &&
-    !same(animation.hierarchyName, objectView.skeleton.name)
+    !isSameName(animation.hierarchyName, objectView.skeleton.name)
   ) {
     notice.textContent = `${name} is made for ${animation.hierarchyName}, not ${objectView.skeleton.name}; it may look wrong`;
   }
@@ -132,13 +132,13 @@ const playAnimation = (name: string | undefined) => {
   if (name) {
     post({ kind: 'loadAnimation', name });
   } else {
-    animationLoaded('', undefined);
+    setLoadedAnimation('', undefined);
     $('objectNotice').textContent = '';
   }
 };
 
 /** Lists the elements a state shows, with what was asked for switched on */
-const elementsOf = (
+const listElements = (
   scene: ObjectScene,
   state: SceneState | undefined,
   focus: SceneFocus,
@@ -150,7 +150,7 @@ const elementsOf = (
           (each) =>
             each.kind === 'model' &&
             each.draw === state.draw &&
-            same(each.model, state.model),
+            isSameName(each.model, state.model),
         )
       : undefined;
   const own: Element[] = [
@@ -159,23 +159,23 @@ const elementsOf = (
       name: each.system,
       bone: each.bone,
       label: `${each.system} on ${each.bone}`,
-      on: !focus.system || same(focus.system, each.system),
+      on: !focus.system || isSameName(focus.system, each.system),
     })),
     ...(state?.fx ?? []).map((name): Element => ({
       kind: 'fxList',
       name,
       label: `${name} (entering the state)`,
-      on: !focus.fx || same(focus.fx, name),
+      on: !focus.fx || isSameName(focus.fx, name),
     })),
   ];
   // The object's other FX play on events, so they wait to be switched on
   const others = scene.fx
-    .filter((each) => !own.some((mine) => same(mine.name, each.name)))
+    .filter((each) => !own.some((mine) => isSameName(mine.name, each.name)))
     .map((each): Element => ({
       kind: 'fxList',
       name: each.name,
       label: `${each.name} (${each.field})`,
-      on: same(focus.fx, each.name),
+      on: isSameName(focus.fx, each.name),
     }));
 
   return [...own, ...others];
@@ -255,7 +255,7 @@ const pickState = (focus: SceneFocus) => {
       : scene.states.find((each) => /idle/i.test(each.label))?.animations[0]);
 
   objectView.state = shown;
-  objectView.elements = elementsOf(scene, state ?? shown, focus);
+  objectView.elements = listElements(scene, state ?? shown, focus);
   animations.replaceChildren(
     new Option('Bind pose', ''),
     ...[...new Set(choices)].map((name) => new Option(name, name)),

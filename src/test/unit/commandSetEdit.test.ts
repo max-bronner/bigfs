@@ -1,12 +1,12 @@
 import * as assert from 'assert';
 import {
-  commandSetHeader,
+  readCommandSetName,
   moveSlot,
-  sameSlots,
-  slotEdits,
+  hasSameSlots,
+  buildSlotEdits,
 } from '../../game/objects/commandSetEdit';
 
-const apply = (lines: string[], edits: ReturnType<typeof slotEdits>) => {
+const apply = (lines: string[], edits: ReturnType<typeof buildSlotEdits>) => {
   const out = [...lines];
 
   [...edits]
@@ -28,7 +28,7 @@ suite('Command set editing', () => {
     assert.deepStrictEqual(
       apply(
         lines,
-        slotEdits(
+        buildSlotEdits(
           lines,
           0,
           4,
@@ -52,7 +52,7 @@ suite('Command set editing', () => {
     const lines = ['CommandSet Empty', 'End'];
 
     assert.deepStrictEqual(
-      apply(lines, slotEdits(lines, 0, 1, new Map([[1, 'Command_A']]))),
+      apply(lines, buildSlotEdits(lines, 0, 1, new Map([[1, 'Command_A']]))),
       ['CommandSet Empty', '  1 = Command_A', 'End'],
     );
   });
@@ -76,28 +76,28 @@ suite('Command set moves', () => {
   });
 
   test('only a CommandSet header names a set, not a CommandSet field', () => {
-    assert.strictEqual(commandSetHeader('CommandSet TestSet'), 'TestSet');
+    assert.strictEqual(readCommandSetName('CommandSet TestSet'), 'TestSet');
     assert.strictEqual(
-      commandSetHeader('  commandset TestSet ; note'),
+      readCommandSetName('  commandset TestSet ; note'),
       'TestSet',
     );
     assert.strictEqual(
-      commandSetHeader('CommandSet\tTestSet // note'),
+      readCommandSetName('CommandSet\tTestSet // note'),
       'TestSet',
     );
-    assert.strictEqual(commandSetHeader('  CommandSet = TestSet'), undefined);
-    assert.strictEqual(commandSetHeader('  CommandSet =TestSet'), undefined);
-    assert.strictEqual(commandSetHeader('  CommandSet=TestSet'), undefined);
-    assert.strictEqual(commandSetHeader('  CommandSetX Test'), undefined);
+    assert.strictEqual(readCommandSetName('  CommandSet = TestSet'), undefined);
+    assert.strictEqual(readCommandSetName('  CommandSet =TestSet'), undefined);
+    assert.strictEqual(readCommandSetName('  CommandSet=TestSet'), undefined);
+    assert.strictEqual(readCommandSetName('  CommandSetX Test'), undefined);
     assert.strictEqual(
-      commandSetHeader('CommandSet TestSet = Other'),
+      readCommandSetName('CommandSet TestSet = Other'),
       undefined,
     );
   });
 
   test('slot maps are the same when they hold the same buttons', () => {
-    assert.ok(sameSlots(new Map([[1, 'A']]), new Map([[1, 'A']])));
-    assert.ok(!sameSlots(new Map([[1, 'A']]), new Map([[1, 'B']])));
-    assert.ok(!sameSlots(new Map([[1, 'A']]), new Map()));
+    assert.ok(hasSameSlots(new Map([[1, 'A']]), new Map([[1, 'A']])));
+    assert.ok(!hasSameSlots(new Map([[1, 'A']]), new Map([[1, 'B']])));
+    assert.ok(!hasSameSlots(new Map([[1, 'A']]), new Map()));
   });
 });

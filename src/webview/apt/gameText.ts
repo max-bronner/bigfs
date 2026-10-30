@@ -1,7 +1,7 @@
 import {
   resolveAptText,
   stripTextStyle,
-  textKey,
+  getTextKey,
 } from '../../formats/apt/aptText';
 
 /**
@@ -23,7 +23,7 @@ export const localise = (text: string): string => {
     return text;
   }
 
-  const key = textKey(text);
+  const key = getTextKey(text);
 
   return key
     ? (texts[key.toLowerCase()] ?? resolveAptText(text, () => undefined))

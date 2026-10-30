@@ -77,7 +77,7 @@ export interface ParsedCah {
 }
 
 /** Creates a blank current-version record, every power slot empty */
-export const emptyCahRecord = (): CahRecord => ({
+export const createEmptyCahRecord = (): CahRecord => ({
   version: RECORD_VERSION,
   objectId: 0,
   name: "",
@@ -145,7 +145,7 @@ const u32Bytes = (value: number): number[] => [
 ];
 
 /** Cuts text at its first NUL, as the game's C strings end there */
-const untilNul = (text: string): string => {
+const cutAtNul = (text: string): string => {
   const end = text.indexOf("\0");
 
   return end < 0 ? text : text.slice(0, end);
@@ -163,20 +163,20 @@ export const computeCahCrc = (record: CahRecord): number => {
   const crc = new Crc32();
 
   crc.update(u32Bytes(record.objectId));
-  crc.update(new TextEncoder().encode(untilNul(record.name)));
+  crc.update(new TextEncoder().encode(cutAtNul(record.name)));
   crc.update(u32Bytes(record.classIndex));
   crc.update(u32Bytes(record.subclassIndex));
   for (const word of [...record.reserved, ...record.colors]) {
     crc.update(u32Bytes(word));
   }
   for (const power of record.powers) {
-    crc.update(latin1Bytes(untilNul(power.button)));
+    crc.update(latin1Bytes(cutAtNul(power.button)));
     crc.update(u32Bytes(power.level));
     crc.update(u32Bytes(power.slot));
   }
   crc.update(u32Bytes(record.blings.length));
   for (const bling of record.blings) {
-    crc.update(latin1Bytes(untilNul(bling.group)));
+    crc.update(latin1Bytes(cutAtNul(bling.group)));
     crc.update(u32Bytes(bling.index));
   }
   crc.update([record.isSystem ? 1 : 0]);
@@ -265,7 +265,7 @@ export const parseCah = (bytes: Uint8Array): ParsedCah => {
     throw new Error(`Unsupported record version ${version}`);
   }
 
-  const record = emptyCahRecord();
+  const record = createEmptyCahRecord();
 
   record.version = version;
   record.objectId = reader.u32("object id");
@@ -363,7 +363,7 @@ export const writeCah = (record: CahRecord): Uint8Array => {
 };
 
 /** Explains why a record cannot be saved, or undefined when it can */
-export const cahRecordProblem = (record: CahRecord): string | undefined => {
+export const describeCahRecordProblem = (record: CahRecord): string | undefined => {
   if (record.powers.length !== POWER_SLOTS) {
     return `A hero has ${POWER_SLOTS} power slots`;
   }

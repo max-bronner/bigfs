@@ -12,7 +12,7 @@ import { findModelForSkeleton } from '../../formats/w3d/w3dModelFinder';
 import { decompressEar, isEarWrapped } from '../../formats/refpack/refpack';
 import { Vp6Movie } from '../../formats/vp6/container';
 import type { EntryLocator } from '../../services/entryLocator';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import type {
   FromPreviewPage,
   ToPreviewPage,
@@ -20,7 +20,7 @@ import type {
 import { describeError } from '../../core/errors';
 
 /** Gets a file's name, lowercased, as the INI files are matched against it */
-const basename = (uri: vscode.Uri) =>
+const getFileName = (uri: vscode.Uri) =>
   uri.path.slice(uri.path.lastIndexOf('/') + 1).toLowerCase();
 
 /**
@@ -96,7 +96,7 @@ const buildMessage = async (
           const fromIni = await vscode.commands
             .executeCommand<
               string | undefined
-            >('bigfs.findModelForAnimation', basename(uri))
+            >('bigfs.findModelForAnimation', getFileName(uri))
             .then(
               (found) => found,
               () => undefined,
@@ -141,7 +141,7 @@ export const renderHtml = (
   webview: vscode.Webview,
   modelScript: vscode.Uri,
 ): string =>
-  webviewPage({
+  renderWebviewPage({
     allow: {
       img: 'blob: data:',
       media: 'blob:',
@@ -282,7 +282,7 @@ export class PreviewEditorProvider
               uses: await vscode.commands
                 .executeCommand<
                   unknown[]
-                >('bigfs.findFileUses', basename(document.uri))
+                >('bigfs.findFileUses', getFileName(document.uri))
                 .then(
                   (uses) => uses ?? [],
                   () => [],
@@ -299,7 +299,7 @@ export class PreviewEditorProvider
           const index = received.index;
 
           try {
-            const pixels = movie.frame(index);
+            const pixels = movie.decodeFrame(index);
 
             await panel.webview.postMessage({
               kind: 'videoFrame',

@@ -2,7 +2,7 @@ import type { ExtensionContext } from 'vscode';
 import { registerCommand } from '../../platform/commands';
 import { isGameRow, isVirtualNode } from './explorerRow';
 import { toEntryDirectory } from './gameViewModel';
-import type { ExplorerNode } from './explorerRow';
+import type { ExplorerRow } from './explorerRow';
 import type { ExplorerSelection } from './explorerSelection';
 import type { VirtualNode } from './virtualNode';
 
@@ -35,8 +35,8 @@ export const createNodeCommandRegistrar = (
 ): RegisterNodeCommand => {
   const getTargets = (
     id: string,
-    target?: ExplorerNode,
-    selection?: ExplorerNode[],
+    target?: ExplorerRow,
+    selection?: ExplorerRow[],
   ): VirtualNode[] => {
     const rows = selection?.length
       ? selection
@@ -73,8 +73,8 @@ export const createNodeCommandRegistrar = (
 
   return (id, run) => {
     const execute = async (
-      target?: ExplorerNode,
-      selection?: ExplorerNode[],
+      target?: ExplorerRow,
+      selection?: ExplorerRow[],
     ): Promise<void> => {
       const targets = getTargets(id, target, selection);
 

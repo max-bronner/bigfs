@@ -13,7 +13,7 @@ import type {
   MovieText,
   ScriptText,
 } from './textModel';
-import { byteHex, f32Bits, formatF32, hex, placementWords } from './numbers';
+import { formatByteHex, toF32Bits, formatF32, formatHex, formatPlacementWords } from './numbers';
 
 /** Quotes a string in double quotes, escaping bytes outside printable Latin-1 */
 export const quote = (text: string): string =>
@@ -33,7 +33,7 @@ export const quote = (text: string): string =>
       return '\\r';
     }
     return code < 0x20 || (code >= 0x7f && code < 0xa0)
-      ? `\\x${byteHex(code)}`
+      ? `\\x${formatByteHex(code)}`
       : char;
   }).join('')}"`;
 
@@ -41,7 +41,7 @@ const statesText = (flags: number): string => {
   const words = BUTTON_STATES.filter((_, bit) => flags & (1 << bit));
   const rest = (flags & ~0xf) >>> 0;
 
-  return [...words, ...(rest ? [hex(rest)] : [])].join(',') || 'none';
+  return [...words, ...(rest ? [formatHex(rest)] : [])].join(',') || 'none';
 };
 
 const colorBytes = (value: number): number[] => [
@@ -92,7 +92,7 @@ const itemLines = (item: ItemText, indent: string, frame: number): string[] => {
         `depth=${item.depth}`,
         ...(item.character !== undefined ? [`char=${item.character}`] : []),
         ...(item.name !== undefined ? [`name=${quote(item.name)}`] : []),
-        ...(item.placement ? placementWords(item.placement) : []),
+        ...(item.placement ? formatPlacementWords(item.placement) : []),
         ...(item.colorTransform !== undefined
           ? [
               'color',
@@ -105,13 +105,13 @@ const itemLines = (item: ItemText, indent: string, frame: number): string[] => {
       ];
 
       if (item.flags !== impliedPlaceFlags(item, isMove)) {
-        words.push(`flags=${hex(item.flags, 2)}`);
+        words.push(`flags=${formatHex(item.flags, 2)}`);
       }
 
       return [
         `${indent}${words.join(' ')}`,
         ...(item.clipActions ?? []).flatMap((action) => [
-          `${inner}action events=${hex(action.events)}`,
+          `${inner}action events=${formatHex(action.events)}`,
           ...scriptLines(action.script, `${inner}  `),
         ]),
       ];
@@ -119,7 +119,7 @@ const itemLines = (item: ItemText, indent: string, frame: number): string[] => {
     case 'remove':
       return [`${indent}remove depth=${item.depth}`];
     case 'background':
-      return [`${indent}bg #${colorBytes(item.color).map(byteHex).join('')}`];
+      return [`${indent}bg #${colorBytes(item.color).map(formatByteHex).join('')}`];
     case 'initAction':
       return [
         `${indent}initaction sprite=${item.sprite}`,
@@ -147,7 +147,7 @@ const frameLines = (frame: FrameText, indent: string): string[] => {
 const rectText = (rect: Rect | number[]) => rect.map(formatF32).join(',');
 
 const isAll = (values: number[], value: number) =>
-  values.every((each) => f32Bits(each) === f32Bits(value));
+  values.every((each) => toF32Bits(each) === toF32Bits(value));
 
 const characterLines = (character: CharacterText): string[] => {
   const head = `character ${character.id} `;
@@ -175,7 +175,7 @@ const characterLines = (character: CharacterText): string[] => {
           `${head}edittext bounds=${rectText(character.bounds)}`,
           `font=${character.font}`,
           `align=${character.alignment}`,
-          `color=#${[color >>> 16, color >>> 8, color, color >>> 24].map(byteHex).join('')}`,
+          `color=#${[color >>> 16, color >>> 8, color, color >>> 24].map(formatByteHex).join('')}`,
           `height=${formatF32(character.fontHeight)}`,
           `readonly=${character.readonly}`,
           `multiline=${character.multiline}`,
@@ -209,7 +209,7 @@ const characterLines = (character: CharacterText): string[] => {
             `${inner}record states=${statesText(record.flags)}`,
             `depth=${record.depth}`,
             `char=${record.character}`,
-            ...placementWords(record.placement),
+            ...formatPlacementWords(record.placement),
             ...(isAll(record.color, 1)
               ? []
               : ['color', rectText(record.color)]),
@@ -219,7 +219,7 @@ const characterLines = (character: CharacterText): string[] => {
           ].join(' '),
         ),
         ...character.actions.flatMap((action) => [
-          `${inner}action condition=${hex(action.condition)}`,
+          `${inner}action condition=${formatHex(action.condition)}`,
           ...scriptLines(action.script, `${inner}  `),
         ]),
       ];
@@ -238,7 +238,7 @@ const characterLines = (character: CharacterText): string[] => {
       return [
         [
           `${head}text bounds=${rectText(character.bounds)}`,
-          ...placementWords(character.placement),
+          ...formatPlacementWords(character.placement),
         ].join(' '),
         ...character.runs.map((run) =>
           [

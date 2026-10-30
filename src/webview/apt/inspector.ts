@@ -5,22 +5,22 @@ import { send } from './details';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';
 
-import { CLIP_EVENTS, bitNames, bitSelect } from './scriptSites';
+import { CLIP_EVENTS, formatBitNames, createBitSelect } from './scriptSites';
 import { byId } from './dom';
 import { blockCard } from './blocks/blockCard';
 import {
   action,
   characterPicker,
-  field,
+  createField,
   numberField,
   placementColour,
-  section,
+  createSection,
   textField,
 } from './blocks/controls';
-import { commit, editable } from './edit';
-import { DOWN, OVER, UP, describe } from './player';
+import { commit, isEditable } from './edit';
+import { DOWN, OVER, UP, describeInstance } from './player';
 import type { Instance } from './player';
-import { currentPlayer, inspected, render } from './stage';
+import { currentPlayer, getInspectedInstance, render } from './stage';
 import { state } from './state';
 
 const vscode = getVsCodeApi<FromPage>();
@@ -73,7 +73,7 @@ const breadcrumb = (instance: Instance): HTMLElement => {
     link.textContent = index
       ? step.path.slice(step.path.lastIndexOf('/') + 1)
       : 'root';
-    link.title = describe(step);
+    link.title = describeInstance(step);
     link.onclick = (event) => {
       event.preventDefault();
       state.inspected = step.path;
@@ -101,7 +101,7 @@ const frameText = (instance: Instance): string => {
 /** Keeps the frame line current as the stage plays, without rebuilding the panel */
 export const updateInspector = (): void => {
   const position = document.getElementById('inspector-frame');
-  const instance = inspected();
+  const instance = getInspectedInstance();
 
   if (position && instance) {
     position.textContent = frameText(instance);
@@ -116,8 +116,8 @@ const timelineControls = (instance: Instance): HTMLElement[] => {
   position.id = 'inspector-frame';
 
   const rows = [
-    field('Frame', position),
-    field(
+    createField('Frame', position),
+    createField(
       '',
       action(
         '▶ play',
@@ -140,9 +140,9 @@ const timelineControls = (instance: Instance): HTMLElement[] => {
 
   if (labels.length) {
     rows.push(
-      section('Labels'),
+      createSection('Labels'),
       ...labels.map((each) =>
-        field(
+        createField(
           `${each.frame}`,
           label(each.label),
           action(
@@ -169,7 +169,7 @@ const buttonControls = (instance: Instance): HTMLElement => {
     ['Down', DOWN],
   ];
 
-  return field(
+  return createField(
     'State',
     ...states.map(([name, value]) => {
       const choice = action(
@@ -191,7 +191,7 @@ const buttonControls = (instance: Instance): HTMLElement => {
 
 /** Fills the inspector for the picked instance, or empties it */
 export const showInspector = (): void => {
-  const instance = inspected();
+  const instance = getInspectedInstance();
 
   if (!instance) {
     panel.replaceChildren();
@@ -204,7 +204,7 @@ export const showInspector = (): void => {
     : 'Import';
   const parts: HTMLElement[] = [
     breadcrumb(instance),
-    field(
+    createField(
       '',
       label(
         `#${instance.id} ${kind}` +
@@ -239,7 +239,7 @@ export const showInspector = (): void => {
     }),
   ];
 
-  if (editable(instance)) {
+  if (isEditable(instance)) {
     cards.push(
       blockCard({
         key: `placement:${instance.path}`,
@@ -251,7 +251,7 @@ export const showInspector = (): void => {
       }),
     );
   } else if (owner && owner !== state.movie) {
-    parts.push(field('', label(`Edit it in ${owner.name}`)));
+    parts.push(createField('', label(`Edit it in ${owner.name}`)));
   }
   panel.replaceChildren(...cards);
 };
@@ -292,7 +292,7 @@ const depthOf = (instance: Instance) =>
   Number(instance.path.slice(instance.path.lastIndexOf('/') + 1));
 
 /** Finds a depth no frame of a timeline uses, above every other */
-export const freeDepth = (timeline: Instance): number =>
+export const findFreeDepth = (timeline: Instance): number =>
   Math.max(
     0,
     ...timeline.frames.flatMap((frame) =>
@@ -384,17 +384,17 @@ const editControls = (instance: Instance): HTMLElement[] => {
       offset: colour?.offset ?? instance.matrixItem!,
       change,
     });
-  const events = bitSelect(CLIP_EVENTS, 1 << 9);
+  const events = createBitSelect(CLIP_EVENTS, 1 << 9);
   const clipScript =
     instance.character?.type === 'sprite' && instance.placedItem !== undefined
       ? [
-          field(
+          createField(
             'Add',
             events,
             action('Clip script', () =>
               vscode.postMessage({
                 kind: 'addScript',
-                label: `${parent.movie.name} @${depth} on ${bitNames(Number(events.value), CLIP_EVENTS)}`,
+                label: `${parent.movie.name} @${depth} on ${formatBitNames(Number(events.value), CLIP_EVENTS)}`,
                 to: {
                   kind: 'clip',
                   offset: instance.placedItem!,
@@ -408,7 +408,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
 
   return [
     ...clipScript,
-    field(
+    createField(
       'Position',
       numeric('x', instance.translate[0], (x) =>
         write(instance.matrix, [x, instance.translate[1]]),
@@ -417,7 +417,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
         write(instance.matrix, [instance.translate[0], y]),
       ),
     ),
-    field(
+    createField(
       'Scale',
       numeric('scale x', parts.scaleX, (value) =>
         write(compose(value, parts.scaleY, parts.rotation, parts.skew)),
@@ -426,7 +426,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
         write(compose(parts.scaleX, value, parts.rotation, parts.skew)),
       ),
     ),
-    field(
+    createField(
       'Rotation °',
       numeric('degrees', (parts.rotation * 180) / Math.PI, (degrees) =>
         write(
@@ -442,7 +442,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
         ? [label(`skew ${round(parts.skew)}`)]
         : []),
     ),
-    field(
+    createField(
       'Character',
       characterPicker(instance.placed, (character) =>
         writePlaced({ character }),
@@ -450,7 +450,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
     ),
     // The colour is written where it comes from at this frame, or where the
     // matrix does when nothing has set one yet
-    field(
+    createField(
       'Multiply',
       placementColour(
         'colorTransform',
@@ -458,11 +458,11 @@ const editControls = (instance: Instance): HTMLElement[] => {
         writeColour,
       ),
     ),
-    field(
+    createField(
       'Add',
       placementColour('colorAdd', colour?.colorAdd ?? 0, writeColour),
     ),
-    field(
+    createField(
       'Ratio',
       numeric('ratio', placed?.ratio ?? 0, (ratio) => writePlaced({ ratio })),
       label('Move'),
@@ -472,7 +472,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
         (isMove) => writePlaced({ isMove }),
       ),
     ),
-    field(
+    createField(
       'Clip depth',
       numeric('clip depth', placed?.clipDepth ?? 0, (clipDepth) =>
         writePlaced({ clipDepth }),
@@ -488,7 +488,7 @@ const editControls = (instance: Instance): HTMLElement[] => {
           ),
       ),
     ),
-    field(
+    createField(
       'Name',
       textField(instance.name ?? '', (name) =>
         send({
@@ -498,10 +498,10 @@ const editControls = (instance: Instance): HTMLElement[] => {
         }),
       ),
     ),
-    field(
+    createField(
       '',
       action('Duplicate', () => {
-        const next = freeDepth(parent);
+        const next = findFreeDepth(parent);
 
         state.inspected = `${parent.path}/${next}`;
         send({

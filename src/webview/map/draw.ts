@@ -2,7 +2,7 @@ import { canvas, context } from './elements';
 import {
   isStart,
   isWaypoint,
-  nameOf,
+  getObjectName,
   projectToCanvas,
   shadeRelief,
   unprojectFromCanvas,
@@ -172,7 +172,7 @@ const drawObjects = () => {
       context.fillStyle = '#fff';
       context.strokeStyle = '#000';
       context.lineWidth = 3;
-      const label = nameOf(object).replace(/^Player_(\d+)_Start$/i, 'P$1');
+      const label = getObjectName(object).replace(/^Player_(\d+)_Start$/i, 'P$1');
 
       context.strokeText(label, px + 6, py + 4);
       context.fillText(label, px + 6, py + 4);

@@ -20,7 +20,7 @@ export interface PlannedBlock {
 }
 
 /** Formats the `OBJECT:` label a new object's name is shown by */
-export const displayLabel = (name: string) => `OBJECT:${name}`;
+export const formatDisplayLabel = (name: string) => `OBJECT:${name}`;
 
 /**
  * Sets a field written at a block's own level, or adds it under the
@@ -50,13 +50,13 @@ export const setField = (
 };
 
 /** Creates a `ChildObject` that inherits everything and is shown under its own name */
-export const inheritingObject = (
+export const createInheritingObject = (
   name: string,
   parent: string,
 ): PlannedBlock => ({
   lines: [
     `ChildObject ${name} ${parent}`,
-    `  DisplayName = ${displayLabel(name)}`,
+    `  DisplayName = ${formatDisplayLabel(name)}`,
     `  ; Write what differs from ${parent} here: a field replaces the`,
     '  ; inherited one, a module replaces the one with its tag',
     'End',
@@ -65,7 +65,7 @@ export const inheritingObject = (
 });
 
 /** Copies the source block under the new name, shown by its own label */
-export const copiedObject = (
+export const copyObject = (
   lines: string[],
   startLine: number,
   endLine: number,
@@ -74,13 +74,13 @@ export const copiedObject = (
   const copy = duplicateDefinition(lines, startLine, endLine, name);
 
   return {
-    lines: setField(copy.lines, 'DisplayName', displayLabel(name)),
+    lines: setField(copy.lines, 'DisplayName', formatDisplayLabel(name)),
     labels: copy.labels,
   };
 };
 
 /** Derives the new button's name: the old one with the unit's name swapped, or suffixed */
-export const buttonName = (
+export const deriveButtonName = (
   button: string,
   source: string,
   name: string,
@@ -93,7 +93,7 @@ export const buttonName = (
 };
 
 /** Copies the button that builds the source so that it builds the new object */
-export const copiedButton = (
+export const copyButton = (
   lines: string[],
   startLine: number,
   endLine: number,
@@ -124,7 +124,7 @@ export const copiedButton = (
  * Plans the line that puts a button in a command set's next free slot, and
  * the line it goes before (the set's `End`)
  */
-export const slotLine = (
+export const planSlotLine = (
   setLines: string[],
   button: string,
 ): { line: number; text: string } => {
@@ -164,7 +164,7 @@ export const isLoadedObjectPath = (entryPath: string): boolean =>
  * game loads that file, else a file of its own in the object folder, since a
  * file at a mod's root or in a folder the game never reads is not loaded
  */
-export const newObjectEntryPath = (
+export const chooseNewObjectEntryPath = (
   sourceEntryPath: string | undefined,
   name: string,
 ): string =>

@@ -1,5 +1,5 @@
 /** Counts the rows a cell's text editor opens with: the text's own lines, at least two */
-export const editorRows = (value: string): number =>
+export const countEditorRows = (value: string): number =>
   Math.max(2, value.split('\n').length);
 
 /**

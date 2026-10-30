@@ -30,7 +30,7 @@ export interface BigFileEntry {
  * back unchanged, and every entry in stored order, duplicates included, which
  * the model keys for case insensitive lookup.
  */
-export interface ParsedArchive {
+export interface ArchiveIndex {
   magic: string;
   trailer: Uint8Array;
   entries: BigFileEntry[];
@@ -77,7 +77,7 @@ const MAGICS = new Set(['BIGF', 'BIG4']);
 export class NotAnArchiveError extends Error {}
 
 /** Rounds up to the next 4 byte boundary, where entry data has to start */
-const alignBytes = (offset: number): number => {
+const alignToFourBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
@@ -89,7 +89,7 @@ const alignBytes = (offset: number): number => {
 const NAME_ENCODING = 'latin1';
 
 /** Converts a stored entry name's backslashes to the '/' everything above this layer uses */
-const toTreeName = (name: string): string => name.replace(/\\/g, '/');
+const toEntryPath = (name: string): string => name.replace(/\\/g, '/');
 
 /**
  * Gets the name an entry is written with: the stored one when the entry was
@@ -170,7 +170,7 @@ export const parseIndexTable = (
     }
 
     const storedName = table.toString(NAME_ENCODING, nameStart, nameEnd);
-    const name = toTreeName(storedName);
+    const name = toEntryPath(storedName);
 
     if (!isContainedPath(name)) {
       throw new Error(
@@ -217,7 +217,7 @@ export const computeArchiveLayout = (
   entriesArray.forEach((entry) => {
     const size = entry.pendingData?.length ?? entry.size;
     placedEntries.push({ entry, offset: dataOffset, size });
-    dataOffset = alignBytes(dataOffset + size);
+    dataOffset = alignToFourBytes(dataOffset + size);
   });
 
   const last = placedEntries[placedEntries.length - 1];

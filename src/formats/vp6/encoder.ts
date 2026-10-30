@@ -1,6 +1,6 @@
 import { MODEL_INDEX, Vp6Decoder, predictMb } from './decoder';
 import { Picture } from './dsp';
-import { mcBlock } from './dsp';
+import { predictMotionBlock } from './dsp';
 import type { Filter, Mv } from './dsp';
 import { Models } from './models';
 import type { MvModel } from './models';
@@ -9,8 +9,8 @@ import {
   MbType,
   Ref,
   ZERO_MV,
-  mvCandidates,
-  referenceOf,
+  findMvCandidates,
+  getReference,
 } from './prediction';
 import type { MvCandidates } from './prediction';
 import * as T from './tables';
@@ -186,7 +186,7 @@ class CountSink implements Sink {
     counts[slot * 2 + (bit ? 1 : 0)]++;
   }
 
-  public of(table: readonly number[], slot: number): [number, number] {
+  public getCounts(table: readonly number[], slot: number): [number, number] {
     const counts = this.counts.get(table);
 
     return counts ? [counts[slot * 2], counts[slot * 2 + 1]] : [0, 0];
@@ -355,7 +355,7 @@ interface CodedMb {
 }
 
 /** Computes the mode decision weight of a bit, in units of absolute pixel error */
-const lambdaOf = (acQuant: number) => Math.max(1, acQuant / 6);
+const computeLambda = (acQuant: number) => Math.max(1, acQuant / 6);
 
 /**
  * Stateful VP6 encoder for one stream, coding pictures as key frames and
@@ -523,10 +523,10 @@ export class Vp6Encoder {
 
     mbs.forEach((mb, index) => {
       if (index > 0 && index % this.mbWidth === 0) {
-        predictor.newRow();
+        predictor.startRow();
       }
 
-      const reference = referenceOf(mb.type);
+      const reference = getReference(mb.type);
 
       mb.blocks.forEach((block, blockNo) => {
         const prediction = predictor.predict(blockNo, reference);
@@ -535,14 +535,14 @@ export class Vp6Encoder {
         block.dcToken = token;
         predictor.update(blockNo, reference, i16(prediction + token));
       });
-      predictor.nextMb();
+      predictor.advanceMacroblock();
     });
     return mbs;
   }
 
   /** Finds the decoder's motion vector candidates for a macroblock */
-  private candidates(mbs: CodedMb[], mbX: number, mbY: number): MvCandidates {
-    return mvCandidates(
+  private findCandidates(mbs: CodedMb[], mbX: number, mbY: number): MvCandidates {
+    return findMvCandidates(
       (index) => mbs[index],
       mbX,
       mbY,
@@ -570,7 +570,7 @@ export class Vp6Encoder {
     const reference = this.reference!;
     const scratch = new Picture(this.mbWidth, this.mbHeight);
     const filter = this.filter();
-    const lambda = lambdaOf(this.quants.ac);
+    const lambda = computeLambda(this.quants.ac);
     const mbs: (CodedMb & { dcs?: number[] })[] = [];
     const source = picture.planes[0];
     const predicted = scratch.planes[0];
@@ -637,7 +637,7 @@ export class Vp6Encoder {
         [0, 8],
         [8, 8],
       ]) {
-        mcBlock(
+        predictMotionBlock(
           predicted,
           reference.planes[0],
           mbX * 16 + bx,
@@ -682,7 +682,7 @@ export class Vp6Encoder {
 
     for (let mbY = 0; mbY < this.mbHeight; mbY++) {
       for (let mbX = 0; mbX < this.mbWidth; mbX++) {
-        const { count, nearest, near, pred } = this.candidates(mbs, mbX, mbY);
+        const { count, nearest, near, pred } = this.findCandidates(mbs, mbX, mbY);
         const options: { type: MbType; mv: Mv; cost: number }[] = [
           {
             type: MbType.InterNoMv,
@@ -901,7 +901,7 @@ export class Vp6Encoder {
     for (let mbY = 0; mbY < this.mbHeight; mbY++) {
       for (let mbX = 0; mbX < this.mbWidth; mbX++) {
         const mb = mbs[mbY * this.mbWidth + mbX];
-        const { count, pred } = this.candidates(done, mbX, mbY);
+        const { count, pred } = this.findCandidates(done, mbX, mbY);
         const probs =
           this.models.mbtype[(count + 1) % 3][MODEL_INDEX[lastType]];
 
@@ -973,7 +973,7 @@ export class Vp6Encoder {
         if (slot < 5) {
           // These reach the decoder through the three context weights
           const perContext = [0, 1, 2].map((ctx) => ({
-            counts: counts.of(model.dcTokenProbs[ctx], slot),
+            counts: counts.getCounts(model.dcTokenProbs[ctx], slot),
             weights: T.VP6_DC_WEIGHTS[slot]?.[ctx] ?? [0, 1],
           }));
 
@@ -998,7 +998,7 @@ export class Vp6Encoder {
             cost(value) < cost(best) ? value : best,
           );
         } else {
-          const [zeros, ones] = counts.of(model.dcValueProbs, slot);
+          const [zeros, ones] = counts.getCounts(model.dcValueProbs, slot);
 
           cost = (prob) => bitCost(zeros, ones, prob);
           ideal = bestSendable(zeros, ones);
@@ -1019,7 +1019,7 @@ export class Vp6Encoder {
 
     models.zeroRunProbs.forEach((probs, which) => {
       T.HAS_ZERO_RUN_PROBS[which].forEach((has, slot) => {
-        const [zeros, ones] = counts.of(probs, slot);
+        const [zeros, ones] = counts.getCounts(probs, slot);
         const sent = send(
           has,
           probs[slot],
@@ -1039,7 +1039,7 @@ export class Vp6Encoder {
           const target = model.acValProbs[ctype][group];
 
           has.forEach((hasProb, slot) => {
-            const [zeros, ones] = counts.of(target, slot);
+            const [zeros, ones] = counts.getCounts(target, slot);
             const keep = isKey ? defProb[slot] : target[slot];
             const sent = send(
               hasProb,

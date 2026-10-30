@@ -31,7 +31,7 @@ const keyPattern = (kind: KeyKind) =>
   new RegExp(`^${kind.toLowerCase()}[1-8]$`, 'i');
 
 /** Formats one key as the INI writes it, without indentation */
-export const keyLine = (
+export const formatKeyLine = (
   kind: KeyKind,
   index: number,
   key: KeyValue,
@@ -51,7 +51,7 @@ export const keyLine = (
 const indentOf = (line: string | undefined) => /^\s*/.exec(line ?? '')![0];
 
 /** Computes the edits that make `definition` hold exactly `keys`, in order, of `kind` */
-export const keyEdits = (
+export const computeKeyEdits = (
   text: string,
   definition: IniDefinition,
   kind: KeyKind,
@@ -67,7 +67,7 @@ export const keyEdits = (
     pattern.test(line.keyword.text),
   );
   const written = (indent: string) =>
-    keys.map((key, index) => indent + keyLine(kind, index, key));
+    keys.map((key, index) => indent + formatKeyLine(kind, index, key));
 
   if (existing.length) {
     const [first, ...rest] = existing;

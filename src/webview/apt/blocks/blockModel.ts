@@ -4,7 +4,7 @@ import type {
   FrameItem,
 } from '../../../formats/apt/aptMovie';
 import { PLACE_FLAGS } from '../../../formats/apt/aptMovie';
-import { CLIP_EVENTS, bitNames } from '../scriptSites';
+import { CLIP_EVENTS, formatBitNames } from '../scriptSites';
 
 /**
  * What the block editor knows without a DOM: how a record is named and
@@ -117,7 +117,7 @@ export const kindOfCharacter = (character: Character): BlockKind =>
       : character.type;
 
 /** Gets the title of a frame item's block */
-export const itemTitle = (item: FrameItem): string => {
+export const getItemTitle = (item: FrameItem): string => {
   switch (item.type) {
     case 'placeObject':
       return `Place @${item.depth}`;
@@ -137,7 +137,7 @@ export const itemTitle = (item: FrameItem): string => {
 };
 
 /** Gets the block kind of a frame item */
-export const itemKind = (item: FrameItem): BlockKind => {
+export const getItemKind = (item: FrameItem): BlockKind => {
   switch (item.type) {
     case 'placeObject':
       return 'placement';
@@ -157,7 +157,7 @@ export const itemKind = (item: FrameItem): BlockKind => {
 };
 
 /** Summarises in one line what a frame item does, for its collapsed header */
-export const itemSummary = (item: FrameItem): string => {
+export const summarizeItem = (item: FrameItem): string => {
   switch (item.type) {
     case 'placeObject': {
       const parts: string[] = [];
@@ -177,7 +177,7 @@ export const itemSummary = (item: FrameItem): string => {
       if (item.clipActions?.length) {
         parts.push(
           item.clipActions
-            .map((clip) => bitNames(clip.events, CLIP_EVENTS))
+            .map((clip) => formatBitNames(clip.events, CLIP_EVENTS))
             .join(', '),
         );
       }
@@ -195,7 +195,7 @@ export const itemSummary = (item: FrameItem): string => {
 };
 
 /** Summarises a button record in one line, for its header */
-export const buttonRecordSummary = (record: ButtonRecord): string => {
+export const summarizeButtonRecord = (record: ButtonRecord): string => {
   const states = (
     [
       ['up', 0x1],

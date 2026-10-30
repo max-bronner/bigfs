@@ -5,7 +5,7 @@
 export const SCHEME = 'bigfs';
 
 /** Glob the workspace scan and the file watcher both match archives on */
-export const BIG_PATTERN = '**/*.big';
+export const ARCHIVE_GLOB = '**/*.big';
 
 /**
  * Language id the SAGE INI grammar and providers are registered under, which

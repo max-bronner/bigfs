@@ -1,7 +1,7 @@
 import {
   decodeWindows1252,
   encodeWindows1252,
-  unencodableCharacters,
+  findUnencodableCharacters,
 } from '../../core/windows1252';
 /**
  * The `.csf` compiled string table, ported from mint's
@@ -45,15 +45,15 @@ const HEADER_LENGTH = 24;
 const tag = (bytes: Uint8Array, at: number) =>
   String.fromCharCode(...bytes.subarray(at, at + 4));
 
-const encodeCp1252 = (text: string): number[] =>
+const encodeWindows1252Bytes = (text: string): number[] =>
   Array.from(encodeWindows1252(text));
 
 /**
  * Explains why a label or speech file name cannot be saved, or undefined when
  * it can: a `.csf` stores both as Windows-1252 bytes
  */
-export const csfNameProblem = (name: string): string | undefined => {
-  const missing = unencodableCharacters(name);
+export const describeCsfNameProblem = (name: string): string | undefined => {
+  const missing = findUnencodableCharacters(name);
 
   return missing.length
     ? `${missing.map((char) => JSON.stringify(char)).join(' ')} cannot be stored in a .csf, which writes labels and speech names in Windows-1252`
@@ -184,7 +184,7 @@ export const writeCsf = (file: CsfFile): Uint8Array => {
   word(file.language);
 
   for (const label of file.labels) {
-    const name = encodeCp1252(label.name);
+    const name = encodeWindows1252Bytes(label.name);
 
     text(' LBL');
     word(label.strings.length);
@@ -202,7 +202,7 @@ export const writeCsf = (file: CsfFile): Uint8Array => {
       }
 
       if (string.speech !== undefined) {
-        const speech = encodeCp1252(string.speech);
+        const speech = encodeWindows1252Bytes(string.speech);
 
         word(speech.length);
         out.push(...speech);

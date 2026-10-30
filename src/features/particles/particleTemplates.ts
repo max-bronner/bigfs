@@ -2,14 +2,14 @@ import * as vscode from 'vscode';
 import { findParticleDefinitions } from '../../formats/particles/particleIni';
 import {
   PARTICLE_TEMPLATES,
-  templateSnippet,
+  createTemplateSnippet,
 } from '../../formats/particles/particleTemplates';
 import { registerCommand } from '../../platform/commands';
 
 /** The command that inserts a particle system template into an INI file */
 
 /** Picks a definition name not used in the text yet, numbering the base from 2 */
-const freeName = (text: string, base: string): string => {
+const pickFreeName = (text: string, base: string): string => {
   const used = new Set(
     findParticleDefinitions(text).map((each) => each.name.toLowerCase()),
   );
@@ -68,9 +68,9 @@ export const registerParticleTemplates = (): vscode.Disposable =>
       // A blank line between it and the text above, and a line break at the very end
       const above = at > 0 && document.lineAt(at - 1).text.trim() !== '';
       const atEnd = at >= document.lineCount;
-      const snippet = templateSnippet(
+      const snippet = createTemplateSnippet(
         choice.template,
-        freeName(text, `FX_${choice.label.replace(/\s+/g, '')}`),
+        pickFreeName(text, `FX_${choice.label.replace(/\s+/g, '')}`),
       );
 
       await editor.insertSnippet(

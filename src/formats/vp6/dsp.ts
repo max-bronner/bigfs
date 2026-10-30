@@ -244,11 +244,11 @@ const TMP_STRIDE = 16;
 const TMP_LEN = TMP_STRIDE * 12;
 const ORIGIN = 2 * TMP_STRIDE + 2;
 /** Scratch for one block at a time; motion compensation is not re-entered */
-const TMP = new Uint8Array(TMP_LEN);
+const SCRATCH = new Uint8Array(TMP_LEN);
 const HORIZONTAL = new Uint16Array(9 * 8);
 
 /** Copies the 12×12 source area around a block, clamping at the edges */
-const getBlock = (tmp: Uint8Array, src: Plane, x: number, y: number) => {
+const copyBlockArea = (tmp: Uint8Array, src: Plane, x: number, y: number) => {
   const { width, height } = src;
 
   if (!width || !height) {
@@ -343,7 +343,7 @@ const bicubic = (
 };
 
 /** Predicts one 8×8 block from the reference plane along a motion vector */
-export const mcBlock = (
+export const predictMotionBlock = (
   dst: Plane,
   src: Plane,
   x: number,
@@ -369,9 +369,9 @@ export const mcBlock = (
         Math.trunc(mv.x / 8),
         Math.trunc(mv.y / 8),
       ];
-  const tmp = TMP;
+  const tmp = SCRATCH;
 
-  getBlock(tmp, src, x + sx - 2, y + sy - 2);
+  copyBlockArea(tmp, src, x + sx - 2, y + sy - 2);
 
   if (f.deblock && (msx & 7) !== 0) {
     loopFilter(tmp, 8 - (sx & 7) + 2, 1, TMP_STRIDE, f.loopThr);

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import type {
   FromSheetPage,
@@ -40,7 +40,7 @@ const OBJECT_KEYWORDS = ['Object', 'ChildObject', 'ObjectReskin'];
 const WEAPON_COLUMNS = ['damage', 'range', 'delay'] as const;
 const MAX_PARENTS = 16;
 
-const cellOf = (uri: string, value: StatValue, from?: string): SheetCell => ({
+const toCell = (uri: string, value: StatValue, from?: string): SheetCell => ({
   value: value.value,
   written: value.written,
   uri,
@@ -106,7 +106,7 @@ const createBalanceSheet = (
         await refresh();
         break;
       case 'open': {
-        const row = rowNamed(message.row);
+        const row = findRow(message.row);
 
         if (!row) {
           return;
@@ -128,7 +128,7 @@ const createBalanceSheet = (
     }
   };
 
-  const rowNamed = (name: unknown): SheetRow | undefined =>
+  const findRow = (name: unknown): SheetRow | undefined =>
     rows.find((row) => row.name === name);
 
   /** Writes one value where it is written, and saves a file that was clean */
@@ -136,7 +136,7 @@ const createBalanceSheet = (
     change: Extract<FromSheetPage, { kind: 'edit' }>,
   ): Promise<void> => {
     const value = String(change.value ?? '').trim();
-    const cell = rowNamed(change.row)?.cells[change.column as StatColumn];
+    const cell = findRow(change.row)?.cells[change.column as StatColumn];
 
     if (!value || /\s/.test(value)) {
       throw new Error('A value is one word or number');
@@ -175,7 +175,7 @@ const createBalanceSheet = (
   };
 
   /** Finds the top-level block a definition opens, with its parsed document and lines */
-  const blockAt = async (
+  const findBlockAt = async (
     uri: vscode.Uri,
     line: number,
     texts: Map<string, Promise<string[]>>,
@@ -219,7 +219,7 @@ const createBalanceSheet = (
     for (const keyword of OBJECT_KEYWORDS) {
       for (const name of index.getNames(keyword)) {
         const [place] = index.findDefinitions(keyword, name);
-        const found = place && (await blockAt(place.uri, place.line, texts));
+        const found = place && (await findBlockAt(place.uri, place.line, texts));
 
         if (found && !objects.has(name.toLowerCase())) {
           objects.set(name.toLowerCase(), {
@@ -241,7 +241,7 @@ const createBalanceSheet = (
         const own = stats.values[column];
 
         if (own) {
-          cells[column] = cellOf(uri, own);
+          cells[column] = toCell(uri, own);
           continue;
         }
 
@@ -253,7 +253,7 @@ const createBalanceSheet = (
           const value = source?.stats.values[column];
 
           if (value && source) {
-            cells[column] = cellOf(source.uri, value, source.stats.name);
+            cells[column] = toCell(source.uri, value, source.stats.name);
             break;
           }
           parent = source?.stats.parent;
@@ -293,7 +293,7 @@ const createBalanceSheet = (
     }
     for (const [weapon, count] of users) {
       const [place] = index.findDefinitions('Weapon', weapon);
-      const found = place && (await blockAt(place.uri, place.line, texts));
+      const found = place && (await findBlockAt(place.uri, place.line, texts));
 
       if (!found) {
         continue;
@@ -313,7 +313,7 @@ const createBalanceSheet = (
 
           if (value) {
             row.cells[column] = {
-              ...cellOf(place.uri.toString(), value),
+              ...toCell(place.uri.toString(), value),
               shared: count,
             };
           }
@@ -362,7 +362,7 @@ const createBalanceSheet = (
 };
 
 const renderHtml = (webview: vscode.Webview, scripts: vscode.Uri): string => {
-  return webviewPage({
+  return renderWebviewPage({
     allow: { script: webview.cspSource },
     scriptFiles: [
       webview

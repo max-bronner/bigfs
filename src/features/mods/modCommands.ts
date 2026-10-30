@@ -15,7 +15,7 @@ import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { getFileNodes } from '../../services/archives/virtualNode';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import { getNodeUri } from '../../services/archives/nodeAddress';
-import { skippedFromPackage } from '../../node/modPackage';
+import { isSkippedFromPackage } from '../../node/modPackage';
 import { recordPackedArchive } from '../../services/archives/packagedOutputs';
 import { formatCount } from '../../core/messages';
 import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
@@ -91,7 +91,7 @@ const packFolder = async (folder: Uri): Promise<void> => {
       location: ProgressLocation.Notification,
       title: `Packing ${path.basename(target.fsPath)}`,
     },
-    () => packFolderInto(folder, target, skippedFromPackage),
+    () => packFolderInto(folder, target, isSkippedFromPackage),
   );
 
   if (count) {

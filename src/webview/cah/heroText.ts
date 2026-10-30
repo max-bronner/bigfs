@@ -48,11 +48,11 @@ export const describeBling = (bling: BlingView): string =>
     .filter(Boolean)
     .join(' - ');
 
-const hex32 = (value: number): string => value.toString(16).padStart(8, '0');
+const formatHex32 = (value: number): string => value.toString(16).padStart(8, '0');
 
 /** Formats the stored checksum beside the one a save would write */
 export const describeChecksum = (file: HeroView['file']): string =>
-  `${file.storedCrc === undefined ? 'none stored' : `stored ${hex32(file.storedCrc)}`}, will save as ${hex32(file.crc)}`;
+  `${file.storedCrc === undefined ? 'none stored' : `stored ${formatHex32(file.storedCrc)}`}, will save as ${formatHex32(file.crc)}`;
 
 /** Formats the record version, noting the version a save writes when it is older */
 export const describeVersion = (version: number): string =>

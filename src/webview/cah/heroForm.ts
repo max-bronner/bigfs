@@ -1,4 +1,4 @@
-import { choice, create, field, row } from './fields';
+import { createChoiceSelect, create, createField, createFormRow } from './fields';
 import {
   describeBanner,
   describeBling,
@@ -26,30 +26,30 @@ export const renderHero = (
   banner.hidden = !notes.length;
 
   byId('hero').replaceChildren(
-    ...row(
+    ...createFormRow(
       'Name',
-      field(hero.name, readOnly, (value) => ({ kind: 'setName', value }), post),
+      createField(hero.name, readOnly, (value) => ({ kind: 'setName', value }), post),
     ),
-    ...row(
+    ...createFormRow(
       'Id',
       hero.id === undefined
         ? create('span', {
             className: 'muted',
             textContent: 'none before record version 7',
           })
-        : field(hero.id, readOnly, (value) => ({ kind: 'setId', value }), post),
+        : createField(hero.id, readOnly, (value) => ({ kind: 'setId', value }), post),
     ),
-    ...row(
+    ...createFormRow(
       'Class',
       hero.classes.length
-        ? choice(
+        ? createChoiceSelect(
             hero.classes,
             hero.classIndex,
             readOnly,
             (value) => ({ kind: 'setClass', value }),
             post,
           )
-        : field(
+        : createField(
             hero.classIndex,
             readOnly,
             (value) => ({ kind: 'setClass', value }),
@@ -57,17 +57,17 @@ export const renderHero = (
             'number',
           ),
     ),
-    ...row(
+    ...createFormRow(
       'Subclass',
       hero.subclasses.length
-        ? choice(
+        ? createChoiceSelect(
             hero.subclasses,
             hero.subclassIndex,
             readOnly,
             (value) => ({ kind: 'setSubclass', value }),
             post,
           )
-        : field(
+        : createField(
             hero.subclassIndex,
             readOnly,
             (value) => ({ kind: 'setSubclass', value }),
@@ -89,7 +89,7 @@ export const renderHero = (
       input.addEventListener('change', () =>
         post({ kind: 'setColor', index, value: input.value }),
       );
-      return row(
+      return createFormRow(
         name,
         create(
           'span',
@@ -109,7 +109,7 @@ export const renderHero = (
   byId('powers').replaceChildren(
     ...hero.powers.map((power) => {
       const used = power.button !== '';
-      const button = field(
+      const button = createField(
         power.button,
         readOnly,
         (value) => ({
@@ -141,7 +141,7 @@ export const renderHero = (
         create(
           'td',
           {},
-          field(
+          createField(
             power.level,
             readOnly,
             (value) => ({
@@ -154,7 +154,7 @@ export const renderHero = (
             'number',
           ),
           create('span', { className: 'muted', textContent: ' slot ' }),
-          field(
+          createField(
             power.commandSlot,
             readOnly,
             (value) => ({
@@ -193,7 +193,7 @@ export const renderHero = (
         create(
           'td',
           {},
-          field(
+          createField(
             bling.group,
             readOnly,
             (value) => ({
@@ -208,7 +208,7 @@ export const renderHero = (
         create(
           'td',
           {},
-          field(
+          createField(
             bling.index,
             readOnly,
             (value) => ({
@@ -234,23 +234,23 @@ export const renderHero = (
   const file = hero.file;
 
   byId('file').replaceChildren(
-    ...row(
+    ...createFormRow(
       'Record version',
       create('span', { textContent: describeVersion(hero.version) }),
     ),
-    ...row('Object id', create('span', { textContent: String(hero.objectId) })),
-    ...row(
+    ...createFormRow('Object id', create('span', { textContent: String(hero.objectId) })),
+    ...createFormRow(
       'System hero',
       create('span', {
         textContent: hero.isSystem === undefined ? 'n/a' : String(hero.isSystem),
       }),
     ),
-    ...row(
+    ...createFormRow(
       'Checksum (CRC-32)',
       create('span', { textContent: describeChecksum(file) }),
     ),
     ...(file.trailing
-      ? row(
+      ? createFormRow(
           'Trailing bytes',
           create('span', { textContent: `${file.trailing} (dropped on save)` }),
         )

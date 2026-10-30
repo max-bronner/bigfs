@@ -101,7 +101,7 @@ const exists = async (uri: Uri): Promise<boolean> => {
  * Drops the files the user will not overwrite, asking once for every target
  * that already exists on disk
  */
-const withoutRefusedFiles = async (
+const withoutSkippedFiles = async (
   extractedFiles: ExtractedFile[],
 ): Promise<ExtractedFile[]> => {
   const takenNames = new Set<string>();
@@ -158,7 +158,7 @@ const extractToDirectory = async (
     return undefined;
   }
 
-  const extractedFiles = await withoutRefusedFiles(
+  const extractedFiles = await withoutSkippedFiles(
     getExtractedFiles(nodes, targetDirectoryUri),
   );
 

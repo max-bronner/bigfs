@@ -33,7 +33,7 @@ const SOUND_FIRST_PARAMETER: ReadonlySet<string> = new Set([
 const normal = (name: string) => name.toLowerCase();
 
 /** Finds the indexes of the parameters of a call that name a sound */
-export const soundParameterIndexes = (
+export const findSoundParameterIndexes = (
   name: string,
   parameters: readonly string[],
 ): number[] =>
@@ -46,7 +46,7 @@ export const withSoundParameters = <
   call: T,
 ): T & { sounds: number[] } => ({
   ...call,
-  sounds: soundParameterIndexes(call.name, call.parameters),
+  sounds: findSoundParameterIndexes(call.name, call.parameters),
 });
 
 /** Marks, in every call of a script tree, the parameters that name a sound */

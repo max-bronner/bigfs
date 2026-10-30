@@ -56,7 +56,7 @@ const findBelow = async (
  * Creates the `MovieAccess` an integrity check reads a movie's neighbours
  * through. `added` holds an unsaved edit's files; an empty one marks a removal.
  */
-export const movieAccess = (
+export const createMovieAccess = (
   aptUri: vscode.Uri,
   name: string,
   apt: Uint8Array,
@@ -120,7 +120,7 @@ export const movieAccess = (
 };
 
 /** Finds every `.apt` of the workspace, loose and inside archives */
-export const workspaceMovies = async (
+export const findWorkspaceMovies = async (
   archiveModel: ArchiveModel,
 ): Promise<vscode.Uri[]> => {
   await archiveModel.whenReady();

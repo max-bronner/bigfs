@@ -33,7 +33,7 @@ const sliderSpan = (field: NumericField): [number, number, number] => {
   return [value < 0 ? -width : Math.min(0, value - width), width, width / 500];
 };
 
-const fieldRow = (field: NumericField, scene: SceneMessage): HTMLElement => {
+const createFieldRow = (field: NumericField, scene: SceneMessage): HTMLElement => {
   const row = document.createElement('div');
   const pending = scene.values[field.id];
   const current = pending ?? field.value;
@@ -116,7 +116,7 @@ export const renderFields = (scene: SceneMessage): void => {
       const heading = document.createElement('h3');
 
       heading.textContent = group;
-      return [heading, ...fields.map((field) => fieldRow(field, scene))];
+      return [heading, ...fields.map((field) => createFieldRow(field, scene))];
     }),
   );
 };

@@ -15,7 +15,7 @@ import {
  */
 
 /** Creates a labelled field of a block; the label sits left and the controls wrap */
-export const field = (label: string, ...controls: Node[]): HTMLDivElement => {
+export const createField = (label: string, ...controls: Node[]): HTMLDivElement => {
   const element = document.createElement('div');
   const name = document.createElement('label');
 
@@ -26,7 +26,7 @@ export const field = (label: string, ...controls: Node[]): HTMLDivElement => {
 };
 
 /** Creates a subheading inside a block's body */
-export const section = (title: string): HTMLDivElement => {
+export const createSection = (title: string): HTMLDivElement => {
   const element = document.createElement('div');
 
   element.className = 'bk-section';

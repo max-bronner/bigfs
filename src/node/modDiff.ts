@@ -126,7 +126,7 @@ export const readBaseEntry = async (entry: BaseEntry): Promise<Uint8Array> => {
 };
 
 /** How a mod's file compares with the copy the base game loads */
-export type Change = 'added' | 'changed' | 'same';
+export type ComparisonKind = 'added' | 'changed' | 'same';
 
 /** A file of the mod, whose bytes are read only when its size matches the base game's */
 export interface ModFile {
@@ -138,12 +138,12 @@ export interface ModFile {
 /** Result of `compareWithBase` for one mod file; `baseSize` is unset for an added one */
 export interface ComparedFile {
   entryPath: string;
-  change: Change;
+  change: ComparisonKind;
   size: number;
   baseSize?: number;
 }
 
-const equalBytes = (a: Uint8Array, b: Uint8Array) =>
+const areBytesEqual = (a: Uint8Array, b: Uint8Array) =>
   a.length === b.length && a.every((byte, index) => byte === b[index]);
 
 /** Sorts each of the mod's files into added, changed or the same as the base game */
@@ -183,7 +183,7 @@ export const compareWithBase = async (
 
       results.push({
         entryPath: file.entryPath,
-        change: equalBytes(mine, theirs) ? 'same' : 'changed',
+        change: areBytesEqual(mine, theirs) ? 'same' : 'changed',
         size: file.size,
         baseSize: entry.size,
       });

@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
-import { referencedNames } from '../../formats/ini/sageAudioValues';
+import { findReferencedNames } from '../../formats/ini/sageAudioValues';
 import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 import {
   collectEntries,
@@ -21,7 +21,7 @@ import {
   findUnresolvedReferences,
   isNotAName,
 } from '../../formats/ini/sageIniReferenceCheck';
-import { canonicalNamespace } from '../../formats/ini/sageReferenceFields';
+import { toCanonicalNamespace } from '../../formats/ini/sageReferenceFields';
 import { decodeIniText } from '../../core/windows1252';
 
 const schema = createSageIniSchema(
@@ -39,7 +39,7 @@ const parse = (lines: string[], isFragment = false) =>
 /** Every name the statements of a fixture reference, as `name@Namespace` */
 const referenced = (lines: string[]): string[] =>
   parse(lines).statements.flatMap((statement) =>
-    referencedNames(statement, schema).flatMap((reference) =>
+    findReferencedNames(statement, schema).flatMap((reference) =>
       reference.namespaces.map((namespace) => `${reference.name}@${namespace}`),
     ),
   );
@@ -76,12 +76,12 @@ const workspaceOf = (files: Record<string, string[]>) => {
       findMacro: (name: string) => macros.has(name.toLowerCase()),
       findDefinitions: (namespace: string, name: string) =>
         definitions
-          .get(canonicalNamespace(namespace).toLowerCase())
+          .get(toCanonicalNamespace(namespace).toLowerCase())
           ?.has(name.toLowerCase())
           ? [1]
           : [],
       countDefinitions: (namespace: string) =>
-        definitions.get(canonicalNamespace(namespace).toLowerCase())?.size ??
+        definitions.get(toCanonicalNamespace(namespace).toLowerCase())?.size ??
         0,
     },
   };
@@ -514,7 +514,7 @@ suite('SAGE INI reference checking', () => {
       ['Upgrade_Hat@Upgrade', 'Upgrade_Boot@Upgrade'],
     );
     assert.strictEqual(
-      referencedNames(parse(lines).statements[3], schema)[1].start,
+      findReferencedNames(parse(lines).statements[3], schema)[1].start,
       35,
     );
   });

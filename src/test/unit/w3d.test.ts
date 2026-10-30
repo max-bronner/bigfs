@@ -1,10 +1,10 @@
 import * as assert from "assert";
 import { parseW3d } from "../../formats/w3d/w3dTools";
-import { buildW3dScene, visibleMeshes } from "../../formats/w3d/w3dScene";
+import { buildW3dScene, getMeshVisibility } from "../../formats/w3d/w3dScene";
 import { createToolRegistry } from "../../core/toolRegistry";
 
 /** Builds a W3D chunk: type, size with the container bit when it holds chunks, payload */
-export const chunk = (
+export const buildChunk = (
   type: number,
   payload: Uint8Array,
   holdsChunks = false,
@@ -15,11 +15,11 @@ export const chunk = (
   view.setUint32(0, type, true);
   view.setUint32(4, payload.length | (holdsChunks ? 0x80000000 : 0), true);
 
-  return concat(header, payload);
+  return concatBytes(header, payload);
 };
 
 /** Joins byte arrays end to end */
-export const concat = (...parts: Uint8Array[]): Uint8Array => {
+export const concatBytes = (...parts: Uint8Array[]): Uint8Array => {
   const out = new Uint8Array(
     parts.reduce((total, part) => total + part.length, 0),
   );
@@ -34,14 +34,14 @@ export const concat = (...parts: Uint8Array[]): Uint8Array => {
 };
 
 /** Encodes numbers as little-endian 32-bit floats */
-export const floats = (...values: number[]) =>
+export const encodeFloats = (...values: number[]) =>
   new Uint8Array(Float32Array.from(values).buffer);
 /** Encodes numbers as little-endian 32-bit unsigned words */
-export const uints = (...values: number[]) =>
+export const encodeUints = (...values: number[]) =>
   new Uint8Array(Uint32Array.from(values).buffer);
 
 /** Encodes a fixed-length, NUL-padded name */
-export const name = (text: string, length: number) => {
+export const encodeName = (text: string, length: number) => {
   const bytes = new Uint8Array(length);
 
   bytes.set(Array.from(text, (c) => c.charCodeAt(0)));
@@ -55,8 +55,8 @@ const meshHeader = (meshName: string, container: string, attributes = 0) => {
   const view = new DataView(header.buffer);
 
   view.setUint32(4, attributes, true);
-  header.set(name(meshName, 16), 8);
-  header.set(name(container, 16), 24);
+  header.set(encodeName(meshName, 16), 8);
+  header.set(encodeName(container, 16), 24);
   view.setUint32(40, 1, true);
   view.setUint32(44, 3, true);
 
@@ -65,26 +65,26 @@ const meshHeader = (meshName: string, container: string, attributes = 0) => {
 
 /** One triangle record: three indices, attributes, normal and distance */
 const triangle = (a: number, b: number, c: number) =>
-  concat(uints(a, b, c, 0), floats(0, 0, 1, 0));
+  concatBytes(encodeUints(a, b, c, 0), encodeFloats(0, 0, 1, 0));
 
 /** A one-triangle mesh with a texture and texture coordinates */
 const mesh = (meshName: string) =>
-  chunk(
+  buildChunk(
     0x000,
-    concat(
-      chunk(0x01f, meshHeader(meshName, "UNIT")),
-      chunk(0x002, floats(0, 0, 0, 1, 0, 0, 0, 1, 0)),
-      chunk(0x003, floats(0, 0, 1, 0, 0, 1, 0, 0, 1)),
-      chunk(0x020, triangle(0, 1, 2)),
-      chunk(0x030, chunk(0x031, chunk(0x032, name("Unit.tga", 9)), true), true),
-      chunk(
+    concatBytes(
+      buildChunk(0x01f, meshHeader(meshName, "UNIT")),
+      buildChunk(0x002, encodeFloats(0, 0, 0, 1, 0, 0, 0, 1, 0)),
+      buildChunk(0x003, encodeFloats(0, 0, 1, 0, 0, 1, 0, 0, 1)),
+      buildChunk(0x020, triangle(0, 1, 2)),
+      buildChunk(0x030, buildChunk(0x031, buildChunk(0x032, encodeName("Unit.tga", 9)), true), true),
+      buildChunk(
         0x038,
-        chunk(
+        buildChunk(
           0x048,
           // The stage names its texture by index into the table
-          concat(
-            chunk(0x049, uints(0)),
-            chunk(0x04a, floats(0, 0, 1, 0, 0, 1)),
+          concatBytes(
+            buildChunk(0x049, encodeUints(0)),
+            buildChunk(0x04a, encodeFloats(0, 0, 1, 0, 0, 1)),
           ),
           true,
         ),
@@ -96,23 +96,23 @@ const mesh = (meshName: string) =>
 
 /** A pivot: name, parent, translation, euler angles, rotation quaternion */
 const pivot = (pivotName: string, parent: number, translation: number[]) =>
-  concat(
-    name(pivotName, 16),
-    uints(parent),
-    floats(...translation, 0, 0, 0, 0, 0, 0, 1),
+  concatBytes(
+    encodeName(pivotName, 16),
+    encodeUints(parent),
+    encodeFloats(...translation, 0, 0, 0, 0, 0, 0, 1),
   );
 
 /** The `UNIT_SKL` hierarchy chunk: the root transform and bone 1, ARM, 10 up the z axis */
-export const hierarchy = chunk(
+export const hierarchy = buildChunk(
   0x100,
-  concat(
-    chunk(
+  concatBytes(
+    buildChunk(
       0x101,
-      concat(uints(0), name("UNIT_SKL", 16), uints(2), floats(0, 0, 0)),
+      concatBytes(encodeUints(0), encodeName("UNIT_SKL", 16), encodeUints(2), encodeFloats(0, 0, 0)),
     ),
-    chunk(
+    buildChunk(
       0x102,
-      concat(
+      concatBytes(
         pivot("ROOTTRANSFORM", 0xffffffff, [0, 0, 0]),
         pivot("ARM", 0, [0, 0, 10]),
       ),
@@ -122,15 +122,15 @@ export const hierarchy = chunk(
 );
 
 /** An HLOD placing the mesh BODY on bone 1 */
-const hlod = chunk(
+const hlod = buildChunk(
   0x700,
-  concat(
-    chunk(0x701, concat(uints(0, 1), name("UNIT", 16), name("UNIT_SKL", 16))),
-    chunk(
+  concatBytes(
+    buildChunk(0x701, concatBytes(encodeUints(0, 1), encodeName("UNIT", 16), encodeName("UNIT_SKL", 16))),
+    buildChunk(
       0x702,
-      concat(
-        chunk(0x703, concat(uints(1), floats(0))),
-        chunk(0x704, concat(uints(1), name("UNIT.BODY", 32))),
+      concatBytes(
+        buildChunk(0x703, concatBytes(encodeUints(1), encodeFloats(0))),
+        buildChunk(0x704, concatBytes(encodeUints(1), encodeName("UNIT.BODY", 32))),
       ),
       true,
     ),
@@ -159,7 +159,7 @@ suite("W3D models", () => {
   });
 
   test("the scene places a mesh on the bone its HLOD names, using the skeleton file", async () => {
-    const model = concat(mesh("BODY"), hlod);
+    const model = concatBytes(mesh("BODY"), hlod);
     const loaded: string[] = [];
     const scene = await buildW3dScene(
       model,
@@ -202,7 +202,7 @@ suite("W3D models", () => {
 
   test("a mesh on a bone carries its own vertices and bone for posing", async () => {
     const scene = await buildW3dScene(
-      concat(mesh("BODY"), hlod),
+      concatBytes(mesh("BODY"), hlod),
       async (fileName) => (fileName === "UNIT_SKL.w3d" ? hierarchy : undefined),
       createToolRegistry(),
     );
@@ -218,17 +218,17 @@ suite("W3D models", () => {
   });
 
   test("a mesh with the HIDDEN attribute is flagged and left out unless asked for", async () => {
-    const hiddenMesh = chunk(
+    const hiddenMesh = buildChunk(
       0x000,
-      concat(
-        chunk(0x01f, meshHeader("GLOW", "UNIT", 0x1000)),
-        chunk(0x002, floats(0, 0, 0, 1, 0, 0, 0, 1, 0)),
-        chunk(0x020, triangle(0, 1, 2)),
+      concatBytes(
+        buildChunk(0x01f, meshHeader("GLOW", "UNIT", 0x1000)),
+        buildChunk(0x002, encodeFloats(0, 0, 0, 1, 0, 0, 0, 1, 0)),
+        buildChunk(0x020, triangle(0, 1, 2)),
       ),
       true,
     );
     const scene = await buildW3dScene(
-      concat(mesh("BODY"), hiddenMesh),
+      concatBytes(mesh("BODY"), hiddenMesh),
       async () => undefined,
       createToolRegistry(),
     );
@@ -237,8 +237,8 @@ suite("W3D models", () => {
       scene.meshes.map((each) => each.hidden),
       [false, true],
     );
-    assert.deepStrictEqual(visibleMeshes(scene), [true, false]);
-    assert.deepStrictEqual(visibleMeshes(scene, { showHidden: true }), [
+    assert.deepStrictEqual(getMeshVisibility(scene), [true, false]);
+    assert.deepStrictEqual(getMeshVisibility(scene, { showHidden: true }), [
       true,
       true,
     ]);
@@ -246,19 +246,19 @@ suite("W3D models", () => {
 
   test("every HLOD level is read with its screen size, aggregates and proxies", () => {
     const array = (type: number, size: number, ...subs: string[]) =>
-      chunk(
+      buildChunk(
         type,
-        concat(
-          chunk(0x703, concat(uints(subs.length), floats(size))),
-          ...subs.map((sub) => chunk(0x704, concat(uints(0), name(sub, 32)))),
+        concatBytes(
+          buildChunk(0x703, concatBytes(encodeUints(subs.length), encodeFloats(size))),
+          ...subs.map((sub) => buildChunk(0x704, concatBytes(encodeUints(0), encodeName(sub, 32)))),
         ),
         true,
       );
     const file = parseW3d(
-      chunk(
+      buildChunk(
         0x700,
-        concat(
-          chunk(0x701, concat(uints(0, 2), name("UNIT", 16), name("", 16))),
+        concatBytes(
+          buildChunk(0x701, concatBytes(encodeUints(0, 2), encodeName("UNIT", 16), encodeName("", 16))),
           array(0x702, 20, "UNIT.LOW"),
           array(0x702, 3.4e38, "UNIT.HIGH", "UNIT.EXTRA"),
           array(0x705, 0, "OTHER.MODEL"),
@@ -286,21 +286,21 @@ suite("W3D models", () => {
 
   test("one level of detail is drawn at a time, the finest by default", async () => {
     const level = (size: number, sub: string) =>
-      chunk(
+      buildChunk(
         0x702,
-        concat(
-          chunk(0x703, concat(uints(1), floats(size))),
-          chunk(0x704, concat(uints(0), name(sub, 32))),
+        concatBytes(
+          buildChunk(0x703, concatBytes(encodeUints(1), encodeFloats(size))),
+          buildChunk(0x704, concatBytes(encodeUints(0), encodeName(sub, 32))),
         ),
         true,
       );
-    const model = concat(
+    const model = concatBytes(
       mesh("LOW"),
       mesh("HIGH"),
-      chunk(
+      buildChunk(
         0x700,
-        concat(
-          chunk(0x701, concat(uints(0, 2), name("UNIT", 16), name("", 16))),
+        concatBytes(
+          buildChunk(0x701, concatBytes(encodeUints(0, 2), encodeName("UNIT", 16), encodeName("", 16))),
           level(20, "UNIT.LOW"),
           level(3.4e38, "UNIT.HIGH"),
         ),
@@ -320,33 +320,33 @@ suite("W3D models", () => {
         [undefined, [1]],
       ],
     );
-    assert.deepStrictEqual(visibleMeshes(scene), [false, true]);
-    assert.deepStrictEqual(visibleMeshes(scene, { lod: 0 }), [true, false]);
+    assert.deepStrictEqual(getMeshVisibility(scene), [false, true]);
+    assert.deepStrictEqual(getMeshVisibility(scene, { lod: 0 }), [true, false]);
   });
 
   test("a BOX chunk becomes twelve wireframe edges at its bone", async () => {
     const box = (attributes: number) =>
-      chunk(
+      buildChunk(
         0x740,
-        concat(
-          uints(0, attributes),
-          name("UNIT.COLBOX", 32),
+        concatBytes(
+          encodeUints(0, attributes),
+          encodeName("UNIT.COLBOX", 32),
           new Uint8Array(4),
-          floats(0, 0, 0, 1, 2, 3),
+          encodeFloats(0, 0, 0, 1, 2, 3),
         ),
       );
-    const hlodOnBone = chunk(
+    const hlodOnBone = buildChunk(
       0x700,
-      concat(
-        chunk(
+      concatBytes(
+        buildChunk(
           0x701,
-          concat(uints(0, 1), name("UNIT", 16), name("UNIT_SKL", 16)),
+          concatBytes(encodeUints(0, 1), encodeName("UNIT", 16), encodeName("UNIT_SKL", 16)),
         ),
-        chunk(
+        buildChunk(
           0x702,
-          concat(
-            chunk(0x703, concat(uints(1), floats(0))),
-            chunk(0x704, concat(uints(1), name("UNIT.COLBOX", 32))),
+          concatBytes(
+            buildChunk(0x703, concatBytes(encodeUints(1), encodeFloats(0))),
+            buildChunk(0x704, concatBytes(encodeUints(1), encodeName("UNIT.COLBOX", 32))),
           ),
           true,
         ),
@@ -354,7 +354,7 @@ suite("W3D models", () => {
       true,
     );
     const scene = await buildW3dScene(
-      concat(mesh("BODY"), box(1), hlodOnBone),
+      concatBytes(mesh("BODY"), box(1), hlodOnBone),
       async (fileName) => (fileName === "UNIT_SKL.w3d" ? hierarchy : undefined),
       createToolRegistry(),
     );
@@ -369,17 +369,17 @@ suite("W3D models", () => {
 
   test("a BOX or HLOD array too short for its layout is refused with a message", () => {
     assert.throws(
-      () => parseW3d(chunk(0x740, new Uint8Array(10))),
+      () => parseW3d(buildChunk(0x740, new Uint8Array(10))),
       /BOX chunk is 10 bytes/,
     );
     assert.throws(
       () =>
         parseW3d(
-          chunk(
+          buildChunk(
             0x700,
-            concat(
-              chunk(0x701, new Uint8Array(40)),
-              chunk(0x702, chunk(0x703, new Uint8Array(4)), true),
+            concatBytes(
+              buildChunk(0x701, new Uint8Array(40)),
+              buildChunk(0x702, buildChunk(0x703, new Uint8Array(4)), true),
             ),
             true,
           ),

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { SCHEME } from '../../constants';
 import { registerCommand } from '../../platform/commands';
 import { settings } from '../../platform/settings';
-import { findInstalls, systemHost } from '../../node/installDiscovery';
+import { findInstalls, createSystemHost } from '../../node/installDiscovery';
 import type { FoundInstall } from '../../node/installDiscovery';
 
 /** Global state key recording that the installs were offered, so they are offered once */
@@ -17,7 +17,7 @@ interface InstallItem extends vscode.QuickPickItem {
 const detect = async (): Promise<FoundInstall[]> => {
   try {
     return await findInstalls(
-      systemHost({
+      createSystemHost({
         platform: process.platform,
         env: process.env,
         home: os.homedir(),

@@ -43,8 +43,8 @@ export const library = {
 /** Particle simulation the page steps and draws, resolving definitions from `library` */
 export const world = new ParticleWorld(
   {
-    system: (name) => library.systems.get(name.toLowerCase()),
-    fxList: (name) => library.fxLists.get(name.toLowerCase()),
+    findSystem: (name) => library.systems.get(name.toLowerCase()),
+    findFxList: (name) => library.fxLists.get(name.toLowerCase()),
   },
   7,
 );

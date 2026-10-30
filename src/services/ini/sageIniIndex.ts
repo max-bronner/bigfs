@@ -5,14 +5,14 @@ import type { VirtualNode } from "../archives/virtualNode";
 import { getFileNodes } from "../archives/virtualNode";
 import { getNodeUri } from "../archives/nodeAddress";
 import type { SageIniSchema } from "../../formats/ini/sageIniSchema";
-import { languageOfArchive } from "../../game/text/gameLanguage";
+import { getArchiveLanguage } from "../../game/text/gameLanguage";
 import {
   FILE_USES,
   collectEntries,
   reachedThroughMacros,
 } from "../../formats/ini/sageIniEntries";
 import type { EntryBodyToken } from "../../formats/ini/sageIniEntries";
-import { canonicalNamespace } from "../../formats/ini/sageReferenceFields";
+import { toCanonicalNamespace } from "../../formats/ini/sageReferenceFields";
 import { SAGE_INI_LANGUAGE } from "../../constants";
 import { findString, parseStringTable } from "../../formats/str/sageStringTable";
 import type { SageString } from "../../formats/str/sageStringTable";
@@ -293,12 +293,12 @@ export class SageIniIndex implements Disposable {
    * `DisplayName = OBJECT:GondorFighter` shows, if it names one
    */
   public findString(value: string): SageStringPlace | undefined {
-    return findString(this.activeTable(), value) as SageStringPlace | undefined;
+    return findString(this.getActiveStringTable(), value) as SageStringPlace | undefined;
   }
 
   /** Number of string table records indexed in the chosen language */
   public get stringCount(): number {
-    return this.activeTable().size;
+    return this.getActiveStringTable().size;
   }
 
   /**
@@ -316,7 +316,7 @@ export class SageIniIndex implements Disposable {
    * Gets one record per label: the first in load order that is in the chosen
    * language, a map's own table only when the main tables have none
    */
-  private activeTable(): Map<string, SageStringPlace> {
+  private getActiveStringTable(): Map<string, SageStringPlace> {
     if (!this.activeStrings) {
       const table = new Map<string, SageStringPlace>();
 
@@ -342,7 +342,7 @@ export class SageIniIndex implements Disposable {
   }
 
   /** Gets every macro, sorted by name, which completion offers on any field */
-  public getMacroNames(): SageMacro[] {
+  public getMacros(): SageMacro[] {
     return [...this.macros.values()].sort((a, b) =>
       a.name.localeCompare(b.name),
     );
@@ -355,7 +355,7 @@ export class SageIniIndex implements Disposable {
   ): readonly SageDefinition[] {
     return (
       this.definitions
-        .get(canonicalNamespace(namespace).toLowerCase())
+        .get(toCanonicalNamespace(namespace).toLowerCase())
         ?.get(name.toLowerCase()) ?? []
     );
   }
@@ -363,7 +363,7 @@ export class SageIniIndex implements Disposable {
   /** Counts the distinct names a namespace declares across everything indexed */
   public countDefinitions(namespace: string): number {
     return (
-      this.definitions.get(canonicalNamespace(namespace).toLowerCase())?.size ??
+      this.definitions.get(toCanonicalNamespace(namespace).toLowerCase())?.size ??
       0
     );
   }
@@ -374,7 +374,7 @@ export class SageIniIndex implements Disposable {
    */
   public getNames(namespace: string): string[] {
     const byName = this.definitions.get(
-      canonicalNamespace(namespace).toLowerCase(),
+      toCanonicalNamespace(namespace).toLowerCase(),
     );
 
     if (!byName) {
@@ -422,7 +422,7 @@ export class SageIniIndex implements Disposable {
     namespace: string,
     name: string,
   ): readonly SageReference[] {
-    const key = canonicalNamespace(namespace).toLowerCase();
+    const key = toCanonicalNamespace(namespace).toLowerCase();
     const folded = name.toLowerCase();
     const written = this.references.get(key);
     const direct = written?.get(folded) ?? [];
@@ -660,7 +660,7 @@ export class SageIniIndex implements Disposable {
           node.entryPath,
           content,
           schema,
-          languageOfArchive(root.archive.archivePath),
+          getArchiveLanguage(root.archive.archivePath),
         );
       },
     );

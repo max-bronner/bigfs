@@ -79,7 +79,7 @@ export interface Particle {
   sheetStart: number;
   /** Id of the system attached to this particle, if one is */
   attached?: number;
-  collided: boolean;
+  hasCollided: boolean;
 }
 
 /** One running particle system in a `ParticleWorld` */
@@ -91,7 +91,7 @@ export interface LiveSystem {
   delayLeft: number;
   burstLeft: number;
   age: number;
-  emitting: boolean;
+  isEmitting: boolean;
   /** A slave, which emits only when its master does */
   driven: boolean;
   slave?: number;
@@ -111,9 +111,9 @@ export interface LiveSystem {
 /** Source of the definitions a `ParticleWorld` reads; the preview swaps these live */
 export interface DefinitionSource {
   /** Finds a particle system by name */
-  system(name: string): ParticleDef | undefined;
+  findSystem(name: string): ParticleDef | undefined;
   /** Finds an FX list by name */
-  fxList(name: string): FxListDef | undefined;
+  findFxList(name: string): FxListDef | undefined;
 }
 
 /** Small seeded random generator, so a restart replays the same picture */
@@ -125,7 +125,7 @@ export class Random {
   }
 
   /** Rolls a number in [0, 1) */
-  public unit(): number {
+  public nextUnit(): number {
     this.state = (this.state + 0x6d2b79f5) >>> 0;
 
     let t = this.state;
@@ -136,19 +136,19 @@ export class Random {
   }
 
   /** Rolls a number within a range; a reversed pair stays reversed, as EA's roll leaves it */
-  public range(range: Range): number {
-    return range.low + (range.high - range.low) * this.unit();
+  public rollRange(range: Range): number {
+    return range.low + (range.high - range.low) * this.nextUnit();
   }
 
   /** Rolls a number in [-1, 1) */
   public signed(): number {
-    return this.unit() * 2 - 1;
+    return this.nextUnit() * 2 - 1;
   }
 
   /** Rolls a unit vector, uniform over the sphere */
-  public direction(): Vec3 {
+  public nextDirection(): Vec3 {
     const z = this.signed();
-    const angle = this.unit() * TWO_PI;
+    const angle = this.nextUnit() * TWO_PI;
     const r = Math.sqrt(Math.max(0, 1 - z * z));
 
     return [r * Math.cos(angle), r * Math.sin(angle), z];
@@ -156,7 +156,7 @@ export class Random {
 
   /** Rolls a unit vector in the horizontal plane */
   public directionXY(): [number, number] {
-    const angle = this.unit() * TWO_PI;
+    const angle = this.nextUnit() * TWO_PI;
 
     return [Math.cos(angle), Math.sin(angle)];
   }
@@ -179,14 +179,14 @@ const normalize = (a: Vec3): Vec3 => {
 };
 
 /** Rolls where in its volume a particle is born, in the system's frame */
-export const volumeOffset = (
+export const rollVolumeOffset = (
   volume: Volume,
   random: Random,
   hollowBox: SimulationOptions['hollowBox'],
 ): Vec3 => {
   switch (volume.type) {
     case 'line': {
-      const t = random.unit();
+      const t = random.nextUnit();
 
       return add(volume.start, scale(sub(volume.end, volume.start), t));
     }
@@ -205,17 +205,17 @@ export const volumeOffset = (
         return [0, 0, 0];
       }
 
-      const face = random.unit() < 0.5 ? -1 : 1;
-      const axis = Math.min(2, Math.floor(random.unit() * 3));
+      const face = random.nextUnit() < 0.5 ? -1 : 1;
+      const axis = Math.min(2, Math.floor(random.nextUnit() * 3));
 
       inside[axis] = volume.halfSize[axis] * face;
       return inside;
     }
     case 'sphere': {
-      const direction = random.direction();
+      const direction = random.nextDirection();
       const reach = volume.hollow
         ? volume.radius
-        : volume.radius * random.unit();
+        : volume.radius * random.nextUnit();
 
       return scale(direction, reach);
     }
@@ -223,7 +223,7 @@ export const volumeOffset = (
       const [x, y] = random.directionXY();
       const reach = volume.hollow
         ? volume.radius
-        : volume.radius * random.unit();
+        : volume.radius * random.nextUnit();
 
       return [
         x * reach + volume.offset[0],
@@ -237,7 +237,7 @@ export const volumeOffset = (
 };
 
 /** Rolls the velocity a particle is born with; `OUTWARD` reads the volume */
-export const birthVelocity = (
+export const rollBirthVelocity = (
   def: ParticleDef,
   offset: Vec3,
   random: Random,
@@ -247,26 +247,26 @@ export const birthVelocity = (
   switch (velocity.type) {
     case 'ortho':
       return [
-        random.range(velocity.x),
-        random.range(velocity.y),
-        random.range(velocity.z),
+        random.rollRange(velocity.x),
+        random.rollRange(velocity.y),
+        random.rollRange(velocity.z),
       ];
     case 'spherical':
-      return scale(random.direction(), random.range(velocity.speed));
+      return scale(random.nextDirection(), random.rollRange(velocity.speed));
     case 'hemispherical': {
-      const [x, y, z] = random.direction();
+      const [x, y, z] = random.nextDirection();
 
-      return scale([x, y, Math.abs(z)], random.range(velocity.speed));
+      return scale([x, y, Math.abs(z)], random.rollRange(velocity.speed));
     }
     case 'cylindrical': {
       const [x, y] = random.directionXY();
-      const out = random.range(velocity.radial);
+      const out = random.rollRange(velocity.radial);
 
-      return [x * out, y * out, random.range(velocity.normal)];
+      return [x * out, y * out, random.rollRange(velocity.normal)];
     }
     case 'outward': {
-      const speed = random.range(velocity.speed);
-      const other = random.range(velocity.otherSpeed);
+      const speed = random.rollRange(velocity.speed);
+      const other = random.rollRange(velocity.otherSpeed);
       const volume = def.volume;
 
       if (volume.type === 'cylinder') {
@@ -284,7 +284,7 @@ export const birthVelocity = (
 
         return add(scale(side, speed), scale(up, other));
       }
-      return scale(random.direction(), speed);
+      return scale(random.nextDirection(), speed);
     }
   }
 };
@@ -315,7 +315,7 @@ const reachedKey = (frames: number[], current: number, age: number) => {
 };
 
 /** Computes the angle that points a sprite away from its emitter, as EA computes it */
-export const angleAwayFrom = (position: Vec3, emitter: Vec3): number => {
+export const computeAngleAwayFrom = (position: Vec3, emitter: Vec3): number => {
   const x = position[0] - emitter[0];
   const y = position[1] - emitter[1];
 
@@ -393,7 +393,7 @@ export class ParticleWorld {
     depth = 0,
     driven = false,
   ): number | undefined {
-    const def = this.source.system(name);
+    const def = this.source.findSystem(name);
 
     if (!def || depth > MAX_DEPTH) {
       return undefined;
@@ -402,9 +402,9 @@ export class ParticleWorld {
     const wind = { angle: 0, change: 1, start: 0, end: 0, angleChange: 0 };
 
     if (def.wind) {
-      wind.start = this.random.range(def.wind.start);
-      wind.end = this.random.range(def.wind.end);
-      wind.angle = this.random.range({ low: wind.start, high: wind.end });
+      wind.start = this.random.rollRange(def.wind.start);
+      wind.end = this.random.rollRange(def.wind.end);
+      wind.angle = this.random.rollRange({ low: wind.start, high: wind.end });
       wind.angleChange = WIND_ANGLE_CHANGE_DEFAULT;
     }
 
@@ -415,10 +415,10 @@ export class ParticleWorld {
       previousOrigin: [...origin],
       delayLeft: driven
         ? 0
-        : Math.max(0, delayFrames) + this.random.range(def.initialDelay),
+        : Math.max(0, delayFrames) + this.random.rollRange(def.initialDelay),
       burstLeft: 0,
       age: 0,
-      emitting: true,
+      isEmitting: true,
       driven,
       depth,
       sizeBonus: 0,
@@ -436,23 +436,23 @@ export class ParticleWorld {
 
   /** Plays an FX list's particle nuggets at `origin` */
   public fire(name: string, origin: Vec3, depth = 0): number[] {
-    const list = this.source.fxList(name);
+    const list = this.source.findFxList(name);
 
     if (!list || depth > MAX_DEPTH) {
       return [];
     }
     return list.nuggets.flatMap((nugget) =>
       Array.from({ length: nugget.count }, () => {
-        const angle = this.random.unit() * TWO_PI;
-        const radius = this.random.range(nugget.radius);
+        const angle = this.random.nextUnit() * TWO_PI;
+        const radius = this.random.rollRange(nugget.radius);
         const at: Vec3 = [
           origin[0] + nugget.offset[0] + radius * Math.cos(angle),
           origin[1] + nugget.offset[1] + radius * Math.sin(angle),
-          origin[2] + nugget.offset[2] + this.random.range(nugget.height),
+          origin[2] + nugget.offset[2] + this.random.rollRange(nugget.height),
         ];
         // Milliseconds to frames, rounding up
         const delay = Math.ceil(
-          (this.random.range(nugget.initialDelay) * STEP_HZ) / 1000,
+          (this.random.rollRange(nugget.initialDelay) * STEP_HZ) / 1000,
         );
 
         return this.spawn(nugget.system, at, delay, depth);
@@ -481,7 +481,7 @@ export class ParticleWorld {
     const system = this.find(id);
 
     if (system) {
-      system.emitting = false;
+      system.isEmitting = false;
     }
   }
 
@@ -490,7 +490,7 @@ export class ParticleWorld {
     this.frame++;
     for (let index = 0; index < this.systems.length; index++) {
       const system = this.systems[index];
-      const def = this.source.system(system.name);
+      const def = this.source.findSystem(system.name);
 
       if (!def || !this.stepSystem(system, def)) {
         this.live -= system.particles.length;
@@ -517,19 +517,19 @@ export class ParticleWorld {
       return true;
     }
     if (def.systemLifetime > 0 && system.age >= def.systemLifetime) {
-      system.emitting = false;
+      system.isEmitting = false;
     }
     if (system.driven && !this.find(this.masterOf(system))) {
-      system.emitting = false;
+      system.isEmitting = false;
     }
 
-    if (system.emitting && !system.driven) {
+    if (system.isEmitting && !system.driven) {
       if (system.burstLeft > 0) {
         system.burstLeft -= 1;
       } else {
         const count = Math.max(
           0,
-          Math.min(BATCH_LIMIT, Math.trunc(this.random.range(def.burstCount))),
+          Math.min(BATCH_LIMIT, Math.trunc(this.random.rollRange(def.burstCount))),
         );
 
         for (let number = 0; number < count; number++) {
@@ -555,9 +555,9 @@ export class ParticleWorld {
           }
           this.pushSlave(system, def, particle.position);
         }
-        system.burstLeft = Math.max(0, this.random.range(def.burstDelay));
+        system.burstLeft = Math.max(0, this.random.rollRange(def.burstDelay));
         if (def.oneShot) {
-          system.emitting = false;
+          system.isEmitting = false;
         }
       }
     }
@@ -580,9 +580,9 @@ export class ParticleWorld {
         alphaFrames,
       );
 
-      if (alive && def.event && !particle.collided) {
+      if (alive && def.event && !particle.hasCollided) {
         if (particle.position[2] <= def.event.heightOffset) {
-          particle.collided = true;
+          particle.hasCollided = true;
           events.push(particle.position);
           if (def.event.killAfterEvent) {
             alive = false;
@@ -606,7 +606,7 @@ export class ParticleWorld {
         this.fire(def.event.fx, at, system.depth + 1);
       }
     }
-    return system.emitting || system.particles.length > 0;
+    return system.isEmitting || system.particles.length > 0;
   }
 
   private masterOf(slave: LiveSystem): number | undefined {
@@ -637,7 +637,7 @@ export class ParticleWorld {
       particle.previousSize = particle.size;
       system.sizeBonus = Math.min(
         MAX_SIZE_BONUS,
-        system.sizeBonus + this.random.range(def.startSizeRate),
+        system.sizeBonus + this.random.rollRange(def.startSizeRate),
       );
     }
     system.particles.push(particle);
@@ -647,7 +647,7 @@ export class ParticleWorld {
 
   private pushSlave(master: LiveSystem, def: ParticleDef, at: Vec3): void {
     const slave = this.find(master.slave);
-    const slaveDef = slave && this.source.system(slave.name);
+    const slaveDef = slave && this.source.findSystem(slave.name);
 
     if (slave && slaveDef) {
       this.admit(slave, slaveDef, add(at, def.slavePosOffset), [0, 0, 0], 0);
@@ -661,10 +661,10 @@ export class ParticleWorld {
     behind: number,
   ): Particle {
     const random = this.random;
-    const local = volumeOffset(def.volume, random, this.options.hollowBox);
-    const velocity = birthVelocity(def, local, random);
-    const lifetime = Math.max(0, Math.round(random.range(def.lifetime)));
-    const alphaValues = def.alphas.map((key) => random.range(key.value));
+    const local = rollVolumeOffset(def.volume, random, this.options.hollowBox);
+    const velocity = rollBirthVelocity(def, local, random);
+    const lifetime = Math.max(0, Math.round(random.rollRange(def.lifetime)));
+    const alphaValues = def.alphas.map((key) => random.rollRange(key.value));
     const colorValues = def.colors.map((key) => [...key.rgb] as Vec3);
     const scaleRange = {
       low: def.colorScale.low / 255,
@@ -675,15 +675,15 @@ export class ParticleWorld {
       for (let slot = 1; slot < 7; slot++) {
         colorValues[slot] = colorValues[slot].map((channel) =>
           channel !== 0
-            ? Math.max(0, Math.min(1, channel + random.range(scaleRange)))
+            ? Math.max(0, Math.min(1, channel + random.rollRange(scaleRange)))
             : channel,
         ) as Vec3;
       }
     }
 
     const position = sub(add(origin, local), scale(moved, behind));
-    const size = random.range(def.size);
-    const angle = random.range(def.angleZ);
+    const size = random.rollRange(def.size);
+    const angle = random.rollRange(def.angleZ);
     const color: Vec3 = [...colorValues[0]];
     const alpha = alphaValues[0];
     const colorFrames = def.colors.map((key) => key.frame);
@@ -696,13 +696,13 @@ export class ParticleWorld {
       emitter: [...origin],
       size,
       previousSize: size,
-      sizeRate: random.range(def.sizeRate),
-      sizeRateDamping: random.range(def.sizeRateDamping),
+      sizeRate: random.rollRange(def.sizeRate),
+      sizeRateDamping: random.rollRange(def.sizeRateDamping),
       angle,
       previousAngle: angle,
-      angularRate: random.range(def.angularRateZ),
-      angularDamping: random.range(def.angularDamping),
-      velocityDamping: random.range(def.velocityDamping),
+      angularRate: random.rollRange(def.angularRateZ),
+      angularDamping: random.rollRange(def.angularDamping),
+      velocityDamping: random.rollRange(def.velocityDamping),
       age: 0,
       lifetime,
       color,
@@ -717,9 +717,9 @@ export class ParticleWorld {
       alphaRate: keyRate(alphaFrames, 0, alphaValues[1], alpha),
       alphaSlot: 0,
       alphaValues,
-      windJitter: def.wind ? random.range({ low: 0.7, high: 1.3 }) : 0,
-      sheetStart: Math.floor(random.unit() * 4096),
-      collided: false,
+      windJitter: def.wind ? random.rollRange({ low: 0.7, high: 1.3 }) : 0,
+      sheetStart: Math.floor(random.nextUnit() * 4096),
+      hasCollided: false,
     };
   }
 
@@ -739,7 +739,7 @@ export class ParticleWorld {
 
     if (spec.motion === 'circular') {
       if (state.angleChange === 0) {
-        state.angleChange = Math.abs(this.random.range(spec.angleChange));
+        state.angleChange = Math.abs(this.random.rollRange(spec.angleChange));
       }
       state.angle =
         (state.angle + Math.max(state.angleChange, MIN_WIND_ANGLE_CHANGE)) %
@@ -758,9 +758,9 @@ export class ParticleWorld {
       state.angle += state.change >= 0 ? step : -step;
       if (!(state.angle < high && state.angle > low)) {
         state.change = -state.change;
-        state.angleChange = Math.abs(this.random.range(spec.angleChange));
-        state.start = this.random.range(spec.start);
-        state.end = this.random.range(spec.end);
+        state.angleChange = Math.abs(this.random.rollRange(spec.angleChange));
+        state.start = this.random.rollRange(spec.start);
+        state.end = this.random.rollRange(spec.end);
       }
     }
 
@@ -819,7 +819,7 @@ export class ParticleWorld {
       particle.position[1] += wind.sin * push;
     }
     if (def.upTowardsEmitter) {
-      particle.angle = angleAwayFrom(particle.position, particle.emitter);
+      particle.angle = computeAngleAwayFrom(particle.position, particle.emitter);
       particle.previousAngle = particle.angle;
     }
     particle.age++;

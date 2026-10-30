@@ -13,7 +13,7 @@ import { AptImage } from '../../formats/apt/writer/aptImage';
  * file. Everything is synthetic.
  */
 
-const listing = async (folder: string): Promise<string[]> =>
+const listFiles = async (folder: string): Promise<string[]> =>
   (await readdir(folder, { recursive: true, withFileTypes: true }))
     .filter((entry) => entry.isFile())
     .map((entry) =>
@@ -77,7 +77,7 @@ suite('APT movies as a whole', () => {
     );
 
     assert.strictEqual(path.basename(renamed.fsPath), 'MgmtNew.apt');
-    assert.deepStrictEqual(await listing(folder), [
+    assert.deepStrictEqual(await listFiles(folder), [
       'MgmtNew.apt',
       'MgmtNew.const',
       'MgmtNew.dat',
@@ -108,7 +108,7 @@ suite('APT movies as a whole', () => {
       ),
       true,
     );
-    assert.deepStrictEqual(await listing(folder), [
+    assert.deepStrictEqual(await listFiles(folder), [
       'MgmtRoot.apt',
       'MgmtRoot.const',
       'MgmtRoot.dat',

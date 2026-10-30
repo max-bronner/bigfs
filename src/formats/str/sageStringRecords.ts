@@ -51,14 +51,14 @@ export const quoteStringText = (text: string): string =>
     .replace(/\t/g, '\\t')}"`;
 
 /** Formats one `.str` record so the string reader reads it back as written */
-export const strRecord = (label: string, text: string, eol: string): string =>
+export const formatStrRecord = (label: string, text: string, eol: string): string =>
   `${label}${eol}${quoteStringText(text)}${eol}END${eol}`;
 
 /**
  * Finds where the text ends: the first quote no backslash escapes. A backslash
  * escapes the character after it, itself included, so `\\"` closes the text.
  */
-const closingQuote = (raw: string): number => {
+const findClosingQuote = (raw: string): number => {
   for (let at = 0; at < raw.length; at++) {
     if (raw[at] === '\\') {
       at += 1;
@@ -143,7 +143,7 @@ export const parseStringRecords = (source: string): StringRecord[] => {
         // has to, and the rest of the closing line is discarded
         const open = current.start + current.text.indexOf('"');
         let raw = trimmed.slice(1);
-        let close = closingQuote(raw);
+        let close = findClosingQuote(raw);
         let closeLine = current;
         let closeOffset = close < 0 ? -1 : open + 1 + close;
 
@@ -155,7 +155,7 @@ export const parseStringRecords = (source: string): StringRecord[] => {
           const part = closeLine.text.trim();
 
           raw += ` ${part}`;
-          close = closingQuote(raw);
+          close = findClosingQuote(raw);
 
           if (close >= 0) {
             const lead =

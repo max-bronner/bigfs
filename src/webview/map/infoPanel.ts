@@ -9,7 +9,7 @@ import { sendEdit, vscode } from './messaging';
 import { state } from './state';
 
 /** Names of a day's four lights, indexed by the time-of-day code the map stores (1 to 4) */
-export const TIMES = ['', 'Morning', 'Afternoon', 'Evening', 'Night'];
+export const TIME_OF_DAY_NAMES = ['', 'Morning', 'Afternoon', 'Evening', 'Night'];
 
 /** Renders the left panel: the map's facts, world info, players, lights, teams, scripts, areas, chunks and problems */
 export const showInfo = (actions: MapActions): void => {
@@ -67,7 +67,7 @@ export const showInfo = (actions: MapActions): void => {
     const select = element('select');
 
     for (let code = 1; code <= 4; code++) {
-      const option = element('option', TIMES[code]);
+      const option = element('option', TIME_OF_DAY_NAMES[code]);
 
       option.value = String(code);
       option.selected = code === map.timeOfDay;
@@ -103,7 +103,7 @@ export const showInfo = (actions: MapActions): void => {
 
     lights.append(element('summary', 'Lighting (terrain sun)'));
     map.lights.forEach((light, config) => {
-      lights.append(element('h3', TIMES[config + 1]));
+      lights.append(element('h3', TIME_OF_DAY_NAMES[config + 1]));
       for (const field of ['ambient', 'color', 'direction'] as const) {
         const row = element('div', undefined, 'light');
 

@@ -6,14 +6,14 @@ import { state } from './state';
 const MAX_HOPS = 8;
 
 /** Gets the key imports compare movie names by: lowercased, without `.apt` */
-export const movieKey = (name: string): string =>
+export const toMovieKey = (name: string): string =>
   name.toLowerCase().replace(/\.apt$/, '');
 
 /** Finds the movie an import names: the shown one, or one it imports from */
-export const movieNamed = (name: string): PageMovie | undefined => {
-  const key = movieKey(name);
+export const findMovieNamed = (name: string): PageMovie | undefined => {
+  const key = toMovieKey(name);
 
-  return state.movie && movieKey(state.movie.name) === key
+  return state.movie && toMovieKey(state.movie.name) === key
     ? state.movie
     : state.library.get(key);
 };
@@ -42,7 +42,7 @@ export const resolve = (movie: PageMovie, id: number): Resolved | undefined => {
     const from: PageMovie = current.movie;
     const slot: number = current.id;
     const entry = from.imports.find((each) => each.character === slot);
-    const target = entry && movieNamed(entry.movie);
+    const target = entry && findMovieNamed(entry.movie);
     const exported = target?.exports.find(
       (each) => each.name.toLowerCase() === entry!.name.toLowerCase(),
     );

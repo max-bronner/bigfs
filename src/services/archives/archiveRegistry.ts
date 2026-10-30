@@ -90,7 +90,7 @@ export interface ArchiveRegistry {
    * the `FileNotFound` the file system provider API asks for when the uri
    * names no archive this model knows.
    */
-  getArchiveContext(uri: Uri): ResolvedUri;
+  requireResolvedUri(uri: Uri): ResolvedUri;
   /** Gets the archive a node belongs to, or reports the node as missing */
   getArchiveOf(node: VirtualNode): Archive;
   /**
@@ -251,7 +251,7 @@ export const createArchiveRegistry = (
       return parseNodeUri(uri, registry.archives.values());
     },
 
-    getArchiveContext(uri) {
+    requireResolvedUri(uri) {
       const resolved = registry.resolveUri(uri);
 
       if (!resolved) {

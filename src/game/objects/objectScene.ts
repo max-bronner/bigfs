@@ -1,5 +1,5 @@
 import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/sageIniParser';
-import { audioReferenceKind } from '../../formats/ini/sageAudioFields';
+import { getAudioReferenceKind } from '../../formats/ini/sageAudioFields';
 import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
 
 /**
@@ -58,7 +58,7 @@ const ANIMATION_FIELDS = new Set(['animation', 'animationname']);
 const DEFAULT_STATE = /^default/i;
 
 /** Blocks holding a line, outermost first */
-const chainAt = (blocks: readonly SageBlock[], line: number): SageBlock[] => {
+const findBlockChain = (blocks: readonly SageBlock[], line: number): SageBlock[] => {
   const chain: SageBlock[] = [];
 
   for (
@@ -78,15 +78,15 @@ const namesFx = (schema: SageIniSchema, statement: SageStatement) =>
     .includes('FXList');
 
 /** A block's header as written: its keyword and whatever follows */
-const headerOf = (block: SageBlock) =>
+const formatBlockHeader = (block: SageBlock) =>
   [block.keyword, block.name].filter(Boolean).join(' = ');
 
 /**
  * The draw module and the state block a line sits in: the state is the
  * innermost block below the draw module that is a direct child of it
  */
-const placeOf = (blocks: readonly SageBlock[], line: number) => {
-  const chain = chainAt(blocks, line);
+const findDrawPlace = (blocks: readonly SageBlock[], line: number) => {
+  const chain = findBlockChain(blocks, line);
   const at = chain.findIndex((block) => lower(block.keyword) === 'draw');
 
   return at < 0
@@ -127,7 +127,7 @@ export const readObjectScene = (
       state = {
         draw: draw.moduleTag ?? draw.moduleType ?? 'Draw',
         kind: /animation/i.test(block.keyword) ? 'animation' : 'model',
-        label: headerOf(block),
+        label: formatBlockHeader(block),
         animations: [],
         fx: [],
         particles: [],
@@ -150,12 +150,12 @@ export const readObjectScene = (
 
     const key = lower(statement.keyword.text);
     const values = statement.values.map((value) => value.text);
-    const { draw, state } = placeOf(parsed.blocks, statement.line);
+    const { draw, state } = findDrawPlace(parsed.blocks, statement.line);
     const owner = draw && state ? stateOf(draw, state) : undefined;
 
     // Every field the audio tables call a sound, inherited ones included
     // since the object is read as composed; `NONE` is the engine's "no sound"
-    if (audioReferenceKind(statement.context, statement.keyword.text)) {
+    if (getAudioReferenceKind(statement.context, statement.keyword.text)) {
       for (const name of values.filter((value) => !/^none$/i.test(value))) {
         if (
           !scene.voices.some(
@@ -219,12 +219,12 @@ export const readObjectScene = (
  * scene: its state by draw module and header, and the animation, FX or
  * particle system the line itself names
  */
-export const focusAt = (
+export const findSceneFocus = (
   parsed: SageDocument,
   line: number,
   scene: ObjectScene,
 ): SceneFocus => {
-  const { draw, state } = placeOf(parsed.blocks, line);
+  const { draw, state } = findDrawPlace(parsed.blocks, line);
   const focus: SceneFocus = {};
 
   if (draw && state) {
@@ -232,7 +232,7 @@ export const focusAt = (
     const at = scene.states.findIndex(
       (each) =>
         lower(each.draw) === lower(tag) &&
-        lower(each.label) === lower(headerOf(state)),
+        lower(each.label) === lower(formatBlockHeader(state)),
     );
 
     focus.state = at < 0 ? undefined : at;

@@ -4,7 +4,7 @@ import { parseStringRecords, quoteStringText } from '../../formats/str/sageStrin
 import {
   decodeIniText,
   encodeWindows1252,
-  unencodableCharacters,
+  findUnencodableCharacters,
 } from '../../core/windows1252';
 import { toUri } from '../../services/archives/commandTarget';
 import type { CommandTarget } from '../../services/archives/commandTarget';
@@ -107,7 +107,7 @@ export const csfToStr = (
     })
     .join(eol);
 
-  return { text, dropped, unencodable: unencodableCharacters(text) };
+  return { text, dropped, unencodable: findUnencodableCharacters(text) };
 };
 
 /** Converts a `.str` file's text to a `.csf`, every record in order */

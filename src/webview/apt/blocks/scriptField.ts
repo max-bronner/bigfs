@@ -1,7 +1,7 @@
 import { checkScript } from '../../../formats/apt/aptScript';
 import type { ConstItem } from '../../../formats/apt/aptMovie';
 import { movie, state } from '../state';
-import { errorSpan, segmentScript } from './scriptHighlight';
+import { findErrorSpan, segmentScript } from './scriptHighlight';
 
 /**
  * A script shown as code: highlighted text edited in place. The text is a
@@ -125,7 +125,7 @@ export const scriptField = (options: ScriptFieldOptions): HTMLElement => {
 
     if (problem) {
       error = problem.line
-        ? errorSpan(area.value, problem.line, problem.column ?? 1)
+        ? findErrorSpan(area.value, problem.line, problem.column ?? 1)
         : { start: 0, end: Math.min(area.value.length, 1) };
       show(
         problem.line

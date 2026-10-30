@@ -41,10 +41,10 @@ export class GameViewModel implements Disposable {
   private names?: Promise<Map<string, GameViewNode>>;
   private readonly onDidChangeEmitter = new EventEmitter<void>();
   /** Whether the view built is out of date and its listeners have yet to hear of it */
-  private stale = false;
+  private isStale = false;
   private readonly announce = createDebouncer(() => {
-    if (this.stale) {
-      this.stale = false;
+    if (this.isStale) {
+      this.isStale = false;
       this.onDidChangeEmitter.fire();
     }
   }, REBUILD_DELAY);
@@ -75,7 +75,7 @@ export class GameViewModel implements Disposable {
   /** Drops the built view, so the next request reads everything again */
   public invalidate(): void {
     this.announce.cancel();
-    this.stale = false;
+    this.isStale = false;
     this.names = undefined;
 
     if (this.tree) {
@@ -93,7 +93,7 @@ export class GameViewModel implements Disposable {
 
     if (this.tree) {
       this.tree = undefined;
-      this.stale = true;
+      this.isStale = true;
       this.announce.schedule();
     }
   }

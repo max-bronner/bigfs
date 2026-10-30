@@ -320,7 +320,7 @@ const from565 = (c: number) => [
 ];
 
 /** Encodes one DXT colour block: two 565 endpoints and 2-bit indices */
-const colourBlock = (block: Uint8Array, out: Sink, isDxt1: boolean) => {
+const encodeColourBlock = (block: Uint8Array, out: Sink, isDxt1: boolean) => {
   const min = [255, 255, 255];
   const max = [0, 0, 0];
   let hasTransparent = false;
@@ -423,7 +423,7 @@ const colourBlock = (block: Uint8Array, out: Sink, isDxt1: boolean) => {
 };
 
 /** Encodes a DXT5 alpha block: two endpoints and 3-bit indices */
-const alphaBlock = (block: Uint8Array, out: Sink) => {
+const encodeAlphaBlock = (block: Uint8Array, out: Sink) => {
   let low = 255;
   let high = 0;
 
@@ -463,7 +463,7 @@ const alphaBlock = (block: Uint8Array, out: Sink) => {
 export type DdsFormat = 'DXT1' | 'DXT3' | 'DXT5' | 'RGBA';
 
 /** Computes the bytes one mip level takes in `format` */
-const levelSize = (image: RgbaImage, format: DdsFormat) =>
+const getLevelSize = (image: RgbaImage, format: DdsFormat) =>
   format === 'RGBA'
     ? image.width * image.height * 4
     : Math.max(1, Math.ceil(image.width / 4)) *
@@ -505,10 +505,10 @@ const encodeLevel = (image: RgbaImage, format: DdsFormat, out: Sink) => {
           out.push((block[pair * 8 + 3] >> 4) | (block[pair * 8 + 7] & 0xf0));
         }
       } else if (format === 'DXT5') {
-        alphaBlock(block, out);
+        encodeAlphaBlock(block, out);
       }
 
-      colourBlock(block, out, format === 'DXT1');
+      encodeColourBlock(block, out, format === 'DXT1');
     }
   }
 };
@@ -531,7 +531,7 @@ export const encodeDds = (
 
   // One buffer for the header and every level, never a list of bytes
   const out = new Uint8Array(
-    128 + levels.reduce((sum, level) => sum + levelSize(level, format), 0),
+    128 + levels.reduce((sum, level) => sum + getLevelSize(level, format), 0),
   );
   const header = out.subarray(0, 128);
   const view = new DataView(out.buffer);

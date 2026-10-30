@@ -12,11 +12,11 @@ import {
 } from '../../node/modDiff';
 import { findBaseGameFolders } from '../../services/archives/baseGameFolders';
 import {
-  packedArchives,
+  getPackedArchives,
   useOutputStore,
 } from '../../services/archives/packagedOutputs';
 import type { FromModDiffPage } from '../../webview/mods/protocol';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import { registerPackageMod } from './packageModCommand';
 import { decodeIniText } from '../../core/windows1252';
 import { diffDefinitions } from '../../game/objects/definitionDiff';
@@ -38,22 +38,22 @@ const BASE_SCHEME = 'bigfs-base';
 /** File types a text diff makes sense for */
 const TEXT_FILES = /\.(ini|inc|bhav|str|wnd|txt|lua|xml|cfg|scb|csv)$/i;
 
-const escape = (text: string) =>
+const escapeHtml = (text: string) =>
   text.replace(/[&<>"]/g, (char) => `&#${char.charCodeAt(0)};`);
 
 /** Renders a changed INI file's definition changes as HTML lines of the report */
-const definitionLines = (diff: DefinitionDiff): string[] => {
+const renderDefinitionLines = (diff: DefinitionDiff): string[] => {
   const shown = (value?: string) => (value === undefined ? '∅' : value);
 
   return [
-    ...diff.added.map((name) => `<span class="add">+ ${escape(name)}</span>`),
-    ...diff.removed.map((name) => `<span class="del">− ${escape(name)}</span>`),
+    ...diff.added.map((name) => `<span class="add">+ ${escapeHtml(name)}</span>`),
+    ...diff.removed.map((name) => `<span class="del">− ${escapeHtml(name)}</span>`),
     ...diff.changed.map(
       ({ name, changes }) =>
-        `<b>${escape(name)}</b>: ${changes
+        `<b>${escapeHtml(name)}</b>: ${changes
           .map(
             (change) =>
-              `<code>${escape(change.path)}</code> ${escape(shown(change.before))} → ${escape(shown(change.after))}`,
+              `<code>${escapeHtml(change.path)}</code> ${escapeHtml(shown(change.before))} → ${escapeHtml(shown(change.after))}`,
           )
           .join('; ')}`,
     ),
@@ -81,20 +81,20 @@ const renderReport = (
       results.filter((file) => file.change === 'same'),
     ],
   ];
-  const rows = (files: ComparedFile[]) =>
+  const renderRows = (files: ComparedFile[]) =>
     files
       .map(
         (file) =>
-          `<tr data-path="${escape(file.entryPath)}"><td class="path">${escape(file.entryPath)}</td><td>${file.baseSize === undefined ? '' : `${file.baseSize.toLocaleString()} → `}${file.size.toLocaleString()} bytes</td><td class="actions">${
+          `<tr data-path="${escapeHtml(file.entryPath)}"><td class="path">${escapeHtml(file.entryPath)}</td><td>${file.baseSize === undefined ? '' : `${file.baseSize.toLocaleString()} → `}${file.size.toLocaleString()} bytes</td><td class="actions">${
             file.change === 'changed' && TEXT_FILES.test(file.entryPath)
               ? '<button data-action="diff">Diff</button>'
               : ''
           }<button data-action="open">Open</button></td></tr>${(() => {
             const diff = definitions.get(file.entryPath);
-            const lines = diff ? definitionLines(diff) : [];
+            const lines = diff ? renderDefinitionLines(diff) : [];
 
             return lines.length
-              ? `<tr class="defs" data-path="${escape(file.entryPath)}"><td colspan="3">${lines
+              ? `<tr class="defs" data-path="${escapeHtml(file.entryPath)}"><td colspan="3">${lines
                   .slice(0, MAX_DEFINITIONS)
                   .join(
                     '<br>',
@@ -104,7 +104,7 @@ const renderReport = (
       )
       .join('');
 
-  return webviewPage({
+  return renderWebviewPage({
     allow: { script: webview.cspSource },
     scriptFiles: [
       webview
@@ -122,12 +122,12 @@ const renderReport = (
   .add { color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b); } .del { color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39); }
 `,
     body: `<h2>Mod against the base game</h2>
-<p class="muted">Base: ${escape(folder)} (${archives} archives${unreadable.length ? `, ${unreadable.length} unreadable: ${escape(unreadable.join(', '))}` : ''})</p>
+<p class="muted">Base: ${escapeHtml(folder)} (${archives} archives${unreadable.length ? `, ${unreadable.length} unreadable: ${escapeHtml(unreadable.join(', '))}` : ''})</p>
 <input id="filter" placeholder="Filter by path">
 ${groups
   .map(
     ([key, title, files]) =>
-      `<details ${key === 'same' ? '' : 'open'} data-group="${key}"><summary>${title} (${files.length})</summary><table>${rows(files)}</table></details>`,
+      `<details ${key === 'same' ? '' : 'open'} data-group="${key}"><summary>${title} (${files.length})</summary><table>${renderRows(files)}</table></details>`,
   )
   .join('')}`,
   });
@@ -148,7 +148,7 @@ export const registerModDiffCommands = (
   context.subscriptions.push(documents);
   useOutputStore(context.globalState);
 
-  const baseFolder = async (): Promise<string | undefined> => {
+  const getBaseFolder = async (): Promise<string | undefined> => {
     const configured = settings.baseGameFolder.get();
 
     if (configured) {
@@ -174,8 +174,8 @@ export const registerModDiffCommands = (
   };
 
   /** Lists the base game's installs, the highest layer first; asks for a folder when none is set */
-  const baseLayers = async (): Promise<string[]> =>
-    (await baseFolder()) ? findBaseGameFolders() : [];
+  const findBaseLayers = async (): Promise<string[]> =>
+    (await getBaseFolder()) ? findBaseGameFolders() : [];
 
   const compare = (folders: string[]): Thenable<void> =>
     vscode.window.withProgress(
@@ -188,7 +188,7 @@ export const registerModDiffCommands = (
         progress.report({ message: 'reading the base game' });
 
         const indexed = await indexBaseGame(folders, {
-          exclude: packedArchives(),
+          exclude: getPackedArchives(),
         });
         const folder = folders.join(', ');
 
@@ -322,7 +322,7 @@ export const registerModDiffCommands = (
     );
 
   context.subscriptions.push(
-    registerPackageMod(baseLayers, documents),
+    registerPackageMod(findBaseLayers, documents),
     vscode.workspace.registerTextDocumentContentProvider(BASE_SCHEME, {
       provideTextDocumentContent: async (uri) => {
         const entry = base?.index.get(
@@ -333,7 +333,7 @@ export const registerModDiffCommands = (
       },
     }),
     registerCommand('bigfs.compareWithBaseGame', async () => {
-      const folders = await baseLayers();
+      const folders = await findBaseLayers();
 
       if (!folders.length) {
         void vscode.window.showWarningMessage(

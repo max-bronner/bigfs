@@ -18,10 +18,10 @@ export interface LineEdit {
  * Reads the name a `CommandSet NAME` header line opens. A `CommandSet = NAME`
  * field, as an Object lists its set, opens nothing.
  */
-export const commandSetHeader = (line: string): string | undefined =>
+export const readCommandSetName = (line: string): string | undefined =>
   /^\s*CommandSet\s+([^\s=;/]+)\s*(?:[;]|\/\/|$)/i.exec(line)?.[1];
 
-const slotOf = (line: string) => {
+const readSlotNumber = (line: string) => {
   const [key] = tokenize(stripComment(line));
 
   return key && /^\d+$/.test(key.text) ? Number(key.text) : undefined;
@@ -31,7 +31,7 @@ const slotOf = (line: string) => {
  * Builds the edits that make the set at `startLine`..`endLine` hold `slots`
  * (slot number to button name) and nothing else in its numbered lines
  */
-export const slotEdits = (
+export const buildSlotEdits = (
   lines: string[],
   startLine: number,
   endLine: number,
@@ -40,7 +40,7 @@ export const slotEdits = (
   const existing: number[] = [];
 
   for (let line = startLine + 1; line < endLine; line++) {
-    if (slotOf(lines[line]) !== undefined) {
+    if (readSlotNumber(lines[line]) !== undefined) {
       existing.push(line);
     }
   }
@@ -65,7 +65,7 @@ export const slotEdits = (
 };
 
 /** Whether two slot maps hold the same buttons */
-export const sameSlots = (
+export const hasSameSlots = (
   a: ReadonlyMap<number, string>,
   b: ReadonlyMap<number, string>,
 ): boolean =>

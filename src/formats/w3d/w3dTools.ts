@@ -185,7 +185,7 @@ const readChunks = (bytes: Uint8Array): Chunk[] => {
   return chunks;
 };
 
-const viewOf = (bytes: Uint8Array) =>
+const createView = (bytes: Uint8Array) =>
   new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
 /** Reads a fixed-length, NUL-padded name */
@@ -198,7 +198,7 @@ const readName = (bytes: Uint8Array, at: number, length: number): string => {
 
 /** Reads the floats a payload holds, copied so the result owns its memory */
 const readFloats = (bytes: Uint8Array): Float32Array => {
-  const view = viewOf(bytes);
+  const view = createView(bytes);
   const floats = new Float32Array(Math.floor(bytes.length / 4));
 
   floats.forEach((_, index) => {
@@ -228,7 +228,7 @@ const readShaderMaterial = (
       continue;
     }
 
-    const view = viewOf(property.payload);
+    const view = createView(property.payload);
     const type = view.getUint32(0, true);
     const nameLength = view.getUint32(4, true);
     const name = readName(property.payload, 8, nameLength);
@@ -262,7 +262,7 @@ const readShaderMaterial = (
 
 /** Reads the little-endian 32-bit values of a payload */
 const readIds = (bytes: Uint8Array): number[] => {
-  const view = viewOf(bytes);
+  const view = createView(bytes);
 
   return Array.from({ length: Math.floor(bytes.length / 4) }, (_, index) =>
     view.getUint32(index * 4, true),
@@ -270,7 +270,7 @@ const readIds = (bytes: Uint8Array): number[] => {
 };
 
 /** Classifies a `SHADERS` entry's blend from its source and destination factors */
-const blendOf = (shader: Uint8Array): W3dBlend => {
+const classifyBlend = (shader: Uint8Array): W3dBlend => {
   const [, depthMask, , destBlend, , , , srcBlend, , , , , alphaTest] = shader;
 
   // Alpha-blended but writing depth and alpha-testing is a cutout
@@ -339,7 +339,7 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   const materials: { texture?: string; alphaTest: boolean }[] = [];
 
   for (const chunk of readChunks(payload)) {
-    const view = viewOf(chunk.payload);
+    const view = createView(chunk.payload);
 
     switch (chunk.type) {
       case CHUNK.MESH_HEADER3:
@@ -427,9 +427,9 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
     name: readName(header, 8, 16),
     container: readName(header, 24, 16),
     isSkin:
-      (viewOf(header).getUint32(4, true) & GEOMETRY_TYPE_MASK) ===
+      (createView(header).getUint32(4, true) & GEOMETRY_TYPE_MASK) ===
       GEOMETRY_TYPE_SKIN,
-    hidden: (viewOf(header).getUint32(4, true) & MESH_FLAG_HIDDEN) !== 0,
+    hidden: (createView(header).getUint32(4, true) & MESH_FLAG_HIDDEN) !== 0,
     positions,
     normals: normals?.length === positions.length ? normals : undefined,
     uvs: pass?.uvs?.length === vertexCount * 2 ? pass.uvs : undefined,
@@ -445,7 +445,7 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
       drawn.some((shader) => shader[12] !== 0) ||
       materials.some((material) => material.alphaTest),
     blend: drawn
-      .map(blendOf)
+      .map(classifyBlend)
       .reduce<W3dBlend>(
         (best, each) =>
           BLEND_RANK.indexOf(each) > BLEND_RANK.indexOf(best) ? each : best,
@@ -464,7 +464,7 @@ const readHierarchy = (payload: Uint8Array): W3dHierarchy | undefined => {
     }
 
     if (chunk.type === CHUNK.PIVOTS) {
-      const view = viewOf(chunk.payload);
+      const view = createView(chunk.payload);
 
       for (let at = 0; at + 60 <= chunk.payload.length; at += 60) {
         const parent = view.getUint32(at + 16, true);
@@ -495,7 +495,7 @@ const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
           `W3D HLOD array header is ${chunk.payload.length} bytes, expected ${HLOD_ARRAY_HEADER_SIZE}`,
         );
       }
-      maxScreenSize = viewOf(chunk.payload).getFloat32(4, true);
+      maxScreenSize = createView(chunk.payload).getFloat32(4, true);
     } else if (chunk.type === CHUNK.HLOD_SUB_OBJECT) {
       if (chunk.payload.length < HLOD_SUB_OBJECT_SIZE) {
         throw new Error(
@@ -503,7 +503,7 @@ const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
         );
       }
       subObjects.push({
-        bone: viewOf(chunk.payload).getUint32(0, true),
+        bone: createView(chunk.payload).getUint32(0, true),
         name: readName(chunk.payload, 4, 32),
       });
     }
@@ -557,7 +557,7 @@ const readBox = (payload: Uint8Array): W3dBox => {
     );
   }
 
-  const view = viewOf(payload);
+  const view = createView(payload);
   const float = (offset: number) => view.getFloat32(offset, true);
 
   return {

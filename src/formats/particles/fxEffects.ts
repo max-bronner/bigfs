@@ -203,7 +203,7 @@ const FLASH_PEAK = 0.45;
  * is a fixed wobble scaled by a falloff, so a paused or stepped preview
  * shows the same picture each time.
  */
-export const effectsAt = (
+export const getEffectStateAt = (
   effects: readonly FxEffect[],
   frame: number,
   hz: number,
@@ -247,7 +247,7 @@ export const effectsAt = (
 };
 
 /** Gets the milliseconds an approximated nugget is visibly doing something; zero for a scorch, which stays */
-export const effectLength = (effect: FxEffect): number => {
+export const getEffectLength = (effect: FxEffect): number => {
   const approximation = effect.approximation;
 
   return approximation?.type === 'shake'

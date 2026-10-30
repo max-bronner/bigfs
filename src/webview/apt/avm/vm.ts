@@ -4,7 +4,7 @@ import type {
 } from '../../../formats/apt/aptBytecode';
 import type { PageMovie } from '../protocol';
 import type { Instance } from '../player';
-import { isWindowTarget, levelOf } from './movieLoad';
+import { isWindowTarget, parseLevel } from './movieLoad';
 import { installNatives } from './natives';
 import {
   AsObject,
@@ -326,7 +326,7 @@ export class Vm implements NativeHost {
   }
 
   /** Whether a script is running, so a frame entered now waits its turn */
-  public get busy(): boolean {
+  public get isBusy(): boolean {
     return this.nesting > 0;
   }
 
@@ -653,7 +653,7 @@ export class Vm implements NativeHost {
 
   /** The clip a script loaded into a level (`_level1`), if one is there */
   private levelClip(lower: string): Instance | undefined {
-    const level = levelOf(lower);
+    const level = parseLevel(lower);
 
     return level
       ? [...this.stage.root.children.values()].find(
@@ -671,7 +671,7 @@ export class Vm implements NativeHost {
     }
 
     // A level is not below `_level0`: its path starts at itself
-    const level = names[0] && levelOf(names[0]) ? names[0] : undefined;
+    const level = names[0] && parseLevel(names[0]) ? names[0] : undefined;
 
     return separator === '/'
       ? `/${names.join('/')}`
@@ -1479,7 +1479,7 @@ export class Vm implements NativeHost {
     // A target that names a clip or level is Flash's loadMovie (an empty
     // URL its unloadMovie); a window target is only the call above
     if (!isWindowTarget(target)) {
-      const level = levelOf(target);
+      const level = parseLevel(target);
       const into =
         level ??
         this.targetClip(frame, frame.target ?? this.stage.root, target, false);

@@ -16,7 +16,7 @@ import type { LoadFile } from './w3dScene';
 const MAX_TRIED = 24;
 
 /** Lists the file names that could hold the model drawn on a skeleton, likeliest first */
-export const modelCandidates = (
+export const listModelCandidates = (
   skeleton: string,
   names: readonly string[],
 ): string[] => {
@@ -51,7 +51,7 @@ export const findModelForSkeleton = async (
 ): Promise<string | undefined> => {
   const parse = tools.use(parseW3dTool);
 
-  for (const name of modelCandidates(skeleton, names).slice(0, MAX_TRIED)) {
+  for (const name of listModelCandidates(skeleton, names).slice(0, MAX_TRIED)) {
     const bytes = await loadFile(name);
 
     if (!bytes) {

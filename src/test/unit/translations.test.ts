@@ -1,7 +1,7 @@
 import * as assert from 'assert';
-import { languageOf, translationGaps } from '../../game/text/translations';
+import { detectTableLanguage, findTranslationGaps } from '../../game/text/translations';
 
-const table = (path: string, language: string, labels: [string, string][]) => ({
+const buildTable = (path: string, language: string, labels: [string, string][]) => ({
   path,
   language,
   labels: new Map(
@@ -13,23 +13,23 @@ suite('Translations', () => {
   test('a language comes from the path, then the csf header', () => {
     assert.deepStrictEqual(
       [
-        languageOf('mod/lang/german/lotr.str'),
-        languageOf('data/lotr_french.str'),
-        languageOf('Data/lotr.csf', 2),
-        languageOf('data/lotr.str'),
+        detectTableLanguage('mod/lang/german/lotr.str'),
+        detectTableLanguage('data/lotr_french.str'),
+        detectTableLanguage('Data/lotr.csf', 2),
+        detectTableLanguage('data/lotr.str'),
       ],
       ['german', 'french', 'german', 'unknown'],
     );
   });
 
   test('each language lacks what the others have, with English text to stand in', () => {
-    const gaps = translationGaps([
-      table('en/a.str', 'english', [
+    const gaps = findTranslationGaps([
+      buildTable('en/a.str', 'english', [
         ['OBJECT:Ranger', 'Ranger'],
         ['OBJECT:Archer', 'Archer'],
       ]),
-      table('de/a.str', 'german', [['OBJECT:Archer', 'Bogenschütze']]),
-      table('de/b.str', 'german', [['OBJECT:Catapult', 'Katapult']]),
+      buildTable('de/a.str', 'german', [['OBJECT:Archer', 'Bogenschütze']]),
+      buildTable('de/b.str', 'german', [['OBJECT:Catapult', 'Katapult']]),
     ]);
 
     assert.deepStrictEqual(gaps, [

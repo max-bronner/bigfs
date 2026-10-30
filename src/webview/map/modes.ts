@@ -3,7 +3,7 @@ import { canvas } from './elements';
 import { draw } from './draw';
 import { roundTo, waypointsById } from './mapModel';
 import { sendEdit } from './messaging';
-import { describeMode, nextAreaName } from './modeText';
+import { describeMode, pickAreaName } from './modeText';
 import type { MapMode } from './modeText';
 import { state } from './state';
 
@@ -33,7 +33,7 @@ export const finishArea = (): void => {
 
   sendEdit({
     kind: 'areaAdd',
-    name: nextAreaName(taken),
+    name: pickAreaName(taken),
     points: state.draft,
   });
   state.selectedArea = state.map.triggerAreas.length;

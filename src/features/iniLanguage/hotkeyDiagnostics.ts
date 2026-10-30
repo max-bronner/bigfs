@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../../constants';
 import { createLineReader, resolveSlots } from '../../services/ini/commandSetPreview';
-import { hotkeyClashes } from '../../game/ini-tools/hotkeys';
+import { findHotkeyClashes } from '../../game/ini-tools/hotkeys';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 
@@ -58,7 +58,7 @@ export const watchHotkeyClashes = (
           line: statement.line,
         }));
       const resolved = await resolveSlots(index, slots, linesOf);
-      const clashes = hotkeyClashes(resolved);
+      const clashes = findHotkeyClashes(resolved);
 
       resolved.forEach((slot, place) => {
         const others = clashes.get(slot.slot);

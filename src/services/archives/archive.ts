@@ -42,7 +42,7 @@ export type EntryChange =
  * Gets the keys of the entries at or below a path, which is how a change to a
  * directory reaches the files it holds
  */
-const keysUnder = (
+const getKeysUnder = (
   entries: Map<string, BigFileEntry>,
   entryPath: string,
 ): string[] => {
@@ -79,7 +79,7 @@ const changeEntries = (
     }
 
     case 'remove': {
-      const keys = keysUnder(entries, change.path);
+      const keys = getKeysUnder(entries, change.path);
 
       keys.forEach((key) => entries.delete(key));
 
@@ -88,7 +88,7 @@ const changeEntries = (
 
     case 'move':
     case 'copy': {
-      const keys = keysUnder(entries, change.from);
+      const keys = getKeysUnder(entries, change.from);
 
       for (const key of keys) {
         const entry = entries.get(key);

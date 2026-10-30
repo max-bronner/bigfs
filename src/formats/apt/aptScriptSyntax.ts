@@ -283,7 +283,7 @@ const printStatement = (stmt: Stmt, indent: string): string => {
     }
     case 'setvar': {
       const text = printName(stmt.name);
-      const step = incrementOf(stmt.value, text);
+      const step = getIncrementSuffix(stmt.value, text);
 
       return step ? `${text}${step};` : `${text} = ${printExpr(stmt.value)};`;
     }
@@ -293,7 +293,7 @@ const printStatement = (stmt: Stmt, indent: string): string => {
           ? { k: 'member', obj: stmt.obj, name: stmt.name.v }
           : { k: 'index', obj: stmt.obj, key: stmt.name };
       const text = printExpr(target);
-      const step = incrementOf(stmt.value, text);
+      const step = getIncrementSuffix(stmt.value, text);
 
       return step ? `${text}${step};` : `${text} = ${printExpr(stmt.value)};`;
     }
@@ -330,7 +330,7 @@ const printStatement = (stmt: Stmt, indent: string): string => {
 };
 
 /** `x = #Increment(x)` prints as `x++`: the suffix, when the value is that */
-const incrementOf = (value: Expr, target: string): string | undefined =>
+const getIncrementSuffix = (value: Expr, target: string): string | undefined =>
   value.k === 'intr' &&
   (value.op === 'Increment' || value.op === 'Decrement') &&
   !value.operand &&

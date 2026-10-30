@@ -29,4 +29,4 @@ export const recordPackedArchive = (archivePath: string): void => {
 };
 
 /** Gets the archives to leave out of the base game, by lowercased path */
-export const packedArchives = (): ReadonlySet<string> => outputs;
+export const getPackedArchives = (): ReadonlySet<string> => outputs;

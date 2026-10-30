@@ -42,7 +42,7 @@ export interface GameNode<T> {
  * Gets the key the engine orders an install's archives by: the path below the
  * install, lowercased, with backslashes
  */
-export const archiveOrderKey = (pathInInstall: string): string =>
+export const getArchiveOrderKey = (pathInInstall: string): string =>
   pathInInstall.toLowerCase().replace(/\//g, '\\');
 
 /**
@@ -98,8 +98,8 @@ export const buildGameTree = <T>(files: Iterable<GameFile<T>>): GameNode<T> => {
 
 /** Orders archive paths below an install the way the engine does */
 export const compareArchivePaths = (a: string, b: string): number => {
-  const keyA = archiveOrderKey(a);
-  const keyB = archiveOrderKey(b);
+  const keyA = getArchiveOrderKey(a);
+  const keyB = getArchiveOrderKey(b);
 
   return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
 };

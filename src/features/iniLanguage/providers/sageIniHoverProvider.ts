@@ -42,14 +42,14 @@ const TYPE_NOTES: Record<string, string> = {
 };
 
 /** Finds the statement on a position's line */
-const statementAt = (
+const findStatementAt = (
   { statements }: SageDocument,
   position: Position,
 ): SageStatement | undefined =>
   statements.find((statement) => statement.line === position.line);
 
 /** Finds the token of a statement a column sits on, if any */
-const tokenAt = (statement: SageStatement, character: number) =>
+const findTokenAt = (statement: SageStatement, character: number) =>
   [statement.keyword, ...statement.values].find(
     (token) => character >= token.start && character <= token.end,
   );
@@ -191,13 +191,13 @@ export const createSageIniHoverProvider = (
       );
     }
 
-    const statement = statementAt(parsed, position);
+    const statement = findStatementAt(parsed, position);
 
     if (!statement) {
       return undefined;
     }
 
-    const token = tokenAt(statement, position.character);
+    const token = findTokenAt(statement, position.character);
 
     if (!token) {
       return undefined;

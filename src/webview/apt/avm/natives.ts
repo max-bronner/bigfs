@@ -3,7 +3,7 @@ import {
   apply,
   invert,
   multiply,
-  placedColor,
+  getPlacedColor,
   transformRect,
   union,
 } from '../scene';
@@ -511,7 +511,7 @@ export const installNatives = (vm: Vm): void => {
   });
   method(colorProto, 'getRGB', (_, self) => {
     const at = colorTarget(self);
-    const add = at && placedColor(at).add;
+    const add = at && getPlacedColor(at).add;
 
     return add && (byte(add[0]) << 16) | (byte(add[1]) << 8) | byte(add[2]);
   });
@@ -520,7 +520,7 @@ export const installNatives = (vm: Vm): void => {
     const given = args[0];
 
     if (at && given instanceof AsObject) {
-      const { mult, add } = placedColor(at);
+      const { mult, add } = getPlacedColor(at);
       const next = { mult: [...mult], add: [...add] } as typeof at.tint &
         object;
 
@@ -545,7 +545,7 @@ export const installNatives = (vm: Vm): void => {
       return undefined;
     }
 
-    const { mult, add } = placedColor(at);
+    const { mult, add } = getPlacedColor(at);
     const result = vm.object();
 
     CHANNELS.forEach(([m, a], channel) => {

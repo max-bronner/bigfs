@@ -67,7 +67,7 @@ export const createTexturePage = (main: HTMLElement) => {
     layout();
   };
 
-  const currentScale = () => {
+  const getCurrentScale = () => {
     const { width } = state.levels[state.level];
 
     return parseFloat(canvas!.style.width) / width;
@@ -76,9 +76,9 @@ export const createTexturePage = (main: HTMLElement) => {
   byId('fit').onclick = () => setZoom(0);
   byId('actual').onclick = () => setZoom(1);
   byId('zoom-in').onclick = () =>
-    setZoom(Math.min(MAX_ZOOM, currentScale() * 2));
+    setZoom(Math.min(MAX_ZOOM, getCurrentScale() * 2));
   byId('zoom-out').onclick = () =>
-    setZoom(Math.max(1 / MAX_ZOOM, currentScale() / 2));
+    setZoom(Math.max(1 / MAX_ZOOM, getCurrentScale() / 2));
   channelSelect.onchange = drawTexture;
   levelSelect.onchange = () => {
     state.level = Number(levelSelect.value);

@@ -6,8 +6,8 @@ import { toUri } from '../../services/archives/commandTarget';
 import {
   MAX_NAME,
   easeAnimation,
-  frameRateProblem,
-  rateAnimation,
+  describeFrameRateProblem,
+  setAnimationFrameRate,
   retimeAnimation,
   reverseAnimation,
   trimAnimation,
@@ -46,14 +46,14 @@ export const applyAnimationEdit = (
     case 'trim':
       return trimAnimation(animation, edit.from, edit.to);
     case 'rate':
-      return rateAnimation(animation, edit.frameRate);
+      return setAnimationFrameRate(animation, edit.frameRate);
   }
 };
 
-const targetOf = (target: unknown): vscode.Uri | undefined =>
+const resolveTargetUri = (target: unknown): vscode.Uri | undefined =>
   toUri(target) ?? vscode.window.activeTextEditor?.document.uri;
 
-const number = async (prompt: string, value: number) => {
+const askNumber = async (prompt: string, value: number) => {
   const answer = await vscode.window.showInputBox({
     prompt,
     value: String(value),
@@ -94,7 +94,7 @@ const askEdit = async (
 
   switch (choice?.op) {
     case 'retime': {
-      const frames = await number('Frames', animation.frameCount);
+      const frames = await askNumber('Frames', animation.frameCount);
 
       return frames === undefined
         ? undefined
@@ -110,11 +110,11 @@ const askEdit = async (
       return easing ? { op: 'ease', easing } : undefined;
     }
     case 'trim': {
-      const from = await number('First frame to keep', 0);
+      const from = await askNumber('First frame to keep', 0);
       const to =
         from === undefined
           ? undefined
-          : await number('Last frame to keep', animation.frameCount - 1);
+          : await askNumber('Last frame to keep', animation.frameCount - 1);
 
       return from === undefined || to === undefined
         ? undefined
@@ -125,7 +125,7 @@ const askEdit = async (
         prompt: 'Frames a second',
         value: String(animation.frameRate),
         validateInput: (text) =>
-          text.trim() === '' ? 'A number' : frameRateProblem(Number(text)),
+          text.trim() === '' ? 'A number' : describeFrameRateProblem(Number(text)),
       });
 
       return answer === undefined
@@ -145,7 +145,7 @@ export const registerW3dAnimationCommands = (): vscode.Disposable =>
   registerCommand(
     'bigfs.editW3dAnimation',
     async (target?: unknown, edit?: AnimationEdit, name?: string) => {
-      const uri = targetOf(target);
+      const uri = resolveTargetUri(target);
 
       if (!uri || !/\.w3d$/i.test(uri.path)) {
         void vscode.window.showInformationMessage('Pick a .w3d file');

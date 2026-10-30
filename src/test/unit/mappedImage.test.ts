@@ -6,13 +6,13 @@ import {
   parseMappedImage,
 } from '../../formats/mappedImage/mappedImage';
 
-const body = (...lines: string[]) => lines.map((line) => `  ${line}`);
+const indentLines = (...lines: string[]) => lines.map((line) => `  ${line}`);
 
 suite('MappedImage', () => {
   test('Coords are divided by the stated texture size', () => {
     const image = parseMappedImage(
       'Sample',
-      body(
+      indentLines(
         'Texture = sample.tga',
         'TextureWidth = 512',
         'TextureHeight = 512',
@@ -33,7 +33,7 @@ suite('MappedImage', () => {
   test('an unstated texture size is the decoded one, and no Coords is the whole texture', () => {
     const image = parseMappedImage(
       'Sample',
-      body('Coords = Left:0 Top:0 Right:64 Bottom:32'),
+      indentLines('Coords = Left:0 Top:0 Right:64 Bottom:32'),
     );
 
     assert.deepStrictEqual(mappedUv(image, [128, 128]), [0, 0, 0.5, 0.25]);
@@ -44,7 +44,7 @@ suite('MappedImage', () => {
   });
 
   test('a rotated image swaps the extent it draws at', () => {
-    const lines = body('Coords = Left:0 Top:0 Right:40 Bottom:10');
+    const lines = indentLines('Coords = Left:0 Top:0 Right:40 Bottom:10');
     const plain = parseMappedImage('Plain', lines);
     const turned = parseMappedImage('Turned', [
       ...lines,

@@ -34,7 +34,7 @@ interface FrameChunks {
   isAlphaKey?: boolean;
 }
 
-const tag = (bytes: Uint8Array, at: number) =>
+const readTag = (bytes: Uint8Array, at: number) =>
   String.fromCharCode(...bytes.subarray(at, at + 4));
 
 const readHeader = (
@@ -46,7 +46,7 @@ const readHeader = (
 
   if (
     at + 32 > bytes.length ||
-    tag(bytes, at) !== expected ||
+    readTag(bytes, at) !== expected ||
     view.getUint32(at + 4, true) !== 32
   ) {
     throw new Error(`Expected a ${expected} header at ${at}`);
@@ -74,7 +74,7 @@ export const parseVp6 = (
 
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let at = 0;
-  const hasAlpha = tag(bytes, 0) === 'AVP6';
+  const hasAlpha = readTag(bytes, 0) === 'AVP6';
 
   if (hasAlpha) {
     at = view.getUint32(4, true);
@@ -93,7 +93,7 @@ export const parseVp6 = (
   let isAlphaKey = false;
 
   while (at + 8 <= bytes.length) {
-    const kind = tag(bytes, at);
+    const kind = readTag(bytes, at);
     const size = view.getUint32(at + 4, true);
 
     if (size < 8 || at + size > bytes.length) {
@@ -208,7 +208,7 @@ export class Vp6Movie {
   }
 
   /** Decodes frame `index`, clamped to the movie, as RGBA */
-  public frame(index: number): Uint8ClampedArray {
+  public decodeFrame(index: number): Uint8ClampedArray {
     const target = Math.max(0, Math.min(this.frames.length - 1, index));
 
     // Going back, or far ahead, starts again from key frames before it. The
@@ -284,7 +284,7 @@ export interface Vp6Output {
   }[];
 }
 
-const latin1 = (text: string) =>
+const encodeLatin1 = (text: string) =>
   Uint8Array.from(text, (character) => character.charCodeAt(0));
 
 /** Writes EA's container around coded frames, as `parseVp6` reads it */
@@ -293,7 +293,7 @@ export const writeVp6 = (movie: Vp6Output): Uint8Array => {
   const chunk = (kind: string, payload: Uint8Array) => {
     const out = new Uint8Array(8 + payload.length);
 
-    out.set(latin1(kind), 0);
+    out.set(encodeLatin1(kind), 0);
     new DataView(out.buffer).setUint32(4, out.length, true);
     out.set(payload, 8);
     return out;
@@ -314,9 +314,9 @@ export const writeVp6 = (movie: Vp6Output): Uint8Array => {
     const out = new Uint8Array(32);
     const view = new DataView(out.buffer);
 
-    out.set(latin1(kind), 0);
+    out.set(encodeLatin1(kind), 0);
     view.setUint32(4, 32, true);
-    out.set(latin1('vp60'), 8);
+    out.set(encodeLatin1('vp60'), 8);
     view.setUint16(12, movie.width, true);
     view.setUint16(14, movie.height, true);
     view.setUint32(16, movie.frames.length, true);

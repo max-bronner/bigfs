@@ -1,13 +1,13 @@
-import { fitRunTo, runBounds } from '../../formats/apt/aptGeometry';
+import { fitRunTo, getRunBounds } from '../../formats/apt/aptGeometry';
 import type { RuRun } from '../../formats/apt/aptGeometry';
 import type { Character } from '../../formats/apt/aptMovie';
 import { getVsCodeApi } from '../shared/vscodeApi';
-import { button, byId, heading, row } from './dom';
+import { createButton, byId, createHeading, createRow } from './dom';
 import type { FromPage, PageMovie } from './protocol';
 import { resolve } from './resolve';
-import { apply, textureOf } from './scene';
+import { apply, getImageTexture } from './scene';
 import type { Affine } from './scene';
-import { inspected, render } from './stage';
+import { getInspectedInstance, render } from './stage';
 import { movie, state } from './state';
 
 const vscode = getVsCodeApi<FromPage>();
@@ -48,7 +48,7 @@ let scale = 1;
 
 /** The shape or image the atlas shows: the picked instance, else the selected character */
 const target = (): Target | undefined => {
-  const instance = inspected();
+  const instance = getInspectedInstance();
   const picked = instance?.character && {
     movie: instance.movie,
     id: instance.id,
@@ -74,7 +74,7 @@ const regionOf = (
 ): [number, number, number, number] => {
   const found = resolve(source, image);
   const location = found?.movie.imageLocations[found.id];
-  const texture = textureOf(source, image);
+  const texture = getImageTexture(source, image);
 
   return location?.kind === 'standalone'
     ? location.rect
@@ -104,7 +104,7 @@ const draw = (shape: Target) => {
   const texture =
     image === undefined
       ? undefined
-      : textureOf(shape.movie, image);
+      : getImageTexture(shape.movie, image);
   const ctx = canvas.getContext('2d')!;
 
   if (!texture) {
@@ -193,7 +193,7 @@ const draw = (shape: Target) => {
 const mappedBox = (run: RuRun): [number, number, number, number] => {
   const m = (run.style as Extract<RuRun['style'], { kind: 'texture' }>)
     .transform;
-  const [l, t, r, b] = runBounds([run]) ?? [0, 0, 0, 0];
+  const [l, t, r, b] = getRunBounds([run]) ?? [0, 0, 0, 0];
   const points = [
     apply(m, [l, t]),
     apply(m, [r, t]),
@@ -326,7 +326,7 @@ export const showAtlas = (): void => {
   }
 
   const runs = runsOf(shape);
-  const parts: HTMLElement[] = [heading('Texture')];
+  const parts: HTMLElement[] = [createHeading('Texture')];
   const isOwn = shape.movie === state.movie;
 
   if (shape.character.type === 'shape') {
@@ -351,7 +351,7 @@ export const showAtlas = (): void => {
         shownRun = Number(choose.value);
         showAtlas();
       };
-      parts.push(row('Run', choose));
+      parts.push(createRow('Run', choose));
     }
 
     if (run && run.style.kind !== 'line' && isOwn) {
@@ -413,10 +413,10 @@ export const showAtlas = (): void => {
       };
 
       parts.push(
-        row('Image', pick),
-        row(
+        createRow('Image', pick),
+        createRow(
           '',
-          button('Fit to image', () => {
+          createButton('Fit to image', () => {
             if (run.style.kind === 'texture') {
               const next = structuredClone(runs);
 
@@ -428,13 +428,13 @@ export const showAtlas = (): void => {
               send(shape, next);
             }
           }),
-          button('Import image…', () => file.click()),
+          createButton('Import image…', () => file.click()),
           file,
         ),
       );
     } else if (!isOwn) {
       parts.push(
-        row(
+        createRow(
           '',
           document.createTextNode(`From ${shape.movie.name}: edit it there`),
         ),

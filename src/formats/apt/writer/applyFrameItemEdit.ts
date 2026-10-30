@@ -4,8 +4,8 @@ import type { AptEdit, EditResult } from './aptEdit';
 import { AptImage } from './aptImage';
 import { changePlacement } from './changePlacement';
 import { editRecords } from './editRecords';
-import { addFrameItem, expectItem, timelineFields } from './frameItems';
-import { placeObjectWords } from './placeObjectWords';
+import { addFrameItem, expectItem, getTimelineFields } from './frameItems';
+import { encodePlaceObject } from './placeObjectWords';
 
 /** An edit to the items of a frame, or to one item in place */
 export type FrameItemEdit = Extract<
@@ -79,7 +79,7 @@ export const applyFrameItemEdit = (
         movie,
         edit.timeline,
         edit.frame,
-        placeObjectWords(
+        encodePlaceObject(
           flags,
           edit.depth,
           edit.character,
@@ -105,7 +105,7 @@ export const applyFrameItemEdit = (
       ]);
       return {};
     case 'removeItem': {
-      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const { countAt, pointerAt } = getTimelineFields(movie, edit.timeline);
 
       if (edit.frame < 0 || edit.frame >= image.u32(countAt)) {
         throw new Error(`#${edit.timeline} has no frame ${edit.frame}`);
@@ -131,7 +131,7 @@ export const applyFrameItemEdit = (
       return {};
     }
     case 'moveItem': {
-      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const { countAt, pointerAt } = getTimelineFields(movie, edit.timeline);
 
       if (edit.frame < 0 || edit.frame >= image.u32(countAt)) {
         throw new Error(`#${edit.timeline} has no frame ${edit.frame}`);

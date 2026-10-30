@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { EntryLocator } from '../../services/entryLocator';
 import { toPlayableAudio } from '../../formats/audio/audioTools';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { resolveAudio } from '../../game/audio/sageAudioResolve';
 import type { AudioVariant } from '../../game/audio/sageAudioResolve';
@@ -32,7 +32,7 @@ const ROTWK_HINT =
 const SOUND_EXTENSIONS = ['wav', 'mp3'];
 
 /** Lists the file names a variant may be stored under, in the order they are tried; the first found plays */
-export const soundCandidates = (name: string): string[] => {
+export const listSoundFileNames = (name: string): string[] => {
   const base = name.replace(/^.*[\\/]/, '').toLowerCase();
 
   return /\.[a-z0-9]+$/.test(base)
@@ -86,7 +86,7 @@ const createSoundPanel = (extensionUri: vscode.Uri) => {
 type SoundPanel = ReturnType<typeof createSoundPanel>;
 
 const renderHtml = (webview: vscode.Webview, scripts: vscode.Uri): string => {
-  return webviewPage({
+  return renderWebviewPage({
     allow: { media: 'blob:', script: webview.cspSource },
     scriptFiles: [
       webview.asWebviewUri(vscode.Uri.joinPath(scripts, 'sound.js')).toString(),
@@ -117,7 +117,7 @@ const playSound = async (
     vscode.window.activeTextEditor?.document.uri ??
     vscode.workspace.workspaceFolders?.[0]?.uri;
 
-  for (const candidate of soundCandidates(name)) {
+  for (const candidate of listSoundFileNames(name)) {
     const bytes = nearUri ? await locator.read(candidate, nearUri) : undefined;
 
     if (!bytes) {
@@ -131,7 +131,7 @@ const playSound = async (
     return candidate;
   }
   void vscode.window.showWarningMessage(
-    `No ${soundCandidates(name).join(' or ')} in any archive or folder. ${ROTWK_HINT}`,
+    `No ${listSoundFileNames(name).join(' or ')} in any archive or folder. ${ROTWK_HINT}`,
   );
   return undefined;
 };

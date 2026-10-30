@@ -5,14 +5,14 @@ import { formatCount } from '../../core/messages';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import { isVirtualNode } from '../../services/archives/explorerRow';
-import type { ExplorerNode } from '../../services/archives/explorerRow';
+import type { ExplorerRow } from '../../services/archives/explorerRow';
 
 /**
  * Drag and drop controller for the archive explorer. It moves nodes inside an
  * archive and takes files dropped in from outside VS Code, both through the
  * same actions the commands use
  */
-export class BigDragAndDropController implements TreeDragAndDropController<ExplorerNode> {
+export class BigDragAndDropController implements TreeDragAndDropController<ExplorerRow> {
   /**
    * The explorer's own drag type, whose last segment has to be the view id, and
    * the type a drop from outside VS Code arrives as
@@ -28,7 +28,7 @@ export class BigDragAndDropController implements TreeDragAndDropController<Explo
 
   /** Puts the dragged nodes on the transfer under the explorer's own type */
   async handleDrag(
-    source: readonly ExplorerNode[],
+    source: readonly ExplorerRow[],
     dataTransfer: DataTransfer,
   ): Promise<void> {
     // Only nodes can be dragged: a source or a folder on disk is not ours
@@ -43,7 +43,7 @@ export class BigDragAndDropController implements TreeDragAndDropController<Explo
    * outside, into the directory at the drop target
    */
   async handleDrop(
-    target: ExplorerNode | undefined,
+    target: ExplorerRow | undefined,
     dataTransfer: DataTransfer,
   ): Promise<void> {
     const directory =

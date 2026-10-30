@@ -78,7 +78,7 @@ export const encodeWindows1252 = (
   });
 
 /** Lists the distinct characters of `text` the encoding lacks, in order of appearance */
-export const unencodableCharacters = (text: string): string[] => [
+export const findUnencodableCharacters = (text: string): string[] => [
   ...new Set(
     Array.from(text).filter(
       (char) => char.charCodeAt(0) >= 128 && !UPPER_HALF.has(char),

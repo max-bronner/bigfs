@@ -27,7 +27,7 @@ const definitionKey = (block: SageBlock) =>
   `${block.keyword} ${block.name?.split(/\s+/)[0] ?? ''}`.trim();
 
 /** Formats a block's segment of a path: its keyword, and its tag or its count */
-const segmentOf = (block: SageBlock, count: number) =>
+const formatPathSegment = (block: SageBlock, count: number) =>
   block.moduleTag
     ? `${block.keyword}[${block.moduleTag}]`
     : count > 1
@@ -53,8 +53,8 @@ export const flattenDefinition = (
       const count = (seen.get(child.keyword.toLowerCase()) ?? 0) + 1;
 
       seen.set(child.keyword.toLowerCase(), count);
-      paths.set(child, `${path}${segmentOf(child, count)}`);
-      walk(child, `${path}${segmentOf(child, count)}/`);
+      paths.set(child, `${path}${formatPathSegment(child, count)}`);
+      walk(child, `${path}${formatPathSegment(child, count)}/`);
     }
   };
 
@@ -84,7 +84,7 @@ export const flattenDefinition = (
   return values;
 };
 
-const definitionsOf = (document: SageDocument, lines: string[]) =>
+const readDefinitions = (document: SageDocument, lines: string[]) =>
   new Map(
     document.blocks
       .filter((block) => block.name)
@@ -102,8 +102,8 @@ export const diffDefinitions = (
   base: { document: SageDocument; lines: string[] },
   mod: { document: SageDocument; lines: string[] },
 ): DefinitionDiff => {
-  const before = definitionsOf(base.document, base.lines);
-  const after = definitionsOf(mod.document, mod.lines);
+  const before = readDefinitions(base.document, base.lines);
+  const after = readDefinitions(mod.document, mod.lines);
   const diff: DefinitionDiff = { added: [], removed: [], changed: [] };
 
   for (const [key, { name, values }] of after) {

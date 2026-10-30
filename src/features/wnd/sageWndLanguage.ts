@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { openDocument } from '../../services/ini/workspaceText';
+import { findOpenDocument } from '../../services/ini/workspaceText';
 import { parseWnd, toBoxes } from '../../formats/wnd/wndLayout';
 import type { WndBox, WndWindow } from '../../formats/wnd/wndLayout';
 import {
@@ -20,7 +20,7 @@ import type {
   PreviewImage,
   ToWndPage,
 } from '../../webview/wnd/protocol';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { registerCommand } from '../../platform/commands';
 
@@ -167,7 +167,7 @@ const BLOCK_KEYWORDS = [
   'ENDLAYOUTBLOCK',
 ];
 
-const symbolsOf = (
+const toSymbols = (
   document: vscode.TextDocument,
   windows: WndWindow[],
 ): vscode.DocumentSymbol[] =>
@@ -190,12 +190,12 @@ const symbolsOf = (
       new vscode.Range(range.start, document.positionAt(window.start + 6)),
     );
 
-    symbol.children = symbolsOf(document, window.children);
+    symbol.children = toSymbols(document, window.children);
 
     return symbol;
   });
 
-const foldsOf = (
+const toFoldingRanges = (
   document: vscode.TextDocument,
   windows: WndWindow[],
 ): vscode.FoldingRange[] =>
@@ -205,7 +205,7 @@ const foldsOf = (
 
     return [
       ...(end > start ? [new vscode.FoldingRange(start, end)] : []),
-      ...foldsOf(document, window.children),
+      ...toFoldingRanges(document, window.children),
     ];
   });
 
@@ -380,7 +380,7 @@ export const renderPreviewHtml = (
   webview: vscode.Webview,
   scripts: vscode.Uri,
 ): string => {
-  return webviewPage({
+  return renderWebviewPage({
     style: `
   body { margin: 0; padding: 8px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   #bar { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
@@ -444,11 +444,11 @@ export const registerSageWndLanguage = (
     ),
     vscode.languages.registerDocumentSymbolProvider(selector, {
       provideDocumentSymbols: (document) =>
-        symbolsOf(document, parseWnd(document.getText()).windows),
+        toSymbols(document, parseWnd(document.getText()).windows),
     }),
     vscode.languages.registerFoldingRangeProvider(selector, {
       provideFoldingRanges: (document) =>
-        foldsOf(document, parseWnd(document.getText()).windows),
+        toFoldingRanges(document, parseWnd(document.getText()).windows),
     }),
     vscode.languages.registerCompletionItemProvider(
       selector,
@@ -509,7 +509,7 @@ export const registerSageWndLanguage = (
     ),
     registerCommand('bigfs.showWndPreview', (uri?: vscode.Uri) => {
       const document = uri
-        ? openDocument(uri)
+        ? findOpenDocument(uri)
         : vscode.window.activeTextEditor?.document;
 
       if (document) {

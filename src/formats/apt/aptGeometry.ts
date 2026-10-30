@@ -207,7 +207,7 @@ export const writeDat = (entries: Map<number, DatLocation>): string => {
 };
 
 /** Computes the box around every point of some runs, or undefined when they have none */
-export const runBounds = (
+export const getRunBounds = (
   runs: RuRun[],
 ): [number, number, number, number] | undefined => {
   const xs: number[] = [];
@@ -241,7 +241,7 @@ export const fitTexture = (
 };
 
 /** Whether runs a page sent are well formed: finite numbers, whole primitives, known styles */
-export const checkRuns = (runs: unknown): runs is RuRun[] =>
+export const areRunsWellFormed = (runs: unknown): runs is RuRun[] =>
   Array.isArray(runs) &&
   runs.every((run: RuRun) => {
     const style = run?.style;
@@ -276,6 +276,6 @@ export const fitRunTo = (
     color:
       run.style.kind === 'texture' ? run.style.color : [255, 255, 255, 255],
     character: image,
-    transform: fitTexture(runBounds([run]) ?? [0, 0, 1, 1], box),
+    transform: fitTexture(getRunBounds([run]) ?? [0, 0, 1, 1], box),
   },
 });

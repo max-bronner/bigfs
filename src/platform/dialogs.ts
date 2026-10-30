@@ -63,7 +63,7 @@ export const askForName = async (
 };
 
 /** Joins names for a dialog detail, counting off whatever does not fit */
-const getListedNames = (names: string[]): string => {
+const formatNameList = (names: string[]): string => {
   const listedNames = names.slice(0, MAX_LISTED_NAMES);
   const hiddenCount = names.length - listedNames.length;
 
@@ -84,7 +84,7 @@ const askForOverwrite = async (names: string[]): Promise<OverwriteChoice> => {
 
   const selectedOption = await window.showWarningMessage(
     `${names.length} ${subject} here.`,
-    { modal: true, detail: getListedNames(names) },
+    { modal: true, detail: formatNameList(names) },
     REPLACE_LABEL,
     SKIP_LABEL,
   );
@@ -112,7 +112,7 @@ export const askForTransferConflict = async (
 
   const selectedOption = await window.showWarningMessage(
     `${names.length} ${subject} in the target.`,
-    { modal: true, detail: getListedNames(names) },
+    { modal: true, detail: formatNameList(names) },
     REPLACE_LABEL,
     SKIP_LABEL,
     KEEP_BOTH_LABEL,
@@ -164,7 +164,7 @@ export const confirmDelete = async (names: string[]): Promise<boolean> => {
 
   const selectedOption = await window.showWarningMessage(
     `Permanently delete ${subject} from the archive?`,
-    { modal: true, detail: getListedNames(names) },
+    { modal: true, detail: formatNameList(names) },
     DELETE_LABEL,
   );
 

@@ -13,7 +13,7 @@ import { formatCount } from '../../core/messages';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { decodeIniText } from '../../core/windows1252';
 import type { EntryLocator } from '../../services/entryLocator';
-import { assetNamesToCheck } from '../../services/ini/sageIniAssetCheck';
+import { getAssetNamesToCheck } from '../../services/ini/sageIniAssetCheck';
 import { diagnoseIniText } from '../../services/ini/diagnoseIniText';
 import { registerCommand } from '../../platform/commands';
 
@@ -39,7 +39,7 @@ export const registerSageIniValidation = (
 
   const validate = async (): Promise<void> => {
     const schema = await documents.getSchema();
-    const assetNames = await assetNamesToCheck(locator);
+    const assetNames = await getAssetNamesToCheck(locator);
     const results: [Uri, Diagnostic[]][] = [];
     let fileCount = 0;
 

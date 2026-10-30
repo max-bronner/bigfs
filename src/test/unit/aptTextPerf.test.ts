@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { parseConst } from '../../formats/apt/aptMovie';
-import { blockScripts, movieText } from '../../formats/apt/text/movieText';
+import { createScriptReader, printMovieFiles } from '../../formats/apt/text/movieText';
 import { alignLists } from '../../formats/apt/text/save/alignLists';
 import { saveMovieText } from '../../formats/apt/text/save/saveMovieText';
 import { movieToText } from '../../formats/apt/text/fromMovie';
@@ -19,11 +19,11 @@ const timed = <T>(run: () => T): { value: T; ms: number } => {
 
 suite('APT text of a large movie', () => {
   const { apt, constFile } = buildLargeMovie(100, 13);
-  const printed = timed(() => movieText(apt, constFile));
+  const printed = timed(() => printMovieFiles(apt, constFile));
   const before = movieToText(
     apt,
     constFile,
-    blockScripts(apt, parseConst(constFile).items),
+    createScriptReader(apt, parseConst(constFile).items),
   );
 
   test('the synthetic movie is as long as a large interface movie', () => {

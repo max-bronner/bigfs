@@ -139,7 +139,7 @@ export const tokenize = (line: string): Token[] => {
 };
 
 /** Reads a whole number, decimal or 0x hex, in a range */
-export const integer = (
+export const readInteger = (
   token: Token,
   min: number,
   max: number,
@@ -164,13 +164,13 @@ export const integer = (
 
 /** Reads an unsigned 32-bit whole number */
 export const u32 = (token: Token, what: string) =>
-  integer(token, 0, 0xffffffff, what);
+  readInteger(token, 0, 0xffffffff, what);
 /** Reads a signed 32-bit whole number */
 export const i32 = (token: Token, what: string) =>
-  integer(token, -0x80000000, 0x7fffffff, what);
+  readInteger(token, -0x80000000, 0x7fffffff, what);
 
 /** Reads one number as a 32-bit float; `nan`, `inf` and `-inf` name the special values */
-export const floatOf = (text: string, token: Token, what: string): number => {
+export const readFloat = (text: string, token: Token, what: string): number => {
   const value =
     text === 'nan'
       ? NaN
@@ -193,7 +193,7 @@ export const floatOf = (text: string, token: Token, what: string): number => {
 };
 
 /** Reads a fixed count of comma-separated floats from one token */
-export const floats = (token: Token, count: number, what: string): number[] => {
+export const readFloats = (token: Token, count: number, what: string): number[] => {
   const parts = token.text.split(',');
 
   if (parts.length !== count) {
@@ -203,7 +203,7 @@ export const floats = (token: Token, count: number, what: string): number[] => {
       token.endColumn,
     );
   }
-  return parts.map((part) => floatOf(part, token, what));
+  return parts.map((part) => readFloat(part, token, what));
 };
 
 /** Reader of the words of a line after its keyword, by key, with the bare words in order */
@@ -233,14 +233,14 @@ export class Fields {
   }
 
   /** Gets the token given for a key, marking the key as read */
-  public optional(key: string): Token | undefined {
+  public getOptional(key: string): Token | undefined {
     this.used.add(key);
     return this.keyed.get(key);
   }
 
   /** Gets the token given for a key, failing across `line` when there is none */
-  public required(key: string, line: Token[]): Token {
-    const token = this.optional(key);
+  public getRequired(key: string, line: Token[]): Token {
+    const token = this.getOptional(key);
 
     if (!token) {
       const last = line[line.length - 1];
@@ -255,8 +255,8 @@ export class Fields {
   }
 
   /** Gets the quoted string given for a key, failing when it is not quoted */
-  public string(key: string): string | undefined {
-    const token = this.optional(key);
+  public getString(key: string): string | undefined {
+    const token = this.getOptional(key);
 
     if (token && !token.isString) {
       throw new ParseError(

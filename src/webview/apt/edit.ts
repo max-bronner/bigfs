@@ -5,7 +5,7 @@ import {
   IDENTITY,
   apply,
   invert,
-  localBounds,
+  getLocalBounds,
   multiply,
   transformRect,
   union,
@@ -13,14 +13,14 @@ import {
 import type { Affine } from './scene';
 import {
   currentPlayer,
-  inspected,
-  instanceBox,
-  pixelSize,
+  getInspectedInstance,
+  measureInstanceBox,
+  getPixelSize,
   play,
   render,
-  sceneLeaves,
+  getSceneLeaves,
   addTool,
-  stageExtent,
+  getStageExtent,
   view,
 } from './stage';
 import { state } from './state';
@@ -84,7 +84,7 @@ export const absoluteOf = (instance: Instance): Affine => {
 
 /** Whether the box and handles show: a shape's vertices take over in wireframe */
 const handlesShown = (instance: Instance | undefined): instance is Instance =>
-  editable(instance) &&
+  isEditable(instance) &&
   !(view.wireframe && instance.character?.type === 'shape');
 
 /**
@@ -92,7 +92,7 @@ const handlesShown = (instance: Instance | undefined): instance is Instance =>
  * movie being edited, placed by a record there. One drawn from an imported
  * movie is edited in that movie.
  */
-export const editable = (
+export const isEditable = (
   instance: Instance | undefined,
 ): instance is Instance =>
   !!instance?.parent &&
@@ -105,7 +105,7 @@ const ownBox = (instance: Instance): Rect | undefined => {
   const back = invert(absoluteOf(instance));
 
   return union(
-    sceneLeaves()
+    getSceneLeaves()
       .filter((leaf) => {
         for (let at: Instance | undefined = leaf.instance; at; at = at.parent) {
           if (at === instance) {
@@ -115,7 +115,7 @@ const ownBox = (instance: Instance): Rect | undefined => {
         return false;
       })
       .map((leaf) =>
-        transformRect(multiply(back, leaf.matrix), localBounds(leaf)),
+        transformRect(multiply(back, leaf.matrix), getLocalBounds(leaf)),
       ),
   );
 };
@@ -151,7 +151,7 @@ const knobOf = (instance: Instance, box: Rect): [number, number] => {
   const top = apply(matrix, [(box[0] + box[2]) / 2, box[1]]);
   const centre = apply(matrix, [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]);
   const length = Math.hypot(top[0] - centre[0], top[1] - centre[1]) || 1;
-  const reach = KNOB_OFFSET * pixelSize();
+  const reach = KNOB_OFFSET * getPixelSize();
 
   return [
     top[0] + ((top[0] - centre[0]) / length) * reach,
@@ -160,11 +160,11 @@ const knobOf = (instance: Instance, box: Rect): [number, number] => {
 };
 
 const near = (a: [number, number], b: [number, number]) =>
-  Math.hypot(a[0] - b[0], a[1] - b[1]) <= (HANDLE + 2) * pixelSize();
+  Math.hypot(a[0] - b[0], a[1] - b[1]) <= (HANDLE + 2) * getPixelSize();
 
 /** The mode a press at a point starts on the inspected instance, if any */
 const modeAt = (point: [number, number]): Mode | undefined => {
-  const instance = inspected();
+  const instance = getInspectedInstance();
   const box = instance && handlesShown(instance) ? ownBox(instance) : undefined;
 
   if (!instance || !box) {
@@ -200,7 +200,7 @@ const snapLines = (instance: Instance): { xs: number[]; ys: number[] } => {
   };
 
   for (const sibling of instance.parent?.children.values() ?? []) {
-    const box = sibling !== instance ? instanceBox(sibling) : undefined;
+    const box = sibling !== instance ? measureInstanceBox(sibling) : undefined;
 
     if (box) {
       add(box);
@@ -217,7 +217,7 @@ const snapLines = (instance: Instance): { xs: number[]; ys: number[] } => {
 
 /** The offset that brings a box's nearest edge or centre onto a line, per axis */
 const snap = (box: Rect, lines: { xs: number[]; ys: number[] }) => {
-  const reach = SNAP * pixelSize();
+  const reach = SNAP * getPixelSize();
   const best = (own: number[], targets: number[]) => {
     let found: { by: number; at: number } | undefined;
 
@@ -261,9 +261,9 @@ export const commit = (instance: Instance, matrix: Affine): void => {
 
 /** Moves the inspected instance by an offset in its parent's space, now and in the file; false when it cannot be edited */
 export const nudge = (dx: number, dy: number): boolean => {
-  const instance = inspected();
+  const instance = getInspectedInstance();
 
-  if (!editable(instance)) {
+  if (!isEditable(instance)) {
     return false;
   }
 
@@ -387,7 +387,7 @@ const box = (
 addTool({
   down(point, event) {
     const mode = modeAt(point);
-    const instance = inspected();
+    const instance = getInspectedInstance();
 
     if (!mode || !instance || event.button !== 0) {
       return false;
@@ -401,7 +401,7 @@ addTool({
       start: point,
       placement: placementOf(instance),
       parent: absoluteOf(instance.parent!),
-      box: instanceBox(instance),
+      box: measureInstanceBox(instance),
       lines: snapLines(instance),
       moved: false,
     };
@@ -422,7 +422,7 @@ addTool({
     guides = {};
   },
   draw(ctx, pixel) {
-    const instance = inspected();
+    const instance = getInspectedInstance();
     const own = handlesShown(instance) ? ownBox(instance) : undefined;
 
     if (!instance || !own) {
@@ -432,7 +432,7 @@ addTool({
     const matrix = absoluteOf(instance);
     const knob = knobOf(instance, own);
     const top = apply(matrix, [(own[0] + own[2]) / 2, own[1]]);
-    const extent = stageExtent();
+    const extent = getStageExtent();
 
     ctx.setLineDash([]);
     ctx.lineWidth = pixel;

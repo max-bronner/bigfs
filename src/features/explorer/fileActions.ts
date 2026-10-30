@@ -11,7 +11,7 @@ import {
   findChild,
   getTopLevelNodes,
   isArchiveRoot,
-  isInside,
+  isBelow,
 } from '../../services/archives/virtualNode';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../../services/archives/archiveModel';
@@ -28,7 +28,7 @@ export const getTargetDirectory = (
 
 /** Whether a node can move into a directory: not already there, and not into itself or below it */
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean =>
-  source.parent !== target && !isInside(target, source) && target !== source;
+  source.parent !== target && !isBelow(target, source) && target !== source;
 
 /**
  * Keeps the sources that belong to the target's archive and warns about the
@@ -188,7 +188,7 @@ export const deleteNodes = async (
  * only move when the archive is written; anything else has to be read into
  * memory first.
  */
-const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
+const readFilesFromDisk = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
   const files: ImportedFile[] = [];
 
   const read = async (uri: Uri, parentPath: string): Promise<void> => {
@@ -240,7 +240,7 @@ export const importFromDisk = async (
     return 0;
   }
 
-  const files = await readFiles(sourceUris);
+  const files = await readFilesFromDisk(sourceUris);
   const content = archiveModel.getDirectoryContent(targetDirectory);
   const conflicts = findConflicts(
     files.map((file) => ({ path: file.name })),

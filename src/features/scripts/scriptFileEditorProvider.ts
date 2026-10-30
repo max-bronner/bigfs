@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { MapFile, parseMap } from '../../formats/map/mapFile';
 import { markSounds } from '../../formats/map/mapScriptSounds';
-import { webviewPage } from '../../platform/webview/webviewPage';
-import { pageBundle, pageBundleFolder } from '../../platform/webview/pageBundle';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
+import { getPageBundleOptions, getPageBundleFolder } from '../../platform/webview/pageBundle';
 import type {
   FromScriptsPage,
   ScriptsMessage,
@@ -33,8 +33,8 @@ export const renderScriptFileHtml = (
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
 ): string =>
-  webviewPage({
-    ...pageBundle(extensionUri, webview, 'scripts'),
+  renderWebviewPage({
+    ...getPageBundleOptions(extensionUri, webview, 'scripts'),
     style: `
   body { margin: 0; padding: 0 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   h2 { font-size: 1.2em; margin: 10px 0 6px; }
@@ -76,7 +76,7 @@ export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProv
   ): void {
     panel.webview.options = {
       enableScripts: true,
-      localResourceRoots: [pageBundleFolder(this.extensionUri)],
+      localResourceRoots: [getPageBundleFolder(this.extensionUri)],
     };
     panel.webview.html = renderScriptFileHtml(panel.webview, this.extensionUri);
     panel.webview.onDidReceiveMessage((message: FromScriptsPage) => {

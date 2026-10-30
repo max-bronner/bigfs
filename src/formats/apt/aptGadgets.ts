@@ -130,16 +130,16 @@ export const BINDINGS: Record<GadgetKind, Binding[]> = {
 };
 
 /** Reads the number a variable holds, or the fallback for anything else, blank strings included */
-export const numberOf = (value: unknown, fallback: number): number => {
+export const toNumberOr = (value: unknown, fallback: number): number => {
   const n = typeof value === 'string' && !value.trim() ? NaN : Number(value);
 
   return Number.isFinite(n) ? n : fallback;
 };
 
 /** Reads the range of a value-bound gadget, swapped if needed so `min <= max` */
-export const rangeOf = (min: unknown, max: unknown): [number, number] => {
-  const low = numberOf(min, 0);
-  const high = numberOf(max, 100);
+export const getRange = (min: unknown, max: unknown): [number, number] => {
+  const low = toNumberOr(min, 0);
+  const high = toNumberOr(max, 100);
 
   return high < low ? [high, low] : [low, high];
 };
@@ -159,11 +159,11 @@ export const valueAt = (
     : range[0];
 
 /** Computes how full a value-bound gadget is, `0..1` */
-export const fraction = (value: number, range: [number, number]): number =>
+export const getFillFraction = (value: number, range: [number, number]): number =>
   range[1] > range[0] ? clamp((value - range[0]) / (range[1] - range[0]), [0, 1]) : 0;
 
 /** Splits a list or combo box's `_items` on `|` into its rows */
-export const itemsOf = (items: unknown): string[] =>
+export const splitItems = (items: unknown): string[] =>
   typeof items === 'string' && items.length ? items.split('|') : [];
 
 /** The default box of a surface with nothing drawn in it, in its own units */

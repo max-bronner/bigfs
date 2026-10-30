@@ -1,6 +1,6 @@
 import { findAssetReferences } from './sageIniAssets';
-import { referencedNames } from './sageAudioValues';
-import { declarationOf } from './sageIniNames';
+import { findReferencedNames } from './sageAudioValues';
+import { getDeclaration } from './sageIniNames';
 import { CONSTANT_NAME } from './sageReferenceFields';
 import { isFragmentPath, parseSageIni } from './sageIniParser';
 import type { SageIniSchema } from './sageIniSchema';
@@ -142,7 +142,7 @@ export const collectEntries = (
 
   for (const statement of parsed.statements) {
     const { block, keyword, line, values } = statement;
-    const declaration = declarationOf(statement, schema);
+    const declaration = getDeclaration(statement, schema);
 
     if (block && declaration) {
       entries.definitions.push({
@@ -175,7 +175,7 @@ export const collectEntries = (
     // A reference field's values name definitions elsewhere. A polymorphic
     // field is recorded under each namespace it could mean, since which one
     // holds the name is not known until it is looked up.
-    for (const reference of referencedNames(statement, schema)) {
+    for (const reference of findReferencedNames(statement, schema)) {
       for (const namespace of reference.namespaces) {
         entries.references.push({
           namespace,

@@ -3,7 +3,7 @@ import {
   findParticleDefinitions,
   readParticleDef,
 } from '../../formats/particles/particleIni';
-import { applyLineEdits, keyEdits } from '../../formats/particles/particleKeys';
+import { applyLineEdits, computeKeyEdits } from '../../formats/particles/particleKeys';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 
 const BLOCK = `FXParticleSystem Sparks
@@ -23,7 +23,7 @@ End`;
 
 const rewrite = (text: string, kind: KeyKind, keys: KeyValue[]) => {
   const [definition] = findParticleDefinitions(text);
-  const result = applyLineEdits(text, keyEdits(text, definition, kind, keys));
+  const result = applyLineEdits(text, computeKeyEdits(text, definition, kind, keys));
 
   return {
     text: result,

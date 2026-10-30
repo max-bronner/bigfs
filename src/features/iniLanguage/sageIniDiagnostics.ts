@@ -10,7 +10,7 @@ import type { Disposable, TextDocument } from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../../constants';
 import { findUnresolvedReferences } from '../../formats/ini/sageIniReferenceCheck';
 import { findSageIniProblems } from '../../formats/ini/sageIniProblems';
-import { findGameTextLabels, missingTextMessage } from '../../game/text/gameTextLabels';
+import { findGameTextLabels, formatMissingTextMessage } from '../../game/text/gameTextLabels';
 import type { SageProblem } from '../../formats/ini/sageIniProblems';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
 import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
@@ -19,7 +19,7 @@ import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { includeExists, resolveIncludeUri } from '../../services/ini/sageIniInclude';
 import type { EntryLocator } from '../../services/entryLocator';
 import { onDidChangeSetting, settings } from '../../platform/settings';
-import { checkedAssetDiagnostics } from '../../services/ini/sageIniAssetCheck';
+import { getCheckedAssetDiagnostics } from '../../services/ini/sageIniAssetCheck';
 
 /**
  * Keeps the Problems panel current for every open SAGE INI document: what
@@ -111,7 +111,7 @@ const getStringDiagnostics = async (
     .map((label) => {
       const diagnostic = new Diagnostic(
         new Range(label.line, label.start, label.line, label.end),
-        missingTextMessage(label.text),
+        formatMissingTextMessage(label.text),
         DiagnosticSeverity.Warning,
       );
 
@@ -177,7 +177,7 @@ export const watchSageIniDiagnostics = (
       ...(await getIncludeDiagnostics(document, parsed)),
       ...(await getReferenceDiagnostics(parsed, schema, index)),
       ...(await getStringDiagnostics(parsed, index)),
-      ...(await checkedAssetDiagnostics(parsed, locator, SOURCE).catch(
+      ...(await getCheckedAssetDiagnostics(parsed, locator, SOURCE).catch(
         () => [],
       )),
       ...findScriptProblems(

@@ -5,7 +5,7 @@ import { state } from './state';
 import type { DictValue } from '../../formats/map/mapFile';
 
 /** Creates an editor for one dictionary value, committing on change */
-const valueInput = (
+const createValueInput = (
   entry: DictEntryView,
   onCommit: (value: DictValue) => void,
 ): HTMLInputElement => {
@@ -62,7 +62,7 @@ export const createDictTable = (
     const cell = element('td');
 
     cell.append(
-      valueInput(entry, (value) =>
+      createValueInput(entry, (value) =>
         sendEdit({ kind: 'dict', owner, key: entry.key, value }),
       ),
     );

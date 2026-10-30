@@ -4,12 +4,12 @@ import { join } from "path";
 import { createSageIniSchema } from "../../formats/ini/sageIniSchema";
 import { parseSageIni } from "../../formats/ini/sageIniParser";
 import {
-  blingOptions,
-  blockAtLine,
+  listBlingOptions,
+  readBlockAtLine,
   parseIniColor,
   readHeroSystem,
-  spentPoints,
-  topBlocks,
+  countSpentPoints,
+  readTopBlocks,
 } from "../../game/objects/cahSystem";
 
 const schema = createSageIniSchema(
@@ -60,7 +60,7 @@ const TEXT = [
 
 suite("Create-a-Hero system", () => {
   const parsed = parseSageIni(TEXT.split("\n"), schema);
-  const system = readHeroSystem(topBlocks(parsed, "CreateAHeroSystem"));
+  const system = readHeroSystem(readTopBlocks(parsed, "CreateAHeroSystem"));
   const order = (upgrade: string) => (upgrade === "Up_High" ? 2 : 1);
 
   test("reads classes, subclasses, binders and blings", () => {
@@ -90,12 +90,12 @@ suite("Create-a-Hero system", () => {
   test("an attribute group offers its blings in GroupOrder", () => {
     const subclass = system.classes[0].subclasses[0];
 
-    assert.deepStrictEqual(blingOptions(system, subclass, "POWER", order), [
+    assert.deepStrictEqual(listBlingOptions(system, subclass, "POWER", order), [
       "Up_Low",
       "Up_High",
     ]);
     assert.deepStrictEqual(
-      blingOptions(system, subclass, "POWER", (u) => (u === "Up_Low" ? 9 : 1)),
+      listBlingOptions(system, subclass, "POWER", (u) => (u === "Up_Low" ? 9 : 1)),
       ["Up_High", "Up_Low"],
     );
   });
@@ -104,14 +104,14 @@ suite("Create-a-Hero system", () => {
     const subclass = system.classes[0].subclasses[0];
 
     assert.strictEqual(
-      spentPoints(system, subclass, [{ group: "power", index: 1 }], order),
+      countSpentPoints(system, subclass, [{ group: "power", index: 1 }], order),
       1,
     );
-    assert.strictEqual(spentPoints(system, subclass, [], order), 0);
+    assert.strictEqual(countSpentPoints(system, subclass, [], order), 0);
   });
 
   test("a definition is read by its header line", () => {
-    const block = blockAtLine(parsed, 1);
+    const block = readBlockAtLine(parsed, 1);
 
     assert.strictEqual(block?.keyword, "CreateAHeroBling");
     assert.strictEqual(block?.fields.get("groupname")?.[0][0], "POWER");

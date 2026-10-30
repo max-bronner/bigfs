@@ -36,12 +36,12 @@ export const registerClipboardCommands = (
    * Gets the entry path with the backslash separators the index table stores,
    * which is the form a path pasted outside the editor is expected in
    */
-  const getEntryPath = (node: VirtualNode): string =>
+  const getStoredEntryPath = (node: VirtualNode): string =>
     node.entryPath.replace(/\//g, '\\');
 
   /** Gets the archive's path on disk with the entry appended, which no file system will open */
-  const getAbsolutePath = (node: VirtualNode): string =>
-    `${node.archive.archivePath}\\${getEntryPath(node)}`;
+  const getArchiveQualifiedPath = (node: VirtualNode): string =>
+    `${node.archive.archivePath}\\${getStoredEntryPath(node)}`;
 
   /** Sets the clipboard and the context key the paste menu entry is gated on */
   const setClipboard = async (
@@ -116,10 +116,10 @@ export const registerClipboardCommands = (
   register('bigfs.duplicate', (targets) => duplicate(targets));
 
   register('bigfs.copyPath', async (targets) => {
-    await env.clipboard.writeText(targets.map(getAbsolutePath).join('\n'));
+    await env.clipboard.writeText(targets.map(getArchiveQualifiedPath).join('\n'));
   });
 
   register('bigfs.copyRelativePath', async (targets) => {
-    await env.clipboard.writeText(targets.map(getEntryPath).join('\n'));
+    await env.clipboard.writeText(targets.map(getStoredEntryPath).join('\n'));
   });
 };

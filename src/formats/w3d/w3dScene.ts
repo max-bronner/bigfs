@@ -152,7 +152,7 @@ const pivotMatrix = (
   ]);
 
 /** Computes every bone's matrix in model space, parents before children */
-const boneMatrices = (hierarchy: W3dHierarchy | undefined): Matrix[] => {
+const computeBoneMatrices = (hierarchy: W3dHierarchy | undefined): Matrix[] => {
   const matrices: Matrix[] = [];
 
   hierarchy?.pivots.forEach((pivot, index) => {
@@ -206,7 +206,7 @@ const flipV = (uvs: Float32Array): Float32Array =>
   uvs.map((value, index) => (index % 2 ? 1 - value : value));
 
 /** Strips a file name's extension */
-const stem = (fileName: string): string => fileName.replace(/\.[^.]*$/, "");
+const removeExtension = (fileName: string): string => fileName.replace(/\.[^.]*$/, "");
 
 /** Finds and decodes a texture, preferring a DDS over the TGA a mesh names */
 const loadTexture = async (
@@ -218,7 +218,7 @@ const loadTexture = async (
     [".dds", decodeDdsTool],
     [".tga", decodeTgaTool],
   ] as const) {
-    const bytes = await loadFile(`${stem(name)}${extension}`);
+    const bytes = await loadFile(`${removeExtension(name)}${extension}`);
 
     if (bytes) {
       try {
@@ -232,12 +232,12 @@ const loadTexture = async (
   return undefined;
 };
 
-const fullName = (container: string, name: string) =>
+const formatSubObjectName = (container: string, name: string) =>
   `${container}.${name}`.toLowerCase();
 
 /** Finds the sub-object naming a mesh or box, searching the finest level first */
 const findSubObject = (file: W3dFile, container: string, name: string) => {
-  const wanted = fullName(container, name);
+  const wanted = formatSubObjectName(container, name);
 
   for (const lod of [...(file.hlod?.lods ?? [])].reverse()) {
     const found = lod.subObjects.find(
@@ -253,7 +253,7 @@ const findSubObject = (file: W3dFile, container: string, name: string) => {
 };
 
 /** Resolves the bone each vertex of a mesh follows, or one bone for the whole mesh */
-const vertexBones = (
+const resolveVertexBones = (
   mesh: W3dMesh,
   file: W3dFile,
 ): ((vertex: number) => number | undefined) => {
@@ -277,7 +277,7 @@ const CORNERS = [0, 1, 2, 3, 4, 5, 6, 7].map(
  * Builds a box's twelve edges in model space. An oriented box turns with its bone;
  * an axis-aligned one is only carried to the bone's position.
  */
-const boxEdges = (box: W3dBox, bone: Matrix | undefined): Float32Array => {
+const buildBoxEdges = (box: W3dBox, bone: Matrix | undefined): Float32Array => {
   const corner = ([x, y, z]: readonly [number, number, number]) => {
     const local = [
       box.center[0] + (x ? box.extent[0] : -box.extent[0]),
@@ -305,7 +305,7 @@ const boxEdges = (box: W3dBox, bone: Matrix | undefined): Float32Array => {
 
   for (let from = 0; from < CORNERS.length; from++) {
     for (let to = from + 1; to < CORNERS.length; to++) {
-      if (edgeAligned(from, to)) {
+      if (isEdgeAligned(from, to)) {
         out.push(...corner(CORNERS[from]), ...corner(CORNERS[to]));
       }
     }
@@ -315,13 +315,13 @@ const boxEdges = (box: W3dBox, bone: Matrix | undefined): Float32Array => {
 };
 
 /** Whether two corner indices differ in exactly one bit */
-const edgeAligned = (a: number, b: number) => {
+const isEdgeAligned = (a: number, b: number) => {
   const diff = a ^ b;
 
   return diff !== 0 && (diff & (diff - 1)) === 0;
 };
 
-const sceneHlodOf = (
+const buildSceneHlod = (
   name: string,
   lods: W3dHlodArray[],
   context: {
@@ -331,7 +331,7 @@ const sceneHlodOf = (
   },
 ): SceneHlod => {
   const byName = new Map(
-    context.meshes.map((mesh, at) => [fullName(mesh.container, mesh.name), at]),
+    context.meshes.map((mesh, at) => [formatSubObjectName(mesh.container, mesh.name), at]),
   );
 
   return {
@@ -349,7 +349,7 @@ const sceneHlodOf = (
   };
 };
 
-/** Options for `visibleMeshes`: the level of detail and whether hidden meshes show */
+/** Options for `getMeshVisibility`: the level of detail and whether hidden meshes show */
 export interface VisibilityOptions {
   /** Index into `ModelScene.hlod.lods`; the finest when absent */
   lod?: number;
@@ -361,7 +361,7 @@ export interface VisibilityOptions {
  * ones unless asked. A mesh no level lists is always a candidate, as a file
  * without an HLOD has no levels at all.
  */
-export const visibleMeshes = (
+export const getMeshVisibility = (
   scene: Pick<ModelScene, "meshes" | "hlod">,
   { lod, showHidden = false }: VisibilityOptions = {},
 ): boolean[] => {
@@ -404,7 +404,7 @@ export const buildW3dScene = async (
     );
   }
 
-  const matrices = boneMatrices(hierarchy);
+  const matrices = computeBoneMatrices(hierarchy);
   const textureNames = [
     ...new Set(
       file.meshes.flatMap((mesh) => (mesh.texture ? [mesh.texture] : [])),
@@ -429,7 +429,7 @@ export const buildW3dScene = async (
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
 
   const meshes = file.meshes.map((mesh): SceneMesh => {
-    const boneOf = vertexBones(mesh, file);
+    const boneOf = resolveVertexBones(mesh, file);
     const matrixOf = (vertex: number) => {
       const bone = boneOf(vertex);
 
@@ -475,7 +475,7 @@ export const buildW3dScene = async (
 
   const sceneHlod =
     file.hlod &&
-    sceneHlodOf(file.hlod.name, file.hlod.lods, {
+    buildSceneHlod(file.hlod.name, file.hlod.lods, {
       aggregates: file.hlod.aggregates,
       proxies: file.hlod.proxies,
       meshes: file.meshes,
@@ -487,7 +487,7 @@ export const buildW3dScene = async (
 
     return {
       name: box.name,
-      lines: boxEdges(box, bone === undefined ? undefined : matrices[bone]),
+      lines: buildBoxEdges(box, bone === undefined ? undefined : matrices[bone]),
     };
   });
 

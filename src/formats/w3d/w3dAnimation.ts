@@ -52,7 +52,7 @@ const CHUNK = {
 /** Frames refused past this, whatever a header claims */
 const MAX_FRAMES = 100000;
 
-const kindOf = (raw: number): ChannelKind =>
+const toChannelKind = (raw: number): ChannelKind =>
   raw === 0
     ? 'x'
     : raw === 1
@@ -63,7 +63,7 @@ const kindOf = (raw: number): ChannelKind =>
           ? 'rotation'
           : 'other';
 
-const widthOf = (kind: ChannelKind) => (kind === 'rotation' ? 4 : 1);
+const getChannelWidth = (kind: ChannelKind) => (kind === 'rotation' ? 4 : 1);
 
 /** The adaptive-delta step table: powers of ten, then `1 - sin` steps */
 const FILTER_TABLE = (() => {
@@ -110,7 +110,7 @@ const readName = (bytes: Uint8Array, at: number) => {
 };
 
 /** Builds an empty sampled channel */
-const channel = (
+const createChannel = (
   pivot: number,
   kind: ChannelKind,
   frames: number,
@@ -119,11 +119,11 @@ const channel = (
   pivot,
   kind,
   type,
-  values: new Float32Array(frames * widthOf(kind)),
+  values: new Float32Array(frames * getChannelWidth(kind)),
   present: new Uint8Array(frames),
 });
 
-const set = (target: SampledChannel, frame: number, value: number[]) => {
+const setFrameValue = (target: SampledChannel, frame: number, value: number[]) => {
   if (frame >= 0 && frame < target.present.length) {
     target.values.set(value, frame * value.length);
     target.present[frame] = 1;
@@ -163,15 +163,15 @@ const sampleKeys = (
     }
 
     if (split === 0) {
-      set(target, frame, keys[0].value);
+      setFrameValue(target, frame, keys[0].value);
     } else if (split === keys.length) {
-      set(target, frame, keys[keys.length - 1].value);
+      setFrameValue(target, frame, keys[keys.length - 1].value);
     } else {
       const earlier = keys[split - 1];
       const later = keys[split];
       const span = later.frame - earlier.frame;
 
-      set(
+      setFrameValue(
         target,
         frame,
         later.hold || span <= 0
@@ -227,7 +227,7 @@ const readAdaptiveDelta = (
 /** Sets dense values, holding the last one to the end as the game does */
 const holdLast = (target: SampledChannel, values: number[][]) => {
   for (let frame = 0; frame < target.present.length && values.length; frame++) {
-    set(target, frame, values[Math.min(frame, values.length - 1)]);
+    setFrameValue(target, frame, values[Math.min(frame, values.length - 1)]);
   }
 };
 
@@ -245,7 +245,7 @@ const readBits = (
         ? fallback
         : ((packed[index >> 3] >> (index & 7)) & 1) === 1;
 
-    set(target, frame, [visible ? 1 : 0]);
+    setFrameValue(target, frame, [visible ? 1 : 0]);
   }
 };
 
@@ -267,15 +267,15 @@ const readChannel = (
       reader.u16();
 
       const type = reader.u16();
-      const kind = kindOf(type);
+      const kind = toChannelKind(type);
       const pivot = reader.u16();
 
       reader.u16();
 
-      const target = channel(pivot, kind, frames, type);
+      const target = createChannel(pivot, kind, frames, type);
 
       for (let frame = first; frame <= last; frame++) {
-        set(target, frame, readFloats(reader, widthOf(kind)));
+        setFrameValue(target, frame, readFloats(reader, getChannelWidth(kind)));
       }
 
       return target;
@@ -288,7 +288,7 @@ const readChannel = (
 
       const pivot = reader.u16();
       const fallback = reader.u8() !== 0;
-      const target = channel(pivot, 'visibility', frames);
+      const target = createChannel(pivot, 'visibility', frames);
 
       readBits(target, first, last, fallback, reader.bytes(Math.max(0, Math.ceil((last - first + 1) / 8))));
 
@@ -301,9 +301,9 @@ const readChannel = (
       reader.u8();
 
       const type = reader.u8();
-      const kind = kindOf(type);
-      const width = widthOf(kind);
-      const target = channel(pivot, kind, frames, type);
+      const kind = toChannelKind(type);
+      const width = getChannelWidth(kind);
+      const target = createChannel(pivot, kind, frames, type);
 
       if (flavor === 1) {
         holdLast(
@@ -335,7 +335,7 @@ const readChannel = (
       reader.u8();
 
       const fallback = reader.u8() !== 0;
-      const target = channel(pivot, 'visibility', frames);
+      const target = createChannel(pivot, 'visibility', frames);
       const keys: [number, boolean][] = [];
 
       for (let index = 0; index < Math.min(count, MAX_FRAMES); index++) {
@@ -351,7 +351,7 @@ const readChannel = (
           key++;
         }
 
-        set(target, frame, [(key < 0 ? fallback : keys[key][1]) ? 1 : 0]);
+        setFrameValue(target, frame, [(key < 0 ? fallback : keys[key][1]) ? 1 : 0]);
       }
 
       return target;
@@ -364,11 +364,11 @@ const readChannel = (
       reader.u8();
 
       const type = reader.u8();
-      const kind = kindOf(type);
-      const width = widthOf(kind);
+      const kind = toChannelKind(type);
+      const width = getChannelWidth(kind);
       const count = reader.u16();
       const pivot = reader.u16();
-      const target = channel(pivot, kind, frames, type);
+      const target = createChannel(pivot, kind, frames, type);
 
       if (deltaType === 0) {
         const times = Array.from({ length: count }, () => reader.u16());

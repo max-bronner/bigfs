@@ -160,7 +160,7 @@ export class AptEditorProvider
   }
 
   /** Gets the import state a document's page was last sent, for automation and tests */
-  public shownImports(
+  public getShownImports(
     document: AptDocument,
   ): { unresolved: string[]; origins: Record<string, string> } | undefined {
     return this.imported.get(document);
@@ -261,7 +261,7 @@ export class AptEditorProvider
     // and a script tab of this one reads its block again
     const redraw = async () => {
       await this.redrawAll();
-      this.scriptTabs.changed(document);
+      this.scriptTabs.notifyChanged(document);
       this.textView.changed(document.uri);
     };
 
@@ -308,7 +308,7 @@ export class AptEditorProvider
     const post = (message: ToPage) => panel.webview.postMessage(message);
 
     this.redraws.set(document, async () => {
-      const message = await this.imports.movieMessage(
+      const message = await this.imports.buildMovieMessage(
         document,
         sentTextures,
         sentMovies,

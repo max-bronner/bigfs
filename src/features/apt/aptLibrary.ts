@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
-import { archiveOrderKey } from '../../game/install/gameView';
+import { getArchiveOrderKey } from '../../game/install/gameView';
 import { getNodeUri } from '../../services/archives/nodeAddress';
 import { findChild } from '../../services/archives/virtualNode';
 
@@ -28,7 +28,7 @@ export interface MovieLocation {
 }
 
 /** Reduces a movie name to the key the game compares imports by: no casing, no `.apt` */
-export const movieKey = (name: string): string =>
+export const toMovieKey = (name: string): string =>
   name.toLowerCase().replace(/\.apt$/, '');
 
 /** Cache of where each imported movie resolves, cleared whenever the archives or movie files change */
@@ -73,7 +73,7 @@ export class AptLibrary implements vscode.Disposable {
 
   /** Finds where the game would load the movie of this name from, if anywhere */
   public locate(name: string): Promise<MovieLocation | undefined> {
-    const key = movieKey(name);
+    const key = toMovieKey(name);
     let location = this.locations.get(key);
 
     if (!location) {
@@ -95,7 +95,7 @@ export class AptLibrary implements vscode.Disposable {
 
       const archives = [...this.archiveModel.getArchivesOf(source.id)].sort(
         (a, b) =>
-          archiveOrderKey(a.pathInSource) < archiveOrderKey(b.pathInSource)
+          getArchiveOrderKey(a.pathInSource) < getArchiveOrderKey(b.pathInSource)
             ? -1
             : 1,
       );

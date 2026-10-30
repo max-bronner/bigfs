@@ -22,7 +22,7 @@ export interface LineInsertion {
 }
 
 /** Detects the line end a text uses, so an edit does not mix endings into it */
-export const lineEndOf = (text: string): string =>
+export const detectLineEnd = (text: string): string =>
   text.includes('\r\n') ? '\r\n' : '\n';
 
 /** Applies replacements to a text, keeping every line end as it was */
@@ -57,7 +57,7 @@ export const insertLines = (
   text: string,
   insertions: readonly LineInsertion[],
 ): string => {
-  const eol = lineEndOf(text);
+  const eol = detectLineEnd(text);
   const lines = text.split(/\r?\n/);
 
   for (const insertion of [...insertions]

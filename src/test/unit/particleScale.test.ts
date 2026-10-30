@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import {
   findParticleDefinitions,
-  numericFields,
+  findNumericFields,
 } from '../../formats/particles/particleIni';
 import { scaleEffect } from '../../formats/particles/particleScale';
 
@@ -27,7 +27,7 @@ const TEXT = `FXParticleSystem Test
 End`;
 
 const scaled = (space: number, time: number) => {
-  const fields = numericFields(findParticleDefinitions(TEXT)[0]);
+  const fields = findNumericFields(findParticleDefinitions(TEXT)[0]);
   const values = scaleEffect(fields, new Map(), space, time);
 
   return Object.fromEntries(

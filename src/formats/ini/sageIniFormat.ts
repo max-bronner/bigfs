@@ -97,7 +97,7 @@ export const editDistance = (a: string, b: string): number => {
 };
 
 /** Finds the closest few candidates within a few edits, nearest first, ignoring case */
-export const closestNames = (
+export const findClosestNames = (
   name: string,
   candidates: readonly string[],
   limit = 3,
@@ -123,7 +123,7 @@ export const closestNames = (
  * Finds the line a missing `End` belongs on: after the last line below the
  * header that is indented deeper than it, or straight after the header
  */
-export const missingEndLine = (lines: string[], headerLine: number): number => {
+export const findMissingEndLine = (lines: string[], headerLine: number): number => {
   const indent = (line: string) => line.length - line.trimStart().length;
   const headerIndent = indent(lines[headerLine]);
   let last = headerLine;
