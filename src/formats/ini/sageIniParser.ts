@@ -99,11 +99,13 @@ export interface SageMacroDefinition {
 
 /** An embedded Lua region, which the block parse skips over */
 export interface SageScript {
+  /** Line of `BeginScript` */
   startLine: number;
+  /** Line of `EndScript`, or the last line when the region never closed */
   endLine: number;
 }
 
-/** What one file parsed to */
+/** Parse result of one INI file: its block tree, statements and directives */
 export interface SageDocument {
   /** The context the file's own top lines are read in: root, or a fragment's */
   fileContext: string;
@@ -131,8 +133,8 @@ const INCLUDE_PATTERN = /^\s*#include\s+"([^"]*)"/i;
 const MACRO_PATTERN = /^\s*#define\s+([A-Za-z_][A-Za-z0-9_]*)\s*(.*)$/i;
 
 /**
- * Cuts a line down to the part before its comment, padding the rest with
- * spaces so every column still lines up with the original. Both `;` and `//`
+ * Cuts a line down to the part before its comment, so every column left still
+ * lines up with the original. Both `;` and `//`
  * run to end of line and either may appear inside the other, so whichever
  * opens first wins.
  */
@@ -168,7 +170,7 @@ export const tokenize = (content: string): SageToken[] => {
   return tokens;
 };
 
-/** How far a line is indented, counting a tab as one column */
+/** Measures how far a line is indented, counting a tab as one column */
 const indentOf = (line: string): number =>
   line.length - line.trimStart().length;
 

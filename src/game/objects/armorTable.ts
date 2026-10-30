@@ -6,6 +6,7 @@ import type { SageDocument } from '../../formats/ini/sageIniParser';
  * a row does not write takes its `DEFAULT` line, as the game reads it.
  */
 
+/** One `Armor = TYPE value` line's value and where it is written */
 export interface ArmorCell {
   value: string;
   line: number;
@@ -13,6 +14,7 @@ export interface ArmorCell {
   end: number;
 }
 
+/** One `Armor` definition as a row of the armor table */
 export interface ArmorRow {
   name: string;
   uri: string;
@@ -24,6 +26,7 @@ export interface ArmorRow {
   indent: string;
 }
 
+/** Reads every named `Armor` block of a document as a table row */
 export const readArmorRows = (
   parsed: SageDocument,
   lines: string[],
@@ -67,7 +70,7 @@ export const readArmorRows = (
       };
     });
 
-/** Every damage type any row writes, DEFAULT first */
+/** Lists every damage type any row writes, `DEFAULT` first */
 export const damageTypes = (rows: ArmorRow[]): string[] => {
   const types = new Set(rows.flatMap((row) => Object.keys(row.cells)));
 
@@ -75,7 +78,7 @@ export const damageTypes = (rows: ArmorRow[]): string[] => {
   return ['DEFAULT', ...[...types].sort()];
 };
 
-/** What a cell shows: the armor's value against a type, and whether it is its own */
+/** Value a table cell shows: the armor's value against a type, and whether it is its own */
 export interface ArmorShown {
   value: string;
   /** True when the armor writes no line that takes effect for the type */
@@ -86,7 +89,8 @@ export interface ArmorShown {
 const UNARMORED = '100%';
 
 /**
- * The game reads an armor's lines in file order, and a `DEFAULT` line sets
+ * Resolves the value an armor lets through for a type, as the game does. The
+ * game reads an armor's lines in file order, and a `DEFAULT` line sets
  * every type at the point it is read: a type line before it is overwritten,
  * one after it wins. A type neither line reaches lets everything through.
  */
@@ -100,13 +104,13 @@ export const shownArmor = (row: ArmorRow, type: string): ArmorShown => {
   return { value: fallback?.value ?? UNARMORED, inherited: true };
 };
 
-/** The change that makes an armor let `value` of a type through */
+/** A planned text change that makes an armor let `value` of a type through */
 export type ArmorEdit =
   | { kind: 'replace'; line: number; start: number; end: number; old: string }
   | { kind: 'insert'; line: number; text: string };
 
 /**
- * Where the value of a type is written. A line a later `DEFAULT` overwrites
+ * Plans where the value of a type is written. A line a later `DEFAULT` overwrites
  * is not taken over; a new line goes last so it wins, except `DEFAULT`,
  * which goes first so it does not wipe the types already written.
  */
@@ -134,20 +138,21 @@ export const armorEdit = (
   };
 };
 
-/** A percentage as the INI writes it, from what a person typed */
+/** Parses what a person typed into a percentage as the INI writes it, or undefined */
 export const armorValue = (typed: string): string | undefined => {
   const match = /^\s*(-?\d+(?:\.\d+)?)\s*%?\s*$/.exec(typed);
 
   return match ? `${Number(match[1])}%` : undefined;
 };
 
-/** Messages between the armor table and its page */
+/** Message the armor table sends its page: the damage types and every row */
 export interface ArmorTableMessage {
   kind: 'table';
   types: string[];
   rows: ArmorRow[];
 }
 
+/** Message the armor table page posts back: ready, a cell edit, or a reveal */
 export type FromArmorPage =
   | { kind: 'ready' }
   | { kind: 'set'; armor: string; type: string; value: string }

@@ -11,6 +11,7 @@ import { errorSpan, segmentScript } from './scriptHighlight';
  * it one undoable change.
  */
 
+/** Options for `scriptField`: the text, how it can be edited and where a change goes */
 export interface ScriptFieldOptions {
   block: number;
   /** The text as the extension decoded it */
@@ -50,6 +51,7 @@ const paintInto = (
   );
 };
 
+/** Creates a script field; a text that does not compile is underlined and not committed */
 export const scriptField = (options: ScriptFieldOptions): HTMLElement => {
   const wrapper = document.createElement('div');
   const code = document.createElement('div');

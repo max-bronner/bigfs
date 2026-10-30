@@ -32,7 +32,7 @@ let filter = '';
 /** Rows listed per section before the filter has to narrow them */
 const MAX_ROWS = 150;
 
-/** What runs the movie again from its start, with the overrides set */
+/** Sets the callback that runs the movie again from its start, with the overrides set */
 export const onEngineRestart = (run: () => void): void => {
   restart = run;
 };

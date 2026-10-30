@@ -9,6 +9,7 @@ import type { IniDefinition } from './particleIni';
  * `Alpha` modules, a flat one at its own level.
  */
 
+/** Kind of particle key: a colour key or an alpha key */
 export type KeyKind = 'Color' | 'Alpha';
 
 /** A colour key in 0..255 channels, or an alpha key's range */
@@ -23,12 +24,13 @@ export interface LineEdit {
   insert: string[];
 }
 
+/** Most keys of one kind a system holds: `Color1`..`Color8`, `Alpha1`..`Alpha8` */
 export const MAX_KEYS = 8;
 
 const keyPattern = (kind: KeyKind) =>
   new RegExp(`^${kind.toLowerCase()}[1-8]$`, 'i');
 
-/** One key as the INI writes it, without indentation */
+/** Formats one key as the INI writes it, without indentation */
 export const keyLine = (
   kind: KeyKind,
   index: number,
@@ -48,7 +50,7 @@ export const keyLine = (
 
 const indentOf = (line: string | undefined) => /^\s*/.exec(line ?? '')![0];
 
-/** The edits that make `definition` hold exactly `keys`, in order, of `kind` */
+/** Computes the edits that make `definition` hold exactly `keys`, in order, of `kind` */
 export const keyEdits = (
   text: string,
   definition: IniDefinition,
@@ -117,7 +119,7 @@ export const keyEdits = (
   ];
 };
 
-/** `text` with line edits applied, for tests and previews */
+/** Applies line edits to `text`, for tests and previews */
 export const applyLineEdits = (text: string, edits: LineEdit[]): string => {
   const newline = /\r\n/.test(text) ? '\r\n' : '\n';
   const lines = text.split(/\r?\n/);

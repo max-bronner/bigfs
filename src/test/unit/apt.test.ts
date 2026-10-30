@@ -11,7 +11,7 @@ import { Image, buildConst } from './aptSynth';
 const SIGNATURE = 0x09876543;
 
 /**
- * A movie with a shape, an image, a sprite placing the shape and an edit
+ * Builds a movie with a shape, an image, a sprite placing the shape and an edit
  * text; one frame placing the sprite, labelled, with an action.
  */
 export const buildMovie = () => {

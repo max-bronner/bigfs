@@ -7,7 +7,7 @@ import { state } from './state';
 /** The most objects the list shows; the filter narrows the rest */
 const MAX_LISTED = 500;
 
-/** Draws the right panel's list of objects, filtered and capped. */
+/** Renders the right panel's list of objects, filtered and capped */
 export const showObjects = (actions: MapActions): void => {
   const matches = filterObjects(state.map.objects, state.filter);
 

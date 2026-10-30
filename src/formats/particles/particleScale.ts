@@ -1,8 +1,8 @@
 import type { NumericField } from './particleIni';
 
 /**
- * Making a whole effect bigger, or longer, in one step, keeping it the
- * same effect. Scaling space by `s` multiplies every length: sizes and
+ * Scaling of a whole effect: making it bigger, or longer, in one step,
+ * keeping it the same effect. Scaling space by `s` multiplies every length: sizes and
  * their rates, the emission volume, speeds and accelerations. Scaling
  * time by `k` stretches every duration and key frame, and slows every
  * per-frame rate so the same path is travelled over the longer time:
@@ -68,7 +68,7 @@ const RULES: Record<string, Rule> = {
   angulardampingxy: { space: 0, time: 0, damping: true },
 };
 
-/** Whether a field scales at all, and how, given its keyword and part */
+/** Gets the rule a field scales by from its keyword and part, or `undefined` when it does not scale */
 const ruleOf = (field: NumericField): Rule | undefined => {
   const key = field.keyword.toLowerCase();
 
@@ -79,7 +79,7 @@ const ruleOf = (field: NumericField): Rule | undefined => {
   return RULES[key];
 };
 
-/** The values every scalable field takes at `space` and `time`, by field id */
+/** Computes the values scalable fields take at `space` and `time`, by field id, for those that change */
 export const scaleEffect = (
   fields: NumericField[],
   values: ReadonlyMap<string, number>,

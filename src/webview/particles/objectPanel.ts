@@ -17,6 +17,7 @@ import { $, post } from './page';
  * level it sits on is shown too, and the object's other FX are listed off.
  */
 
+/** One effect an object preview can start: an FX list or a particle system */
 export interface Effect {
   kind: 'fxList' | 'system';
   name: string;
@@ -29,6 +30,7 @@ interface Element extends Effect {
   on: boolean;
 }
 
+/** State of the object panel: the object, its picked state, the toggles and the model's pose */
 export const objectView = {
   scene: undefined as ObjectScene | undefined,
   state: undefined as SceneState | undefined,
@@ -45,6 +47,7 @@ export const objectView = {
 let restart = () => {};
 let showPose = (_pose: Pose | undefined) => {};
 
+/** Attaches the page's callbacks for restarting the effects and posing the model */
 export const attachObjectPanel = (
   onRestart: () => void,
   onPose: (pose: Pose | undefined) => void,
@@ -62,11 +65,11 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 const same = (a: string | undefined, b: string | undefined) =>
   a?.toLowerCase() === b?.toLowerCase();
 
-/** Effects switched on, in order */
+/** Lists the effects switched on, in order */
 export const enabledEffects = (): Effect[] =>
   objectView.elements.filter((each) => each.on);
 
-/** Where a bone of the shown model stands now, relative to the model */
+/** Gets where a bone of the shown model stands now, relative to the model; the origin for an unknown bone */
 export const bonePosition = (name: string | undefined): Vec3 => {
   const { skeleton, pose } = objectView;
   const at = name
@@ -96,13 +99,14 @@ export const advanceAnimation = (seconds: number): void => {
   setPose();
 };
 
-/** The model the page now shows, or none */
+/** Takes the skeleton of the model the page now shows, or none, then restarts the effects */
 export const modelShown = (skeleton: SceneSkeleton | undefined): void => {
   objectView.skeleton = skeleton;
   setPose();
   restart();
 };
 
+/** Takes a loaded animation, or none when it was not found, warning when it was made for another skeleton */
 export const animationLoaded = (
   name: string,
   animation: W3dAnimation | undefined,
@@ -133,7 +137,7 @@ const playAnimation = (name: string | undefined) => {
   }
 };
 
-/** The elements a state shows, with what was asked for switched on */
+/** Lists the elements a state shows, with what was asked for switched on */
 const elementsOf = (
   scene: ObjectScene,
   state: SceneState | undefined,

@@ -15,8 +15,10 @@ import type {
  * writing one back is not supported.
  */
 
+/** View type the `.scb` script viewer is registered under */
 export const SCRIPT_FILE_VIEW_TYPE = 'bigfs.scriptViewer';
 
+/** An open `.scb` file, decoded once by the map reader */
 class ScriptDocument implements vscode.CustomDocument {
   public constructor(
     public readonly uri: vscode.Uri,
@@ -26,6 +28,7 @@ class ScriptDocument implements vscode.CustomDocument {
   public dispose(): void {}
 }
 
+/** Renders the script viewer's page around its script bundle */
 export const renderScriptFileHtml = (
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
@@ -45,9 +48,11 @@ export const renderScriptFileHtml = (
     body: '<div id="root"></div>',
   });
 
+/** Read-only custom editor showing a `.scb` file's player, group and script tree */
 export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProvider<ScriptDocument> {
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
+  /** Registers the viewer under `SCRIPT_FILE_VIEW_TYPE` */
   public static register(extensionUri: vscode.Uri): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       SCRIPT_FILE_VIEW_TYPE,
@@ -56,6 +61,7 @@ export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProv
     );
   }
 
+  /** Reads and decodes a script file */
   public async openCustomDocument(uri: vscode.Uri): Promise<ScriptDocument> {
     return new ScriptDocument(
       uri,
@@ -63,6 +69,7 @@ export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProv
     );
   }
 
+  /** Sends the scripts once the page is ready, and plays a sound its play buttons name */
   public resolveCustomEditor(
     document: ScriptDocument,
     panel: vscode.WebviewPanel,

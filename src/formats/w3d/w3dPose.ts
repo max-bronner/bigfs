@@ -9,15 +9,18 @@ import type { SceneMesh, SceneSkeleton } from './w3dScene';
  * Pure, so the W3D viewer and the particle preview pose the same way.
  */
 
+/** A 3D vector as `[x, y, z]` */
 export type Vec3 = [number, number, number];
-/** x, y, z, w */
+/** A rotation quaternion as `[x, y, z, w]` */
 export type Quat = [number, number, number, number];
 
+/** A bone's translation and rotation */
 export interface BoneTransform {
   t: Vec3;
   q: Quat;
 }
 
+/** A skeleton posed at one frame: every bone's transform and visibility */
 export interface Pose {
   /** Every bone in model space */
   world: BoneTransform[];
@@ -51,7 +54,7 @@ const normalise = <T extends number[]>(q: T): T => {
   return q.map((value) => value / length) as T;
 };
 
-/** `outer` after `inner` */
+/** Composes two transforms, `outer` applied after `inner` */
 const compose = (outer: BoneTransform, inner: BoneTransform): BoneTransform => {
   const r = rotate(outer.q, inner.t);
 
@@ -61,7 +64,7 @@ const compose = (outer: BoneTransform, inner: BoneTransform): BoneTransform => {
   };
 };
 
-/** One channel's value at a fractional frame, blending its neighbours */
+/** Samples one channel at a fractional frame, blending its neighbours */
 const sample = (
   channel: SampledChannel,
   frame: number,
@@ -99,7 +102,7 @@ const sample = (
   );
 };
 
-/** Every bone's model-space transform at `frame`, or the bind pose */
+/** Poses every bone in model space at `frame`, or in the bind pose without an animation */
 export const poseAt = (
   skeleton: SceneSkeleton,
   animation?: W3dAnimation,
@@ -212,7 +215,7 @@ export const skin = (
   }
 };
 
-/** Line segments from every bone to its parent, three floats a point */
+/** Builds line segments from every bone to its parent, three floats a point */
 export const boneLines = (skeleton: SceneSkeleton, pose: Pose): number[] =>
   pose.world.flatMap((bone, index) => {
     const parent = pose.world[skeleton.parents[index]];

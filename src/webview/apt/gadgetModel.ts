@@ -15,6 +15,7 @@ import type { Instance, Player } from './player';
  * override it like any other value.
  */
 
+/** A gadget found on the stage: its kind and the clip instance that holds it */
 export interface Gadget extends GadgetInfo {
   instance: Instance;
   /** The clip's instance names from the root, which an override is keyed by */
@@ -24,7 +25,7 @@ export interface Gadget extends GadgetInfo {
 const text = (value: Value): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
-/** The instance names down from the root, or nothing if one on the way has none */
+/** Gets the instance names down from the root, or nothing if one on the way has none */
 export const namePath = (instance: Instance, root: Instance): string | undefined => {
   const names: string[] = [];
 
@@ -37,7 +38,7 @@ export const namePath = (instance: Instance, root: Instance): string | undefined
   return names.join('.');
 };
 
-/** Every surface the player shows now that is a gadget or an image, in tree order */
+/** Finds every surface the player shows now that is a gadget or an image, in tree order */
 export const findGadgets = (player: Player): Gadget[] => {
   const { vm } = player;
 
@@ -72,7 +73,7 @@ export const findGadgets = (player: Player): Gadget[] => {
 
 const show = (value: string | number | boolean): string => String(value);
 
-/** What a bound variable holds now: the override, else the clip's own value */
+/** Reads what a bound variable holds now: the override, else the clip's own value */
 export const readBinding = (
   player: Player,
   engine: Engine,
@@ -117,7 +118,7 @@ export const writeBinding = (
   }
 };
 
-/** The bound variables of a gadget with what each reads as, for the panel */
+/** Lists the bound variables of a gadget with what each reads as, for the panel */
 export const bindingsOf = (
   player: Player,
   engine: Engine,

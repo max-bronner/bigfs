@@ -84,9 +84,7 @@ const getReferenceDiagnostics = async (
   );
 };
 
-/** Setting choosing whether game-text labels nothing defines are reported */
-
-/** Records the base game's tables alone hold many more of */
+/** String count below which `auto` skips the label check: the base game's tables alone hold many more records */
 const AUTO_MINIMUM_STRINGS = 1000;
 
 /**

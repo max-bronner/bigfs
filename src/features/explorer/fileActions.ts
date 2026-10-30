@@ -278,7 +278,7 @@ export const importFromDisk = async (
   return plan.length;
 };
 
-/** What a transfer between archives did, for the message that reports it */
+/** Result of `transferNodes`, for the message that reports it */
 export interface TransferOutcome {
   transferred: number;
   /** Whether the files left their source: false for a copy, and for a move out of a read-only source */

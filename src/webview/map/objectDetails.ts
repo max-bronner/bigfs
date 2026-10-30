@@ -38,7 +38,7 @@ const numberField = (
   return row;
 };
 
-/** A text, whole number or real property the object may or may not have yet; empty removes it. */
+/** Creates a field for a text, whole number or real property the object may not have yet; clearing it removes the property */
 const propertyField = (
   object: ObjectView,
   label: string,
@@ -183,7 +183,7 @@ const waypointLinks = (object: ObjectView, actions: MapActions): HTMLDivElement 
   return section;
 };
 
-/** Draws the details of the selected object under the list: placement, properties and, for a waypoint, its links. */
+/** Renders the details of the selected object under the list: placement, properties and, for a waypoint, its links */
 export const showObject = (actions: MapActions): void => {
   const object =
     state.selected === undefined ? undefined : state.map.objects[state.selected];

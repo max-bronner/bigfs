@@ -36,7 +36,7 @@ const STATE =
 /** Definitions an object's effects may reach between them */
 const MAX_EFFECT_REFERENCES = 512;
 
-/** The object template written around a line */
+/** Finds the object template written around a line */
 const objectAt = (parsed: SageDocument, line: number) =>
   parsed.blocks.find(
     (block) =>
@@ -45,7 +45,7 @@ const objectAt = (parsed: SageDocument, line: number) =>
       line <= block.endLine,
   );
 
-/** The object template a name defines, wherever it has moved to in the file */
+/** Finds the object template a name defines, wherever it has moved to in the file */
 const objectNamed = (parsed: SageDocument, name: string) =>
   parsed.blocks.find(
     (block) =>
@@ -53,7 +53,7 @@ const objectNamed = (parsed: SageDocument, name: string) =>
       block.name?.split(/\s+/)[0].toLowerCase() === name.toLowerCase(),
   );
 
-/** How long after an edit the preview is drawn again */
+/** Milliseconds after an edit before the preview is drawn again */
 const REDRAW_DELAY = 300;
 
 const noticeOf = (error: unknown): ToPage => ({
@@ -74,7 +74,7 @@ const createObjectPreview = (
   const library = new EffectLibrary(index, locator, uri);
   const tools = createToolRegistry();
   const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
-  /** Lines below the object's header the preview opens on */
+  // Lines below the object's header the preview opens on
   let focusOffset = 0;
   let isReady = false;
 
@@ -132,7 +132,7 @@ const createObjectPreview = (
     }
   };
 
-  /** The object, the effects on it, and where to open it */
+  /** Sends the object, the effects on it, and where to open it */
   const send = async (): Promise<void> => {
     const schema = await documents.getSchema();
     const source = parseSageIni(
@@ -222,7 +222,7 @@ const createObjectPreview = (
     });
   };
 
-  /** `SKELETON.CLIP` lives in the clip's file */
+  /** Sends a clip's animation; `SKELETON.CLIP` lives in the clip's file */
   const sendAnimation = async (clipName: string): Promise<void> => {
     const clip = clipName.slice(clipName.lastIndexOf('.') + 1);
     const bytes = await locator?.read(`${clip}.w3d`, uri);
@@ -235,7 +235,7 @@ const createObjectPreview = (
     });
   };
 
-  /** Opens the preview, or brings it forward, on the line `focusOffset` lines below the header */
+  /** Opens the preview, or brings it forward, on the line `offset` lines below the header */
   const show = async (offset: number): Promise<void> => {
     focusOffset = offset;
     panel.show({ preserveFocus: true });
@@ -343,6 +343,7 @@ const createObjectActionProvider = (): vscode.CodeActionProvider => ({
   },
 });
 
+/** Registers the object preview's lenses, its code action and `bigfs.previewObject` */
 export const registerObjectPreview = (
   context: vscode.ExtensionContext,
   selector: vscode.DocumentSelector,

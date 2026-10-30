@@ -5,11 +5,11 @@ import { state } from './state';
 /** Imports filling imports deeper than this are a loop in the data */
 const MAX_HOPS = 8;
 
-/** A movie name as imports compare it: no casing, no `.apt` */
+/** Gets the key imports compare movie names by: lowercased, without `.apt` */
 export const movieKey = (name: string): string =>
   name.toLowerCase().replace(/\.apt$/, '');
 
-/** The movie an import names: the shown one, or one it imports from */
+/** Finds the movie an import names: the shown one, or one it imports from */
 export const movieNamed = (name: string): PageMovie | undefined => {
   const key = movieKey(name);
 
@@ -18,6 +18,7 @@ export const movieNamed = (name: string): PageMovie | undefined => {
     : state.library.get(key);
 };
 
+/** A character a placeholder resolves to, with the movie and id it lives at */
 export interface Resolved {
   movie: PageMovie;
   id: number;
@@ -25,7 +26,7 @@ export interface Resolved {
 }
 
 /**
- * What a character draws as: itself, or for an import placeholder the
+ * Resolves what a character draws as: itself, or for an import placeholder the
  * character the named movie exports under that name, followed through
  * imports of imports. Names compare without casing and the first export
  * of a name wins, as in the game. Nothing when the import does not resolve.

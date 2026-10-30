@@ -4,20 +4,23 @@ import type { SageDocument } from './sageIniParser';
 import type { SageIniSchema } from './sageIniSchema';
 
 /**
- * Which values of a document name a definition that does not exist. The
+ * Check for the values of a document that name a definition that does not exist. The
  * editor wraps the answer in diagnostics; the questions it needs from the
  * index are the three of `ReferenceLookup`, so the check runs in the unit
  * tests against a table built in code.
  */
 
-/** What the check asks of the index */
+/** Index queries the reference check needs, so a test can answer them from a table */
 export interface ReferenceLookup {
+  /** Finds a `#define` by name; anything truthy counts as found */
   findMacro(name: string): unknown;
+  /** Finds the definitions of a name in a namespace */
   findDefinitions(namespace: string, name: string): readonly unknown[];
+  /** Counts the definitions indexed in a namespace */
   countDefinitions(namespace: string): number;
 }
 
-/** A value that names nothing defined */
+/** Reference value that names nothing defined, at its position */
 export interface UnresolvedReference {
   name: string;
   line: number;
@@ -33,20 +36,21 @@ export interface UnresolvedReference {
  */
 export const AUTO_CHECK_MINIMUM = 50;
 
-/**
- * Values that are never a definition's name: numbers and percentages,
- * SCREAMING_SNAKE words (enum values and macros), string labels with a
- * colon, and the `NONE` many fields accept. Case sensitive: `HumanArmor` is
- * a name, `HUMAN_ARMOR` is a word of the engine's vocabulary.
- */
+/** Pattern behind `isNotAName` */
 const NOT_A_NAME = new RegExp(
   `^(?:[+-]?[\\d.]+%?|${CONSTANT_NAME.source.slice(1, -1)}|[^:]+:.*|[Nn][Oo][Nn][Ee])$`,
 );
 
+/**
+ * Whether a value is never a definition's name: numbers and percentages,
+ * SCREAMING_SNAKE words (enum values and macros), string labels with a
+ * colon, and the `NONE` many fields accept. Case sensitive: `HumanArmor` is
+ * a name, `HUMAN_ARMOR` is a word of the engine's vocabulary.
+ */
 export const isNotAName = (value: string): boolean => NOT_A_NAME.test(value);
 
 /**
- * Every value of a reference field that names nothing in any namespace the
+ * Finds every value of a reference field that names nothing in any namespace the
  * field can point into. `isOn` checks every namespace whatever is indexed;
  * otherwise a namespace is only trusted once enough of it is.
  */

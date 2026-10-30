@@ -4,10 +4,10 @@ import type { MapEdit } from '../../formats/map/mapEdit';
 import type { FromMapPage } from './protocol';
 import { state } from './state';
 
-/** The page's line to the editor */
+/** VS Code handle the map page posts its messages through */
 export const vscode = getVsCodeApi<FromMapPage>();
 
-/** Sends an edit to the editor, or says why a read-only map cannot take it. */
+/** Sends an edit to the editor, or says why a read-only map cannot take it */
 export const sendEdit = (edit: MapEdit): void => {
   if (state.readOnly) {
     showNotice('This map is read-only: it is part of a game install');

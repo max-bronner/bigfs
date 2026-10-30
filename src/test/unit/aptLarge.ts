@@ -2,7 +2,7 @@ import { CHARACTER_SIGNATURE } from '../../formats/apt/aptMovie';
 import { Image, buildConst } from './aptSynth';
 
 /**
- * A movie of many sprites, each with several frames of placements, a removal
+ * Builds a movie of many sprites, each with several frames of placements, a removal
  * and a script, in the shape of a large interface movie. Its text runs to
  * about `sprites * frames * 4` lines.
  */

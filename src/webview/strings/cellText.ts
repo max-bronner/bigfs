@@ -1,4 +1,4 @@
-/** The height of a text editor in lines: the text's own, at least two. */
+/** Counts the rows a cell's text editor opens with: the text's own lines, at least two */
 export const editorRows = (value: string): number =>
   Math.max(2, value.split('\n').length);
 

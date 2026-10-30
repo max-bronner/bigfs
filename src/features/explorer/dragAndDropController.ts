@@ -21,10 +21,12 @@ export class BigDragAndDropController implements TreeDragAndDropController<Explo
     'application/vnd.code.tree.bigArchiveExplorer',
     'text/uri-list',
   ];
+  /** The explorer's own drag type, the only one a drag from it carries */
   readonly dragMimeTypes = ['application/vnd.code.tree.bigArchiveExplorer'];
 
   constructor(private archiveModel: ArchiveModel) {}
 
+  /** Puts the dragged nodes on the transfer under the explorer's own type */
   async handleDrag(
     source: readonly ExplorerNode[],
     dataTransfer: DataTransfer,
@@ -36,6 +38,10 @@ export class BigDragAndDropController implements TreeDragAndDropController<Explo
     );
   }
 
+  /**
+   * Moves nodes dragged inside the explorer, or adds files dropped from
+   * outside, into the directory at the drop target
+   */
   async handleDrop(
     target: ExplorerNode | undefined,
     dataTransfer: DataTransfer,
@@ -95,7 +101,7 @@ export class BigDragAndDropController implements TreeDragAndDropController<Explo
     }
   }
 
-  /** Where a drop lands: the target, or the directory holding a target file */
+  /** Resolves where a drop lands: the target, or the directory holding a target file */
   private resolveDropDirectory(target: VirtualNode): VirtualNode | undefined {
     if (target.type === FileType.Directory) {
       return target;

@@ -9,6 +9,7 @@ import type { PreviewImage } from './protocol';
  * (`combo.rs`). The slots each part reads are chosen in `wndLayout.ts`.
  */
 
+/** Factor from a font's point size to canvas pixels at 96 DPI, used for text and list rows */
 export const POINTS_TO_UNITS = 96 / 72;
 const SLIDER_THUMB = [13, 16];
 const SCROLL_BUTTON = [21, 22];
@@ -17,13 +18,14 @@ const SEGMENT_GAP = 2;
 
 type Rect = [number, number, number, number];
 
-/** What drawing a part needs: the canvas, the images by name and their textures */
+/** Drawing context the painters share: the canvas, the images by name and their loaded textures */
 export interface Painter {
   context: CanvasRenderingContext2D;
   images: Record<string, PreviewImage>;
   textures: Record<string, HTMLImageElement>;
 }
 
+/** Formats an RGBA colour as a CSS `rgba()`, its alpha multiplied by `scale` */
 export const css = (c: Rgba, scale = 1) =>
   `rgba(${c[0]},${c[1]},${c[2]},${(c[3] / 255) * scale})`;
 
@@ -64,6 +66,7 @@ const drawImage = (
   }
 };
 
+/** Draws one part of a window: its image stretched over the rect, or else its fill colour and border */
 export const drawPart = (
   painter: Painter,
   part: WndPart,
@@ -100,6 +103,7 @@ const extentOf = (
 const roleFinder = (parts: WndPart[]) => (role: string) =>
   parts.find((part) => part.role === role);
 
+/** Draws a slider as mint's `slider.rs` does: a row of segments, filled to halfway, and the thumb */
 export const drawSlider = (
   painter: Painter,
   parts: WndPart[],
@@ -188,6 +192,7 @@ export const drawSlider = (
   }
 };
 
+/** Draws a list box as mint's `list.rs` does: its body, a first-row selection and the scroll bar */
 export const drawList = (
   painter: Painter,
   box: WndBox,

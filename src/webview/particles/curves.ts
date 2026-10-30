@@ -34,7 +34,7 @@ const fields = (): NumericField[] => state.scene?.fields ?? [];
 const valueOf = (field: NumericField) =>
   state.scene?.values[field.id] ?? field.value;
 
-/** The keys of a kind as the block now has them, slider values included */
+/** Reads the keys of a kind as the block now has them, slider values included */
 const keysOf = (kind: KeyKind): Key[] => {
   const keys: Key[] = [];
 
@@ -66,7 +66,7 @@ const keysOf = (kind: KeyKind): Key[] => {
   return keys;
 };
 
-/** A plain field's value, slider value included, or a fallback */
+/** Reads a plain field's value, slider value included, or a fallback */
 const fieldValue = (keyword: string, part: string, fallback: number) => {
   const field = fields().find(
     (each) =>
@@ -109,7 +109,7 @@ const rootDef = () =>
     ? library.systems.get(state.scene.root.name.toLowerCase())
     : undefined;
 
-/** The frames the graphs span: the longest life, or the last key */
+/** Counts the frames the graphs span: the longest life, or the last key */
 const span = (): number => {
   const def = rootDef();
   const life = fieldValue('Lifetime', 'max', def?.lifetime.high ?? 30).value;
@@ -125,7 +125,7 @@ const span = (): number => {
   return Math.max(1, life, lastKey);
 };
 
-/** A channel or alpha value at a frame, held before the first key and after the last */
+/** Samples a channel or alpha value at a frame, held before the first key and after the last */
 const sample = (keys: Key[], part: Part, frame: number): number => {
   const active = keys.filter((key) => key.active);
 
@@ -149,7 +149,7 @@ const sample = (keys: Key[], part: Part, frame: number): number => {
   return active[active.length - 1].values[part] ?? 0;
 };
 
-/** Size at an age: the start plus each frame's rate, damped */
+/** Computes the size at an age: the start plus each frame's rate, damped */
 const sizeAt = (start: number, rate: number, damping: number, age: number) =>
   damping === 1
     ? start + rate * age
@@ -205,7 +205,7 @@ const attachDrag = (canvas: HTMLCanvasElement) => {
   });
 };
 
-/** The frame a key may move to: after the key before it, before the one after */
+/** Clamps the frame a key may move to: after the key before it, before the one after */
 const clampFrame = (keys: Key[], index: number, frame: number) => {
   if (index === 0) {
     return keys[0].values.frame ?? 0;
@@ -624,7 +624,7 @@ const row = (...children: HTMLElement[]) => {
 };
 
 /**
- * Draws the curves of the previewed system; empty for an FX list. During
+ * Renders the curves of the previewed system; empty for an FX list. During
  * a drag only the canvases are redrawn, so the drag survives.
  */
 export const renderCurves = (dragging = false): void => {

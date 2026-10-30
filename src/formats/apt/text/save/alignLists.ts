@@ -99,7 +99,7 @@ export const checkAppended = (
   }
 };
 
-/** The key two frame items, runs or button records are aligned by: every field but where it sits */
+/** Prints the key two frame items, runs or button records are aligned by: every field but where it sits */
 export const printItem = (item: ItemText): string =>
   JSON.stringify(item, (key, value) =>
     key === 'offset' || key === 'line' || key === 'endLine' || key === 'block'

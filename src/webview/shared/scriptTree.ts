@@ -2,14 +2,14 @@ import { element } from './element';
 import { countScripts, describePlayerList, describeScript } from './scriptTreeText';
 import type { ScriptTreeNode, SideEntry, SoundCall } from './scriptTreeText';
 
-/** What the tree does with a click, and whether its active boxes can change a script */
+/** Callbacks and mode of a script tree: what a click does, and whether its active boxes can change a script */
 export interface ScriptTreeOptions {
   editable: boolean;
   onPlaySound(name: string): void;
   onSetActive(at: number, active: boolean): void;
 }
 
-/** A call as text, with a play button after each parameter that names a sound. */
+/** Renders a call as text, with a play button after each parameter that names a sound */
 const callNodes = (call: SoundCall, options: ScriptTreeOptions): Node[] => {
   const nodes: Node[] = [
     document.createTextNode(call.name + (call.parameters.length ? '(' : '')),
@@ -115,7 +115,7 @@ const renderNodes = (
 };
 
 /**
- * Draws the scripts of every player as a collapsible tree, with a play button
+ * Creates the scripts of every player as a collapsible tree, with a play button
  * after every sound parameter. `sides` names the players when the map has them.
  */
 export const createScriptTree = (

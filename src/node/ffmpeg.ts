@@ -25,7 +25,7 @@ export const run = (
 /** Inputs read local files only, so a playlist inside one cannot fetch URLs */
 const INPUT = ['-protocol_whitelist', 'file,pipe'];
 
-/** Size and frame rate as FFmpeg reports them for the first video stream */
+/** Probes the size and frame rate FFmpeg reports for a file's first video stream; 30 fps when it reports none */
 export const probe = async (
   ffmpeg: string,
   file: string,
@@ -45,7 +45,10 @@ export const probe = async (
   };
 };
 
-/** Frames from FFmpeg, as raw RGBA at the size and rate asked for */
+/**
+ * Starts FFmpeg decoding a video to raw RGBA frames at the size and rate asked
+ * for. `next` resolves `undefined` at the end; `stop` kills the process.
+ */
 export const ffmpegSource = (
   ffmpeg: string,
   file: string,

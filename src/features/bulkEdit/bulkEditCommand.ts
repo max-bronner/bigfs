@@ -71,7 +71,7 @@ const STEPS: {
   },
 ];
 
-/** The four parts, asked for one after another with the last answers filled in */
+/** Asks for the four parts of a query one after another, with the last answers filled in */
 const askQuery = async (
   state: vscode.Memento,
 ): Promise<BulkQuery | undefined> => {
@@ -112,6 +112,11 @@ const askQuery = async (
   return query;
 };
 
+/**
+ * Registers `bigfs.bulkEditIni`. Given a query it runs without asking;
+ * `confirm: false` applies it without the preview, for automation. The
+ * command resolves to how many values changed.
+ */
 export const registerBulkEdit = (
   context: vscode.ExtensionContext,
   documents: SageIniDocuments,
@@ -119,10 +124,6 @@ export const registerBulkEdit = (
 ): vscode.Disposable =>
   registerCommand(
     'bigfs.bulkEditIni',
-    /**
-     * With a query, runs it without asking; `confirm: false` applies it
-     * without the preview, for automation. Returns how many values changed.
-     */
     async (given?: BulkQuery & { confirm?: boolean }) => {
       const query = given ?? (await askQuery(context.workspaceState));
 

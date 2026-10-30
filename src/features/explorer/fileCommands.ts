@@ -134,8 +134,8 @@ const addFiles = async (
 
 /**
  * Registers the palette and context menu entries for creating, renaming,
- * adding and deleting nodes, through the register callback the command center
- * hands out
+ * adding and deleting nodes, through the register callback
+ * `createNodeCommandRegistrar` hands out
  */
 export const registerFileCommands = (
   register: RegisterNodeCommand,

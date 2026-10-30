@@ -15,7 +15,7 @@ import type {
 } from './textModel';
 import { byteHex, f32Bits, formatF32, hex, placementWords } from './numbers';
 
-/** A string in double quotes; bytes outside printable Latin-1 are escaped */
+/** Quotes a string in double quotes, escaping bytes outside printable Latin-1 */
 export const quote = (text: string): string =>
   `"${Array.from(text, (char) => {
     const code = char.charCodeAt(0);

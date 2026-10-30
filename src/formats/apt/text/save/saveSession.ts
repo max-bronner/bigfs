@@ -38,10 +38,13 @@ export interface SaveSession {
   readonly sites: readonly ScriptSite[];
   /** Timelines whose frames are written back in the text's order */
   readonly orders: Map<number, (number[] | undefined)[]>;
-  /** The movie as it now stands, scripts as last known */
+  /** Reads the movie as it now stands as a text model, scripts as last known */
   current(): MovieText;
+  /** Applies an edit to the copy and records it */
   apply(edit: AptEdit): EditResult;
+  /** Changes a `.const` item and records the change */
   changeConstant(change: ConstItemChange): void;
+  /** Appends `.const` items and records them */
   addConstants(items: ConstItem[]): void;
   /** Compiles a script to a new block; returns where it starts */
   compile(script: ScriptText, line: number): number;

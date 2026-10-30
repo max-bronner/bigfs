@@ -30,8 +30,10 @@ const PROPERTIES: (keyof Pose)[] = [
   'alpha',
 ];
 
+/** Error thrown by `parseMotionScript` for a line it cannot read */
 export class MotionScriptError extends Error {
   public constructor(
+    /** Zero-based; the message counts from one */
     public readonly line: number,
     message: string,
   ) {
@@ -62,7 +64,10 @@ const number = (text: string, line: number): number => {
   return value;
 };
 
-/** Turns a script into the operations it stands for, in order */
+/**
+ * Parses a motion script into the timeline operations it stands for, in order.
+ * @throws MotionScriptError naming the first line that does not parse
+ */
 export const parseMotionScript = (source: string): TimelineOperation[] => {
   const operations: TimelineOperation[] = [];
 
@@ -193,7 +198,7 @@ export const parseMotionScript = (source: string): TimelineOperation[] => {
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-/** A timeline's baked tweens as script lines, to edit and run again */
+/** Writes a timeline's baked tweens as motion script lines, to edit and run again */
 export const tweensAsScript = (tweens: DetectedTween[]): string =>
   tweens
     .map(

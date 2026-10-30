@@ -5,7 +5,7 @@
  * apt-player (`load.rs`, `expose.rs`).
  */
 
-/** The library name a URL names: its file stem, lowercased */
+/** Gets the library name a URL names: its file stem, lowercased */
 export const movieNameOf = (url: string): string | undefined => {
   const file = url.trim().split(/[\\/]/).pop() ?? '';
   const dot = file.lastIndexOf('.');
@@ -24,7 +24,7 @@ export const isWindowTarget = (target: string): boolean => {
   return !lower || WINDOWS.has(lower);
 };
 
-/** The level a target names (`_level2`), if it names one */
+/** Parses the level a target names (`_level2`), if it names one */
 export const levelOf = (target: string): number | undefined => {
   const match = /^_level(\d+)$/i.exec(target.trim());
 
@@ -41,7 +41,7 @@ const lastName = (command: string): string => {
 const PLAY_SOUND = 'playsound';
 
 /**
- * The sound event a call to the engine asks to play: `FSCommand:PlaySound`
+ * Gets the sound event a call to the engine asks to play: `FSCommand:PlaySound`
  * or one scoped by a movie (`FSCommand:Movie::PlaySound`) with the event as
  * its argument, and `GameCode`/`GameCodeNoPrefix` whose first argument is
  * such a command, the rest the event. Nothing for any other call.

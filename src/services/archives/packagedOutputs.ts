@@ -22,10 +22,11 @@ export const useOutputStore = (given: OutputStore): void => {
   given.get<string[]>(KEY, []).forEach((each) => outputs.add(each));
 };
 
+/** Remembers an archive bigFS packed, so later comparisons leave it out */
 export const recordPackedArchive = (archivePath: string): void => {
   outputs.add(archivePath.toLowerCase());
   void store?.update(KEY, [...outputs]);
 };
 
-/** Archives to leave out of the base game, by lowercased path */
+/** Gets the archives to leave out of the base game, by lowercased path */
 export const packedArchives = (): ReadonlySet<string> => outputs;

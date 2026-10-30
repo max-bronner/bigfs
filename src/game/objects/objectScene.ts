@@ -15,8 +15,10 @@ import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
  * animation state plays on its draw module's default model.
  */
 
+/** Kind of state block: a model condition state, or an animation state */
 export type StateKind = 'model' | 'animation';
 
+/** One state block of a draw module: the model, animations, FX and particle systems it shows */
 export interface SceneState {
   /** Tag of the draw module holding it */
   draw: string;
@@ -30,6 +32,7 @@ export interface SceneState {
   particles: { bone: string; system: string }[];
 }
 
+/** Everything an object shows, as the object preview draws it */
 export interface ObjectScene {
   name: string;
   states: SceneState[];
@@ -39,7 +42,7 @@ export interface ObjectScene {
   voices: { field: string; name: string }[];
 }
 
-/** Where a preview was asked for, so it opens on that */
+/** The part of a scene a preview opens on: the state and the name the source line points at */
 export interface SceneFocus {
   /** Index into `states` */
   state?: number;
@@ -212,7 +215,7 @@ export const readObjectScene = (
 };
 
 /**
- * What a line of the source definition points at, matched into the
+ * Finds what a line of the source definition points at, matched into the
  * scene: its state by draw module and header, and the animation, FX or
  * particle system the line itself names
  */

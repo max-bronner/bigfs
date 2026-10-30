@@ -50,7 +50,7 @@ const createEffectiveObjects = (
   };
 };
 
-/** The effective view of the template written at a line */
+/** Builds the URI of the effective view of the template written at a line */
 const effectiveUri = (uri: vscode.Uri, line: number, name: string) =>
   vscode.Uri.from({
     scheme: SCHEME,
@@ -89,6 +89,10 @@ const createEffectiveLensProvider = (): vscode.CodeLensProvider => ({
   },
 });
 
+/**
+ * Registers the effective definition documents, their lens and
+ * `bigfs.showEffectiveObject`; open views redraw on any INI edit
+ */
 export const registerEffectiveObjects = (
   selector: vscode.DocumentSelector,
   documents: SageIniDocuments,

@@ -538,8 +538,8 @@ suite('Extraction layout', () => {
   });
 
   /**
-   * The archive, read: a watcher event for the file written in setup can
-   * arrive late and drop what was read, which made these tests flaky
+   * Gets the suite's archive with its index read, on every call: a watcher
+   * event for the file written in setup can arrive late and drop an earlier read
    */
   const loadedArchive = async () => {
     const archive = model.getArchiveByPath(archiveFsPath);

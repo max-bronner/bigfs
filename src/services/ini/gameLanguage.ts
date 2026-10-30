@@ -9,15 +9,14 @@ import {
 import { onDidChangeSetting, settings } from '../../platform/settings';
 import type { SageIniIndex } from './sageIniIndex';
 
-/**
- * The language the game's text is read in. The install holds one string
- * table per `lang/<Language>.big`; this settles which one labels resolve
- * against, from the `bigfs.language` setting. "auto" takes the only language
- * installed, else asks once and remembers the answer in the workspace.
- */
-
 const REMEMBERED = 'bigfs.language.chosen';
 
+/**
+ * Holder of the language the game's text is read in. The install holds one
+ * string table per `lang/<Language>.big`; this settles which one labels
+ * resolve against, from the `bigfs.language` setting. "auto" takes the only
+ * language installed, else asks once and remembers the answer in the workspace.
+ */
 export class GameLanguage implements Disposable {
   private readonly changed = new EventEmitter<string | undefined>();
   private readonly subscription: Disposable;
@@ -37,12 +36,13 @@ export class GameLanguage implements Disposable {
     });
   }
 
+  /** Stops following the setting and releases the change event */
   public dispose(): void {
     this.subscription.dispose();
     this.changed.dispose();
   }
 
-  /** The languages the install's `lang` archives hold */
+  /** Lists the languages the install's `lang` archives hold, once the archives are scanned */
   public async installed(): Promise<string[]> {
     await this.archiveModel.whenReady();
     return installedLanguages(
@@ -76,7 +76,7 @@ export class GameLanguage implements Disposable {
     return language;
   }
 
-  /** The command: pick a language from those installed */
+  /** Lets the user pick a language from those installed and remembers it; backs the choose language command */
   public async choose(): Promise<void> {
     const installed = await this.installed();
 

@@ -7,13 +7,13 @@
 
 const DROP_SHADOW = '&dropshadow';
 
-/** The text without a trailing `&dropShadow`, which is style, not text */
+/** Strips a trailing `&dropShadow`, which is style, not text */
 export const stripTextStyle = (text: string): string =>
   text.toLowerCase().endsWith(DROP_SHADOW)
     ? text.slice(0, text.length - DROP_SHADOW.length)
     : text;
 
-/** The key a string names in the string table, if it is a `$` key */
+/** Gets the string table key a text names, if it is a `$` key */
 export const textKey = (text: string): string | undefined => {
   const plain = stripTextStyle(text);
 
@@ -40,7 +40,7 @@ export const resolveAptText = (
   return find(`APT:${name}`) ?? find(name) ?? `MISSING: 'APT:${name}'`;
 };
 
-/** Every distinct `$` key among strings, as written minus its style marker */
+/** Collects every distinct `$` key among strings, as written minus its style marker */
 export const collectTextKeys = (strings: Iterable<unknown>): string[] => {
   const keys = new Set<string>();
 

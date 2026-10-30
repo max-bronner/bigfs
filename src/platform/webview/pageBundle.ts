@@ -1,12 +1,12 @@
 import { Uri } from 'vscode';
 import type { Webview } from 'vscode';
 
-/** The folder the extension's bundled webview pages are written to. */
+/** Gets the folder the extension's bundled webview pages are written to */
 export const pageBundleFolder = (extensionUri: Uri): Uri =>
   Uri.joinPath(extensionUri, 'dist', 'webview');
 
 /**
- * The `webviewPage` options that load the bundled page `name` as a script
+ * Builds the `webviewPage` options that load the bundled page `name` as a script
  * file the page's policy allows. The panel's `localResourceRoots` must hold
  * `pageBundleFolder`.
  */

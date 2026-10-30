@@ -29,7 +29,7 @@ const nameCollator = new Intl.Collator(undefined, {
   sensitivity: 'base',
 });
 
-/** Orders a row the way the explorer does: directories first, then by name */
+/** Compares two rows the way the explorer orders them: directories first, then by name */
 const compareRows = (a: ExplorerNode, b: ExplorerNode): number => {
   const aIsBranch = isBranch(a);
   const bIsBranch = isBranch(b);
@@ -47,7 +47,7 @@ const isBranch = (element: ExplorerNode): boolean =>
     ? Boolean(element.node.children)
     : !isVirtualNode(element) || element.type === FileType.Directory;
 
-/** The text a row is ordered by: a source's label, everything else's name */
+/** Gets the text a row is ordered by: a source's label, everything else's name */
 const rowName = (element: ExplorerNode): string =>
   isSourceNode(element)
     ? element.source.label
@@ -63,9 +63,9 @@ export const isGameViewShown = (): boolean =>
   settings.explorerView.get() === 'game';
 
 /**
- * Tree row of the game view. A file opens the copy the game loads; its
- * description names where that copy comes from, and the tooltip lists the
- * copies it overrides
+ * Creates the tree item for a row of the game view. A file opens the copy the
+ * game loads; its description names where that copy comes from, and the
+ * tooltip lists the copies it overrides
  */
 const createGameItem = (
   { node }: GameRow,
@@ -161,12 +161,13 @@ export class BigTreeItem extends TreeItem {
  * archive is read only when a row of it is expanded
  */
 export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
-  /**
-   * Fired with one archive root to redraw that archive, or with nothing to
-   * redraw the whole view
-   */
   private _onDidChangeTreeData: EventEmitter<ExplorerNode | undefined | void> =
     new EventEmitter<ExplorerNode | undefined | void>();
+
+  /**
+   * Fires with one archive root to redraw that archive, or with nothing to
+   * redraw the whole view
+   */
   readonly onDidChangeTreeData: Event<ExplorerNode | undefined | void> =
     this._onDidChangeTreeData.event;
 
@@ -203,6 +204,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
     this._onDidChangeTreeData.fire();
   }
 
+  /** Builds the tree item for a source, a folder on disk, a game view row or a node */
   getTreeItem(element: ExplorerNode): TreeItem {
     if (isSourceNode(element)) {
       const item = new TreeItem(
@@ -247,6 +249,7 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerNode> {
     );
   }
 
+  /** Lists the rows below a row, reading an archive the first time it is expanded */
   async getChildren(element?: ExplorerNode): Promise<ExplorerNode[]> {
     if (!element && isGameViewShown()) {
       return this.listGameRows(await this.gameView.getRoot());

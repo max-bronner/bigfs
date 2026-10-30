@@ -13,8 +13,8 @@ const SEPARATOR_PATTERN = /[\\/]/;
 type OverwriteChoice = 'replace' | 'skip' | 'cancel';
 
 /**
- * What an input box asks for: its title, the names the answer must not collide
- * with, and the name being changed when this is a rename
+ * Options of the name input box `askForName` shows: its title, the names the
+ * answer must not collide with, and the name being changed when this is a rename
  */
 export interface NamePrompt {
   title: string;

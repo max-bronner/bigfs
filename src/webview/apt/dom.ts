@@ -1,17 +1,23 @@
 /** Small DOM builders for the details panel */
 
+/** Gets a page element by id, typed as the caller expects it to be */
 export const byId = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
 
+/** Escapes text for use in HTML markup or a double-quoted attribute */
 export const escapeHtml = (text: string): string =>
   text.replace(
     /[&<>"]/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!,
   );
 
+/** Kind of value an `input` edits: `text` is multi-line, `hex` a 32-bit word */
 export type InputKind = 'number' | 'text' | 'line' | 'hex';
 
-/** An input that commits on change: a number, a text, a line or a hex word */
+/**
+ * Creates an input that commits on change: a number, a text, a line or a hex
+ * word. A number that does not parse marks the input invalid and is not committed.
+ */
 export function input(
   value: unknown,
   onCommit: (value: number) => void,
@@ -60,7 +66,7 @@ export function input(
   return element;
 }
 
-/** A labelled row of controls */
+/** Creates a labelled row of controls */
 export const row = (label: string, ...controls: Node[]): HTMLDivElement => {
   const element = document.createElement('div');
   const name = document.createElement('label');
@@ -71,6 +77,7 @@ export const row = (label: string, ...controls: Node[]): HTMLDivElement => {
   return element;
 };
 
+/** Creates a button that runs `onClick` when pressed */
 export const button = (
   label: string,
   onClick: () => void,
@@ -82,6 +89,7 @@ export const button = (
   return element;
 };
 
+/** Creates a section heading for the details panel */
 export const heading = (text: string): HTMLHeadingElement => {
   const element = document.createElement('h3');
 

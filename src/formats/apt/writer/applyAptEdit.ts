@@ -9,7 +9,7 @@ import type { AptEdit, EditResult } from './aptEdit';
 import type { AptImage } from './aptImage';
 
 /**
- * Applies one edit to a movie. `apt` is changed in place where the edit
+ * Applies one edit to a movie. `image` is changed in place where the edit
  * allows and grown at its end otherwise; the movie is parsed again from it
  * for the next edit.
  */

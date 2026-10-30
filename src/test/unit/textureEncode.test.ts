@@ -5,7 +5,7 @@ import { encodeDds, encodeTga } from '../../formats/texture/textureEncode';
 import { decodePng, encodePng } from '../../node/png';
 import { compressEar } from '../../formats/refpack/refpack';
 
-/** A 8×4 gradient with varying alpha */
+/** An 8×4 gradient with varying alpha */
 const image = () => {
   const width = 8;
   const height = 4;

@@ -4,13 +4,13 @@ import type { Placement } from './textModel';
 const F32 = new Float32Array(1);
 const F32_WORD = new Uint32Array(F32.buffer);
 
-/** The bits of a 32-bit float, so -0, 0 and NaN compare the way the file stores them */
+/** Gets the bits of a 32-bit float, so -0, 0 and NaN compare the way the file stores them */
 export const f32Bits = (value: number): number => {
   F32[0] = value;
   return F32_WORD[0];
 };
 
-/** The shortest decimal that reads back as the same 32-bit float */
+/** Formats a number as the shortest decimal that reads back as the same 32-bit float */
 export const formatF32 = (value: number): string => {
   if (Number.isNaN(value)) {
     return 'nan';
@@ -34,11 +34,11 @@ export const formatF32 = (value: number): string => {
   return String(exact);
 };
 
-/** A word as `0x` and eight hex digits, or as many as `digits` asks for */
+/** Formats a word as `0x` and eight hex digits, or as many as `digits` asks for */
 export const hex = (value: number, digits = 8) =>
   `0x${(value >>> 0).toString(16).padStart(digits, '0')}`;
 
-/** A byte as two hex digits */
+/** Formats a byte as two hex digits */
 export const byteHex = (value: number) =>
   (value & 255).toString(16).padStart(2, '0');
 
@@ -62,7 +62,7 @@ const turn = (degrees: number): [number, number] => {
   return [Math.cos(radians), Math.sin(radians)];
 };
 
-/** The matrix a scale and a rotation in degrees make, as the file stores floats */
+/** Composes the matrix a scale and a rotation in degrees make, as the file stores floats */
 export const composeMatrix = (
   scaleX: number,
   scaleY: number,
@@ -138,7 +138,7 @@ const transformWords = (matrix: Matrix2): string[] => {
   return ['matrix', matrix.map(formatF32).join(',')];
 };
 
-/** The words that give a placement exactly: `at x,y` and the matrix after it */
+/** Formats the words that give a placement exactly: `at x,y` and the matrix after it */
 export const placementWords = ({ matrix, translate }: Placement): string[] => [
   'at',
   translate.map(formatF32).join(','),

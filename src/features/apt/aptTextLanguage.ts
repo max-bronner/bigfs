@@ -64,7 +64,7 @@ const characterSymbol = (
   return symbol;
 };
 
-/** Where the character an id names is declared, and the id under the cursor */
+/** Finds the character id under the cursor and the line that declares it */
 const idAt = (document: vscode.TextDocument, position: vscode.Position) => {
   const parsed = parseMovieText(document.getText());
   const site = parsed.ids.find(
@@ -89,6 +89,7 @@ const idAt = (document: vscode.TextDocument, position: vscode.Position) => {
   };
 };
 
+/** Registers the outline, folding, definition and hover providers of `apt-text` */
 export const registerAptTextLanguage = (): vscode.Disposable =>
   vscode.Disposable.from(
     vscode.languages.registerDocumentSymbolProvider(SELECTOR, {

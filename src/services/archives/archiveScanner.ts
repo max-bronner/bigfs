@@ -49,20 +49,18 @@ export const createArchiveScanner = (
 ): ArchiveScanner => {
   const onDidScan = new EventEmitter<void>();
 
-  /** Counts the scans started, so one that a newer scan overtook adds nothing */
+  // Counts the scans started, so one that a newer scan overtook adds nothing
   let scanGeneration = 0;
 
-  /** The scan in flight, replaced by each rescan and awaited by `whenReady` */
+  // The scan in flight, replaced by each rescan and awaited by `whenReady`
   let currentScan: Promise<void>;
 
-  /** Archive paths that failed to read and were given their one retry */
+  // Archive paths that failed to read and were given their one retry
   const retried = new Set<string>();
 
-  /**
-   * Brings an archive up to date after the watcher saw its file appear or
-   * change, taking on one that was created inside a source. A write the
-   * extension made itself reloads nothing and fires no change.
-   */
+  // Brings an archive up to date after the watcher saw its file appear or
+  // change, taking on one that was created inside a source. A write the
+  // extension made itself reloads nothing and fires no change.
   const reloadArchive = async (uri: Uri): Promise<void> => {
     const archivePath = uri.fsPath;
     const loaded = registry.getArchiveByPath(archivePath);
@@ -100,13 +98,13 @@ export const createArchiveScanner = (
     }
   };
 
-  /** A file the watcher saw change: worth another retry if it fails again */
+  // A file the watcher saw change: worth another retry if it fails again
   const reported = (uri: Uri): Promise<void> => {
     retried.delete(uri.fsPath);
     return reloadArchive(uri);
   };
 
-  /** Drops an archive whose file is gone, which changes the set of roots */
+  // Drops an archive whose file is gone, which changes the set of roots
   const forgetArchive = (uri: Uri): void => {
     const archive = registry.getArchiveByPath(uri.fsPath);
 
@@ -119,7 +117,7 @@ export const createArchiveScanner = (
     registry.fireChanged(archive, 'removed');
   };
 
-  /** Follows the archives on disk, so edits made outside the editor show up */
+  // Follows the archives on disk, so edits made outside the editor show up
   const watchArchives = (): Disposable => {
     const watcher = workspace.createFileSystemWatcher(BIG_PATTERN);
 
@@ -130,11 +128,9 @@ export const createArchiveScanner = (
     return watcher;
   };
 
-  /**
-   * Rebuilds the sources and the archives from what is on disk, and starts the
-   * read ahead. Reports how many candidates could not be read, counting a file
-   * that is not an archive at all as one to ignore rather than one that failed.
-   */
+  // Rebuilds the sources and the archives from what is on disk, and starts the
+  // read ahead. Reports how many candidates could not be read, counting a file
+  // that is not an archive at all as one to ignore rather than one that failed.
   const runScan = async (): Promise<void> => {
     const generation = (scanGeneration += 1);
     const sources = await createSources();
@@ -293,10 +289,10 @@ export const createArchiveScanner = (
 
   void scanner.scanWorkspace();
 
-  /** Follows the archives on disk for the life of the scanner */
+  // Follows the archives on disk for the life of the scanner
   const archiveWatcher = watchArchives();
 
-  /** Follows the workspace folders and the base game settings, which decide what a scan finds */
+  // Follows the workspace folders and the base game settings, which decide what a scan finds
   const sourceWatchers: Disposable[] = [
     workspace.onDidChangeWorkspaceFolders(() => {
       void scanner.scanWorkspace();

@@ -18,8 +18,7 @@ import * as T from './tables';
 /**
  * A VP6 encoder, the inverse of `decoder.ts`: it writes exactly what that
  * decoder (and so FFmpeg's and the game's) reads. Simple profile, VP6.0
- * bitstream, two bool-coded partitions; every frame a key frame, coded with
- * the default probabilities. Built from the decoder's own tables and
+ * bitstream, two bool-coded partitions. Built from the decoder's own tables and
  * arithmetic, so the round trip is checked in code rather than assumed.
  */
 
@@ -32,13 +31,14 @@ const MAX_LEVEL = 67 + 2047;
 const clampLevel = (value: number) =>
   Math.max(-MAX_LEVEL, Math.min(MAX_LEVEL, value));
 
-/** VP6's (and VP8's) binary arithmetic coder, writing */
+/** Binary arithmetic encoder of VP6 (and VP8), the writing side of `BoolDecoder` */
 export class BoolEncoder {
   private low = 0;
   private range = 255;
   private count = -24;
   private readonly out: number[] = [];
 
+  /** Writes one decision whose chance of being false is `prob` / 256 */
   public writeBool(bit: boolean, prob: number): void {
     const split = 1 + (((this.range - 1) * prob) >> 8);
     let range = split;
@@ -74,10 +74,12 @@ export class BoolEncoder {
     this.range = range;
   }
 
+  /** Writes one even-odds decision */
   public writeFlag(bit: boolean): void {
     this.writeBool(bit, 128);
   }
 
+  /** Writes the low `count` bits of `value` as even-odds decisions, most significant first */
   public writeBits(value: number, count: number): void {
     for (let bit = count - 1; bit >= 0; bit--) {
       this.writeFlag(((value >> bit) & 1) === 1);
@@ -93,7 +95,7 @@ export class BoolEncoder {
   }
 }
 
-/** Bits most significant first, for the frame's uncompressed header */
+/** Bit writer for the frame's uncompressed header, most significant bit first */
 class BitWriter {
   private readonly bytes: number[] = [];
   private bit = 0;
@@ -125,6 +127,7 @@ const COSINES = Array.from({ length: 8 }, (_, frequency) =>
   ),
 );
 
+/** Computes the forward DCT of an 8×8 block of pixels into `out`, at the scale `dsp.idct` inverts */
 export const forwardDct = (pixels: Float64Array, out: Float64Array): void => {
   const rows = new Float64Array(64);
 
@@ -198,7 +201,7 @@ const bitCost = (zeros: number, ones: number, prob: number): number =>
 /** The probabilities a 7-bit update can carry: 1, then even values */
 const SENDABLE = [1, ...Array.from({ length: 127 }, (_, raw) => (raw + 1) * 2)];
 
-/** The sendable probability closest to the counts' own */
+/** Finds the sendable probability closest to the counts' own */
 const bestSendable = (zeros: number, ones: number): number => {
   const ideal = (256 * (zeros + 0.5)) / (zeros + ones + 1);
 
@@ -208,8 +211,8 @@ const bestSendable = (zeros: number, ones: number): number => {
 };
 
 /**
- * One coefficient token and its value, as `decodeToken` and `expandToken`
- * read them. `token(slot)` names where slot `slot`'s probability lives.
+ * Writes one coefficient token and its value, as `decodeToken` and
+ * `expandToken` read them. `token(slot)` names where slot `slot`'s probability lives.
  */
 const writeToken = (
   sink: Sink,
@@ -275,7 +278,7 @@ const writeToken = (
   sink.put(value < 0, SIGN_TABLE, 0);
 };
 
-/** A run of zeros after a zero token, as `decodeZeroRun` reads it */
+/** Writes a run of zeros after a zero token, as `decodeZeroRun` reads it */
 const writeZeroRun = (
   sink: Sink,
   probs: readonly number[],
@@ -303,7 +306,7 @@ const writeZeroRun = (
   }
 };
 
-/** A motion vector component, as `decodeMvComponent` reads it */
+/** Writes a motion vector component, as `decodeMvComponent` reads it */
 const writeMvComponent = (sink: Sink, model: MvModel, value: number): void => {
   const magnitude = Math.abs(value);
   const tree = model.treeProbs;
@@ -332,6 +335,7 @@ const writeMvComponent = (sink: Sink, model: MvModel, value: number): void => {
   }
 };
 
+/** Settings for a `Vp6Encoder` */
 export interface EncodeOptions {
   /** 0 (smallest) to 63 (best), VP6's quantizer index */
   quality: number;
@@ -350,11 +354,12 @@ interface CodedMb {
   blocks: CodedBlock[];
 }
 
-/** The mode decision weight of a bit, in units of absolute pixel error */
+/** Computes the mode decision weight of a bit, in units of absolute pixel error */
 const lambdaOf = (acQuant: number) => Math.max(1, acQuant / 6);
 
 /**
- * Encodes pictures as key frames and inter frames. Inter macroblocks are
+ * Stateful VP6 encoder for one stream, coding pictures as key frames and
+ * inter frames. Inter macroblocks are
  * predicted from the previous decoded frame along a searched motion vector
  * (or none, or a neighbour's), and coded as their residual; probabilities
  * are learnt per frame from a counting pass and sent where they pay. The
@@ -373,14 +378,14 @@ export class Vp6Encoder {
     this.quality = Math.max(0, Math.min(63, Math.round(options.quality)));
   }
 
-  /** One key frame of `picture`, whose size is whole macroblocks */
+  /** Encodes `picture`, whose size is whole macroblocks, as a key frame */
   public encodeKey(picture: Picture): Uint8Array {
     return this.encode(picture, true).data;
   }
 
   /**
-   * One frame: a key frame when asked, at the start, or when most of the
-   * picture is new; an inter frame otherwise
+   * Encodes one frame: a key frame when asked, at the start, or when most of
+   * the picture is new; an inter frame otherwise
    */
   public encode(
     picture: Picture,
@@ -431,7 +436,7 @@ export class Vp6Encoder {
     };
   }
 
-  /** Quantized blocks of a macroblock's residual from `prediction` */
+  /** Quantizes the blocks of a macroblock's residual from `prediction` */
   private codeMb(
     picture: Picture,
     prediction: Picture | undefined,
@@ -491,7 +496,7 @@ export class Vp6Encoder {
     return this.predictDcs(mbs);
   }
 
-  /** A macroblock whose DC tokens are filled in by `predictDcs` */
+  /** Creates a coded macroblock whose DC tokens `predictDcs` fills in later */
   private withDc(
     type: MbType,
     mv: Mv,
@@ -512,7 +517,7 @@ export class Vp6Encoder {
     };
   }
 
-  /** DC values to tokens, with the decoder's prediction, in coding order */
+  /** Turns DC values into tokens with the decoder's prediction, in coding order */
   private predictDcs(mbs: (CodedMb & { dcs?: number[] })[]): CodedMb[] {
     const predictor = new DcPredictor(this.mbWidth);
 
@@ -535,7 +540,7 @@ export class Vp6Encoder {
     return mbs;
   }
 
-  /** The decoder's motion vector candidates for a macroblock */
+  /** Finds the decoder's motion vector candidates for a macroblock */
   private candidates(mbs: CodedMb[], mbX: number, mbY: number): MvCandidates {
     return mvCandidates(
       (index) => mbs[index],
@@ -560,7 +565,7 @@ export class Vp6Encoder {
     };
   }
 
-  /** Mode and motion for every macroblock of an inter frame */
+  /** Chooses the mode and motion vector of every macroblock of an inter frame */
   private decide(picture: Picture): CodedMb[] {
     const reference = this.reference!;
     const scratch = new Picture(this.mbWidth, this.mbHeight);
@@ -586,7 +591,7 @@ export class Vp6Encoder {
       return sum;
     };
     const refLuma = reference.planes[0];
-    /** Luma error of a whole-pixel offset, read straight from the reference */
+    // Luma error of a whole-pixel offset, read straight from the reference
     const wholePixelError = (
       mbX: number,
       mbY: number,
@@ -624,7 +629,7 @@ export class Vp6Encoder {
       }
       return sum;
     };
-    /** Luma error along a motion vector; chroma is not needed to choose */
+    // Luma error along a motion vector; chroma is not needed to choose
     const tryMv = (mbX: number, mbY: number, mv: Mv, limit = Infinity) => {
       for (const [bx, by] of [
         [0, 0],
@@ -804,7 +809,7 @@ export class Vp6Encoder {
     return this.predictDcs(mbs);
   }
 
-  /** The coefficient tokens of every block, to `sink` */
+  /** Writes the coefficient tokens of every block to `sink` */
   private writeCoefficients(sink: Sink, mbs: CodedMb[]): void {
     const models = this.models;
     const topCtx = [
@@ -888,7 +893,7 @@ export class Vp6Encoder {
     }
   }
 
-  /** Macroblock types and motion vectors, to `sink` */
+  /** Writes the macroblock types and motion vectors to `sink` */
   private writeModes(sink: Sink, mbs: CodedMb[]): void {
     let lastType = MbType.InterNoMv;
     const done: CodedMb[] = [];
@@ -1071,7 +1076,7 @@ export class Vp6Encoder {
     }
   }
 
-  /** The frame's bytes: header, modes and models, then the coefficients */
+  /** Writes the frame's bytes: header, modes and models, then the coefficients */
   private write(mbs: CodedMb[], isKey: boolean): Uint8Array {
     const models = this.models;
 
@@ -1159,7 +1164,7 @@ export class Vp6Encoder {
 }
 
 /**
- * RGBA to the planes VP6 codes: the inverse of the retail player's colour
+ * Converts RGBA to the planes VP6 codes: the inverse of the retail player's colour
  * conversion, padded to whole macroblocks by repeating the edge, and bottom
  * row first as EA's movies store it
  */

@@ -27,6 +27,7 @@ const holds = async (folder: string, file: string): Promise<boolean> => {
   }
 };
 
+/** Reads where retail recorded BFME II in the registry; nothing off Windows */
 const registryBfme2 = (): Promise<string | undefined> =>
   new Promise((resolve) => {
     if (process.platform !== 'win32') {
@@ -41,7 +42,7 @@ const registryBfme2 = (): Promise<string | undefined> =>
     );
   });
 
-/** The base game folders, the highest layer first, those that exist */
+/** Finds the base game folders that exist, the highest layer first */
 export const findBaseGameFolders = async (): Promise<string[]> => {
   const base = settings.baseGameFolder.get().trim();
   const named = settings.underlyingGameFolder.get().trim();

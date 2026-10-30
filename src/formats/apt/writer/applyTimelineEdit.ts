@@ -113,7 +113,7 @@ export const applyTimelineEdit = (
   }
 };
 
-/** The frames a timeline has after an operation, or a script of them, is applied to it */
+/** Computes the frames a timeline has once an operation, or a script of them, is applied to it */
 export const editedTimelineFrames = (
   image: AptImage,
   movie: AptMovie,

@@ -45,7 +45,7 @@ const decodeImage = (name: string, bytes: Uint8Array) =>
     ? decodePng(bytes)
     : (/\.dds$/i.test(name) ? decodeDds(bytes) : decodeTga(bytes)).levels[0];
 
-/** The FFmpeg to use: the setting's, else one on the PATH, else none */
+/** Finds the FFmpeg to use: the setting's, else one on the PATH, else none */
 const findFfmpeg = async (): Promise<string | undefined> => {
   const configured = settings.ffmpegPath.get();
 
@@ -61,10 +61,11 @@ const findFfmpeg = async (): Promise<string | undefined> => {
   return undefined;
 };
 
-/** Frames read in VS Code's own browser engine, one per request */
+/** Frame reader decoding a video in VS Code's own browser engine, one frame per request */
 class BrowserFrames {
   private readonly panel: vscode.WebviewPanel;
   private readonly pending = new Map<number, (data: Uint8Array) => void>();
+  /** The video's size and its duration in seconds, once the page has loaded it */
   public readonly meta: Promise<{
     width: number;
     height: number;
@@ -107,6 +108,7 @@ class BrowserFrames {
     );
   }
 
+  /** Reads the frame at `time` seconds as RGBA, scaled to the size given */
   public frame(
     index: number,
     time: number,
@@ -127,6 +129,7 @@ class BrowserFrames {
     });
   }
 
+  /** Closes the reading panel */
   public dispose(): void {
     this.panel.dispose();
   }
@@ -220,7 +223,7 @@ const askSize = async (
   return text ? (text.split('x').map(Number) as [number, number]) : undefined;
 };
 
-/** A rate as numerator and denominator, keeping 29.97-style rates exact */
+/** Splits a rate into numerator and denominator, keeping 29.97-style rates exact */
 const rateOf = (fps: number): [number, number] => {
   const whole = Math.round(fps * 1.001);
 
@@ -229,7 +232,7 @@ const rateOf = (fps: number): [number, number] => {
     : [Math.round(fps * 1000), 1000];
 };
 
-/** Frames between forced key frames, from the setting */
+/** Reads from the setting how many frames lie between forced key frames */
 const keyInterval = (fps: number): number => {
   const seconds = settings.vp6KeyFrameSeconds.get();
 
@@ -481,6 +484,7 @@ const convert = async (
   }
 };
 
+/** Registers `bigfs.convertToVp6`, which resolves to the movie written */
 export const registerVideoCommands = (
   context: vscode.ExtensionContext,
 ): void => {

@@ -1,5 +1,5 @@
 /**
- * What the language support knows about the SAGE INI dialect, read from the
+ * Grammar of the SAGE INI dialect as the language support knows it, read from the
  * data file `scripts/buildSageSchema.mjs` generates from mint's field tables.
  *
  * It answers four questions:
@@ -32,7 +32,7 @@ import {
   scopedReference,
 } from './sageReferenceFields';
 
-/** Whether a keyword opens a block or holds a value */
+/** Role a keyword plays: opening a block or holding a value */
 export type KeywordKind = 'block' | 'field';
 
 /** File scope of a `.ini` file, where only the engine's root blocks are legal */
@@ -61,7 +61,7 @@ export type SageGame = 'bfme1' | 'bfme2' | 'rotwk';
 /** The title mask each game reads names under */
 const GAME_MASKS: Record<SageGame, number> = { bfme1: 3, bfme2: 1, rotwk: 2 };
 
-/** What the engine dump records about a field name */
+/** Engine dump record of a field name: its type and whether it is still read */
 export interface EngineField {
   /**
    * The engine's own type. `Coord3D` and `Color` are the two that change how a
@@ -73,7 +73,7 @@ export interface EngineField {
   used: boolean;
 }
 
-/** How a keyword reads in its context */
+/** Resolution of a keyword in its context: its kind, and where a block's lines are looked up */
 export interface KeywordResolution {
   kind: KeywordKind;
   /** For a block, the context its own lines are looked up in */
@@ -156,7 +156,7 @@ export interface SageIniSchema {
   /** Whether lines in a context are checked against the grammar at all */
   isChecked(context: string): boolean;
 
-  /** The name of a context as completion and diagnostics show it */
+  /** Describes a context by the name completion and diagnostics show */
   describeContext(context: string): string;
 
   /** Whether a keyword names a module slot, whose first value picks the module */
@@ -165,19 +165,16 @@ export interface SageIniSchema {
   /** Whether the engine reads a block of this name at file scope */
   isEngineBlock(name: string): boolean;
 
-  /** What the engine dump says about a field name, if it names one */
+  /** Gets what the engine dump says about a field name, if it names one */
   getEngineField(name: string): EngineField | undefined;
 
   /**
-   * The namespaces a field's value resolves into, widest first. Several fields
+   * Gets the namespaces a field's value names, widest first. Several fields
    * are polymorphic - `Sound` takes an `AudioEvent` or a `Multisound` - so a
-   * caller tries each and only complains when none match.
-   */
-  /**
-   * The namespaces a field's value names. With the context the field sits
-   * in, a field whose meaning depends on its block is resolved too: `Name`
-   * names a particle system in an FX list's `ParticleSystem` nugget and a
-   * sound in its `Sound` one.
+   * caller tries each and only complains when none match. With the context
+   * the field sits in, a field whose meaning depends on its block is resolved
+   * too: `Name` names a particle system in an FX list's `ParticleSystem`
+   * nugget and a sound in its `Sound` one.
    */
   getReferenceNamespaces(
     field: string,
@@ -192,19 +189,19 @@ export interface SageIniSchema {
    */
   isReferenceNamespace(namespace: string): boolean;
 
-  /** The keywords legal in a context, with what each one is */
+  /** Lists the keywords legal in a context, with the kind of each */
   getContextKeywords(
     context: string,
   ): readonly { name: string; kind: KeywordKind }[];
 
-  /** The module types a slot accepts, which complete its header */
+  /** Lists the module types a slot accepts, which complete its header */
   getSlotTypes(slot: string): readonly string[];
 
-  /** The engine values a field takes, which are its vocabulary */
+  /** Lists the engine values a field takes, which are its vocabulary */
   getEnumValues(field: string): readonly string[];
 }
 
-/** A map keyed by lowercased name, so lookups ignore casing */
+/** Creates a map keyed by lowercased name, so lookups ignore casing */
 const foldKeys = <T>(record: Record<string, T>): Map<string, T> =>
   new Map(
     Object.entries(record).map(([key, value]) => [key.toLowerCase(), value]),
@@ -256,7 +253,7 @@ export const createSageIniSchema = (
   const slotTypes = foldKeys(file.slotTypes);
   const enumValues = foldKeys(file.enumValues);
 
-  /** Each context with this game's names folded for lookup */
+  // Each context with this game's names folded for lookup
   const contexts = file.contexts.map((context) => ({
     name: context.n,
     accepts: context.w & mask,
@@ -274,14 +271,12 @@ export const createSageIniSchema = (
 
   type Context = (typeof contexts)[number];
 
-  /**
-   * An `.inc` fragment is pasted inside a block of whichever file includes it,
-   * so a keyword it opens with can mean a different block in each context
-   * that has one: `Region` is a campaign's region in two of them, and a
-   * `Connection` inside it names a region rather than opening one. The
-   * fragment cannot say which, so the block is read as the union of every
-   * candidate, and a name any of them accepts is accepted.
-   */
+  // An `.inc` fragment is pasted inside a block of whichever file includes it,
+  // so a keyword it opens with can mean a different block in each context
+  // that has one: `Region` is a campaign's region in two of them, and a
+  // `Connection` inside it names a region rather than opening one. The
+  // fragment cannot say which, so the block is read as the union of every
+  // candidate, and a name any of them accepts is accepted.
   const mergedIds = new Map<string, number>();
 
   const mergeContexts = (ids: readonly number[]): number => {
@@ -336,11 +331,9 @@ export const createSageIniSchema = (
     return id;
   };
 
-  /**
-   * Every block keyword and field name of any context, which is what an
-   * `.inc` fragment may open with. A keyword several contexts open keeps all
-   * of them, so the fragment can pick the union rather than the last one read.
-   */
+  // Every block keyword and field name of any context, which is what an
+  // `.inc` fragment may open with. A keyword several contexts open keeps all
+  // of them, so the fragment can pick the union rather than the last one read.
   const fragmentCandidates = new Map<string, ChildData[]>();
 
   contexts.forEach((context) =>

@@ -27,7 +27,7 @@ export interface Declaration {
 const NOT_NESTED_DEFINITIONS: ReadonlySet<string> = new Set(['object']);
 
 /**
- * The name a block statement declares, if it declares one.
+ * Gets the name a block statement declares, if it declares one.
  *
  * A block at file scope declares a name in the namespace of its keyword. So
  * does a block nested elsewhere when its keyword is a kind some reference
@@ -63,7 +63,7 @@ export const declarationOf = (
   return undefined;
 };
 
-/** The parent a `ChildObject` or `ObjectReskin` header inherits from */
+/** Gets the parent a `ChildObject` or `ObjectReskin` header inherits from */
 export const parentOf = (
   statement: Pick<SageStatement, 'block' | 'keyword' | 'values'>,
 ): { token: SageToken; namespace: string } | undefined => {

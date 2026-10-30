@@ -1,5 +1,5 @@
 /**
- * Which INI values name a definition, decided per block and field.
+ * Rules for which INI values name a definition, decided per block and field.
  *
  * The generated schema's reference table is keyed by field name alone, which
  * is how mint's parse tables list them but is not how the engine reads: the
@@ -30,7 +30,7 @@ const NAMESPACE_ALIASES: Record<string, string> = {
   objectreskin: OBJECT_NAMESPACE,
 };
 
-/** The namespace a block keyword or a table entry means, with aliases folded */
+/** Gets the namespace a block keyword or a table entry means, with aliases folded */
 export const canonicalNamespace = (namespace: string): string =>
   NAMESPACE_ALIASES[namespace.toLowerCase()] ?? namespace;
 
@@ -40,7 +40,8 @@ export const canonicalNamespaces = (
 ): string[] => [...new Set(namespaces.map(canonicalNamespace))];
 
 /**
- * Particle systems are declared as `FXParticleSystem` in the new format and
+ * Adds `ParticleSystem` to namespaces that name `FXParticleSystem`. Particle
+ * systems are declared as `FXParticleSystem` in the new format and
  * as `ParticleSystem` in the old one, and the engine reads both into one set.
  * The table lists most particle fields under `FXParticleSystem` alone, which
  * would flag every system the shipped data defines as `ParticleSystem X`.
@@ -62,7 +63,7 @@ const PARENT_HEADERS: ReadonlySet<string> = new Set([
   'objectreskin',
 ]);
 
-/** The namespace the parent a header names is declared in, if it names one */
+/** Gets the namespace the parent a header names is declared in, if it names one */
 export const parentNamespace = (keyword: string): string | undefined =>
   PARENT_HEADERS.has(keyword.toLowerCase()) ? OBJECT_NAMESPACE : undefined;
 
@@ -141,7 +142,7 @@ const scoped = <T>(
   );
 };
 
-/** The namespaces a block corrects its field to, if it does */
+/** Gets the namespaces a block corrects its field to, if it does */
 export const scopedReference = (
   contextName: string,
   field: string,
@@ -165,7 +166,7 @@ export const namesTokenAt = (
 };
 
 /**
- * A word written in capitals with underscores: an enum value or a macro,
+ * Pattern of a word written in capitals with underscores: an enum value or a macro,
  * never a definition's name. Underscores may repeat (`FOO__BAR`), as macro
  * names do in the shipped data. Case sensitive on purpose: `HumanArmor` is a
  * name and `HUMAN_ARMOR` is not.
@@ -187,8 +188,8 @@ const KEYED_NAME_FIELDS: Record<string, string> = {
 const OPTIONAL_MARKER_FIELDS: ReadonlySet<string> = new Set(['blingupgrades']);
 
 /**
- * Where the name begins inside the value token at `index` of a field, or
- * undefined when the token names nothing. Zero for a field written as bare
+ * Finds where the name begins inside the value token at `index` of a field, or
+ * `undefined` when the token names nothing. Zero for a field written as bare
  * names. `Key: Name` with a space after the colon makes the next token the
  * name.
  */

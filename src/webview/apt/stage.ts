@@ -30,7 +30,7 @@ const LOG_LINES = 8;
 /** Frames a second the game plays a movie at, which speed 1 is */
 const FRAME_RATE = 30;
 
-/** The modes the stage draws in; each has a hotkey and is printed on change */
+/** Display modes of the stage; each has a hotkey and is printed on change */
 export const view = {
   origin: true,
   wireframe: false,
@@ -64,13 +64,14 @@ let onRendered: () => void = () => {};
 /** Extra drawing after each render, in the shown character's space (gadget surfaces) */
 const afterRender: ((ctx: CanvasRenderingContext2D, base: Affine) => void)[] = [];
 
+/** Adds drawing run after each render, in the shown character's space */
 export const addRenderHook = (
   hook: (ctx: CanvasRenderingContext2D, base: Affine) => void,
 ): void => {
   afterRender.push(hook);
 };
 
-/** How the stage tells the inspector: a new pick, and each frame drawn */
+/** Sets how the stage tells the inspector of a new pick, and of each frame drawn */
 export const setInspectorView = (
   show: () => void,
   update: () => void,
@@ -85,6 +86,7 @@ export interface StageTool {
   down(point: [number, number], event: MouseEvent): boolean;
   /** Takes a move while it holds the pointer */
   move(point: [number, number], event: MouseEvent): boolean;
+  /** Ends the drag the tool holds the pointer for */
   up(): void;
   /** Draws in the shown character's space, `pixel` wide lines */
   draw(ctx: CanvasRenderingContext2D, pixel: number): void;
@@ -169,7 +171,7 @@ const rootScriptsRun = () => view.interact || view.scripts;
 
 onEngineLog((line) => addLog(line));
 
-/** The player of the shown character, built on first use */
+/** Gets the player of the shown character, built on first use */
 export const currentPlayer = (): Player => {
   player ??= newPlayer(rootScriptsRun(), true);
   return player;
@@ -190,7 +192,7 @@ export const remeasure = (): void => {
   extent = undefined;
 };
 
-/** The frames of the shown character's own timeline */
+/** Counts the frames of the shown character's own timeline */
 export const rootFrames = (): number => currentPlayer().root.frames.length;
 
 /**
@@ -273,13 +275,13 @@ export const showMode = (): void => {
   ].join(" · ");
 };
 
-/** What is drawn now, in paint order */
+/** Gets what is drawn now, in paint order */
 export const sceneLeaves = (): Leaf[] => scene.leaves;
 
-/** The extent the canvas shows, for snapping to its edges */
+/** Gets the extent the canvas shows, for snapping to its edges */
 export const stageExtent = (): Rect | undefined => extent;
 
-/** How many of the shown character's units one screen pixel is */
+/** Gets how many of the shown character's units one screen pixel is */
 export const pixelSize = (): number =>
   1 / (base[0] / (window.devicePixelRatio || 1));
 
@@ -304,7 +306,7 @@ const inspectable = (leaf: Leaf, deep: boolean): Instance => {
   return at;
 };
 
-/** The box an instance covers now, from what it draws */
+/** Measures the box an instance covers now, from what it draws */
 export const instanceBox = (instance: Instance): Rect | undefined =>
   boundsOf(
     scene.leaves.filter((leaf) => {
@@ -520,7 +522,7 @@ const overlays = (
   }
 };
 
-/** The instance the inspector shows, if it is still there */
+/** Gets the instance the inspector shows, if it is still there */
 export const inspected = (): Instance | undefined =>
   state.inspected === undefined
     ? undefined
@@ -537,7 +539,7 @@ const showFrame = (frameBox: Rect | undefined) => {
     (frameBox ? ` · ${formatRect(frameBox)}` : "");
 };
 
-/** A point on the canvas, in the shown character's space */
+/** Converts a pointer event's position on the canvas to the shown character's space */
 export const pointAt = (event: MouseEvent): [number, number] => {
   const ratio = window.devicePixelRatio || 1;
 
@@ -751,6 +753,7 @@ export const playFrom = (frame: number): void => {
   render();
 };
 
+/** Starts or pauses playback, and shows which on the play button and the mode line */
 export const play = (playing: boolean): void => {
   view.playing = playing;
   owed = 0;

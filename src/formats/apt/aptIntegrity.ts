@@ -6,15 +6,17 @@ import type { AptMovie, Character, ConstFile, Frame } from './aptMovie';
 import { describeError } from '../../core/errors';
 
 /**
- * Whether a movie and the files beside it hold together, as the game
+ * Checks whether a movie and the files beside it hold together, as the game
  * needs them to (mint's apt-format research): every shape has its `.ru`,
  * every image a `.dat` line whose texture file is there, every texture
  * style samples an image, every id points at a character of the right
  * kind, every script decodes; and nothing beside it is left over.
  */
 
+/** How serious a `Problem` is: `error` breaks the movie in game, `info` is only unusual */
 export type Severity = 'error' | 'warning' | 'info';
 
+/** One finding of `checkMovie` */
 export interface Problem {
   severity: Severity;
   message: string;
@@ -24,18 +26,19 @@ export interface Problem {
   file?: string;
 }
 
-/** The files beside a movie, by path relative to its folder, matched without casing */
+/** Read access to a movie and the files beside it, by path relative to its folder, matched without casing */
 export interface MovieAccess {
   name: string;
   apt: Uint8Array;
+  /** Reads a file beside the movie, or undefined when it is missing */
   read(relative: string): Promise<Uint8Array | undefined>;
-  /** The names in a folder beside the movie, or nothing when there is none */
+  /** Lists the names in a folder beside the movie, or undefined when there is none */
   list(relative: string): Promise<string[] | undefined>;
 }
 
 const latin1 = (bytes: Uint8Array) => String.fromCharCode(...bytes);
 
-/** A TGA's size from its header, or nothing when it is not one */
+/** Reads a TGA's size from its header, or undefined when it is not one */
 export const tgaSize = (
   bytes: Uint8Array,
 ): { width: number; height: number } | undefined =>
@@ -48,6 +51,7 @@ export const tgaSize = (
 
 const describe = (character: Character) => `#${character.id} ${character.type}`;
 
+/** Checks a movie and the files beside it for what would break it in game or is left over */
 export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
   const problems: Problem[] = [];
   const report = (

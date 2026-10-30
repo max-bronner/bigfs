@@ -291,7 +291,7 @@ const round = (value: number, places = 3) =>
 const depthOf = (instance: Instance) =>
   Number(instance.path.slice(instance.path.lastIndexOf('/') + 1));
 
-/** A depth no frame of a timeline uses, above every other */
+/** Finds a depth no frame of a timeline uses, above every other */
 export const freeDepth = (timeline: Instance): number =>
   Math.max(
     0,

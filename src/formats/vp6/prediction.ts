@@ -1,18 +1,20 @@
 import type { Mv } from './dsp';
 
 /**
- * What the VP6 decoder predicts from macroblocks already coded: each
+ * Predictions the VP6 decoder makes from macroblocks already coded: each
  * block's DC value and each macroblock's motion vector candidates. The
  * encoder runs the same predictions to write what the decoder will read,
  * so both use this one implementation.
  */
 
+/** Reference frame a macroblock predicts from */
 export const enum Ref {
   Intra = 0,
   Previous = 1,
   Golden = 2,
 }
 
+/** Macroblock coding mode: intra, or the reference and motion vector an inter macroblock uses */
 export const enum MbType {
   Intra,
   InterNoMv,
@@ -26,6 +28,7 @@ export const enum MbType {
   GoldenNear,
 }
 
+/** Gets the reference frame a macroblock mode predicts from */
 export const referenceOf = (type: MbType): Ref =>
   type === MbType.Intra
     ? Ref.Intra
@@ -33,7 +36,9 @@ export const referenceOf = (type: MbType): Ref =>
       ? Ref.Previous
       : Ref.Golden;
 
+/** Zero motion vector, the candidate when no neighbour has one */
 export const ZERO_MV: Mv = { x: 0, y: 0 };
+/** Whether two motion vectors are equal */
 export const sameMv = (a: Mv, b: Mv) => a.x === b.x && a.y === b.y;
 const i16 = (value: number) => (value << 16) >> 16;
 
@@ -53,6 +58,7 @@ const CANDIDATE_OFFSETS = [
   [-2, 2],
 ];
 
+/** Motion vector candidates gathered from a macroblock's neighbours */
 export interface MvCandidates {
   /** How many distinct non-zero vectors were found, at most 2 */
   count: number;
@@ -62,7 +68,7 @@ export interface MvCandidates {
   pred: Mv;
 }
 
-/** The first two distinct non-zero vectors of neighbours using `want` */
+/** Finds the first two distinct non-zero vectors of neighbours that predict from `want` */
 export const mvCandidates = (
   neighbour: (index: number) => { type: MbType; mv: Mv } | undefined,
   mbX: number,
@@ -106,8 +112,8 @@ export const mvCandidates = (
 };
 
 /**
- * DC prediction: the average of the left and above blocks' DC where they
- * use the same reference, else the last DC coded against that reference
+ * DC predictor for one frame: the average of the left and above blocks' DC
+ * where they use the same reference, else the last DC coded against that reference
  */
 export class DcPredictor {
   private dc: Int16Array[] = [];
@@ -125,6 +131,7 @@ export class DcPredictor {
     this.resize(mbWidth);
   }
 
+  /** Sizes the row buffers for a frame `mbWidth` macroblocks wide, and resets */
   public resize(mbWidth: number): void {
     this.dc = [
       new Int16Array(mbWidth * 2 + 2),
@@ -136,7 +143,7 @@ export class DcPredictor {
     this.reset();
   }
 
-  /** The state at the start of a frame */
+  /** Restores the state at the start of a frame */
   public reset(): void {
     this.newRow();
     this.refsY.fill(undefined);
@@ -148,6 +155,7 @@ export class DcPredictor {
     ];
   }
 
+  /** Moves to the start of a macroblock row */
   public newRow(): void {
     this.yIdx = 1;
     this.cIdx = 1;
@@ -157,11 +165,13 @@ export class DcPredictor {
     this.leftRef = undefined;
   }
 
+  /** Moves to the next macroblock in the row */
   public nextMb(): void {
     this.yIdx += 2;
     this.cIdx += 1;
   }
 
+  /** Predicts the DC of block `blockNo` (0-3 luma, 4 U, 5 V) of the current macroblock */
   public predict(blockNo: number, reference: Ref): number {
     const luma = blockNo < 4;
     const plane = luma ? 0 : blockNo - 3;

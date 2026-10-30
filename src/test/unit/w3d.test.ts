@@ -3,7 +3,7 @@ import { parseW3d } from "../../formats/w3d/w3dTools";
 import { buildW3dScene, visibleMeshes } from "../../formats/w3d/w3dScene";
 import { createToolRegistry } from "../../core/toolRegistry";
 
-/** A chunk: type, size with the container bit when it holds chunks, payload */
+/** Builds a W3D chunk: type, size with the container bit when it holds chunks, payload */
 export const chunk = (
   type: number,
   payload: Uint8Array,
@@ -18,6 +18,7 @@ export const chunk = (
   return concat(header, payload);
 };
 
+/** Joins byte arrays end to end */
 export const concat = (...parts: Uint8Array[]): Uint8Array => {
   const out = new Uint8Array(
     parts.reduce((total, part) => total + part.length, 0),
@@ -32,12 +33,14 @@ export const concat = (...parts: Uint8Array[]): Uint8Array => {
   return out;
 };
 
+/** Encodes numbers as little-endian 32-bit floats */
 export const floats = (...values: number[]) =>
   new Uint8Array(Float32Array.from(values).buffer);
+/** Encodes numbers as little-endian 32-bit unsigned words */
 export const uints = (...values: number[]) =>
   new Uint8Array(Uint32Array.from(values).buffer);
 
-/** A fixed-length, NUL-padded name */
+/** Encodes a fixed-length, NUL-padded name */
 export const name = (text: string, length: number) => {
   const bytes = new Uint8Array(length);
 
@@ -99,6 +102,7 @@ const pivot = (pivotName: string, parent: number, translation: number[]) =>
     floats(...translation, 0, 0, 0, 0, 0, 0, 1),
   );
 
+/** The `UNIT_SKL` hierarchy chunk: the root transform and bone 1, ARM, 10 up the z axis */
 export const hierarchy = chunk(
   0x100,
   concat(

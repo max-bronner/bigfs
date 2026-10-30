@@ -1,8 +1,8 @@
 import type { AddChoice } from './blockModel';
 
 /**
- * The "+" at the end of a list of blocks: a menu of the record kinds that
- * may be added at that spot. Arrows move through it, Enter chooses, Escape
+ * Creates the "+" at the end of a list of blocks: a menu of the record kinds
+ * that may be added at that spot. Arrows move through it, Enter chooses, Escape
  * closes.
  */
 export const addMenu = (

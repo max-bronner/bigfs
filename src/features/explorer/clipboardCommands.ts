@@ -23,8 +23,8 @@ interface ClipboardContent {
 
 /**
  * Registers the palette and context menu entries for cut, copy, paste,
- * duplicate and the two copy path commands, through the register callback the
- * command center hands out
+ * duplicate and the two copy path commands, through the register callback
+ * `createNodeCommandRegistrar` hands out
  */
 export const registerClipboardCommands = (
   register: RegisterNodeCommand,

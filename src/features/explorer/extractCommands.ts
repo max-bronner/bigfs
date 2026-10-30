@@ -245,7 +245,7 @@ const extractNodes = async (
 
 /**
  * Registers the palette and context menu entry for extracting nodes to disk,
- * through the register callback the command center hands out
+ * through the register callback `createNodeCommandRegistrar` hands out
  */
 export const registerExtractCommands = (
   register: RegisterNodeCommand,

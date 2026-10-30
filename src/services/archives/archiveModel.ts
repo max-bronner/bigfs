@@ -18,17 +18,17 @@ import type { VirtualNode } from './virtualNode';
 
 export type { ArchiveChange, ImportedFile, TransferResult };
 
-/** What a caller can turn off when it creates an `ArchiveModel` */
+/** Options of an `ArchiveModel`, for a caller that wants some of its background work off */
 export interface ArchiveModelOptions {
   /**
-   * Read the archives nobody opened, once the workspace is quiet. On by
-   * default: it costs nothing visible and makes opening one later instant.
+   * Whether the archives nobody opened are read once the workspace is quiet.
+   * On by default: it costs nothing visible and makes opening one later instant.
    */
   readAhead?: boolean;
 }
 
 /**
- * The archives of the workspace: finds them on disk, keeps them loaded, and
+ * Model of the workspace's archives: finds them on disk, keeps them loaded, and
  * turns an operation into the changes that carry it out. A façade over the
  * scanner, the registry, the read-only policy and the operations, which hold
  * the logic.
@@ -94,17 +94,17 @@ export class ArchiveModel {
     return this.scanner.scanWorkspace();
   }
 
-  /** The root node of every archive found, for a view that shows them flat */
+  /** Gets the root node of every archive found, for a view that shows them flat */
   public getArchiveRoots(): VirtualNode[] {
     return this.registry.getArchiveRoots();
   }
 
-  /** The places archives were found in, which the tree shows as its top rows */
+  /** Gets the places archives were found in, which the tree shows as its top rows */
   public getSources(): readonly ArchiveSource[] {
     return this.registry.sources;
   }
 
-  /** Every archive of a source, for a view that groups them by folder */
+  /** Gets every archive of a source, for a view that groups them by folder */
   public getArchivesOf(sourceId: string): readonly Archive[] {
     return this.registry.getArchivesOf(sourceId);
   }
@@ -174,7 +174,7 @@ export class ArchiveModel {
     return this.registry.getFileContent(node);
   }
 
-  /** From the index table, or from a write that has not been saved yet */
+  /** Gets a file node's size, from the index table or from a write that has not been saved yet */
   public getFileSize(node: VirtualNode): number {
     return this.registry.getFileSize(node);
   }

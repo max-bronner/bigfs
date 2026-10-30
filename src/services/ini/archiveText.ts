@@ -11,6 +11,7 @@ import { SCHEME } from '../../constants';
  * several edited entries so each archive is rewritten once.
  */
 
+/** A text entry found inside an archive, as `listArchiveEntries` lists it */
 export interface ArchiveTextEntry {
   uri: vscode.Uri;
   archivePath: string;
@@ -18,9 +19,10 @@ export interface ArchiveTextEntry {
   readOnly: boolean;
 }
 
+/** Whether a uri names something inside an archive rather than a file on disk */
 export const isArchiveUri = (uri: vscode.Uri): boolean => uri.scheme === SCHEME;
 
-/** Every entry of every archive whose path matches, reading each archive's index first */
+/** Lists every entry of every archive whose path matches, reading each archive's index first */
 export const listArchiveEntries = async (
   archiveModel: ArchiveModel,
   pattern: RegExp,
@@ -50,10 +52,11 @@ export const listArchiveEntries = async (
 export const isEditable = (archiveModel: ArchiveModel, uri: vscode.Uri) =>
   !isArchiveUri(uri) || !archiveModel.isReadOnlyUri(uri);
 
+/** Reads an entry, or any file, as INI text */
 export const readEntryText = async (uri: vscode.Uri): Promise<string> =>
   decodeIniText(await vscode.workspace.fs.readFile(uri));
 
-/** What an entry held before a save, to put back */
+/** Bytes an entry held before a save, which `restoreEntries` puts back */
 export interface SavedText {
   uri: vscode.Uri;
   before: Uint8Array;

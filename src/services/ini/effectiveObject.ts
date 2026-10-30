@@ -11,10 +11,12 @@ import type { SageIniIndex } from './sageIniIndex';
 import { readWorkspaceText } from './workspaceText';
 
 const TEMPLATES = ['Object', 'ChildObject', 'ObjectReskin'];
+/** Lowercased keywords whose header names a parent after the template's own name */
 const INHERITING = ['childobject', 'objectreskin'];
+/** Parents followed before the chain is cut short */
 const MAX_DEPTH = 8;
 
-/** The header's keyword, own name and parent name */
+/** Reads a template's header line into its keyword, own name and, for an inheriting template, parent name */
 export const headerOf = (line: string) => {
   const [keyword, name, parent] = tokenize(stripComment(line));
 

@@ -20,7 +20,7 @@ export const saveTimelines = (session: SaveSession, after: MovieText): void => {
   }
 };
 
-/** The current frames of a timeline */
+/** Reads the current frames of a timeline, or none for a character without one */
 const timelineFrames = (
   session: SaveSession,
   timeline: number,

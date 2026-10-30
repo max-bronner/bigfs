@@ -1,18 +1,20 @@
 import type { SageBlock, SageDocument } from './sageIniParser';
 
 /**
- * The files an INI file names: models, animations, textures and sounds, and
+ * Asset references in INI files: models, animations, textures and sounds, and
  * the file names each may be found under. The game resolves them by name
  * (mint's `asset-dat.md` "Resolution rule"); a mod may put them anywhere a
  * loader reads, so a reference is found when any archive or folder holds a
  * file of one of its candidate names.
  */
 
+/** Category of file an asset reference names */
 export type AssetKind = 'model' | 'animation' | 'texture' | 'sound';
 
+/** File an INI field names, at its position, with the file names that satisfy it */
 export interface AssetReference {
   kind: AssetKind;
-  /** As written */
+  /** The name as written in the field */
   name: string;
   line: number;
   start: number;
@@ -33,18 +35,18 @@ const stemOf = (name: string) => name.replace(/\.[^.\\/]*$/, '');
 const baseOf = (name: string) => name.slice(name.search(/[^\\/]*$/));
 const lower = (name: string) => name.toLowerCase();
 
-/** The top-level block holding a line, which decides how a field reads */
+/** Finds the top-level block holding a line, which decides how a field reads */
 const topBlockAt = (blocks: SageBlock[], line: number): SageBlock | undefined =>
   blocks.find((block) => block.startLine <= line && line <= block.endLine);
 
-/** Candidate names for a texture: its stem with every texture extension */
+/** Lists the candidate file names for a texture: its stem with every texture extension */
 export const textureCandidates = (name: string): string[] => {
   const stem = lower(stemOf(baseOf(name)));
 
   return TEXTURE_EXTENSIONS.map((extension) => `${stem}.${extension}`);
 };
 
-/** Every file reference in a parsed INI file */
+/** Finds every file reference in a parsed INI file */
 export const findAssetReferences = (parsed: SageDocument): AssetReference[] => {
   const references: AssetReference[] = [];
 
@@ -157,7 +159,7 @@ const KIND_LABELS: Record<AssetKind, string> = {
   sound: 'Sound',
 };
 
-/** The message a missing reference reports, with near names to suggest */
+/** Formats the diagnostic message a missing reference reports, with near names to suggest */
 export const missingAssetMessage = (
   reference: AssetReference,
   suggestions: string[],
@@ -171,7 +173,7 @@ export const missingAssetMessage = (
     ? `; did you mean ${suggestions.map((name) => `'${name}'`).join(', ')}?`
     : '');
 
-/** The names a missing-asset message suggests, as the quick fixes offer them */
+/** Reads back the names a missing-asset message suggests, for the quick fixes to offer */
 export const suggestedAssetNames = (message: string): string[] => {
   const tail = /did you mean (.*)\?$/.exec(message)?.[1] ?? '';
 

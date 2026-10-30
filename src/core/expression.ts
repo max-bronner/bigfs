@@ -8,6 +8,7 @@
  * functions and constants below. `^` is a power and binds right.
  */
 
+/** Values an expression's variables take, by name as written */
 export type Variables = Record<string, number>;
 
 const FUNCTIONS: Record<string, (...args: number[]) => number> = {
@@ -35,11 +36,15 @@ const FUNCTIONS: Record<string, (...args: number[]) => number> = {
 
 const CONSTANTS: Record<string, number> = { pi: Math.PI, e: Math.E };
 
+/** Thrown when an expression does not parse or does not give a finite number; the message is for the user */
 export class ExpressionError extends Error {}
 
 type Node = (variables: Variables) => number;
 
-/** Turns an expression into a function of its variables, or explains where it fails */
+/**
+ * Turns an expression into a function of its variables, or explains where it
+ * fails. Both the compile and the returned function throw `ExpressionError`.
+ */
 export const compileExpression = (source: string): Node => {
   const tokens =
     source.match(

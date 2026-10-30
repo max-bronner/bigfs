@@ -12,11 +12,12 @@ import {
 
 let texts: Record<string, string> | undefined;
 
+/** Replaces the game text table with the one the editor sent with the movie */
 export const setGameText = (resolved: Record<string, string> | undefined) => {
   texts = resolved;
 };
 
-/** A field's text with a `$KEY` replaced by the game's text for it */
+/** Replaces a field's `$KEY` with the game's text for it; without a table the text is returned as written */
 export const localise = (text: string): string => {
   if (!texts) {
     return text;

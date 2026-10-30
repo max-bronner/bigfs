@@ -15,7 +15,10 @@ import { Expr, FuncDef, Keyword, Operand, Stmt } from './aptScriptSyntax';
  * `if`, `if`/`else` and `while` back into blocks.
  */
 
-/** Values popped and pushed by the instructions that print as `#Op(...)` */
+/**
+ * Values popped and pushed by each instruction that prints as `#Op(...)`; the
+ * compiler refuses an intrinsic missing from it
+ */
 export const STACK_EFFECT: Record<string, [number, number]> = {
   NextFrame: [0, 0],
   PrevFrame: [0, 0],
@@ -81,7 +84,7 @@ export const STACK_EFFECT: Record<string, [number, number]> = {
   GetMember: [2, 1],
 };
 
-/** The binary operators of SWF 5 and later, by opcode */
+/** Binary operators of SWF 5 and later by opcode name, shared by the lifter and the compiler */
 export const OPERATORS: Record<string, string> = {
   NewAdd: '+',
   Subtract: '-',
@@ -124,7 +127,7 @@ const POOL_OPERAND = new Set([
 
 const isCall = (expr: Expr) => expr.k === 'call' || expr.k === 'mcall';
 
-/** The operand of an instruction as the `#Op<...>` and `asm` forms write it */
+/** Converts an instruction's operand to the form `#Op<...>` and `asm` write it in */
 export const operandOf = (
   instruction: AptInstruction,
   labels: Map<number, string>,
@@ -198,7 +201,7 @@ export const lift = (
     flush();
     stmts.push(stmt);
   };
-  /** The top `count` values, deepest first; missing ones are `pop()` */
+  // The top `count` values, deepest first; missing ones are `pop()`
   const take = (count: number): Expr[] => {
     if (stack.length >= count) {
       return stack.splice(stack.length - count);
@@ -228,11 +231,9 @@ export const lift = (
         ? { k: 'str', v: item.value }
         : { k: 'reg', n: item.value };
   };
-  /**
-   * Takes a call's operands: `extra` values above a literal count, then that
-   * many arguments below it. The arguments sit last-first, so they come back
-   * in call order; the extras come back deepest first.
-   */
+  // Takes a call's operands: `extra` values above a literal count, then that
+  // many arguments below it. The arguments sit last-first, so they come back
+  // in call order; the extras come back deepest first.
   const callOperands = (extra: number): [Expr[], Expr[]] | undefined => {
     const count = stack[stack.length - 1 - extra];
 
@@ -654,7 +655,7 @@ export const lift = (
       return true;
     }
 
-    /** Where a call's result goes, by the form of the call */
+    // Where a call's result goes, by the form of the call
     function deliver(call: Expr): boolean {
       if (name.startsWith('EA_Call') && name.endsWith('Pop')) {
         emit({ k: 'expr', e: call, isVoid: false });

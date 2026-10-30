@@ -1,7 +1,7 @@
 import type { AptMovie } from '../aptMovie';
 import { AptImage } from './aptImage';
 
-/** Where a timeline's frame count and frame array pointer are */
+/** Gets the offsets of a timeline's frame count and frame array pointer */
 export const timelineFields = (
   movie: AptMovie,
   timeline: number,

@@ -21,6 +21,7 @@ import { describeError } from '../../core/errors';
  * around the splice, so everything else stays as read.
  */
 
+/** One chunk of a map body and where it sits, so an edit can splice it */
 export interface MapChunk {
   name: string;
   version: number;
@@ -31,6 +32,7 @@ export interface MapChunk {
   children?: MapChunk[];
 }
 
+/** A map dictionary value, tagged by the type byte it is stored with */
 export type DictValue =
   | { type: 'bool'; value: boolean }
   | { type: 'int'; value: number }
@@ -38,6 +40,7 @@ export type DictValue =
   | { type: 'string'; value: string }
   | { type: 'wide'; value: string };
 
+/** One key and value of a map dictionary */
 export interface DictEntry {
   key: string;
   /** The name index the key is stored as */
@@ -52,6 +55,7 @@ export interface Dict {
   entries: DictEntry[];
 }
 
+/** One object placed on the map, from the `ObjectsList` chunk */
 export interface MapObject {
   /** Index among the objects, which an edit names */
   index: number;
@@ -67,12 +71,14 @@ export interface MapObject {
   properties: Dict;
 }
 
+/** One light of `GlobalLighting`, each colour and the direction as three floats */
 export interface MapLight {
   ambient: number[];
   color: number[];
   direction: number[];
 }
 
+/** The time of day and terrain suns a map's `GlobalLighting` chunk holds */
 export interface MapLighting {
   /** 1 morning, 2 afternoon, 3 evening, 4 night */
   timeOfDay: number;
@@ -82,6 +88,7 @@ export interface MapLighting {
   terrainSuns: MapLight[];
 }
 
+/** The terrain height map of the `HeightMapData` chunk */
 export interface MapHeights {
   width: number;
   height: number;
@@ -93,6 +100,7 @@ export interface MapHeights {
   sampleBytes: 1 | 2;
 }
 
+/** A parsed map: its decompressed body, chunks, and the parts the editors read */
 export interface MapFile {
   compression: 'ear' | 'none';
   body: Uint8Array;
@@ -140,6 +148,7 @@ export interface MapScriptCall {
   parameters: string[];
 }
 
+/** A node of a player's script tree: a script group, or a script with its conditions and actions */
 export type MapScriptNode =
   | {
       kind: 'group';
@@ -387,10 +396,14 @@ export const writeDict = (entries: DictEntry[]): Uint8Array => {
   return Uint8Array.from(out);
 };
 
+/** Finds the first chunk of a list with this name, not searching nested ones */
 export const findChunk = (chunks: MapChunk[], name: string) =>
   chunks.find((chunk) => chunk.name === name);
 
-/** Reads a map body (decompressed) */
+/**
+ * Reads a decompressed map body. A section that fails to read is recorded in
+ * `problems` instead of failing the whole map; a body without `CkMp` throws.
+ */
 export const parseMapBody = (
   body: Uint8Array,
   compression: MapFile['compression'],
@@ -751,11 +764,11 @@ export const parseMap = (bytes: Uint8Array): MapFile =>
     ? parseMapBody(decompressEar(bytes), 'ear')
     : parseMapBody(bytes, 'none');
 
-/** The file bytes of a map, compressed the way it was read */
+/** Serialises a map to file bytes, compressed the way it was read */
 export const writeMap = (map: MapFile): Uint8Array =>
   map.compression === 'ear' ? compressEar(map.body) : map.body;
 
-/** Every chunk, nested ones included */
+/** Lists every chunk, nested ones included, parents before children */
 export const allChunks = (chunks: MapChunk[]): MapChunk[] =>
   chunks.flatMap((chunk) => [chunk, ...allChunks(chunk.children ?? [])]);
 

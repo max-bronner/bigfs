@@ -12,16 +12,19 @@ const vscode = getVsCodeApi<FromPage>();
 
 const listeners = { change: () => {}, log: (_line: string) => {} };
 
+/** Engine the page runs the shown movie on; sounds it raises are played by the editor */
 export const engine = new Engine(
   () => listeners.change(),
   (line) => listeners.log(line),
   (event) => vscode.postMessage({ kind: 'playSound', name: event }),
 );
 
+/** Sets the callback run when the engine's values or questions change */
 export const onEngineChange = (change: () => void): void => {
   listeners.change = change;
 };
 
+/** Sets the callback that receives each line the engine logs */
 export const onEngineLog = (log: (line: string) => void): void => {
   listeners.log = log;
 };

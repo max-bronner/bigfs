@@ -187,7 +187,7 @@ export const moveNode = (
   reEntryPath(node, joinEntryPath(parent.entryPath, name));
 };
 
-/** Mirrors a node at another path */
+/** Copies a node and everything below it to another path of the tree */
 export const copyNode = (
   rootNode: VirtualNode,
   from: string,
@@ -269,7 +269,7 @@ export const findBlockingFile = (
   return undefined;
 };
 
-/** An empty path finds the directory itself, which is how a root resolves */
+/** Finds the node at a path below a directory; an empty path finds the directory itself, which is how a root resolves */
 export const findChild = (
   directory: VirtualNode,
   relativePath: string,

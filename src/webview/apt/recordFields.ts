@@ -231,7 +231,7 @@ const placementBody = (item: PlaceItem): Node[] => {
   ];
 };
 
-/** The block of one item of a frame: its fields, remove, duplicate and order */
+/** Creates the block of one item of a frame: its fields, remove, duplicate and order */
 export const frameItemBlock = (
   item: FrameItem,
   site: ItemSite,
@@ -385,7 +385,7 @@ export const frameItemBlock = (
   }
 };
 
-/** Every field of a button record, which can also be moved among the button's records */
+/** Creates the block of a button record: every field, and moving it among the button's records */
 export const buttonRecordBlock = (
   id: number,
   record: ButtonRecord,
@@ -462,7 +462,7 @@ export const buttonRecordBlock = (
   });
 };
 
-/** Every field of one run of a Text character */
+/** Creates the block of one run of a Text character, with every field */
 export const textRunBlock = (
   character: Extract<Character, { type: 'text' }>,
   record: TextRecord,
@@ -526,7 +526,7 @@ export const textRunBlock = (
   });
 };
 
-/** The conditions of a button action, as toggles */
+/** Creates toggles for the conditions of a button action */
 export const buttonConditionToggles = (
   id: number,
   index: number,

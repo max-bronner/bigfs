@@ -21,7 +21,7 @@ import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
  * the engine has been seen to accept.
  */
 
-/** How far back a value's own prefix runs, so replacing it does not duplicate */
+/** Finds the word the cursor is in, so a completion replaces the typed prefix instead of duplicating it */
 const wordRangeAt = (
   document: TextDocument,
   position: Position,
@@ -79,6 +79,7 @@ const toItem = (
   return item;
 };
 
+/** Creates the completion provider over the shared parse and the cross-archive index */
 export const createSageIniCompletionProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -164,7 +165,7 @@ export const createSageIniCompletionProvider = (
   },
 });
 
-/** What to show beside a field name, which is its engine type when it has one */
+/** Describes a field for the completion detail: its engine type when it has one */
 const describeField = (
   schema: SageIniSchema,
   name: string,

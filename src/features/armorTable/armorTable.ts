@@ -27,7 +27,7 @@ import { registerCommand } from '../../platform/commands';
  * the line when it has none.
  */
 
-/** How long after an edit the table is read again */
+/** Milliseconds after an edit before the table is read again */
 const REFRESH_DELAY = 300;
 
 const createArmorTable = (
@@ -210,6 +210,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
   return { show: panel.show, refresh, receive };
 };
 
+/** Registers `bigfs.showArmorTable`, which opens the armor table and, given a message, acts on it as the page would */
 export const registerArmorTable = (
   context: vscode.ExtensionContext,
   documents: SageIniDocuments,

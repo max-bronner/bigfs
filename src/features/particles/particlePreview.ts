@@ -43,7 +43,7 @@ const findDefinitionAt = (
     (definition) => definition.startLine <= line && line <= definition.endLine,
   );
 
-/** What the page sends; loose, since automation sends the same shapes */
+/** Message from the particle page, loosely typed since automation sends the same shapes */
 interface FromParticlePage {
   kind?: string;
   id?: string;
@@ -72,14 +72,13 @@ const createParticlePreview = (
   const library = new EffectLibrary(index, locator, uri);
   const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
   let restartNext = true;
-  /** Showing the block as written, slider values held back, to compare */
+  // Showing the block as written, slider values held back, to compare
   let comparing = false;
   let updating: Promise<void> = Promise.resolve();
-  /** Whether an update is waiting; slider drags coalesce into it */
+  // Whether an update is waiting; slider drags coalesce into it
   let queued = false;
-  /** The last scene sent to the page */
   let lastScene: Record<string, unknown> | undefined;
-  /** What the page last said it is running */
+  // What the page last said it is running, read back by automation
   let lastStatus:
     | { frame: number; systems: number; particles: number }
     | undefined;
@@ -193,7 +192,7 @@ const createParticlePreview = (
     }
   };
 
-  /** The previewed definition as the file now has it */
+  /** Reads the previewed definition as the file now has it */
   const rootDefinition = async (): Promise<
     { definition: IniDefinition; text: string } | undefined
   > => {
@@ -363,7 +362,7 @@ const createParticlePreview = (
   };
 
   /**
-   * The particle count each detail level allows, from the mod's own
+   * Reads the particle count each detail level allows, from the mod's own
    * `StaticGameLOD` blocks (`MaxParticleCount`), smallest first
    */
   const particleBudgets = async (): Promise<{ lod: string; max: number }[]> => {
@@ -491,7 +490,7 @@ const showParticlePreview = (
   return preview;
 };
 
-/** The preview page: its controls, and the bundle that simulates and draws */
+/** Renders the particle page, shared with the object preview: its controls, and the bundle that simulates and draws */
 export const particlePageHtml = (source: string, script: string): string =>
   webviewPage({
     allow: { img: 'data:', script: source },
@@ -611,6 +610,7 @@ const createParticleLensProvider = (): vscode.CodeLensProvider => ({
   },
 });
 
+/** Registers the particle preview lens and `bigfs.previewParticles`, which resolves to the preview for automation */
 export const registerParticlePreview = (
   context: vscode.ExtensionContext,
   selector: vscode.DocumentSelector,

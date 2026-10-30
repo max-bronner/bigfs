@@ -11,7 +11,9 @@ import { $, library, world } from './page';
  * WebGL the simulation still runs and reports; only drawing stops.
  */
 
+/** Floats per billboard vertex: position, corner, size, angle, colour and flipbook rect */
 const FLOATS = 15;
+/** Billboards per draw call, so their four vertices each stay within 16-bit indices */
 const CHUNK = 16000;
 
 const SPRITE_VERTEX = `
@@ -41,6 +43,7 @@ void main() { gl_Position = uViewProj * vec4(aPos, 1.0); vColor = aColor; }`;
 const LINE_FRAGMENT = `
 precision mediump float; varying vec4 vColor; void main() { gl_FragColor = vColor; }`;
 
+/** Canvas the particle preview draws on */
 export const canvas = $<HTMLCanvasElement>('canvas');
 
 const gl = canvas.getContext('webgl', {
@@ -165,6 +168,7 @@ const graphics = (() => {
   }
 })();
 
+/** Whether WebGL is available and its programs compiled; without it the simulation still runs */
 export const hasGraphics = graphics !== undefined;
 
 const textures = new Map<string, WebGLTexture>();
@@ -190,6 +194,7 @@ export const loadTextures = (sources: Record<string, string | null>): void => {
 /** The model the effect is shown on, drawn as the W3D viewer draws it */
 export const model = graphics?.model;
 
+/** Draws line vertices, xyz rgba each; without `depthTest` they show through everything */
 export const drawLines = (
   lines: number[],
   matrix: Float32Array,
@@ -231,12 +236,12 @@ export const drawLines = (
 };
 
 /**
- * What the last frame drew: billboards, and their summed screen area as a
- * multiple of the view's (fill, the overdraw a GPU pays for at this view)
+ * Counts of the last frame drawn: billboards, and their summed screen area as
+ * a multiple of the view's (fill, the overdraw a GPU pays for at this view)
  */
 export const drawStats = { drawn: 0, fill: 0 };
 
-/** Sets a shader's blend state; returns whether it alpha-tests */
+/** Blend state setters by particle shader name; each returns 1 when the shader alpha-tests */
 const BLENDS: Record<string, (gl: WebGLRenderingContext) => number> = {
   ADDITIVE: (gl) => {
     gl.blendFunc(gl.ONE, gl.ONE);
@@ -260,7 +265,7 @@ const BLENDS: Record<string, (gl: WebGLRenderingContext) => number> = {
   },
 };
 
-/** The flipbook cell a particle shows: its own first cell plus age times speed */
+/** Computes the flipbook cell a particle shows: its own first cell plus age times speed */
 const cellUv = (
   book: ParticleDef['flipbook'],
   particle: Particle,

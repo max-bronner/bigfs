@@ -4,10 +4,10 @@
  * ported them from NihAV via Ruffle (MIT; see `THIRD-PARTY-NOTICES.md`).
  */
 
-/** Too many reads past the end of a stream means the frame is truncated */
+/** Reads past the end of a stream a frame may make before it counts as truncated */
 export const MAX_OVERRUN = 16;
 
-/** Reads bits most significant first */
+/** Bit reader for VP6's Huffman-coded partitions, most significant bit first */
 export class BitReader {
   private byte = 0;
   private bit = 0;
@@ -31,6 +31,7 @@ export class BitReader {
     return value;
   }
 
+  /** Reads `count` bits as an unsigned number; throws once the stream runs out */
   public read(count: number): number {
     let value = 0;
 
@@ -47,10 +48,12 @@ export class BitReader {
     return value;
   }
 
+  /** Reads one bit as a flag */
   public readBool(): boolean {
     return this.read(1) !== 0;
   }
 
+  /** Reads the next 16 bits without consuming them, padding past the end with zeros */
   public peek16(): number {
     const saved = [this.byte, this.bit];
     let value = 0;
@@ -64,10 +67,12 @@ export class BitReader {
     return value;
   }
 
+  /** Consumes `count` bits */
   public skip(count: number): void {
     this.read(count);
   }
 
+  /** Whole bytes consumed so far */
   public get bytesRead(): number {
     return this.byte;
   }
@@ -79,6 +84,7 @@ export class BoolDecoder {
   private value = 0;
   private range = 255;
   private bits = 8;
+  /** Bytes read past the end of the stream, compared against `MAX_OVERRUN` */
   public overrun = 0;
 
   public constructor(private readonly src: Uint8Array) {
@@ -91,6 +97,7 @@ export class BoolDecoder {
     }
   }
 
+  /** Reads one decision whose chance of being false is `prob` / 256 */
   public readProb(prob: number): boolean {
     this.renorm();
 
@@ -109,10 +116,12 @@ export class BoolDecoder {
     return true;
   }
 
+  /** Reads one even-odds decision */
   public readBool(): boolean {
     return this.readProb(128);
   }
 
+  /** Reads `count` even-odds decisions as an unsigned number, most significant first */
   public readBits(count: number): number {
     let value = 0;
 
@@ -123,7 +132,7 @@ export class BoolDecoder {
     return value;
   }
 
-  /** A 7-bit probability, doubled, never zero */
+  /** Reads a 7-bit probability, doubled, never zero */
   public readProbability(): number {
     const value = this.readBits(7);
 
@@ -150,7 +159,7 @@ export class BoolDecoder {
   }
 }
 
-/** `if !read(prob) { a } else { b }`, the shape every VP6 tree is read in */
+/** Reads one branch of a VP6 tree: `a` when the decision is false, `b` when it is true */
 export const tree = <T>(
   bc: BoolDecoder,
   prob: number,
@@ -173,11 +182,12 @@ const weight = (a: number, b: number) =>
 
 const not = (value: number) => ~value & 255;
 
-/** A Huffman code built from token probabilities */
+/** Huffman code built from token or zero-run probabilities, for frames coded with Huffman */
 export class Huff {
   private readonly codes = new Uint16Array(MAX_ELEMS);
   private readonly bits = new Uint8Array(MAX_ELEMS);
 
+  /** Creates the code for DC or AC tokens from their bool-coder probabilities */
   public static fromTokenProbs(p: readonly number[]): Huff {
     const w = new Array<number>(12).fill(0);
 
@@ -213,6 +223,7 @@ export class Huff {
     return Huff.build(w);
   }
 
+  /** Creates the code for zero runs from their bool-coder probabilities */
   public static fromZeroRunProbs(p: readonly number[]): Huff {
     const w = new Array<number>(9).fill(0);
     let root = weight(p[0], p[1]);
@@ -305,6 +316,7 @@ export class Huff {
     return huff;
   }
 
+  /** Reads one symbol */
   public read(br: BitReader): number {
     const peek = br.peek16();
 

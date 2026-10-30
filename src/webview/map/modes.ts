@@ -7,10 +7,10 @@ import { describeMode, nextAreaName } from './modeText';
 import type { MapMode } from './modeText';
 import { state } from './state';
 
-/** The template a waypoint is placed from */
+/** Template name a waypoint is placed from */
 export const WAYPOINT_TEMPLATE = '*Waypoints/Waypoint';
 
-/** Starts placing or drawing, or leaves the mode with none. */
+/** Starts placing or drawing, or leaves the mode with none */
 export const setMode = (mode: MapMode | undefined): void => {
   state.mode = mode;
   state.draft = [];
@@ -20,7 +20,7 @@ export const setMode = (mode: MapMode | undefined): void => {
   draw();
 };
 
-/** Adds the area being drawn, once it has three points. */
+/** Adds the area being drawn, once it has three points */
 export const finishArea = (): void => {
   if (!state.mode || state.mode.kind !== 'area') {
     return;
@@ -40,7 +40,7 @@ export const finishArea = (): void => {
   setMode(undefined);
 };
 
-/** Places the object or waypoint of the mode at a world position. */
+/** Places the object or waypoint of the mode at a world position; a waypoint takes the next free id */
 export const placeAt = (x: number, y: number): void => {
   const mode = state.mode;
 

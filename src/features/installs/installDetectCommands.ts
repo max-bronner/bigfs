@@ -6,7 +6,7 @@ import { settings } from '../../platform/settings';
 import { findInstalls, systemHost } from '../../node/installDiscovery';
 import type { FoundInstall } from '../../node/installDiscovery';
 
-/** Remembers that the quick pick was shown, so it is offered once */
+/** Global state key recording that the installs were offered, so they are offered once */
 const OFFERED_KEY = `${SCHEME}.installsOffered`;
 
 interface InstallItem extends vscode.QuickPickItem {

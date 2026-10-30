@@ -188,7 +188,7 @@ const readChunks = (bytes: Uint8Array): Chunk[] => {
 const viewOf = (bytes: Uint8Array) =>
   new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
-/** A fixed-length, NUL-padded name */
+/** Reads a fixed-length, NUL-padded name */
 const readName = (bytes: Uint8Array, at: number, length: number): string => {
   const slice = bytes.subarray(at, Math.min(at + length, bytes.length));
   const end = slice.indexOf(0);
@@ -196,7 +196,7 @@ const readName = (bytes: Uint8Array, at: number, length: number): string => {
   return String.fromCharCode(...(end < 0 ? slice : slice.subarray(0, end)));
 };
 
-/** The floats a payload holds, copied so the result owns its memory */
+/** Reads the floats a payload holds, copied so the result owns its memory */
 const readFloats = (bytes: Uint8Array): Float32Array => {
   const view = viewOf(bytes);
   const floats = new Float32Array(Math.floor(bytes.length / 4));
@@ -209,7 +209,7 @@ const readFloats = (bytes: Uint8Array): Float32Array => {
 };
 
 /**
- * What a shader material says: the texture it binds by name, never by
+ * Reads what a shader material says: the texture it binds by name, never by
  * position (a material is a list of named parameters, and the diffuse map
  * is not always first), and whether it alpha-tests
  */
@@ -260,7 +260,7 @@ const readShaderMaterial = (
   return { texture: texture ?? fallback, alphaTest };
 };
 
-/** The little-endian 32-bit values of a payload */
+/** Reads the little-endian 32-bit values of a payload */
 const readIds = (bytes: Uint8Array): number[] => {
   const view = viewOf(bytes);
 
@@ -269,7 +269,7 @@ const readIds = (bytes: Uint8Array): number[] => {
   );
 };
 
-/** A `SHADERS` entry's blend, from its source and destination factors */
+/** Classifies a `SHADERS` entry's blend from its source and destination factors */
 const blendOf = (shader: Uint8Array): W3dBlend => {
   const [, depthMask, , destBlend, , , , srcBlend, , , , , alphaTest] = shader;
 
@@ -293,7 +293,7 @@ const blendOf = (shader: Uint8Array): W3dBlend => {
 const BLEND_RANK: W3dBlend[] = ["opaque", "multiply", "alpha", "additive"];
 
 /**
- * The first material pass, the one a single-pass renderer draws (mint's
+ * Reads the first material pass, the one a single-pass renderer draws (mint's
  * `Mesh::texcoords`, `texture_name` and `drawn_shaders`): its first stage's
  * texture and coordinates, or the coordinates a shader-material mesh keeps
  * on the pass itself, and the shaders it names
@@ -483,7 +483,7 @@ const readHierarchy = (payload: Uint8Array): W3dHierarchy | undefined => {
   return pivots.length ? { name, pivots } : undefined;
 };
 
-/** One LOD, aggregate or proxy array: a header, then its sub-objects */
+/** Reads one LOD, aggregate or proxy array: a header, then its sub-objects */
 const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
   let maxScreenSize = 0;
   const subObjects: W3dSubObject[] = [];
@@ -546,7 +546,7 @@ const readHlod = (payload: Uint8Array): W3dHlod | undefined => {
 };
 
 /**
- * A `BOX` chunk: version, attributes, name, colour, centre and extent
+ * Reads a `BOX` chunk: version, attributes, name, colour, centre and extent
  * (EA's `W3dBoxStruct`, 68 bytes; the layout is from `w3d_file.h`, the
  * extent being the half-size as in `OBBoxClass`)
  */
@@ -568,7 +568,10 @@ const readBox = (payload: Uint8Array): W3dBox => {
   };
 };
 
-/** Reads the meshes, hierarchy and HLOD of a W3D file */
+/**
+ * Reads the meshes, collision boxes, hierarchy and HLOD of a W3D file.
+ * Throws when a chunk overruns its parent or a mesh indexes past its vertices.
+ */
 export const parseW3d = (bytes: Uint8Array): W3dFile => {
   const file: W3dFile = { meshes: [], boxes: [] };
 
@@ -598,7 +601,7 @@ export const parseW3d = (bytes: Uint8Array): W3dFile => {
   return file;
 };
 
-/** Tool that parses a W3D entry */
+/** Registered tool that parses a W3D entry into a `W3dFile` */
 export const parseW3dTool: Tool<Uint8Array, W3dFile> = {
   id: "model.parseW3d",
   run: parseW3d,

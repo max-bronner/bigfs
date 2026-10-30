@@ -13,7 +13,7 @@ import { movieKey } from './aptLibrary';
 import { describeError } from '../../core/errors';
 import { readEngineAnswers } from './aptEngineAnswers';
 
-/** What a movie reads of the game beside its own files */
+/** Game services a movie reads beside its own files */
 export interface AptGameServices {
   /** Settles the language `$KEY` text is read in */
   gameLanguage: GameLanguage;
@@ -25,7 +25,7 @@ export interface AptGameServices {
 type MovieMessage = Extract<ToPage, { kind: 'movie' }>;
 type MovieLoadedMessage = Extract<ToPage, { kind: 'movieLoaded' }>;
 
-/** What following imports has found so far, and what the page was already sent */
+/** State of one import walk: what it has found so far, and what the page was already sent */
 interface ImportWalk {
   movies: Map<string, PageMovie>;
   library: Record<string, PageMovie>;
@@ -40,21 +40,21 @@ interface ImportWalk {
 const MAX_IMPORT_DEPTH = 8;
 const MAX_IMPORTED_MOVIES = 64;
 
-/** What the import walk needs of the editor and the game */
+/** Callbacks the import walk reaches the editor and the game through */
 export interface AptMovieImportsHost {
   /** Finds the movies imports name, the way the game does */
   library: AptLibrary;
   game: AptGameServices;
-  /** An open movie by `.apt` uri, as edited */
+  /** Finds an open movie by `.apt` uri, as edited */
   findDocument(key: string): AptDocument | undefined;
   /** Reads a movie that is not open */
   load(uri: vscode.Uri): Promise<AptDocument>;
 }
 
 /**
- * The movies a page draws beside its own: what its imports and `loadMovie`
- * calls reach through the install, built once per version, with what the
- * page already holds left out
+ * Import walk building the movies a page draws beside its own: what its
+ * imports and `loadMovie` calls reach through the install, built once per
+ * version, with what the page already holds left out
  */
 export interface AptMovieImports {
   /**
@@ -90,16 +90,16 @@ export const createAptMovieImports = ({
   findDocument,
   load,
 }: AptMovieImportsHost): AptMovieImports => {
-  /** Imported movies that are not open, read once, by `.apt` uri */
+  // Imported movies that are not open, read once, by `.apt` uri
   const loaded = new Map<string, Promise<AptDocument | undefined>>();
 
-  /** Imported movies as last built, by `.apt` uri, with the stamp built from */
+  // Imported movies as last built, by `.apt` uri, with the stamp built from
   const built = new Map<string, { stamp: string; movie: Promise<BuiltMovie> }>();
 
-  /** Goes up whenever the library forgets, so every movie is read afresh */
+  // Goes up whenever the library forgets, so every movie is read afresh
   let generation = 0;
 
-  /** The movie at an imported location: an open one as edited, else as read */
+  /** Gets the movie at an imported location: an open one as edited, else as read */
   const importedMovie = (
     location: MovieLocation,
   ): Promise<AptDocument | undefined> => {
@@ -226,8 +226,8 @@ export const createAptMovieImports = ({
   };
 
   /**
-   * Every `$KEY` string the movies hold, as the chosen language reads it, by
-   * the key as written. None when no string table is loaded, in which case
+   * Resolves every `$KEY` string the movies hold, as the chosen language reads
+   * it, by the key as written. None when no string table is loaded, in which case
    * the page shows the keys.
    */
   const textsOf = async (

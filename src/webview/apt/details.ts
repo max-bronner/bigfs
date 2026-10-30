@@ -46,7 +46,7 @@ const frameInput = byId<HTMLInputElement>('frame');
 export const send = (edit: AptEdit): void =>
   vscode.postMessage({ kind: 'edit', edit });
 
-/** Asks the page to show a frame of the timeline on the stage */
+/** Name of the window event that asks the page to show a frame of the timeline on the stage */
 export const GO_TO_FRAME = 'apt-go-to-frame';
 
 /** The scripts of a character's other frames and its buttons, which the shown frame does not list */

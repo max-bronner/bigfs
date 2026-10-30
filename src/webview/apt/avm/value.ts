@@ -12,6 +12,7 @@ import type { PageMovie } from '../protocol';
 /** Depth a script's number 0 is on the display list, above anything a timeline places */
 export const SCRIPT_DEPTH_BIAS = 16384;
 
+/** An AVM1 value: a primitive, or an object */
 export type Value = undefined | null | boolean | number | string | AsObject;
 
 /** A function the movie's bytecode defines, with the scope it closes over */
@@ -24,14 +25,14 @@ export interface BytecodeFunction {
   base?: Instance;
 }
 
-/** What a native receives: the VM, `this` and the arguments */
+/** Signature of a native function: it receives the VM, `this` and the arguments */
 export type NativeFunction = (
   vm: NativeHost,
   self: Value,
   args: Value[],
 ) => Value;
 
-/** The VM as natives see it, kept narrow so they stay small */
+/** View of the VM handed to natives, kept narrow so they stay small */
 export interface NativeHost {
   string(value: Value): string;
   member(object: Value, name: string): Value;
@@ -50,7 +51,7 @@ export interface NativeHost {
   clearInterval(id: number): void;
 }
 
-/** What the VM asks of the player that draws the clips */
+/** Operations the VM asks of the player that draws the clips */
 export interface StageHost {
   goTo(clip: Instance, frame: number, play: boolean): void;
   labelFrame(clip: Instance, label: string): number | undefined;
@@ -67,16 +68,17 @@ export interface StageHost {
     depth: number,
   ): Instance | undefined;
   remove(clip: Instance): void;
-  /** The machine finished its outermost script: what it queued may run */
+  /** Signals that the machine finished its outermost script, so what it queued may run */
   idle(): void;
   /**
-   * `loadMovie`/`unloadMovie`: the movie a URL names into a clip, or into a
-   * level (a number); no URL empties it
+   * Loads the movie a URL names into a clip, or into a level (a number), for
+   * `loadMovie`/`unloadMovie`; no URL empties it
    */
   loadMovie(into: Instance | number, url: string | undefined): void;
   readonly root: Instance;
 }
 
+/** What an object is beyond its properties: plain, an array, a function or a clip's object */
 export type Kind =
   | { type: 'plain' }
   | { type: 'array' }
@@ -91,7 +93,7 @@ export interface Scope {
   kind: 'global' | 'target' | 'local';
 }
 
-/** An object: properties by lowercased name, keeping the casing first written */
+/** AVM1 object: properties by lowercased name, keeping the casing first written */
 export class AsObject {
   private readonly props = new Map<
     string,
@@ -103,14 +105,17 @@ export class AsObject {
     public kind: Kind = { type: 'plain' },
   ) {}
 
+  /** Whether the object has an own property of the name, ignoring casing */
   public has(name: string): boolean {
     return this.props.has(name.toLowerCase());
   }
 
+  /** Gets an own property's value, ignoring casing; the prototype is not consulted */
   public get(name: string): Value {
     return this.props.get(name.toLowerCase())?.value;
   }
 
+  /** Sets an own property, keeping the casing it was first written with */
   public set(name: string, value: Value): void {
     const key = name.toLowerCase();
     const existing = this.props.get(key);
@@ -122,26 +127,28 @@ export class AsObject {
     }
   }
 
-  /** Sets a property `for..in` does not list */
+  /** Defines a property `for..in` does not list */
   public define(name: string, value: Value): void {
     this.props.set(name.toLowerCase(), { name, value, hidden: true });
   }
 
+  /** Deletes an own property, ignoring casing */
   public delete(name: string): boolean {
     return this.props.delete(name.toLowerCase());
   }
 
-  /** Own names `for..in` lists, in the order written */
+  /** Lists the own names `for..in` lists, in the order written */
   public keys(): string[] {
     return [...this.props.values()].filter((p) => !p.hidden).map((p) => p.name);
   }
 
-  /** Every own property, for the engine panel */
+  /** Lists every own property, hidden ones included, for the engine panel */
   public entries(): [string, Value][] {
     return [...this.props.values()].map((p) => [p.name, p.value]);
   }
 }
 
+/** Parses text as AVM1 does: empty is 0, and `0x` reads as hex */
 export const parseNumber = (text: string): number => {
   const trimmed = text.trim();
 
@@ -160,6 +167,7 @@ export const parseNumber = (text: string): number => {
     : n;
 };
 
+/** Converts a value to a number as AVM1 does: `undefined` and objects are NaN, null is 0 */
 export const toNumber = (value: Value): number =>
   value === undefined || value instanceof AsObject
     ? NaN
@@ -171,6 +179,7 @@ export const toNumber = (value: Value): number =>
           ? value
           : parseNumber(value);
 
+/** Converts a value to a boolean as AVM1 does: a string is true when it reads as a non-zero number */
 export const toBoolean = (value: Value): boolean => {
   if (value === undefined || value === null) {
     return false;
@@ -187,12 +196,14 @@ export const toBoolean = (value: Value): boolean => {
   return n !== 0 && !Number.isNaN(n);
 };
 
+/** Converts a value to a 32-bit integer, with anything not finite as 0 */
 export const toInt32 = (value: Value): number => {
   const n = toNumber(value);
 
   return Number.isFinite(n) ? Math.trunc(n) | 0 : 0;
 };
 
+/** Formats a number as AVM1 prints it */
 export const formatNumber = (n: number): string =>
   Number.isNaN(n)
     ? 'NaN'
@@ -202,6 +213,7 @@ export const formatNumber = (n: number): string =>
         : '-Infinity'
       : String(n);
 
+/** Whether two values are equal under AVM1's `==` */
 export const looseEquals = (a: Value, b: Value): boolean => {
   const absent = (v: Value) => v === undefined || v === null;
 

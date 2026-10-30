@@ -28,6 +28,10 @@ const lineBreaks = (
   return out;
 };
 
+/**
+ * Draws a window's text in its state's colour, wrapped and aligned the way its
+ * gadget type lays text out. `textLeft` starts the text after a check box's square.
+ */
 export const drawText = (
   context: CanvasRenderingContext2D,
   box: WndBox,

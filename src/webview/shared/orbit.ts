@@ -5,10 +5,11 @@ import type { Vec3 } from '../../formats/w3d/w3dPose';
  * scroll to zoom, double-click to go back to where it started.
  */
 
+/** Orbit camera state a page reads each frame to draw */
 export interface Orbit {
-  /** View times projection, column major */
+  /** Returns view times projection, column major */
   viewProjection(aspect: number): Float32Array;
-  /** Unit vector from the target towards the eye */
+  /** Returns the unit vector from the target towards the eye */
   towardsEye(): Vec3;
 }
 
@@ -25,6 +26,7 @@ const unit = (v: Vec3): Vec3 => {
   return [v[0] / length, v[1] / length, v[2] / length];
 };
 
+/** Creates an orbit camera around `target` driven by the canvas's pointer and wheel; `onChange` asks for a redraw */
 export const createOrbit = (
   canvas: HTMLCanvasElement,
   target: Vec3,

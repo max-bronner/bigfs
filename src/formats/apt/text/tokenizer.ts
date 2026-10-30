@@ -9,7 +9,7 @@ export interface Token {
   endColumn: number;
 }
 
-/** A line that does not read, with the columns the problem spans */
+/** Error thrown for a line of the text that does not read, with the columns the problem spans */
 export class ParseError extends Error {
   public constructor(
     message: string,
@@ -206,10 +206,11 @@ export const floats = (token: Token, count: number, what: string): number[] => {
   return parts.map((part) => floatOf(part, token, what));
 };
 
-/** The words of a line after its keyword, by key, with the bare words in order */
+/** Reader of the words of a line after its keyword, by key, with the bare words in order */
 export class Fields {
   private readonly keyed = new Map<string, Token>();
   private readonly used = new Set<string>();
+  /** The words without a key, in line order */
   public readonly bare: Token[] = [];
 
   public constructor(
@@ -231,11 +232,13 @@ export class Fields {
     }
   }
 
+  /** Gets the token given for a key, marking the key as read */
   public optional(key: string): Token | undefined {
     this.used.add(key);
     return this.keyed.get(key);
   }
 
+  /** Gets the token given for a key, failing across `line` when there is none */
   public required(key: string, line: Token[]): Token {
     const token = this.optional(key);
 
@@ -251,6 +254,7 @@ export class Fields {
     return token;
   }
 
+  /** Gets the quoted string given for a key, failing when it is not quoted */
   public string(key: string): string | undefined {
     const token = this.optional(key);
 
@@ -264,7 +268,7 @@ export class Fields {
     return token?.text;
   }
 
-  /** Fails on a key the line does not take */
+  /** Fails on a key the line gave that nothing read, so a field the line does not take is caught */
   public finish(): void {
     for (const [key, token] of this.keyed) {
       if (!this.used.has(key)) {

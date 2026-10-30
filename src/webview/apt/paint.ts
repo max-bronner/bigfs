@@ -75,7 +75,7 @@ export const TEXT_GUTTER = 2;
 /** The fonts the retail movies name, then the fallbacks to try after them */
 const FONT_FALLBACKS = ['Albertus MT', 'Omnia LT Std'];
 
-/** The CSS font stack of a text field: its own font by name, then the shipped ones */
+/** Builds the CSS font stack of a text field: its own font by name, then the shipped ones */
 export const fontStack = (name?: string): string =>
   [...new Set([...(name ? [name] : []), ...FONT_FALLBACKS])]
     .map((family) => `'${family.replace(/'/g, '')}'`)
@@ -83,7 +83,7 @@ export const fontStack = (name?: string): string =>
     .join(', ');
 
 /**
- * The text a field shows. The one place the string comes from: a `$KEY`
+ * Gets the text a field shows. The one place the string comes from: a `$KEY`
  * string is read in the game's language here.
  */
 export const textOf = (
@@ -187,7 +187,7 @@ const leafArea = (leaf: Leaf): Path2D => {
 const areas = new WeakMap<Leaf[], Path2D>();
 
 /**
- * A mask's area in stage space, the union of what its leaves draw: a
+ * Builds a mask's area in stage space, the union of what its leaves draw: a
  * mask's shapes count by where they are, not their colour or alpha
  */
 export const maskArea = (mask: Leaf[]): Path2D => {

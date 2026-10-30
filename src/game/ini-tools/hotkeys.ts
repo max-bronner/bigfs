@@ -8,6 +8,7 @@
  * never shown together and may share a key.
  */
 
+/** Reads the hotkey a button text marks with a single `&`, upper-cased */
 export const hotkeyOf = (text: string): string | undefined => {
   for (let index = 0; index < text.length - 1; index++) {
     if (text[index] !== '&') {
@@ -22,6 +23,7 @@ export const hotkeyOf = (text: string): string | undefined => {
   return undefined;
 };
 
+/** A command set slot's hotkey and the upgrades that decide when its button shows */
 export interface KeyedSlot {
   slot: number;
   hotkey?: string;
@@ -50,7 +52,7 @@ const unlockedBy = (unlocked: KeyedSlot, purchase: KeyedSlot): boolean => {
 const canShowTogether = (a: KeyedSlot, b: KeyedSlot): boolean =>
   !unlockedBy(a, b) && !unlockedBy(b, a);
 
-/** For each slot sharing its hotkey with others, the slots it clashes with */
+/** Finds, for each slot sharing its hotkey with others it can show beside, the slots it clashes with */
 export const hotkeyClashes = (slots: KeyedSlot[]): Map<number, number[]> => {
   const byKey = new Map<string, KeyedSlot[]>();
 

@@ -13,10 +13,10 @@ import { resolveSageSymbol } from '../../../formats/ini/sageIniSymbol';
  * `Object`, a `Weapon` or any other name the index knows.
  */
 
-/** What a name may become: one token, which no separator or comment can split */
+/** Shape a new name must have: one token, which no separator or comment can split */
 const NAME_PATTERN = /^[^\s=;"]+$/;
 
-/** Ranges of the name a position sits on, and what the name is */
+/** Finds the name a position sits on, with its range and the namespaces it can live in */
 const findSymbol = async (
   documents: SageIniDocuments,
   document: TextDocument,
@@ -62,7 +62,7 @@ const findSymbol = async (
   );
 };
 
-/** Creates the provider over the shared parse and the cross-archive index */
+/** Creates the rename provider over the shared parse and the cross-archive index */
 export const createSageIniRenameProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,

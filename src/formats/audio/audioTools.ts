@@ -238,7 +238,7 @@ export const toPlayableAudio = (bytes: Uint8Array): PlayableAudio => {
   throw new Error(`WAVE codec ${format.tag} is not supported`);
 };
 
-/** Tool that makes a `.wav` entry playable */
+/** Registered tool that makes a `.wav` entry playable in a webview */
 export const playableAudioTool: Tool<Uint8Array, PlayableAudio> = {
   id: 'audio.toPlayable',
   run: toPlayableAudio,

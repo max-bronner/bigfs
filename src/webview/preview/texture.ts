@@ -7,6 +7,7 @@ const MAX_ZOOM = 32;
 const byId = <Element extends HTMLElement>(id: string) =>
   document.getElementById(id) as Element;
 
+/** Creates the texture view on the page's toolbar and returns the function that shows a texture message */
 export const createTexturePage = (main: HTMLElement) => {
   const toolbar = byId('toolbar');
   const status = byId('status');

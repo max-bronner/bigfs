@@ -1,6 +1,7 @@
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
 
+/** Message carrying a W3D model, or the model an animation file is shown on */
 export interface ModelMessage extends ModelScene {
   /** The model an animation file is shown on, found by its skeleton */
   shownOn?: string;
@@ -14,6 +15,7 @@ export interface FileUse {
   owner?: string;
 }
 
+/** Message carrying a texture's mip levels as RGBA pixels, finest first */
 export interface TextureMessage {
   kind: 'texture';
   format: string;
@@ -21,6 +23,7 @@ export interface TextureMessage {
   levels: { width: number; height: number; pixels: Uint8Array }[];
 }
 
+/** Message carrying a sound decoded to WAV, with the facts of the original */
 export interface AudioMessage {
   kind: 'audio';
   wav: Uint8Array;
@@ -33,6 +36,7 @@ export interface AudioMessage {
   };
 }
 
+/** Message carrying a sound in a format the browser decodes itself */
 export interface CompressedAudioMessage {
   kind: 'compressedAudio';
   bytes: Uint8Array;
@@ -40,6 +44,7 @@ export interface CompressedAudioMessage {
   format: string;
 }
 
+/** Message opening a VP6 movie; its frames follow one by one as the page asks */
 export interface VideoMessage {
   kind: 'video';
   width: number;
@@ -49,7 +54,7 @@ export interface VideoMessage {
   hasAlpha: boolean;
 }
 
-/** What the page is sent to draw or play, then the answers to what it asks */
+/** Messages the extension sends the preview page: what to draw or play, then the answers to what it asks */
 export type ToPreviewPage =
   | TextureMessage
   | AudioMessage
@@ -64,6 +69,7 @@ export type ToPreviewPage =
   | { kind: 'videoFrame'; index: number; pixels: Uint8Array }
   | { kind: 'videoError'; message: string };
 
+/** Messages the preview page sends: ready, a link followed, an animation or a movie frame asked for */
 export type FromPreviewPage =
   | { kind: 'ready' }
   | { kind: 'reveal'; uri: string; line: number }

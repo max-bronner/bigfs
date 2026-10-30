@@ -54,6 +54,10 @@ const KEYED_FIELDS: ReadonlySet<string> = new Set([
   'duck',
 ]);
 
+/** Pattern behind `isAudioSentinel` */
+const AUDIO_SENTINEL =
+  /^(?:[+-]?[\d.]+%?|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*|None|NONE|NoSound)$/;
+
 /**
  * Whether a value is certainly not a name even where a name is expected:
  * numbers and percentages, SCREAMING_SNAKE words (enum values and macros)
@@ -61,9 +65,6 @@ const KEYED_FIELDS: ReadonlySet<string> = new Set([
  * other namespaces use, since sound names are ordinarily written in mixed
  * case and many retail ones are not.
  */
-const AUDIO_SENTINEL =
-  /^(?:[+-]?[\d.]+%?|[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*|None|NONE|NoSound)$/;
-
 export const isAudioSentinel = (text: string): boolean =>
   AUDIO_SENTINEL.test(text);
 
@@ -84,7 +85,7 @@ const named = (
       ]
     : [];
 
-/** A bare name, an `EVA:` name, or a `+SOUND:` name */
+/** Reads a bare name, an `EVA:` name, or a `+SOUND:` name from a token */
 const nameIn = (
   token: SageToken,
   namespaces: readonly string[],
@@ -109,7 +110,7 @@ const nameIn = (
 };
 
 /**
- * `name:weight`, as `Subsounds` writes them. A trailing colon part that is
+ * Reads a `name:weight` token, as `Subsounds` writes them. A trailing colon part that is
  * not a whole number is left in the name.
  */
 const weightedNameIn = (token: SageToken): AudioName[] => {
@@ -120,7 +121,7 @@ const weightedNameIn = (token: SageToken): AudioName[] => {
     : nameIn(token, AUDIO_NAMESPACES);
 };
 
-/** The sound of each `Sound:` key, whether the name follows the colon or the next token */
+/** Reads the sound of each `Sound:` key, whether the name follows the colon or the next token */
 const keyedSoundsIn = (values: readonly SageToken[]): AudioName[] =>
   values.flatMap((token, index) => {
     if (!SOUND_KEY.test(token.text)) {
@@ -144,7 +145,7 @@ const keyedSoundsIn = (values: readonly SageToken[]): AudioName[] =>
   });
 
 /**
- * Every sound or announcer name a statement's values write. `kind` is what
+ * Finds every sound or announcer name a statement's values write. `kind` is what
  * `audioReferenceKind` answered for the statement's field; `contextName` is
  * the schema's name for its context, for the one field whose layout depends
  * on the block.
@@ -185,10 +186,10 @@ export interface ReferencedName extends AudioName {
 }
 
 /**
- * Every name a statement's field points at another definition with: the names
+ * Finds every name a statement's field points at another definition with: the names
  * inside the values of a sound or announcer field, the parent a `ChildObject`
  * header inherits from, or each value of any other reference field that names
- * something. Nothing for a field that references nothing.
+ * something. Empty for a field that references nothing.
  */
 export const referencedNames = (
   statement: SageStatement,

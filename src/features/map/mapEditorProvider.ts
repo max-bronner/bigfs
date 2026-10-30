@@ -33,9 +33,10 @@ import { describeError } from '../../core/errors';
  * bytes.
  */
 
+/** View type the map editor is registered under; `${MAP_VIEW_TYPE}Any` is its opt-in twin */
 export const MAP_VIEW_TYPE = 'bigfs.mapEditor';
 
-/** More templates than this are left to the filter; a datalist of tens of thousands stalls the page */
+/** Most templates the page's datalist is sent; one of tens of thousands stalls the page, so the rest are left to the filter */
 const MAX_TEMPLATES = 20000;
 
 type MapDocument = SnapshotDocument<MapFile>;
@@ -45,6 +46,7 @@ const MAP_FORMAT: SnapshotFormat<MapFile> = {
   write: writeMap,
 };
 
+/** Renders the map editor's page around its script bundle */
 export const renderHtml = (
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
@@ -120,7 +122,7 @@ export const renderHtml = (
 const entriesOf = (dict: Dict | undefined): DictEntryView[] =>
   (dict?.entries ?? []).map(({ key, value }) => ({ key, value }));
 
-/** What the page draws; the heights only when asked, as they never change */
+/** Builds the message the page draws from; the heights only when asked, as they never change */
 const toMessage = (
   map: MapFile,
   withHeights: boolean,
@@ -172,6 +174,7 @@ const toMessage = (
       : undefined,
 });
 
+/** Custom editor for `.map` and `.bse` files, editing the parsed map and saving it in the form it was read */
 export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocument> {
   private readonly changes = new vscode.EventEmitter<
     vscode.CustomDocumentEditEvent<MapDocument>
@@ -183,7 +186,7 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     private readonly extensionUri: vscode.Uri,
   ) {}
 
-  /** One provider under two view types: the default for files under a `maps` folder, and an option for any `.map` */
+  /** Registers one provider under two view types: the default for files under a `maps` folder, and an option for any `.map` */
   public static register(
     index: SageIniIndex,
     extensionUri: vscode.Uri,
@@ -205,6 +208,7 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     );
   }
 
+  /** Parses a map into an editable snapshot */
   public async openCustomDocument(
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
@@ -214,7 +218,7 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     return createSnapshotDocument(uri, map, await isReadOnlyFile(uri));
   }
 
-  /** The placeable templates the INI files declare, which the page offers when adding an object */
+  /** Lists the placeable templates the INI files declare, which the page offers when adding an object */
   private templates(): string[] {
     return [
       ...new Set(
@@ -242,6 +246,7 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     );
   }
 
+  /** Shows the map and applies the page's edits as undoable steps */
   public resolveCustomEditor(
     document: MapDocument,
     panel: vscode.WebviewPanel,
@@ -294,10 +299,12 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     addSnapshotView(document, panel, send);
   }
 
+  /** Writes the map back in the form it was read */
   public saveCustomDocument(document: MapDocument): Promise<void> {
     return saveSnapshot(document, MAP_FORMAT);
   }
 
+  /** Writes the map to another file */
   public saveCustomDocumentAs(
     document: MapDocument,
     destination: vscode.Uri,
@@ -305,10 +312,12 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
     return saveSnapshot(document, MAP_FORMAT, destination);
   }
 
+  /** Rereads the map from disk, dropping unsaved edits */
   public revertCustomDocument(document: MapDocument): Promise<void> {
     return revertSnapshot(document, MAP_FORMAT);
   }
 
+  /** Backs up the unsaved map so it survives a reload */
   public backupCustomDocument(
     document: MapDocument,
     context: vscode.CustomDocumentBackupContext,

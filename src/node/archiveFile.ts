@@ -99,6 +99,7 @@ export const readArchiveIndexTable = async (
 export interface ArchiveReader {
   /** Reads one entry's data, or its pending content when it is not in the archive yet */
   readEntry(entry: BigFileEntry): Promise<Uint8Array>;
+  /** Closes the file; no read may follow */
   close(): Promise<void>;
 }
 
@@ -320,6 +321,7 @@ export const writeEntryInPlace = async (
         break;
       }
 
+      // A record is offset and size, four bytes each, then the name and its zero
       recordAt += 9 + Buffer.byteLength(candidate.storedName ?? '', 'latin1');
     }
 

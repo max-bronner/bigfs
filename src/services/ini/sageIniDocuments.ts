@@ -6,22 +6,19 @@ import { isFragmentPath, parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
 import { onDidChangeSetting, settings } from '../../platform/settings';
 
-/**
- * Reads the schema once and parses each open document once per edit, so every
- * provider works from the same answer instead of redoing the same parse on
- * every keystroke.
- *
- * This is the one thing everything in `providers/` depends on. A new provider
- * needs nothing more than a `SageIniDocuments` to read a file the same way the
- * rest of the language support does.
- */
-
 /** Where the generated schema sits inside the packaged extension */
 const SCHEMA_PATH = ['assets', 'sageIniSchema.json'];
 
 /** How many parses are kept, roughly one per document open at a time */
 const PARSE_CACHE_LIMIT = 8;
 
+/**
+ * Shared source of INI schema and parses: reads the schema once and parses
+ * each open document once per edit, so every provider works from the same
+ * answer instead of redoing the same parse on every keystroke. A new provider
+ * needs nothing more than this to read a file the same way the rest of the
+ * language support does.
+ */
 export class SageIniDocuments implements Disposable {
   private schema?: Promise<SageIniSchema>;
   private parses = new Map<string, { version: number; parsed: SageDocument }>();
@@ -47,11 +44,12 @@ export class SageIniDocuments implements Disposable {
     ];
   }
 
+  /** Stops watching closed documents and the game setting */
   public dispose(): void {
     this.subscriptions.forEach((subscription) => subscription.dispose());
   }
 
-  /** Reads the data file once, however many providers ask for it */
+  /** Gets the schema of the picked game, reading the data file once however many providers ask */
   public getSchema(): Promise<SageIniSchema> {
     this.schema ??= this.loadSchema();
 

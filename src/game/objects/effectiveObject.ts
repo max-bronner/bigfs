@@ -55,10 +55,10 @@ const MODULE_WRAPPERS = ['addmodule', 'inheritablemodule'];
 
 const lower = (text: string | undefined) => text?.toLowerCase() ?? '';
 
-/** A line without its comment and trailing spaces */
+/** Strips a line's comment and trailing spaces */
 const bare = (line: string) => line.replace(/\s*(;|\/\/).*$/, '').trimEnd();
 
-/** What one definition declares at its own level, in order */
+/** Collects what one definition declares at its own level, in order, and the modules it removes or replaces */
 const entriesOf = (
   step: LineageStep,
 ): { entries: Entry[]; removals: string[]; replacements: string[] } => {

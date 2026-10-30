@@ -30,6 +30,7 @@ const NAMED_ELSEWHERE = new Set(
   ].map((namespace) => namespace.toLowerCase()),
 );
 
+/** Registers `bigfs.findUnusedDefinitions` and `bigfs.clearUnusedDefinitions` */
 export const registerUnusedDefinitions = (
   index: SageIniIndex,
 ): vscode.Disposable[] => {

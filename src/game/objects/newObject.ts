@@ -9,15 +9,17 @@ import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
  * the command reads the files, this decides the lines.
  */
 
+/** How a new object is made from its source: a `ChildObject` that inherits, or a full copy */
 export type NewObjectMode = 'inherit' | 'copy';
 
+/** An INI block planned for writing, and the labels renamed in it */
 export interface PlannedBlock {
   lines: string[];
   /** Game-text labels the copy renamed, to give their own records */
   labels: LabelRename[];
 }
 
-/** The label a new object's name is shown by */
+/** Formats the `OBJECT:` label a new object's name is shown by */
 export const displayLabel = (name: string) => `OBJECT:${name}`;
 
 /**
@@ -47,7 +49,7 @@ export const setField = (
     : [lines[0], written, ...lines.slice(1)];
 };
 
-/** A `ChildObject` that inherits everything and is shown under its own name */
+/** Creates a `ChildObject` that inherits everything and is shown under its own name */
 export const inheritingObject = (
   name: string,
   parent: string,
@@ -62,7 +64,7 @@ export const inheritingObject = (
   labels: [],
 });
 
-/** A full copy of the source block under the new name, shown by its own label */
+/** Copies the source block under the new name, shown by its own label */
 export const copiedObject = (
   lines: string[],
   startLine: number,
@@ -77,7 +79,7 @@ export const copiedObject = (
   };
 };
 
-/** The new button's name: the old one with the unit's name swapped, or suffixed */
+/** Derives the new button's name: the old one with the unit's name swapped, or suffixed */
 export const buttonName = (
   button: string,
   source: string,
@@ -90,7 +92,7 @@ export const buttonName = (
     : `${button}_${name}`;
 };
 
-/** A copy of the button that builds the source, building the new object */
+/** Copies the button that builds the source so that it builds the new object */
 export const copiedButton = (
   lines: string[],
   startLine: number,
@@ -119,8 +121,8 @@ export const copiedButton = (
 };
 
 /**
- * The line that puts a button in a command set's next free slot, and the
- * line it goes before (the set's `End`)
+ * Plans the line that puts a button in a command set's next free slot, and
+ * the line it goes before (the set's `End`)
  */
 export const slotLine = (
   setLines: string[],
@@ -144,7 +146,7 @@ export const slotLine = (
 };
 
 /**
- * The folder whose `.ini` files the game loads object definitions from: the
+ * Entry path of the folder whose `.ini` files the game loads object definitions from: the
  * `Data\INI\Object` directory is read file by file, subfolders included,
  * while an `.ini` anywhere else is read only when the boot legend names it
  * and an `.inc` only when an `#include` pulls it in
@@ -158,9 +160,9 @@ export const isLoadedObjectPath = (entryPath: string): boolean =>
   );
 
 /**
- * The entry a new object is written to: beside its source when that file is
- * one the game loads, else a file of its own in the object folder, which a
- * file at the root of a mod or in a folder the game never reads is not
+ * Chooses the entry a new object is written to: beside its source when the
+ * game loads that file, else a file of its own in the object folder, since a
+ * file at a mod's root or in a folder the game never reads is not loaded
  */
 export const newObjectEntryPath = (
   sourceEntryPath: string | undefined,

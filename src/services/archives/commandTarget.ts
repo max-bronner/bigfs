@@ -8,7 +8,7 @@ import type { ExplorerNode } from './explorerRow';
 export type CommandTarget = Uri | TreeItem | ExplorerNode | undefined;
 
 /**
- * The uri a command acts on. A menu or keybinding hands over the tree element,
+ * Resolves the uri a command acts on. A menu or keybinding hands over the tree element,
  * not a uri: a `TreeItem` carries it as `resourceUri`, a `VirtualNode` is
  * addressed by its place in the archive, and a row of the game view stands
  * for the copy the game loads. Anything else has no uri

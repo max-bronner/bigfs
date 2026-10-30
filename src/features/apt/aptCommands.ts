@@ -49,7 +49,7 @@ const exists = async (uri: vscode.Uri) =>
     () => false,
   );
 
-/** What a new movie is, when a caller supplies it instead of the prompts */
+/** Options for a new movie, when a caller supplies them instead of the prompts */
 export interface NewMovieOptions {
   name: string;
   width?: number;

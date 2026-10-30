@@ -4,7 +4,7 @@ import type { SageIniSchema } from './sageIniSchema';
 import type { SageDocument, SageStatement, SageToken } from './sageIniParser';
 
 /**
- * What name sits under a position, and which namespaces it belongs to.
+ * Name under a position in an INI document, and the namespaces it belongs to.
  *
  * Navigation works in both directions off the same answer. On the name of a
  * block at file scope this is a declaration, so the interesting question is
@@ -28,7 +28,7 @@ export interface SageSymbol {
   isDeclaration: boolean;
 }
 
-/** The token of a statement a column sits on, if any */
+/** Finds the token of a statement a column sits on, if any */
 const tokenAt = (
   statement: SageStatement,
   character: number,

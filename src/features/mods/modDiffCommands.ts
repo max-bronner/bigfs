@@ -41,7 +41,7 @@ const TEXT_FILES = /\.(ini|inc|bhav|str|wnd|txt|lua|xml|cfg|scb|csv)$/i;
 const escape = (text: string) =>
   text.replace(/[&<>"]/g, (char) => `&#${char.charCodeAt(0)};`);
 
-/** A changed INI file's definition changes, as lines of the report */
+/** Renders a changed INI file's definition changes as HTML lines of the report */
 const definitionLines = (diff: DefinitionDiff): string[] => {
   const shown = (value?: string) => (value === undefined ? '∅' : value);
 
@@ -60,6 +60,7 @@ const definitionLines = (diff: DefinitionDiff): string[] => {
   ];
 };
 
+/** Definition changes listed under a file before the rest are left to its Diff */
 const MAX_DEFINITIONS = 60;
 
 const renderReport = (
@@ -132,6 +133,10 @@ ${groups
   });
 };
 
+/**
+ * Registers `bigfs.compareWithBaseGame`, the read-only `bigfs-base` documents
+ * its diffs open, and the package command that shares its base game lookup
+ */
 export const registerModDiffCommands = (
   context: vscode.ExtensionContext,
   gameView: GameViewModel,
@@ -168,7 +173,7 @@ export const registerModDiffCommands = (
     return picked?.fsPath;
   };
 
-  /** The base game's installs, the highest layer first; asks for a folder when none is set */
+  /** Lists the base game's installs, the highest layer first; asks for a folder when none is set */
   const baseLayers = async (): Promise<string[]> =>
     (await baseFolder()) ? findBaseGameFolders() : [];
 

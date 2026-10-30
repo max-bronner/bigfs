@@ -41,7 +41,7 @@ export const storeTextures = (
   }
 };
 
-/** The movie of a name, now if the page holds it, else once the editor sends it */
+/** Hands the movie of a name to `done`, now if the page holds it, else once the editor sends it */
 export const fetchMovie = (name: string, done: Done): void => {
   const key = movieKey(name);
   const known = movieNamed(key);

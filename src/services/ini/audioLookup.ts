@@ -5,7 +5,7 @@ import { forEachBlock } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 import type { SageIniIndex } from './sageIniIndex';
 
-/** Definitions that name audio files, directly or through other events */
+/** Block keywords of the definitions that name audio files, directly or through other events */
 export const AUDIO_KEYWORDS = [
   'AudioEvent',
   'DialogEvent',
@@ -23,7 +23,7 @@ const VIDEO_KEYWORD = 'Video';
 /** How long a parsed file serves lookups before it is read again */
 const PARSE_REUSE_MS = 5000;
 
-/** Finds audio definitions by name through the index, reading them from their files */
+/** Creates the audio lookup that finds definitions by name through the index, reading them from their files */
 export const createAudioLookup = (
   index: SageIniIndex,
   documents: SageIniDocuments,

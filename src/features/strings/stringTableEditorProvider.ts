@@ -38,10 +38,12 @@ import { describeError } from '../../core/errors';
  * editor.
  */
 
+/** View type of the `.str` table, an alternative view of the text file */
 export const STR_TABLE_VIEW_TYPE = 'bigfs.strTable';
+/** View type of the `.csf` editor, the default for those files */
 export const CSF_VIEW_TYPE = 'bigfs.csfEditor';
 
-/** What the page sends */
+/** Message from the string table page, with the fields any of its kinds may carry */
 interface PageMessage {
   kind: FromStringsPage['kind'];
   id?: number;
@@ -49,6 +51,7 @@ interface PageMessage {
   value?: string;
 }
 
+/** Renders the string table page around its script bundle, shared by both editors */
 export const renderHtml = (
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
@@ -144,10 +147,11 @@ const checkEncodable = (name: string) => {
   }
 };
 
-/** The `.str` table: a view over the text document */
+/** Custom text editor showing a `.str` file as a table, editing through the text document */
 export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
+  /** Shows the records as rows and turns the page's edits into text edits */
   public resolveCustomTextEditor(
     document: vscode.TextDocument,
     panel: vscode.WebviewPanel,
@@ -165,7 +169,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
         throw new Error('The edit was refused');
       }
     };
-    /** The record a message means, refused if the file moved under it */
+    /** Finds the record a message means, refusing it if the file moved under it */
     const recordOf = (message: PageMessage) => {
       const record = records()[message.id ?? -1];
 
@@ -318,7 +322,7 @@ const cloneCsf = (file: CsfFile): CsfFile => ({
   })),
 });
 
-/** The `.csf` editor: the binary file as a table, saved whole */
+/** Custom editor for `.csf` files: the binary file as a table, saved whole */
 export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocument> {
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -327,6 +331,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
   >();
   public readonly onDidChangeCustomDocument = this.changes.event;
 
+  /** Parses a `.csf` into an editable snapshot */
   public async openCustomDocument(
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
@@ -349,6 +354,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     redrawSnapshotViews(document);
   }
 
+  /** Shows the labels as rows and applies the page's edits as undoable steps */
   public resolveCustomEditor(
     document: CsfDocument,
     panel: vscode.WebviewPanel,
@@ -469,10 +475,12 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     addSnapshotView(document, panel, send);
   }
 
+  /** Writes the table back whole */
   public saveCustomDocument(document: CsfDocument): Promise<void> {
     return saveSnapshot(document, CSF_FORMAT);
   }
 
+  /** Writes the table to another file */
   public saveCustomDocumentAs(
     document: CsfDocument,
     destination: vscode.Uri,
@@ -480,10 +488,12 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     return saveSnapshot(document, CSF_FORMAT, destination);
   }
 
+  /** Rereads the table from disk, dropping unsaved edits */
   public revertCustomDocument(document: CsfDocument): Promise<void> {
     return revertSnapshot(document, CSF_FORMAT);
   }
 
+  /** Backs up the unsaved table so it survives a reload */
   public backupCustomDocument(
     document: CsfDocument,
     context: vscode.CustomDocumentBackupContext,

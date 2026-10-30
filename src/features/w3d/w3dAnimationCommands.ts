@@ -23,6 +23,7 @@ import { registerCommand } from '../../platform/commands';
  * left alone, so an INI line switches to the new one by name.
  */
 
+/** An edit to one W3D animation, distinguished by `op` */
 export type AnimationEdit =
   | { op: 'retime'; frames: number }
   | { op: 'reverse' }
@@ -30,6 +31,7 @@ export type AnimationEdit =
   | { op: 'trim'; from: number; to: number }
   | { op: 'rate'; frameRate: number };
 
+/** Applies an edit to an animation, returning a new one */
 export const applyAnimationEdit = (
   animation: W3dAnimation,
   edit: AnimationEdit,
@@ -135,10 +137,13 @@ const askEdit = async (
   }
 };
 
+/**
+ * Registers `bigfs.editW3dAnimation`, which resolves to the file written.
+ * Given an edit and a name it asks nothing, for automation.
+ */
 export const registerW3dAnimationCommands = (): vscode.Disposable =>
   registerCommand(
     'bigfs.editW3dAnimation',
-    /** With `edit` and `name`, runs without asking, for automation */
     async (target?: unknown, edit?: AnimationEdit, name?: string) => {
       const uri = targetOf(target);
 

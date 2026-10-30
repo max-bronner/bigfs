@@ -10,7 +10,7 @@ import { GAME_FOLDERS, listLooseFiles } from '../../node/installScan';
 import * as path from 'path';
 
 /**
- * What a file in the game view is: an entry of an archive, or a loose file
+ * Where a file of the game view is read from: an entry of an archive, or a loose file
  * on disk that beats every archive of its install. `base` marks a file of
  * the base game layers, which a comparison with the base game leaves out.
  */
@@ -18,7 +18,7 @@ export type GameFileRef =
   | { kind: 'entry'; node: VirtualNode; base?: boolean }
   | { kind: 'loose'; uri: Uri; base?: boolean };
 
-/** A row of the game view */
+/** A file or folder of the game view, which a `GameRow` shows in the explorer */
 export type GameViewNode = GameNode<GameFileRef>;
 
 /**
@@ -67,6 +67,7 @@ export class GameViewModel implements Disposable {
     ];
   }
 
+  /** Stops following the archive model and drops a pending announcement */
   public dispose(): void {
     this.subscriptions.forEach((subscription) => subscription.dispose());
   }
@@ -97,7 +98,7 @@ export class GameViewModel implements Disposable {
     }
   }
 
-  /** The root of the game view, built on first use */
+  /** Gets the root of the game view, building it on first use */
   public getRoot(): Promise<GameViewNode> {
     this.tree ??= this.build();
 
@@ -105,8 +106,8 @@ export class GameViewModel implements Disposable {
   }
 
   /**
-   * Every file name of the view, lowercased, to the file the game loads for
-   * it: of several paths that end in one name, the one that ranks highest
+   * Gets every file name of the view, lowercased, mapped to the file the game
+   * loads for it: of several paths that end in one name, the one that ranks highest
    */
   public getNames(): Promise<Map<string, GameViewNode>> {
     this.names ??= this.getRoot().then(indexByName);

@@ -15,11 +15,15 @@ const asked = new Set<string>();
 let queued: string[] = [];
 let arrived: () => void = () => {};
 
+/** Sets the callback run each time the editor answers with mapped images */
 export const onMappedImages = (run: () => void): void => {
   arrived = run;
 };
 
-/** The image of a name: undefined while the editor has not answered */
+/**
+ * Gets the mapped image of a name, asking the editor for it on first use:
+ * undefined while it has not answered, null when the INI does not define it.
+ */
 export const mappedImage = (name: string): PageMappedImage | null | undefined => {
   const key = name.toLowerCase();
 
@@ -36,6 +40,7 @@ export const mappedImage = (name: string): PageMappedImage | null | undefined =>
   return known.get(key);
 };
 
+/** Stores the editor's answer about mapped images and their textures, then redraws */
 export const mappedImagesArrived = (
   data: Extract<ToPage, { kind: 'mappedImages' }>,
 ): void => {

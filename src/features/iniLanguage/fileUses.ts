@@ -14,6 +14,7 @@ import { registerCommand } from '../../platform/commands';
  * plays an animation on, from the state that names it.
  */
 
+/** One place an INI file uses a model or animation file, as `bigfs.findFileUses` returns it */
 export interface FileUse {
   uri: string;
   line: number;
@@ -32,6 +33,7 @@ const findUses = async (index: SageIniIndex, fileName: string) => {
   return index.findReferences(FILE_USES, fileName).slice(0, MAX_USES);
 };
 
+/** Registers `bigfs.findFileUses` and `bigfs.findModelForAnimation` */
 export const registerFileUses = (
   documents: SageIniDocuments,
   index: SageIniIndex,

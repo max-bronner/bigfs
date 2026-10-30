@@ -20,6 +20,7 @@ const NAME_PATTERN = /^[A-Za-z0-9_.\-]+$/;
 const blockAt = (blocks: SageBlock[], line: number) =>
   blocks.find((block) => block.startLine <= line && line <= block.endLine);
 
+/** Outcome of `bigfs.duplicateDefinition`: the copy's name and line, and the labels added to string tables */
 export interface DuplicateResult {
   name: string;
   line: number;
@@ -155,6 +156,7 @@ const createDuplicateActionProvider = (
   },
 });
 
+/** Registers the duplicate code action and the `bigfs.duplicateDefinition` command */
 export const registerDuplicateDefinition = (
   selector: vscode.DocumentSelector,
   documents: SageIniDocuments,

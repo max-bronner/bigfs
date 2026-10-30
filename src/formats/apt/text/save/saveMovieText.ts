@@ -10,7 +10,7 @@ import { saveTimelines, writeOrders } from './timelines';
 import { checkSavedText } from './verification';
 
 /**
- * Saving a movie's text: the differences between the movie as it stands and
+ * Saves a movie's text: the differences between the movie as it stands and
  * the text as edited become the editor's own edits, `AptEdit`s through
  * `applyAptEdit` and scripts through the compiler, so a field that was not
  * edited is not written and a movie whose text did not change is not touched
@@ -27,7 +27,7 @@ import { checkSavedText } from './verification';
  * either becomes the movie exactly or the movie stays as it was.
  */
 
-/** What saving a text made */
+/** Result of `saveMovieText`: the new files and the edits that made them */
 export interface TextSave {
   apt: Uint8Array;
   constBytes: Uint8Array;
@@ -42,8 +42,8 @@ export interface TextSave {
 
 /**
  * Turns the text of a movie as edited into edits of the movie as it stands.
- * `before` is the model the text was made from. Throws `TextSaveError` for
- * a text that cannot be saved; nothing is changed then.
+ * `before` is the model the text was made from.
+ * @throws TextSaveError for a text that cannot be saved; nothing is changed then
  */
 export const saveMovieText = (
   apt: Uint8Array,

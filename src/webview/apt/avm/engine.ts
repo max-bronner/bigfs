@@ -22,13 +22,14 @@ import type { EngineHooks, Vm } from './vm';
  *   palantir: mint's palantir research, point 7)
  */
 
+/** An extern or call the movie reached for, with how often and its last arguments */
 export interface Seen {
   name: string;
   count: number;
   last?: string[];
 }
 
-/** A variable the movie read: what it held when last read */
+/** Record of a variable the movie read: what it held when last read */
 export interface ReadValue {
   name: string;
   count: number;
@@ -37,6 +38,7 @@ export interface ReadValue {
   found: boolean;
 }
 
+/** A function the movie stored where the engine can call it */
 export interface FunctionEntry {
   /** Where it is stored, as a path: `_level0.SetPlayerFaction` */
   path: string;
@@ -48,7 +50,7 @@ export interface FunctionEntry {
   engineOnly: boolean;
 }
 
-/** A sound the movie asked the engine to play, with how often */
+/** Record of a sound the movie asked the engine to play, with how often */
 export interface SoundAsked {
   event: string;
   count: number;
@@ -90,13 +92,14 @@ export const parseTyped = (text: string): Value => {
   return quoted ? (quoted[1] ?? quoted[2]) : trimmed;
 };
 
-/**
- * How often each string is named in a movie's code: pushed, or used from
- * a constant pool. A function its code stores under a name it never names
- * again is one only the engine can call.
- */
+/** `stringUses` counts, built once per movie */
 const usesByMovie = new WeakMap<PageMovie, Map<string, number>>();
 
+/**
+ * Counts how often each string is named in a movie's code: pushed, or used
+ * from a constant pool. A function its code stores under a name it never
+ * names again is one only the engine can call.
+ */
 export const stringUses = (movie: PageMovie): Map<string, number> => {
   const known = usesByMovie.get(movie);
 
@@ -215,9 +218,10 @@ export const pathKey = (path: string): string =>
     .replace(/(?<!:):(?!:)/g, '.')
     .replace(/^(_root|_level0)\./, '');
 
-/** What `GetExtern` answers for a key: the key as the movie spells it, lowercased */
+/** Gets the key `GetExtern` answers by: the key as the movie spells it, lowercased */
 const externKey = (name: string) => name.trim().toLowerCase();
 
+/** The engine side of a run: what the movie asks of the game, and the answers the user gave */
 export class Engine implements EngineHooks {
   /** Values that win over the movie's, typed as written, by `pathKey` */
   public readonly overrides = new Map<string, string>();
@@ -228,10 +232,15 @@ export class Engine implements EngineHooks {
     string,
     { name: string; value: string }
   >();
+  /** What calls into the engine return, typed as written, by lowercased name */
   public readonly returns = new Map<string, string>();
+  /** Variables the movie read, by `pathKey`; at most `MAX_READS` */
   public readonly reads = new Map<string, ReadValue>();
+  /** Externs the movie asked for, by lowercased name */
   public readonly externs = new Map<string, Seen>();
+  /** Calls into the engine, by lowercased name */
   public readonly calls = new Map<string, Seen>();
+  /** Functions the movie stored, by lowercased path */
   public readonly functions = new Map<string, FunctionEntry>();
   /** The sounds the movie asked for (`PlaySound`), by lowercased event */
   public readonly sounds = new Map<string, SoundAsked>();
@@ -254,12 +263,12 @@ export class Engine implements EngineHooks {
     private readonly onSound: (event: string) => void = () => {},
   ) {}
 
-  /** The machine of the run being watched */
+  /** Binds the machine of the run being watched */
   public bind(vm: Vm): void {
     this.vm = vm;
   }
 
-  /** A fresh run of a movie: what was seen goes, what the user set stays */
+  /** Starts a fresh run of a movie: what was seen goes, what the user set stays */
   public reset(movie: PageMovie): void {
     this.uses = stringUses(movie);
     this.reads.clear();
@@ -272,6 +281,7 @@ export class Engine implements EngineHooks {
     this.changed();
   }
 
+  /** Replaces the user's answers with ones kept for the movie */
   public load(saved: EngineValues | undefined): void {
     this.overrides.clear();
     this.externOverrides.clear();
@@ -292,6 +302,7 @@ export class Engine implements EngineHooks {
     this.reparse();
   }
 
+  /** Gets the user's answers in the form kept for the movie */
   public save(): EngineValues {
     return {
       overrides: Object.fromEntries(this.overrides),
@@ -319,6 +330,7 @@ export class Engine implements EngineHooks {
     this.store(this.overrides, pathKey(name), text);
   }
 
+  /** Sets or clears (empty text) the override of an extern */
   public overrideExtern(name: string, text: string): void {
     this.store(this.externOverrides, externKey(name), text);
   }
@@ -382,6 +394,7 @@ export class Engine implements EngineHooks {
 
   // ---- EngineHooks
 
+  /** Notes a variable read and returns its override, else what the movie holds */
   public read(
     path: string,
     value: Value,
@@ -412,7 +425,7 @@ export class Engine implements EngineHooks {
     return this.parsed.has(key) ? this.parsed.get(key) : value;
   }
 
-  /** What the user set, else what the movie wrote, else nothing */
+  /** Answers `GetExtern`: what the user set, else what the movie wrote, else nothing */
   public extern(name: string): Value {
     const key = externKey(name);
 
@@ -422,7 +435,7 @@ export class Engine implements EngineHooks {
       : this.written.get(key);
   }
 
-  /** The movie's own write: kept for its reads, never an override */
+  /** Records the movie's own write to an extern: kept for its reads, never an override */
   public setExtern(name: string, value: Value): void {
     const key = externKey(name);
     const text = this.vm ? this.vm.string(value) : String(value);
@@ -434,6 +447,7 @@ export class Engine implements EngineHooks {
     }
   }
 
+  /** Notes a call into the engine and answers with the return the user typed */
   public call(name: string, args: string[]): Value {
     this.note(this.calls, name, args);
     this.onLog(
@@ -451,7 +465,7 @@ export class Engine implements EngineHooks {
     return text === undefined ? undefined : parseTyped(text);
   }
 
-  /** A sound the movie asks for: listed, logged, and played only when allowed */
+  /** Notes a sound the movie asks for: listed, logged, and played only when allowed */
   private heard(event: string): void {
     const key = event.toLowerCase();
     const asked = this.sounds.get(key);
@@ -475,10 +489,12 @@ export class Engine implements EngineHooks {
     this.onSound(event);
   }
 
+  /** Takes an `FSCommand:` as a call into the engine */
   public command(command: string, args: string): void {
     this.call(`FSCommand:${command}`, args ? [args] : []);
   }
 
+  /** Notes a function the movie stores, and whether only the engine can call it */
   public defined(owner: AsObject, name: string, fn: AsObject): void {
     if (fn.kind.type !== 'function') {
       return;
@@ -508,6 +524,7 @@ export class Engine implements EngineHooks {
     });
   }
 
+  /** Logs a line from the machine */
   public log(line: string): void {
     this.onLog(line);
   }

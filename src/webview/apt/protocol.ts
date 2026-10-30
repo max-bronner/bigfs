@@ -13,7 +13,7 @@ import type { Problem } from '../../formats/apt/aptIntegrity';
  * so it must stay free of DOM and Node types.
  */
 
-/** What the user set, kept per movie between sessions */
+/** Engine panel answers the user set, kept per movie between sessions */
 export interface EngineValues {
   /** Values that win over what the movie holds, by path from the root */
   overrides?: Record<string, string>;
@@ -57,12 +57,14 @@ export interface PageMappedImage {
   extent: [number, number];
 }
 
+/** A decoded texture as sent to the page: RGBA bytes, row by row */
 export interface TexturePixels {
   width: number;
   height: number;
   pixels: Uint8Array;
 }
 
+/** Message the APT editor sends its page, told apart by `kind` */
 export type ToPage =
   | {
       kind: 'movie';
@@ -120,6 +122,7 @@ export type ToPage =
   | { kind: 'notice'; message: string }
   | { kind: 'error'; message: string };
 
+/** Message the page sends the APT editor, told apart by `kind` */
 export type FromPage =
   | { kind: 'ready' }
   /** The toolbar's text view button: the whole movie as text, in an editor of its own */

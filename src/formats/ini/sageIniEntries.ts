@@ -42,7 +42,7 @@ export interface EntryReference {
   field: string;
 }
 
-/** A `#define` */
+/** Macro a file defines with `#define` */
 export interface EntryMacro {
   name: string;
   value: string;
@@ -72,6 +72,7 @@ export interface EntryBodyToken {
   end: number;
 }
 
+/** Index entries one INI or fragment file contributes, as `collectEntries` reads them */
 export interface FileEntries {
   definitions: EntryDefinition[];
   references: EntryReference[];
@@ -80,7 +81,7 @@ export interface FileEntries {
   bodyTokens: EntryBodyToken[];
 }
 
-/** A body token is anything between whitespace, commas and call parentheses */
+/** Pattern of a macro body token: anything between whitespace, commas and call parentheses */
 const BODY_TOKEN = /[^\s,()]+/g;
 
 /** Reads one INI or fragment file's entries */
@@ -208,7 +209,7 @@ export const collectEntries = (
 };
 
 /**
- * The places inside macro bodies that a use of `name` reaches. A reference
+ * Filters `holders` to the places inside macro bodies that a use of a name reaches. A reference
  * field that is written as a macro names whatever the macro's body spells,
  * through any macros the body is made of, so a rename or a find-references
  * of the name has to follow it in.

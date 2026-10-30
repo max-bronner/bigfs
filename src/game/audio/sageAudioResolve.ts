@@ -31,6 +31,7 @@ export type AudioLookup = (
   name: string,
 ) => AudioDefinition | undefined | Promise<AudioDefinition | undefined>;
 
+/** One file a name can play, and where in the definitions it came from */
 export interface AudioVariant {
   /** Where in the definition it came from: a role, a side, a subsound path */
   label: string;
@@ -48,7 +49,7 @@ const STREAMED = /^(dialogevent|musictrack|ambientstream|streamedsound)$/i;
 const MULTISOUND = /^multisound$/i;
 const EVA = /^(newevaevent|predefinedevaevent)$/i;
 
-/** The name an event is registered under, without the lookup prefixes */
+/** Strips the `EVA:` and `+SOUND:` lookup prefixes, leaving the name an event is registered under */
 export const stripAudioPrefix = (name: string): string => {
   let result = name;
 
@@ -63,7 +64,7 @@ export const stripAudioPrefix = (name: string): string => {
 
 const unquote = (text: string) => text.replace(/^"|"$/g, '');
 
-/** `name:weight` as a file or event and its weight, when a whole number */
+/** Splits `name:weight` into a file or event and its weight, when a whole number */
 const splitWeight = (token: string): { name: string; weight?: number } => {
   const match = /^(.*):(\d+)$/.exec(unquote(token));
 
@@ -78,7 +79,7 @@ const fieldsNamed = (definition: AudioDefinition, pattern: RegExp) =>
 const stemOf = (name: string) =>
   name.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '');
 
-/** The variants of `name`; none when nothing by that name is defined */
+/** Resolves the files `name` can play; none when nothing by that name is defined */
 export const resolveAudio = async (
   name: string,
   lookup: AudioLookup,
@@ -186,8 +187,8 @@ const walk = async (
 };
 
 /**
- * One block of a parsed file as a definition: its own fields, and the sides
- * of its `SideSound` children
+ * Reads one block of a parsed file as an audio definition: its own fields,
+ * and the sides of its `SideSound` children
  */
 export const audioDefinitionOf = (
   parsed: SageDocument,

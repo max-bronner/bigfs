@@ -13,9 +13,10 @@
 
 import { createByteReader, type ByteReader } from '../../core/byteReader';
 
+/** What a channel animates: a translation axis, the rotation, or visibility */
 export type ChannelKind = 'x' | 'y' | 'z' | 'rotation' | 'visibility' | 'other';
 
-/** A channel sampled at every frame; missing frames are `undefined` */
+/** One bone's channel sampled at every frame; `present` marks the frames that have a value */
 export interface SampledChannel {
   pivot: number;
   kind: ChannelKind;
@@ -27,6 +28,7 @@ export interface SampledChannel {
   present: Uint8Array;
 }
 
+/** One animation of a W3D file, every channel sampled at whole frames */
 export interface W3dAnimation {
   name: string;
   hierarchyName: string;
@@ -399,7 +401,10 @@ const readChannel = (
   return undefined;
 };
 
-/** Reads every animation in a W3D file */
+/**
+ * Reads every animation in a W3D file.
+ * @throws Error when a chunk runs past its parent or a channel ends early
+ */
 export const parseW3dAnimations = (bytes: Uint8Array): W3dAnimation[] =>
   readChunks(bytes)
     .filter(
@@ -453,7 +458,7 @@ export const parseW3dAnimations = (bytes: Uint8Array): W3dAnimation[] =>
     });
 
 /**
- * The animation an INI line names, `SKELETON.CLIP`: the one whose skeleton
+ * Finds the animation an INI line names, `SKELETON.CLIP`: the one whose skeleton
  * and name are those, else the one named `CLIP`, else the file's first
  */
 export const findAnimation = (

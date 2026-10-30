@@ -18,12 +18,15 @@ import type { AptImage } from './writer/aptImage';
  * movie's folder, and changes the `.apt` image in place.
  */
 
-/** The largest side an imported texture may have */
+/** Largest side, in pixels, `addTexture` accepts for an imported texture */
 export const MAX_TEXTURE = 4096;
 
 const powerOfTwo = (value: number) => 2 ** Math.ceil(Math.log2(value));
 
-/** A shape's geometry file, and its bounds set to the box the geometry covers */
+/**
+ * Sets a shape's geometry: returns its `.ru` file and sets its bounds to the
+ * box the geometry covers
+ */
 export const setShapeGeometry = (
   image: AptImage,
   movieOffset: number,
@@ -55,7 +58,7 @@ export const setShapeGeometry = (
 };
 
 /**
- * A new texture as the shipped movies keep one: an Image character whose
+ * Adds a texture as the shipped movies keep one: an Image character whose
  * texture id is its own id, a `.dat` line naming the used box, and the
  * image padded to powers of two. `dat` is the movie's `.dat` as it stands.
  */

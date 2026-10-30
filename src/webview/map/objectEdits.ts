@@ -3,10 +3,10 @@ import { turnedAngle } from './mapModel';
 import type { ObjectView } from './protocol';
 import { state } from './state';
 
-/** The turn of the rotate buttons and keys, 15 degrees */
+/** Turn of the rotate buttons and keys, 15 degrees */
 export const ROTATE_STEP = Math.PI / 12;
 
-/** Rotates an object by a step. */
+/** Sends an edit rotating an object by a step */
 export const rotateBy = (object: ObjectView, step: number): void => {
   sendEdit({
     kind: 'object',
@@ -15,7 +15,7 @@ export const rotateBy = (object: ObjectView, step: number): void => {
   });
 };
 
-/** Deletes the selected object, or else the selected trigger area. */
+/** Deletes the selected object, or else the selected trigger area */
 export const deleteSelected = (): void => {
   if (state.readOnly) {
     return;
@@ -33,6 +33,6 @@ export const deleteSelected = (): void => {
   }
 };
 
-/** Adds a waypoint link, or removes it when `present` is false. */
+/** Adds a waypoint link, or removes it when `present` is false */
 export const toggleLink = (from: number, to: number, present: boolean): void =>
   sendEdit({ kind: 'waypointLink', from, to, present });

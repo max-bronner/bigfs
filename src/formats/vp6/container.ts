@@ -17,6 +17,7 @@ import type { Picture } from './dsp';
  * (mint's `crates/core/movie/src/yuv.rs`).
  */
 
+/** Header of an EA VP6 movie: picture size, frame count and frame rate */
 export interface Vp6Header {
   width: number;
   height: number;
@@ -171,7 +172,7 @@ export const toRgba = (
   return out;
 };
 
-/** A movie decoded on demand, frame by frame, seeking through key frames */
+/** VP6 movie decoded on demand, frame by frame, seeking through key frames */
 export class Vp6Movie {
   public readonly header: Vp6Header;
   public readonly hasAlpha: boolean;
@@ -192,10 +193,12 @@ export class Vp6Movie {
     this.frames = parsed.frames;
   }
 
+  /** Number of frames the movie holds, which may differ from the header's count */
   public get frameCount(): number {
     return this.frames.length;
   }
 
+  /** Frame rate from the header, or 15 when the header leaves it unset */
   public get framesPerSecond(): number {
     const { rateNumerator, rateDenominator } = this.header;
 
@@ -204,7 +207,7 @@ export class Vp6Movie {
       : 15;
   }
 
-  /** The RGBA image of frame `index` */
+  /** Decodes frame `index`, clamped to the movie, as RGBA */
   public frame(index: number): Uint8ClampedArray {
     const target = Math.max(0, Math.min(this.frames.length - 1, index));
 
@@ -266,7 +269,7 @@ export class Vp6Movie {
   }
 }
 
-/** A movie to write: its size, rate and coded frames */
+/** Movie for `writeVp6` to write: its size, rate and coded frames */
 export interface Vp6Output {
   width: number;
   height: number;

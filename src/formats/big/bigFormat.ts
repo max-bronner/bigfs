@@ -82,12 +82,13 @@ const alignBytes = (offset: number): number => {
 };
 
 /**
- * Names are 8-bit, not UTF-8. Latin-1 is the one decoding that maps every byte
- * to a character and back, so a name survives a save whatever it contains.
+ * Encoding entry names are read and written with. Names are 8-bit, not
+ * UTF-8; Latin-1 is the one decoding that maps every byte to a character and
+ * back, so a name survives a save whatever it contains.
  */
 const NAME_ENCODING = 'latin1';
 
-/** Entry names are stored with backslashes; everything above this layer uses '/' */
+/** Converts a stored entry name's backslashes to the '/' everything above this layer uses */
 const toTreeName = (name: string): string => name.replace(/\\/g, '/');
 
 /**
@@ -111,8 +112,8 @@ const getStoredName = (entry: BigFileEntry): string => {
 
 /**
  * Reads the 16 byte header: magic, archive size, entry count, and the offset
- * the first entry's data starts at. Only the archive size is little endian; every other
- * number in the format is big endian.
+ * the first entry's data starts at. Only the archive size is little endian;
+ * every other number in the format is big endian.
  * @throws NotAnArchiveError when the magic is neither BIGF nor BIG4
  */
 export const parseHeader = (buffer: Buffer) => {
@@ -121,7 +122,7 @@ export const parseHeader = (buffer: Buffer) => {
     throw new NotAnArchiveError(`Invalid BIG file magic: '${magic}'`);
   }
 
-  const archiveSize = buffer.readUInt32LE(4); // the one little endian field
+  const archiveSize = buffer.readUInt32LE(4);
   const entryCount = buffer.readUInt32BE(8);
   const dataOffset = buffer.readUInt32BE(12);
 
@@ -136,9 +137,9 @@ export const parseHeader = (buffer: Buffer) => {
 /**
  * Reads `entryCount` records from the table that follows the header, each a
  * big endian offset and size followed by a null terminated name, and reports
- * how many bytes of the table they took. Throws when
- * the table ends before the count is met, rather than returning what it got,
- * and on a name that would escape the directory it is extracted to.
+ * how many bytes of the table they took. Throws when the table ends before
+ * the count is met, rather than returning what it got, and on a name that
+ * would escape the directory it is extracted to.
  */
 export const parseIndexTable = (
   table: Buffer,
@@ -245,14 +246,14 @@ const writeIndexTableEntry = (
     NAME_ENCODING,
   );
   nameBytes.copy(buffer, offset + 8);
-  buffer[offset + 8 + nameBytes.length] = 0; // null terminator
+  buffer[offset + 8 + nameBytes.length] = 0;
 
   return offset + 8 + nameBytes.length + 1;
 };
 
 /**
- * Writes the header, the index table and its trailer into one buffer, padded
- * out to the boundary where entry data begins. The archive size in the header
+ * Writes the header, the index table and its trailer into one buffer that
+ * ends where entry data begins. The archive size in the header
  * is the total size the layout arrived at, counting data not yet written.
  */
 export const serializeIndexTable = (

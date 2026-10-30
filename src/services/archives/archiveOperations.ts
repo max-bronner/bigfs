@@ -25,6 +25,7 @@ import type { VirtualNode } from './virtualNode';
 export interface ImportedFile {
   name: string;
   size: number;
+  /** The file on disk to copy in; `content` is written when this is unset */
   sourcePath?: string;
   content?: Uint8Array;
 }
@@ -166,11 +167,9 @@ export const createArchiveOperations = (
   policy: ArchivePolicy,
   log: LogOutputChannel,
 ): ArchiveOperations => {
-  /**
-   * Carries out changes against one archive: the single place that applies a
-   * mutation, reports a failure and tells the view about it, so an operation
-   * only has to say what changes.
-   */
+  // Carries out changes against one archive: the single place that applies a
+  // mutation, reports a failure and tells the view about it, so an operation
+  // only has to say what changes.
   const apply = async (
     archive: Archive,
     changes: readonly EntryChange[],

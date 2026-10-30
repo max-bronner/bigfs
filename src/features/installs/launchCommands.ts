@@ -37,7 +37,7 @@ const askExecutable = async (): Promise<string | undefined> => {
   return picked[0].fsPath;
 };
 
-/** The mod folder: what was clicked, or a workspace folder */
+/** Finds the mod folder to launch: what was clicked, or a workspace folder */
 const modFolderOf = async (target: Target): Promise<string | undefined> => {
   const uri = target instanceof vscode.Uri ? target : target?.resourceUri;
 
@@ -104,6 +104,7 @@ const launch = async (target: Target): Promise<void> => {
   );
 };
 
+/** Registers `bigfs.launchGame` and its status bar button, shown while a game executable is set */
 export const registerLaunchCommands = (
   context: vscode.ExtensionContext,
 ): void => {

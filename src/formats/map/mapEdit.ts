@@ -19,6 +19,7 @@ import { encodeWindows1252 } from '../../core/windows1252';
  * again. A name a new record needs is appended to the name table.
  */
 
+/** Object property key that holds a waypoint's id, which waypoint links name */
 export const WAYPOINT_ID_KEY = 'waypointID';
 
 type DictOwner =
@@ -27,7 +28,7 @@ type DictOwner =
   | { object: number }
   | { team: number };
 
-/** An edit the map editor makes */
+/** A described map edit, as the map editor asks for it before it is applied */
 export type MapEdit =
   | { kind: 'timeOfDay'; value: number }
   | {
@@ -111,7 +112,7 @@ const u32 = (value: number): Uint8Array => {
 const f32s = (...values: number[]): Uint8Array =>
   new Uint8Array(new Float32Array(values).buffer);
 
-/** A `u16` length and the Windows-1252 bytes, as the map stores a string */
+/** Encodes a string as the map stores it: a `u16` length and the Windows-1252 bytes */
 const mapString = (text: string): Uint8Array => {
   const bytes = encodeWindows1252(text);
 
@@ -148,7 +149,7 @@ const nameIndex = (map: MapFile, name: string): number | undefined => {
   return undefined;
 };
 
-/** The map with `name` in its name table, and the index it has there */
+/** Interns `name`, returning the map with it in its name table and the index it has there */
 const internName = (
   map: MapFile,
   name: string,
@@ -245,7 +246,7 @@ const checkValue = (key: string, value: DictValue): void => {
   }
 };
 
-/** An `Object` chunk's payload; the dictionary's names must already be interned */
+/** Builds an `Object` chunk's payload; the dictionary's names must already be interned */
 const objectPayload = (
   edit: Extract<MapEdit, { kind: 'objectAdd' }>,
   keyIndexes: number[],
@@ -582,7 +583,10 @@ const moveObject = (
   );
 };
 
-/** Applies an edit and returns the map read again */
+/**
+ * Applies an edit and returns the map read again. Throws, with a message for
+ * the user, when the edit does not fit the map.
+ */
 export const applyMapEdit = (map: MapFile, edit: MapEdit): MapFile => {
   switch (edit.kind) {
     case 'timeOfDay': {

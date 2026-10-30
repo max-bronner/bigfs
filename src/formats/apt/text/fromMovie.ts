@@ -34,7 +34,7 @@ const placementOf = (
   translate: [...translate] as [number, number],
 });
 
-/** Reads the script of a block, given its offset */
+/** Function that reads the script of a block, given its offset */
 export type ScriptReader = (block: number) => ScriptText;
 
 const itemOf = (
@@ -242,7 +242,7 @@ const characterOf = (
 };
 
 /**
- * The model of a movie as it stands in its files. `script` reads each
+ * Builds the text model of a movie as it stands in its files. `script` reads each
  * action block; the save path passes a cheap one when it only needs the
  * record fields again.
  */

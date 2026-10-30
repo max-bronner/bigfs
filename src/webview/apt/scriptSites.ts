@@ -4,6 +4,7 @@
  * BUTTONCONDACTION order, clip events as Ruffle numbers them).
  */
 
+/** Button condition names by bit, for a button action's condition field */
 export const BUTTON_CONDITIONS: [string, number][] = [
   ['rollOver', 0x1],
   ['rollOut', 0x2],
@@ -16,6 +17,7 @@ export const BUTTON_CONDITIONS: [string, number][] = [
   ['overDownToIdle', 0x100],
 ];
 
+/** Clip event names by bit, for a placed sprite's clip action flags */
 export const CLIP_EVENTS: [string, number][] = [
   ['load', 1 << 0],
   ['enterFrame', 1 << 1],
@@ -38,7 +40,7 @@ export const CLIP_EVENTS: [string, number][] = [
   ['construct', 1 << 18],
 ];
 
-/** The names of the bits set, and any left over as hex */
+/** Formats the names of the bits set, joined by `|`, with any left over as hex */
 export const bitNames = (value: number, names: [string, number][]): string => {
   const known = names.filter(([, bit]) => value & bit).map(([name]) => name);
   const rest = names.reduce((left, [, bit]) => left & ~bit, value >>> 0);
@@ -48,7 +50,7 @@ export const bitNames = (value: number, names: [string, number][]): string => {
   );
 };
 
-/** A select of the named bits, one chosen */
+/** Creates a select of the named bits, with one chosen */
 export const bitSelect = (
   names: [string, number][],
   chosen: number,

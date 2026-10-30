@@ -22,7 +22,7 @@ const topBlockAt = (parsed: SageDocument, line: number) =>
     (block) => block.startLine <= line && line <= block.endLine,
   );
 
-/** An item for a file-scope block, named by its header's first value */
+/** Builds the item for a file-scope block, named by its header's first value */
 const itemOfBlock = <
   T extends vscode.CallHierarchyItem | vscode.TypeHierarchyItem,
 >(
@@ -86,7 +86,7 @@ const itemOfDefinition = <
 const keyOf = (item: { uri: vscode.Uri; range: vscode.Range }) =>
   `${item.uri.toString()}#${item.range.start.line}`;
 
-/** The definition under the cursor: the one named there, or the one around it */
+/** Builds the item for the definition under the cursor: the one named there, or the one around it */
 const prepare = async <
   T extends vscode.CallHierarchyItem | vscode.TypeHierarchyItem,
 >(
@@ -130,6 +130,7 @@ const prepare = async <
   return block && itemOfBlock(make, parsed, block, document.uri);
 };
 
+/** Creates the call hierarchy provider: what a definition's fields name, and what names it */
 export const createCallHierarchyProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -241,7 +242,7 @@ export const createCallHierarchyProvider = (
   },
 });
 
-/** The parent a ChildObject or ObjectReskin header names */
+/** Reads the parent a ChildObject or ObjectReskin header names */
 const parentOf = (headerLine: string): string | undefined => {
   const [keyword, , parent] = tokenize(stripComment(headerLine));
 
@@ -251,6 +252,7 @@ const parentOf = (headerLine: string): string | undefined => {
     : undefined;
 };
 
+/** Creates the type hierarchy provider following ChildObject and ObjectReskin inheritance */
 export const createTypeHierarchyProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,

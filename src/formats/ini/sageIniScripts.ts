@@ -1,16 +1,17 @@
 import { parse } from 'luaparse';
 
-/**
- * Syntax errors in the Lua a `BeginScript` ... `EndScript` region embeds,
- * read with luaparse as Lua 5.1 (the games' scripts use nothing newer).
- * Only syntax is checked: what a script calls is the game's to resolve.
- */
+/** Lua syntax error found in a script region, at a zero-based document position */
 export interface ScriptProblem {
   line: number;
   column: number;
   message: string;
 }
 
+/**
+ * Finds the syntax errors in the Lua each `BeginScript` ... `EndScript` region
+ * embeds, read with luaparse as Lua 5.1 (the games' scripts use nothing newer).
+ * Only syntax is checked: what a script calls is the game's to resolve.
+ */
 export const findScriptProblems = (
   lines: string[],
   regions: { startLine: number; endLine: number }[],

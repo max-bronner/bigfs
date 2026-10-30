@@ -27,8 +27,9 @@ import {
  * remove a stray one, and replace an unknown keyword or an unresolved name
  * with the close ones the game does know.
  */
+
 /**
- * The string table a new label belongs in: the one holding the labels this
+ * Finds the string table a new label belongs in: the one holding the labels this
  * file already uses, else the first one in the workspace folders
  */
 const stringTableFor = async (
@@ -48,6 +49,7 @@ const stringTableFor = async (
   return loose;
 };
 
+/** Creates the quick-fix provider for the diagnostics bigFS reports */
 export const createSageIniCodeActionProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -198,4 +200,5 @@ export const createSageIniCodeActionProvider = (
   },
 });
 
+/** Code action kinds the quick-fix provider is registered for */
 export const SAGE_INI_CODE_ACTION_KINDS = [CodeActionKind.QuickFix];

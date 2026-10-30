@@ -9,12 +9,14 @@ import { getVsCodeApi } from '../shared/vscodeApi';
 
 const api = getVsCodeApi<FromPage>();
 
+/** Posts a message to the particle preview's editor */
 export const post = (message: FromPage): void => api.postMessage(message);
 
+/** Gets a page element by id, typed by the caller */
 export const $ = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
 
-/** What the page shows and how the camera looks at it */
+/** Playback and camera state of the particle page */
 export const state = {
   scene: undefined as SceneMessage | undefined,
   playing: true,
@@ -38,6 +40,7 @@ export const library = {
   fxLists: new Map<string, FxListDef>(),
 };
 
+/** Particle simulation the page steps and draws, resolving definitions from `library` */
 export const world = new ParticleWorld(
   {
     system: (name) => library.systems.get(name.toLowerCase()),

@@ -8,10 +8,10 @@ import { isStart, isWaypoint } from './mapModel';
 import { sendEdit, vscode } from './messaging';
 import { state } from './state';
 
-/** The names of a day's four lights, by the code the map stores */
+/** Names of a day's four lights, indexed by the time-of-day code the map stores (1 to 4) */
 export const TIMES = ['', 'Morning', 'Afternoon', 'Evening', 'Night'];
 
-/** Draws the left panel: the map's facts, world info, players, lights, teams, scripts, areas, chunks and problems. */
+/** Renders the left panel: the map's facts, world info, players, lights, teams, scripts, areas, chunks and problems */
 export const showInfo = (actions: MapActions): void => {
   const map = state.map;
   // Sections stay open across a redraw, which follows every edit

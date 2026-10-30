@@ -9,9 +9,9 @@ import type { FileUse, ModelMessage } from "./protocol";
  * The W3D viewer's model view: the model textured and skinned, its
  * skeleton's animations to play on it, its bones as a toggle (B), off
  * whenever there are meshes to show, the HLOD level of detail to draw, a
- * toggle for the meshes marked hidden and one for collision boxes. The preview page calls
- * `showModel` with the extension's message and gets back the controls later
- * messages drive.
+ * toggle for the meshes marked hidden and one for collision boxes. The
+ * preview page calls `showModel` with the extension's message and gets back
+ * the controls later messages drive.
  */
 
 interface Host {
@@ -23,9 +23,13 @@ interface Host {
   ) => void;
 }
 
+/** Controls the preview page's message handler drives the model view through */
 export interface ModelControl {
+  /** Adds the animation files that fit the skeleton to the animation list */
   setAnimations(names: string[]): void;
+  /** Plays an animation on the skeleton, warning when it was made for another one */
   play(message: { file: string; animation: W3dAnimation }): void;
+  /** Shows a short message in the status line */
   notice(text: string): void;
   /** Where the INI files use the file, each a link to the line */
   setUses(uses: FileUse[]): void;
@@ -37,8 +41,10 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] =>
   Object.assign(document.createElement(tag), properties);
 
+/** Animation list value standing for the animation the shown file holds itself */
 const OWN = "#own";
 
+/** Shows a W3D model in 3D; returns undefined when WebGL is not available */
 export const showModel = (
   message: ModelMessage,
   { main, post }: Host,

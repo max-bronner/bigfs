@@ -1,5 +1,5 @@
 /**
- * Which INI fields name a sound, and which name an announcer event.
+ * Rules for which INI fields name a sound, and which an announcer event.
  *
  * The engine keeps one audio namespace: an `AudioEvent`, `DialogEvent`,
  * `MusicTrack`, `AmbientStream` or `StreamedSound` block, with a `Multisound`
@@ -30,10 +30,10 @@ export const AUDIO_NAMESPACES = [
 /** The definition kinds an announcer event name may be declared as */
 export const EVA_NAMESPACES = ['NewEvaEvent', 'PredefinedEvaEvent'] as const;
 
-/** Whether a field names a sound or an announcer event */
+/** Kind of name an audio field takes: a sound or an announcer event */
 export type AudioReferenceKind = 'audio' | 'eva';
 
-/** The namespaces a kind resolves into */
+/** Gets the namespaces a kind of audio reference resolves into */
 export const namespacesOfKind = (
   kind: AudioReferenceKind,
 ): readonly string[] => (kind === 'audio' ? AUDIO_NAMESPACES : EVA_NAMESPACES);
@@ -65,12 +65,12 @@ const NOT_A_NAME_FIELDS: ReadonlySet<string> = new Set([
 const NUMBER_SUFFIX = /(?:scanrange|timeoutms|looptime|percent)$/;
 
 /**
- * A field that names a key of a `UnitSpecificSounds` block (the block's own
+ * Pattern of a field that names a key of a `UnitSpecificSounds` block (the block's own
  * lines are the references)
  */
 const NAMES_A_KEY = /^unitspecificsound(?:name)?touseas/;
 
-/** Announcer fields: `EvaEvent*`, `*EvaEvent`, sighting events and announcements */
+/** Pattern of announcer fields: `EvaEvent*`, `*EvaEvent`, sighting events and announcements */
 const EVA_FIELD =
   /^(?:evaevent|evaenemy|evaonfirstsighting|announcementevent)|evaevent$/;
 
@@ -195,12 +195,12 @@ const SCOPED_AUDIO_FIELDS: Record<string, readonly string[] | '*'> = {
   animationsoundclientbehavior: ['animationsound'],
 };
 
-/** The last segment of a context's path name, lowercased */
+/** Gets the last segment of a context's path name, lowercased */
 export const lastContextSegment = (contextName: string): string =>
   contextName.split('>').pop()?.trim().toLowerCase() ?? '';
 
 /**
- * Whether a field of a block names a sound, an announcer event, or neither.
+ * Classifies a field of a block as naming a sound, an announcer event, or neither.
  * `contextName` is the schema's name for the context the field sits in, such
  * as `FXList > Sound`; only its last segment is read.
  */

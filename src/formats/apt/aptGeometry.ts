@@ -11,7 +11,7 @@
  * in the image's pixels. Reading it as named rotates every rotated texture.
  */
 
-/** RGBA, each 0 to 255 */
+/** A colour as R, G, B, A, each 0 to 255 */
 export type Rgba = [number, number, number, number];
 
 /** How the primitives after a style line are drawn */
@@ -147,7 +147,7 @@ export const parseDat = (text: string): Map<number, DatLocation> => {
   return entries;
 };
 
-/** The image file a `.dat` location names, relative to the movie's archive */
+/** Gets the path of the image file a `.dat` location names, relative to the movie's archive */
 export const getTexturePath = (
   movie: string,
   id: number,
@@ -206,7 +206,7 @@ export const writeDat = (entries: Map<number, DatLocation>): string => {
   );
 };
 
-/** The box around every point of some runs, or nothing when they have none */
+/** Computes the box around every point of some runs, or undefined when they have none */
 export const runBounds = (
   runs: RuRun[],
 ): [number, number, number, number] | undefined => {
@@ -227,7 +227,7 @@ export const runBounds = (
 };
 
 /**
- * A texture transform that lays a box of a shape exactly over a box of an
+ * Computes the texture transform that lays a box of a shape exactly over a box of an
  * image: shape space to the image's pixels, as a `tc` style stores it
  */
 export const fitTexture = (
@@ -264,7 +264,7 @@ export const checkRuns = (runs: unknown): runs is RuRun[] =>
     );
   });
 
-/** A run of a shape laid over an image's used box */
+/** Retextures a run of a shape so an image's used box lies exactly over it */
 export const fitRunTo = (
   run: RuRun,
   image: number,

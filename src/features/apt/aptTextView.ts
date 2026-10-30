@@ -27,11 +27,12 @@ import { describeError } from '../../core/errors';
  * refused with its problems underlined, and the movie is left as it was.
  */
 
+/** Uri scheme the movie text views are served under */
 export const TEXT_SCHEME = 'bigfs-apt-text';
 
-/** What the text view needs from the APT editor */
+/** Callbacks `AptTextView` reaches the APT editor through */
 export interface TextViewHost {
-  /** The movie open in the visual editor, by uri string */
+  /** Finds the movie open in the visual editor, by uri string */
   document(movie: string): AptDocument | undefined;
   /** Reads a movie that is not open */
   load(movie: vscode.Uri): Promise<AptDocument>;
@@ -43,7 +44,7 @@ export interface TextViewHost {
 
 const encoder = new TextEncoder();
 
-/** The text view's uri for a movie */
+/** Builds the text view's uri for a movie */
 export const textUriOf = (movie: vscode.Uri): vscode.Uri => {
   const name = movie.path
     .slice(movie.path.lastIndexOf('/') + 1)
@@ -56,7 +57,7 @@ export const textUriOf = (movie: vscode.Uri): vscode.Uri => {
   });
 };
 
-/** The movie a text view's uri names */
+/** Reads the movie uri a text view's uri names */
 export const movieUriOf = (uri: vscode.Uri): vscode.Uri =>
   vscode.Uri.parse(new URLSearchParams(uri.query).get('movie') ?? '');
 
@@ -85,19 +86,21 @@ const toDiagnostic = (
   );
 };
 
-/** A movie as text, and the stamp of the state it was made from */
+/** Cached text of a movie, and the stamp of the state it was made from */
 interface Rendered {
   stamp: string;
   text: string;
   model: MovieText;
 }
 
+/** File system provider serving a whole movie as one editable text document */
 export class AptTextView
   implements vscode.FileSystemProvider, vscode.Disposable
 {
   private readonly changes = new vscode.EventEmitter<
     vscode.FileChangeEvent[]
   >();
+  /** Fires when a movie's text changed, so a clean view reads it again */
   public readonly onDidChangeFile = this.changes.event;
 
   private readonly diagnostics =
@@ -147,6 +150,7 @@ export class AptTextView
     ];
   }
 
+  /** Unregisters the scheme and the text view commands */
   public dispose(): void {
     this.subscriptions.forEach((subscription) => subscription.dispose());
   }
@@ -226,7 +230,10 @@ export class AptTextView
     }
   }
 
-  /** The movie a view names: the open one, or one read from its files */
+  /**
+   * Gets the movie a view names: the open one, or one read from its files.
+   * @throws `FileSystemError` when the movie is gone or does not read
+   */
   private async movie(
     uri: vscode.Uri,
   ): Promise<{ document: AptDocument; stamp: string }> {
@@ -297,6 +304,7 @@ export class AptTextView
     return { ...rendered, document };
   }
 
+  /** Describes a text view; it is read-only where the movie is */
   public async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
     const { text, stamp } = await this.render(uri);
 
@@ -315,10 +323,16 @@ export class AptTextView
     };
   }
 
+  /** Prints the movie a view names as text */
   public async readFile(uri: vscode.Uri): Promise<Uint8Array> {
     return encoder.encode((await this.render(uri)).text);
   }
 
+  /**
+   * Saves a text into its movie: through the visual editor when it is open,
+   * else straight to the files.
+   * @throws `FileSystemError` when the text does not parse or save; the movie is left as it was
+   */
   public async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
     const movie = movieUriOf(uri);
 
@@ -393,26 +407,31 @@ export class AptTextView
     this.changed(movie);
   }
 
+  /** Watches nothing: a view learns of changes through `changed` */
   public watch(): vscode.Disposable {
     return new vscode.Disposable(() => {});
   }
 
+  /** Lists nothing, as text views are opened by uri only */
   public readDirectory(): [string, vscode.FileType][] {
     return [];
   }
 
+  /** Refuses, as a movie text lives beside its movie */
   public createDirectory(): void {
     throw vscode.FileSystemError.NoPermissions(
       'A movie text lives beside its movie',
     );
   }
 
+  /** Refuses; a movie is deleted from the explorer */
   public delete(): void {
     throw vscode.FileSystemError.NoPermissions(
       'Delete the movie from the explorer',
     );
   }
 
+  /** Refuses; a movie is renamed from the explorer */
   public rename(): void {
     throw vscode.FileSystemError.NoPermissions(
       'Rename the movie from the explorer',

@@ -6,6 +6,7 @@
  * file). A mod is the highest layer, the base game folder setting the lowest.
  */
 
+/** Which game an install folder holds; any folder no marker file names is a mod */
 export type InstallKind = 'rotwk' | 'bfme2' | 'mod';
 
 /**
@@ -27,14 +28,14 @@ export const isInsideSource = (candidate: string, folder: string): boolean => {
   return wanted === base || wanted.startsWith(`${base}/`);
 };
 
-/** What a layer is, as far as its priority goes */
+/** The traits of a layer that decide its priority */
 export interface LayerTraits {
   kind: InstallKind;
   /** The folder of the `bigfs.baseGameFolder` setting, or one beneath it */
   base: boolean;
 }
 
-/** Names the install a folder holds from the names of the files in it */
+/** Detects which install a folder holds from the names of the files in it */
 export const detectInstallKind = (fileNames: Iterable<string>): InstallKind => {
   const names = new Set(Array.from(fileNames, (name) => name.toLowerCase()));
 
@@ -42,7 +43,7 @@ export const detectInstallKind = (fileNames: Iterable<string>): InstallKind => {
 };
 
 /**
- * Lower is higher priority: a mod, then ROTWK, then BFME II, then a base
+ * Ranks a layer by priority, lower first: a mod, then ROTWK, then BFME II, then a base
  * folder no marker file names. Layers of one rank keep the order they come
  * in, which for workspace folders is their order in the workspace.
  */
@@ -56,7 +57,7 @@ export const layerRank = ({ kind, base }: LayerTraits): number => {
   return base ? 3 : 0;
 };
 
-/** The layers highest priority first; layers of one rank stay in order */
+/** Orders layers highest priority first; layers of one rank stay in order */
 export const orderLayers = <T extends LayerTraits>(layers: readonly T[]): T[] =>
   layers
     .map((layer, position) => ({ layer, position }))
@@ -66,7 +67,7 @@ export const orderLayers = <T extends LayerTraits>(layers: readonly T[]): T[] =>
     )
     .map(({ layer }) => layer);
 
-/** The string `reg query` prints for `Path`: a line `Path REG_SZ <value>` */
+/** Parses the value `reg query` prints for `Path`, from a line `Path REG_SZ <value>` */
 export const parseRegistryPath = (stdout: string): string | undefined => {
   for (const line of stdout.split(/\r?\n/)) {
     const match = /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/.exec(line);

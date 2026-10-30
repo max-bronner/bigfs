@@ -167,7 +167,7 @@ export const parseMovieText = (text: string): ParsedMovieText => {
     (node) => node.line !== firstLine,
   );
 
-  /** Runs a reader over one node, turning a failure into a problem there */
+  // Runs a reader over one node, turning a failure into a problem there
   const attempt = <T>(node: LineNode, read: () => T): T | undefined => {
     try {
       return read();

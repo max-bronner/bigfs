@@ -10,6 +10,7 @@ export interface Span {
   end: number;
 }
 
+/** One `.str` record with where its label, text and whole extent sit in the source */
 export interface StringRecord {
   label: string;
   /** The text as the game shows it, or nothing when the record has none */
@@ -41,7 +42,7 @@ export const finishText = (raw: string): string =>
     .replace(/ +(?=[\n\t])/g, '')
     .trim();
 
-/** The quoted form of a text, so that reading it gives the text back */
+/** Quotes and escapes a text so that reading it gives the text back */
 export const quoteStringText = (text: string): string =>
   `"${text
     .replace(/\\/g, '\\\\')
@@ -49,12 +50,12 @@ export const quoteStringText = (text: string): string =>
     .replace(/\r?\n/g, '\\n')
     .replace(/\t/g, '\\t')}"`;
 
-/** One `.str` record, as the string reader reads it back */
+/** Formats one `.str` record so the string reader reads it back as written */
 export const strRecord = (label: string, text: string, eol: string): string =>
   `${label}${eol}${quoteStringText(text)}${eol}END${eol}`;
 
 /**
- * Where the text ends: the first quote no backslash escapes. A backslash
+ * Finds where the text ends: the first quote no backslash escapes. A backslash
  * escapes the character after it, itself included, so `\\"` closes the text.
  */
 const closingQuote = (raw: string): number => {
@@ -96,7 +97,7 @@ const splitLines = (source: string) => {
   return lines;
 };
 
-/** Every record in the order written, duplicates included */
+/** Reads every record in the order written, duplicates included */
 export const parseStringRecords = (source: string): StringRecord[] => {
   const lines = splitLines(source);
   const records: StringRecord[] = [];

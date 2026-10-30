@@ -1,7 +1,8 @@
 /**
- * Builds synthetic APT movies for tests, byte by byte, since no shipped file
- * may be committed. Offsets are absolute in the `.apt`, as in the real
- * format; `reserve` hands out space to fill once a pointer is known.
+ * Byte writer that builds synthetic APT files for tests, since no shipped file
+ * may be committed. Offsets are absolute in the file, as in the real format;
+ * each write returns where it landed, and `patch` fills in a pointer once its
+ * target is known.
  */
 export class Image {
   private bytes: number[] = [];
@@ -11,6 +12,7 @@ export class Image {
     return this.bytes.length;
   }
 
+  /** Pads with zeros to the next four-byte boundary and returns the new end */
   public align(): number {
     while (this.bytes.length % 4) {
       this.bytes.push(0);
@@ -19,6 +21,7 @@ export class Image {
     return this.bytes.length;
   }
 
+  /** Writes bytes, each masked to eight bits */
   public u8(...values: number[]): number {
     const at = this.end;
 
@@ -27,6 +30,7 @@ export class Image {
     return at;
   }
 
+  /** Writes little-endian 32-bit words */
   public u32(...values: number[]): number {
     const at = this.end;
 
@@ -39,6 +43,7 @@ export class Image {
     return at;
   }
 
+  /** Writes little-endian 32-bit floats */
   public f32(...values: number[]): number {
     const at = this.end;
 
@@ -49,6 +54,7 @@ export class Image {
     return at;
   }
 
+  /** Writes a NUL-terminated string, one byte per UTF-16 code unit */
   public string(text: string): number {
     const at = this.end;
 
@@ -66,12 +72,13 @@ export class Image {
     );
   }
 
+  /** Copies what was written into a new array */
   public build(): Uint8Array {
     return Uint8Array.from(this.bytes);
   }
 }
 
-/** A `.const` file with the movie offset and the given items */
+/** Builds a `.const` file holding the movie offset and the given items */
 export const buildConst = (
   movieOffset: number,
   items: (string | number)[],

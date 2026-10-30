@@ -22,7 +22,7 @@ const totals = {
   perName: new Map<string, { live: number; peak: number }>(),
 };
 
-/** Starts counting over, with the effect */
+/** Resets the counts; called when the effect starts over */
 export const resetStats = (): void => {
   totals.frames = 0;
   totals.sum = 0;
@@ -33,7 +33,7 @@ export const resetStats = (): void => {
   totals.perName.clear();
 };
 
-/** Counts one simulated frame */
+/** Adds one simulated frame to the counts */
 export const sampleStats = (): void => {
   const live = world.liveParticles;
 
@@ -70,7 +70,7 @@ const plural = (count: number, noun: string) =>
 
 let lastShown = 0;
 
-/** Shows the counts, a few times a second */
+/** Renders the counts into the stats panel, at most four times a second */
 export const showStats = (now: number): void => {
   if (now - lastShown < 250 || !state.scene) {
     return;

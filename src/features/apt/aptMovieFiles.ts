@@ -15,7 +15,7 @@ import { toUri } from '../../services/archives/commandTarget';
  * of the old name in the workspace's other movies, so they keep resolving.
  */
 
-/** What the commands need from the APT editor */
+/** Callbacks the rename and delete commands reach the APT editor through */
 export interface MovieHost {
   archiveModel: ArchiveModel;
   /** Applies an edit to a movie open in the editor, as one undoable edit */
@@ -31,7 +31,7 @@ interface MovieFile {
 const nameOf = (uri: vscode.Uri) =>
   uri.path.slice(uri.path.lastIndexOf('/') + 1).replace(/\.apt$/i, '');
 
-/** Every file of the movie whose `.apt` this is */
+/** Lists every file of the movie whose `.apt` this is */
 export const movieFiles = async (aptUri: vscode.Uri): Promise<MovieFile[]> => {
   const name = nameOf(aptUri);
   const files: MovieFile[] = [{ uri: aptUri, relative: (to) => `${to}.apt` }];
@@ -89,7 +89,7 @@ export const movieFiles = async (aptUri: vscode.Uri): Promise<MovieFile[]> => {
   return files;
 };
 
-/** The workspace's other movies that import this one, with which imports */
+/** Finds the workspace's other movies that import this one, with which imports */
 const importersOf = async (host: MovieHost, aptUri: vscode.Uri) => {
   const key = movieKey(nameOf(aptUri));
   const found: { uri: vscode.Uri; imports: number[] }[] = [];
@@ -147,7 +147,7 @@ const closeTabs = async (aptUri: vscode.Uri): Promise<boolean> => {
   return true;
 };
 
-/** The movie a command was given, or the one in the active editor */
+/** Resolves the movie a command was given, or the one in the active editor */
 const targetOf = (target: unknown): vscode.Uri | undefined => {
   const given = toUri(target);
   const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;

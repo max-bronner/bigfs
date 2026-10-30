@@ -4,10 +4,10 @@ import { resolveAudio } from '../../game/audio/sageAudioResolve';
 import type { AudioLookup } from '../../game/audio/sageAudioResolve';
 import type { SageDocument, SageToken } from '../../formats/ini/sageIniParser';
 
-/** INI text in markdown: it must not open a link or a code span of its own */
+/** Escapes INI text for markdown, so it cannot open a link or a code span of its own */
 const escapeMarkdown = (text: string) =>
   text.replace(/[\\`*_{}[\]()<>#+!|-]/g, '\\$&');
-/** Links a hover lists before pointing to the lens instead */
+/** Most play links a hover lists before pointing to the lens instead */
 const HOVER_LINKS = 12;
 
 const code = (text: string) => `\`${text.replace(/`/g, "'")}\``;
@@ -16,8 +16,8 @@ const commandLink = (title: string, command: string, args: unknown[]) =>
   `[${escapeMarkdown(title)}](command:${command}?${encodeURIComponent(JSON.stringify(args)).replace(/[()]/g, (bracket) => (bracket === '(' ? '%28' : '%29'))})`;
 
 /**
- * Play links for a hovered value: a sound variant plays its file, a name of
- * an audio event lists its variants
+ * Builds the play links of a hovered value: a sound variant plays its file,
+ * a name of an audio event lists its variants
  */
 export const describeSound = async (
   lookup: AudioLookup,

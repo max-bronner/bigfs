@@ -14,6 +14,7 @@ import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/s
  * parent, marked as inherited.
  */
 
+/** Columns of the balance table, in display order */
 export const STAT_COLUMNS = [
   'side',
   'cost',
@@ -29,9 +30,10 @@ export const STAT_COLUMNS = [
   'delay',
 ] as const;
 
+/** One column of the balance table */
 export type StatColumn = (typeof STAT_COLUMNS)[number];
 
-/** A value and the token it is written as */
+/** A stat's value and the token it is written as, so a table can edit it in place */
 export interface StatValue {
   /** The number a macro or `#ADD` call stands for, else the token itself */
   value: string;
@@ -42,12 +44,13 @@ export interface StatValue {
   end: number;
 }
 
-/** What evaluating a number needs: the file's lines and the macros defined */
+/** Context for evaluating a number: the file's lines and the macros defined */
 export interface StatEvaluation {
   lines: string[];
   lookupMacro: LookupMacro;
 }
 
+/** The stats one object block writes, as a row of the balance table */
 export interface ObjectStats {
   name: string;
   /** `Object`, `ChildObject` or `ObjectReskin` */
@@ -60,6 +63,7 @@ export interface ObjectStats {
   selectable: boolean;
 }
 
+/** The stats one weapon block writes for the balance table */
 export interface WeaponStats {
   /** The damage when one nugget writes it, so it can be edited in place */
   damage?: StatValue;
@@ -80,7 +84,7 @@ const OBJECT_FIELDS: Record<string, StatColumn> = {
 const parseNumber = (text: string): number | undefined =>
   /^[+-]?(\d+\.?\d*|\.\d+)%?$/.test(text) ? parseFloat(text) : undefined;
 
-/** The number a call or a macro at a token stands for, if it is one */
+/** Evaluates the number a call or a macro at a token stands for, if it is one */
 const evaluateToken = (
   parsed: SageDocument,
   statement: SageStatement,
@@ -118,7 +122,7 @@ const evaluateToken = (
 };
 
 /**
- * A statement's token as a value. With `evaluation`, a macro or an `#ADD`
+ * Reads a statement's token as a value. With `evaluation`, a macro or an `#ADD`
  * call shows the number it stands for, and what is written stays on
  * `written` so an edit can replace it.
  */
@@ -151,7 +155,7 @@ const valueOf = (
   };
 };
 
-/** The innermost block of `root` holding a line, and the chain to it */
+/** Lists the blocks from `root` down to the innermost one holding a line */
 const chainAt = (root: SageBlock, line: number): SageBlock[] => {
   const chain = [root];
   let current = root;
@@ -169,7 +173,7 @@ const chainAt = (root: SageBlock, line: number): SageBlock[] => {
   }
 };
 
-/** The field statements inside a block, with the block chain holding each */
+/** Lists the field statements inside a block, with the block chain holding each */
 const fieldsIn = (parsed: SageDocument, root: SageBlock) =>
   parsed.statements
     .filter(
@@ -183,7 +187,7 @@ const fieldsIn = (parsed: SageDocument, root: SageBlock) =>
       chain: chainAt(root, statement.line).slice(1),
     }));
 
-/** The stats an `Object`, `ChildObject` or `ObjectReskin` block writes */
+/** Reads the stats an `Object`, `ChildObject` or `ObjectReskin` block writes; inherited ones are left to the caller */
 export const readObjectStats = (
   parsed: SageDocument,
   block: SageBlock,
@@ -243,7 +247,7 @@ export const readObjectStats = (
   return stats;
 };
 
-/** A weapon's damage (summed over its damage nuggets), range and delay */
+/** Reads a weapon's damage (summed over its damage nuggets), range and delay */
 export const readWeaponStats = (
   parsed: SageDocument,
   block: SageBlock,

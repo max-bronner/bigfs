@@ -13,7 +13,7 @@ const APT_HEADER = 'Apt Data:7\x1a\0';
 const CONST_HEADER = 'Apt constant file\x1a\0\0';
 const DAT_HEADER = '; Created by AptToBigc.\r\n';
 
-/** The shape of a movie to create */
+/** Description of a movie for `createAptMovie` to build: screen size and exports */
 export interface NewAptMovie {
   width: number;
   height: number;
@@ -34,6 +34,11 @@ const latin1 = (text: string) =>
 /** Appends a timeline's single empty frame and returns the frame array */
 const emptyFrame = (image: AptImage) => image.appendWords([0, 0]);
 
+/**
+ * Creates the `.apt`, `.const` and `.dat` of a new, empty movie with one empty
+ * sprite per export. Export names must be distinct, non-empty and free of
+ * spaces and control characters.
+ */
 export const createAptMovie = (movie: NewAptMovie): NewAptFiles => {
   const names = new Set<string>();
 

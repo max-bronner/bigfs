@@ -41,7 +41,7 @@ const TEXT_ENTRY_PATTERN =
 /** Results a search stops at, which is more than anyone reads in a list */
 const SEARCH_RESULT_LIMIT = 2000;
 
-/** Every file below a folder on disk, as paths relative to it with '/' */
+/** Lists every file below a folder on disk, with its size and its path relative to the folder, joined with '/' */
 export const listFiles = async (
   folder: Uri,
   relative = '',

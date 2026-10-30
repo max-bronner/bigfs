@@ -50,7 +50,7 @@ const readBlock = (block: SageBlock, document: SageDocument): IniBlock => {
   };
 };
 
-/** The block whose header sits on a line, with its fields */
+/** Reads the block whose header sits on a line, with its fields */
 export const blockAtLine = (
   document: SageDocument,
   line: number,
@@ -74,7 +74,7 @@ export const blockAtLine = (
   return block && readBlock(block, document);
 };
 
-/** Every top-level block of a document with this keyword */
+/** Reads every top-level block of a document with this keyword, matched case-insensitively */
 export const topBlocks = (
   document: SageDocument,
   keyword: string,
@@ -94,7 +94,10 @@ const words = (block: IniBlock, key: string): string[] =>
     .flat()
     .filter((word) => word.toLowerCase() !== "none");
 
-/** `R:n G:n B:n [A:n]` as the packed word the file stores */
+/**
+ * Packs `R:n G:n B:n [A:n]` tokens into the ARGB word the file stores, or
+ * undefined when a channel is missing or outside 0–255. Alpha defaults to 255.
+ */
 export const parseIniColor = (tokens: string[]): number | undefined => {
   const part = (tag: string): number | undefined => {
     const token = tokens.find((candidate) =>
@@ -121,12 +124,14 @@ export const parseIniColor = (tokens: string[]): number | undefined => {
     : ((alpha << 24) | (red << 16) | (green << 8) | blue) >>> 0;
 };
 
+/** One `CreateAHeroBling`: a cosmetic or attribute upgrade and the group it belongs to */
 export interface HeroBling {
   upgrade?: string;
   nameTag?: string;
   group?: string;
 }
 
+/** One `CreateAHeroBlingBinder`: a UI slot that offers the blings of one group */
 export interface HeroBinder {
   group?: string;
   labelTag?: string;
@@ -134,6 +139,7 @@ export interface HeroBinder {
   isAttribute: boolean;
 }
 
+/** One `Attribute` of a subclass: the group whose blings raise it, and its range upgrades */
 export interface HeroAttribute {
   group?: string;
   minUpgrade?: string;
@@ -141,6 +147,7 @@ export interface HeroAttribute {
   defaultUpgrade?: string;
 }
 
+/** One `SubClass` of a create-a-hero class, with its colours, blings and attributes */
 export interface HeroSubclass {
   upgrade?: string;
   nameTag?: string;
@@ -151,12 +158,14 @@ export interface HeroSubclass {
   attributes: HeroAttribute[];
 }
 
+/** One `CreateAHeroClass` and its subclasses */
 export interface HeroClass {
   upgrade?: string;
   nameTag?: string;
   subclasses: HeroSubclass[];
 }
 
+/** The create-a-hero system merged from every `CreateAHeroSystem` block */
 export interface HeroSystem {
   classes: HeroClass[];
   binders: HeroBinder[];
@@ -235,7 +244,7 @@ const same = (a: string | undefined, b: string | undefined): boolean =>
   a !== undefined && b !== undefined && a.toLowerCase() === b.toLowerCase();
 
 /**
- * The upgrades a bling group offers a subclass, in selection order: those
+ * Lists the upgrades a bling group offers a subclass, in selection order: those
  * its `BlingUpgrades` lines name, plus every bling of an `Attribute` group of
  * the subclass, ordered by `GroupOrder` (file order where a bling has none).
  * Derived from mint's slot build, not read from the file.
@@ -275,7 +284,7 @@ export const blingOptions = (
 };
 
 /**
- * Attribute points a hero has spent: each attribute bling's index above the
+ * Counts the attribute points a hero has spent: each attribute bling's index above the
  * index of its attribute's `MinValueUpgrade`. Derived, not stored in the file.
  */
 export const spentPoints = (

@@ -127,7 +127,7 @@ const multiply = (a: Matrix, b: Matrix): Matrix => {
   return out;
 };
 
-/** A bone's transform relative to its parent: rotate, then translate */
+/** Builds a bone's matrix relative to its parent: rotate, then translate */
 const pivotMatrix = (
   [tx, ty, tz]: [number, number, number],
   [x, y, z, w]: [number, number, number, number],
@@ -151,7 +151,7 @@ const pivotMatrix = (
     1,
   ]);
 
-/** Every bone's transform in model space, parents before children */
+/** Computes every bone's matrix in model space, parents before children */
 const boneMatrices = (hierarchy: W3dHierarchy | undefined): Matrix[] => {
   const matrices: Matrix[] = [];
 
@@ -196,7 +196,7 @@ const transform = (
 };
 
 /**
- * Texture coordinates with V from the top, as WebGL samples an image
+ * Flips texture coordinates so V runs from the top, as WebGL samples an image
  * uploaded top row first. W3D measures V from the bottom (mint's
  * `convert::flip_v`, `w3d-format.md` "Texture coordinate origin"); the
  * textures are atlases, so without it each face samples another part of
@@ -205,7 +205,7 @@ const transform = (
 const flipV = (uvs: Float32Array): Float32Array =>
   uvs.map((value, index) => (index % 2 ? 1 - value : value));
 
-/** The file name without its extension */
+/** Strips a file name's extension */
 const stem = (fileName: string): string => fileName.replace(/\.[^.]*$/, "");
 
 /** Finds and decodes a texture, preferring a DDS over the TGA a mesh names */
@@ -235,7 +235,7 @@ const loadTexture = async (
 const fullName = (container: string, name: string) =>
   `${container}.${name}`.toLowerCase();
 
-/** The sub-object naming a mesh or box, searching the finest level first */
+/** Finds the sub-object naming a mesh or box, searching the finest level first */
 const findSubObject = (file: W3dFile, container: string, name: string) => {
   const wanted = fullName(container, name);
 
@@ -252,7 +252,7 @@ const findSubObject = (file: W3dFile, container: string, name: string) => {
   return undefined;
 };
 
-/** The bone each vertex of a mesh follows, or one bone for the whole mesh */
+/** Resolves the bone each vertex of a mesh follows, or one bone for the whole mesh */
 const vertexBones = (
   mesh: W3dMesh,
   file: W3dFile,
@@ -274,7 +274,7 @@ const CORNERS = [0, 1, 2, 3, 4, 5, 6, 7].map(
 );
 
 /**
- * A box's twelve edges in model space. An oriented box turns with its bone;
+ * Builds a box's twelve edges in model space. An oriented box turns with its bone;
  * an axis-aligned one is only carried to the bone's position.
  */
 const boxEdges = (box: W3dBox, bone: Matrix | undefined): Float32Array => {
@@ -349,6 +349,7 @@ const sceneHlodOf = (
   };
 };
 
+/** Options for `visibleMeshes`: the level of detail and whether hidden meshes show */
 export interface VisibilityOptions {
   /** Index into `ModelScene.hlod.lods`; the finest when absent */
   lod?: number;
@@ -356,7 +357,7 @@ export interface VisibilityOptions {
 }
 
 /**
- * Which meshes to draw: one level of detail at a time, and not the hidden
+ * Decides, mesh by mesh, which meshes to draw: one level of detail at a time, and not the hidden
  * ones unless asked. A mesh no level lists is always a candidate, as a file
  * without an HLOD has no levels at all.
  */

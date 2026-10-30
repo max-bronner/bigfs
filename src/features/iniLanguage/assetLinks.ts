@@ -40,6 +40,7 @@ const createAssetLinkProvider = (
   },
 });
 
+/** Registers the asset links and the `bigfs.openAsset` command they run */
 export const registerAssetLinks = (
   selector: vscode.DocumentSelector,
   documents: SageIniDocuments,

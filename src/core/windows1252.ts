@@ -6,7 +6,7 @@
  */
 
 /**
- * What bytes 0x80-0x9F stand for. The five the encoding leaves unused
+ * Characters bytes 0x80-0x9F decode to. The five the encoding leaves unused
  * decode to the control character of the same number, as the WHATWG
  * standard has it. Spelled out because a `TextDecoder` is not Windows-1252
  * everywhere (Node without full ICU reads it as ISO-8859-1).
@@ -23,8 +23,10 @@ const UPPER_HALF = new Map(
   ]),
 );
 
+/** Bytes decoded per `String.fromCharCode` call, which takes them as arguments and so cannot take a whole file */
 const CHUNK = 0x8000;
 
+/** Decodes Windows-1252 bytes, one character per byte */
 export const decodeWindows1252 = (bytes: Uint8Array): string => {
   let text = '';
 
@@ -51,7 +53,7 @@ export const decodeIniText = (bytes: Uint8Array): string =>
   );
 
 /**
- * Encodes text; a character the encoding lacks throws, or becomes
+ * Encodes text as Windows-1252; a character the encoding lacks throws, or becomes
  * `replacement` when one is given
  */
 export const encodeWindows1252 = (
@@ -75,7 +77,7 @@ export const encodeWindows1252 = (
     return replacement;
   });
 
-/** The distinct characters of `text` the encoding lacks, in order of appearance */
+/** Lists the distinct characters of `text` the encoding lacks, in order of appearance */
 export const unencodableCharacters = (text: string): string[] => [
   ...new Set(
     Array.from(text).filter(

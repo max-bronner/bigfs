@@ -25,6 +25,7 @@ import type { SageDocument } from '../../formats/ini/sageIniParser';
  * once (`assetCheckPolicy`).
  */
 
+/** File names each kind of asset can be, for suggesting a near miss */
 const EXTENSIONS: Record<AssetKind, RegExp> = {
   model: /\.w3d$/,
   animation: /\.w3d$/,
@@ -106,7 +107,7 @@ export const shouldCheckAssets = (names: Set<string>): boolean => {
   return decision === 'check';
 };
 
-/** A warning for every file reference no archive or folder satisfies */
+/** Builds a warning for every file reference no archive or folder satisfies */
 export const getAssetDiagnostics = (
   parsed: SageDocument,
   names: Set<string>,
@@ -144,7 +145,7 @@ export const getAssetDiagnostics = (
       return diagnostic;
     });
 
-/** The names the locator knows, when references should be checked at all */
+/** Gets the file names the locator knows, or nothing when references should not be checked at all */
 export const assetNamesToCheck = async (
   locator: EntryLocator | undefined,
 ): Promise<Set<string> | undefined> => {
@@ -158,7 +159,7 @@ export const assetNamesToCheck = async (
 };
 
 /**
- * The asset warnings for one open document, looking on disk again before
+ * Builds the asset warnings for one open document, looking on disk again before
  * reporting a name missing, in case the locator never heard of the file
  */
 export const checkedAssetDiagnostics = async (

@@ -19,6 +19,7 @@ import { findChild } from '../../services/archives/virtualNode';
  * the `.apt` that was found, the way one `apt/<name>.big` carries them all.
  */
 
+/** Movie an import resolved to, as `AptLibrary.locate` finds it */
 export interface MovieLocation {
   /** The `.apt` the game would load */
   uri: vscode.Uri;
@@ -26,10 +27,11 @@ export interface MovieLocation {
   origin: string;
 }
 
-/** An import's movie name as the game compares it: no casing, no `.apt` */
+/** Reduces a movie name to the key the game compares imports by: no casing, no `.apt` */
 export const movieKey = (name: string): string =>
   name.toLowerCase().replace(/\.apt$/, '');
 
+/** Cache of where each imported movie resolves, cleared whenever the archives or movie files change */
 export class AptLibrary implements vscode.Disposable {
   private readonly locations = new Map<
     string,
@@ -58,6 +60,7 @@ export class AptLibrary implements vscode.Disposable {
     ];
   }
 
+  /** Stops watching the archives and movie files */
   public dispose(): void {
     this.subscriptions.forEach((subscription) => subscription.dispose());
   }
@@ -68,7 +71,7 @@ export class AptLibrary implements vscode.Disposable {
     this.onDidChangeEmitter.fire();
   }
 
-  /** Where the game would load the movie of this name from, if anywhere */
+  /** Finds where the game would load the movie of this name from, if anywhere */
   public locate(name: string): Promise<MovieLocation | undefined> {
     const key = movieKey(name);
     let location = this.locations.get(key);
@@ -115,7 +118,7 @@ export class AptLibrary implements vscode.Disposable {
   }
 }
 
-/** A file directly in a folder, whatever its casing */
+/** Finds a file directly in a folder, whatever its casing */
 const findLoose = async (
   folder: vscode.Uri,
   fileName: string,

@@ -18,7 +18,7 @@ import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { Image, buildConst } from './aptSynth';
 
 /**
- * A movie with one of every character type the parser reads and every
+ * Builds a movie with one of every character type the parser reads and every
  * frame item: the root frame has a label, a background colour, an init
  * action and a script; the sprite places with every PlaceObject flag set,
  * clip actions included, and removes a depth.

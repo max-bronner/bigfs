@@ -13,6 +13,7 @@ import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 
 const DELAY_MS = 500;
 
+/** Creates the watcher that checks open INI files for hotkey clashes as they change */
 export const watchHotkeyClashes = (
   documents: SageIniDocuments,
   index: SageIniIndex,

@@ -30,6 +30,7 @@ const PROFILE_ADVANCED = 3;
 
 export { MbType, Ref, referenceOf } from './prediction';
 
+/** Slot of each macroblock mode in the mode probability tables, which order them differently */
 export const MODEL_INDEX: Record<MbType, number> = {
   [MbType.InterNoMv]: 0,
   [MbType.Intra]: 1,
@@ -204,6 +205,7 @@ type CoeffReader =
   | { kind: 'bool'; bc: BoolDecoder }
   | { kind: 'huff'; br: BitReader };
 
+/** Stateful VP6 decoder for one stream, holding the reference pictures between frames */
 export class Vp6Decoder {
   private st: StreamState = {
     version: 0,
@@ -625,6 +627,10 @@ export class Vp6Decoder {
   }
 }
 
+/**
+ * Predicts an inter macroblock into `frame` from the reference picture `src`.
+ * A four-vector macroblock gives chroma the average of its four vectors.
+ */
 export const predictMb = (
   frame: Picture,
   src: Picture,
@@ -971,7 +977,7 @@ const decodeBlock = (
   return category;
 };
 
-/** A Huffman-coded token's value, or nothing at the end of the block */
+/** Reads a Huffman-coded token's value, or `undefined` at the end of the block */
 const decodeTokenHuff = (br: BitReader, huff: Huff): number | undefined => {
   const token = huff.read(br);
 

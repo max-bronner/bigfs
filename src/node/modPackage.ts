@@ -27,6 +27,7 @@ export interface BaseArchive {
   entries: ReadonlySet<string>;
 }
 
+/** Result of `overrideReport`: what packing a mod's files does to each of them in the game */
 export interface OverrideReport {
   /** Files no base archive holds */
   added: string[];
@@ -41,6 +42,10 @@ export const skippedFromPackage = (relativePath: string): boolean =>
   relativePath.split('/').some((segment) => segment.startsWith('.')) ||
   /\.big$/i.test(relativePath);
 
+/**
+ * Sorts a mod's files into added, overriding and ignored, by which archive the
+ * game would load first for each path once the mod is delivered
+ */
 export const overrideReport = (
   files: string[],
   archiveName: string,
@@ -87,7 +92,7 @@ export const overrideReport = (
 };
 
 /**
- * Where the save dialog starts for a packed mod: beside the mod folder. Never
+ * Picks the folder the save dialog starts in for a packed mod: beside the mod folder. Never
  * the base game folder, or the next comparison would count the mod's own
  * archive as part of the base game; a mod folder inside the base game, which
  * has no safe sibling, packs into the home folder instead.
@@ -115,7 +120,7 @@ export const isInsideOrSame = (candidate: string, folder: string): boolean => {
   );
 };
 
-/** The report as Markdown, for a preview beside the editor */
+/** Renders the report as Markdown, for a preview beside the editor */
 export const reportMarkdown = (
   report: OverrideReport,
   archiveName: string,

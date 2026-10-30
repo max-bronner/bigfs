@@ -13,7 +13,7 @@ const byId = (id: string): HTMLElement => document.getElementById(id)!;
 
 const COLOR_NAMES = ['Primary', 'Secondary', 'Tertiary'];
 
-/** Draws the whole form for a hero; every field posts its change through `post`. */
+/** Renders the whole form for a hero; every field posts its change through `post` */
 export const renderHero = (
   hero: HeroView,
   post: (message: FromCahPage) => void,

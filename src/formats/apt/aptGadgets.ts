@@ -13,6 +13,7 @@
  * movie can read and the Engine panel can override.
  */
 
+/** Kind of engine surface: a gadget control, a `MappedImage`, or a `_type` nothing here knows */
 export type GadgetKind =
   | 'slider'
   | 'checkbox'
@@ -35,7 +36,7 @@ export interface SurfaceVars {
   mode?: string;
 }
 
-/** A surface classified, with the label a placeholder or the panel shows */
+/** Classification of an engine surface, with the label a placeholder or the panel shows */
 export interface GadgetInfo extends SurfaceVars {
   kind: GadgetKind;
   label: string;
@@ -72,7 +73,7 @@ const kindOfName = (name: string | undefined): GadgetKind | undefined => {
 };
 
 /**
- * What a surface is: `_type` first, then the template `_Load` names, then
+ * Classifies a surface by `_type` first, then the template `_Load` names, then
  * an image (`_imageName`, else `_imageMap`). Anything else with a `_type`
  * is unknown; a clip with none of these is no surface at all.
  */
@@ -128,14 +129,14 @@ export const BINDINGS: Record<GadgetKind, Binding[]> = {
   unknown: [],
 };
 
-/** A number a variable holds, or the fallback for anything else */
+/** Reads the number a variable holds, or the fallback for anything else, blank strings included */
 export const numberOf = (value: unknown, fallback: number): number => {
   const n = typeof value === 'string' && !value.trim() ? NaN : Number(value);
 
   return Number.isFinite(n) ? n : fallback;
 };
 
-/** The range of a value-bound gadget, always with `min <= max` */
+/** Reads the range of a value-bound gadget, swapped if needed so `min <= max` */
 export const rangeOf = (min: unknown, max: unknown): [number, number] => {
   const low = numberOf(min, 0);
   const high = numberOf(max, 100);
@@ -143,10 +144,11 @@ export const rangeOf = (min: unknown, max: unknown): [number, number] => {
   return high < low ? [high, low] : [low, high];
 };
 
+/** Clamps a value into an inclusive range */
 export const clamp = (value: number, [low, high]: [number, number]): number =>
   Math.min(high, Math.max(low, value));
 
-/** Where along a track `width` wide a pointer at `x` puts a value in `range` */
+/** Maps a pointer at `x` along a track `width` wide to a whole value in `range` */
 export const valueAt = (
   x: number,
   width: number,
@@ -156,11 +158,11 @@ export const valueAt = (
     ? Math.round(range[0] + clamp(x / width, [0, 1]) * (range[1] - range[0]))
     : range[0];
 
-/** How full a value-bound gadget is, `0..1` */
+/** Computes how full a value-bound gadget is, `0..1` */
 export const fraction = (value: number, range: [number, number]): number =>
   range[1] > range[0] ? clamp((value - range[0]) / (range[1] - range[0]), [0, 1]) : 0;
 
-/** The rows a list or combo box holds: `_items` split on `|` */
+/** Splits a list or combo box's `_items` on `|` into its rows */
 export const itemsOf = (items: unknown): string[] =>
   typeof items === 'string' && items.length ? items.split('|') : [];
 

@@ -6,7 +6,10 @@ import type { ScriptText } from './textModel';
 import { printMovieText } from './printer';
 import { describeError } from '../../../core/errors';
 
-/** Reads every action block of a movie as the text shows it */
+/**
+ * Creates the reader `movieToText` decompiles each action block of a movie
+ * with, falling back to a comment when the block cannot be read
+ */
 export const blockScripts =
   (apt: Uint8Array, constants: readonly ConstItem[]) =>
   (block: number): ScriptText => {
@@ -32,7 +35,7 @@ export const blockScripts =
     }
   };
 
-/** The text of a movie and its `.const`, every script decompiled */
+/** Prints a movie and its `.const` as text, every script decompiled */
 export const movieText = (
   apt: Uint8Array,
   constBytes: Uint8Array,

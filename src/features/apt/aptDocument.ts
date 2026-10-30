@@ -38,7 +38,7 @@ export interface BuiltMovie {
   summary: string;
 }
 
-/** Every action block a movie runs: frame actions, button and clip actions */
+/** Lists every action block a movie runs: frame actions, button and clip actions */
 const actionBlocks = (
   movie: AptMovie,
   spriteFrames: Record<number, Frame[]>,
@@ -64,7 +64,7 @@ const actionBlocks = (
   return [...blocks];
 };
 
-/** A file an edit removed is kept as an empty one until the movie is saved */
+/** Reads an edited file's bytes, where an empty one is a file an edit removed */
 const removedOr = (bytes: Uint8Array): Uint8Array | undefined =>
   bytes.length ? bytes : undefined;
 
@@ -78,10 +78,10 @@ const tryRead = async (uri: vscode.Uri): Promise<Uint8Array | undefined> => {
 };
 
 /**
- * A file beside the movie, in the folder or archive holding its `.apt`: the
- * exact name, else the one matching without casing, as a retail archive's
- * `Name.CONST` beside `name.apt` is. Found nowhere else here, so a movie
- * reads its own copy before any other archive's.
+ * Reads a file beside the movie, in the folder or archive holding its `.apt`:
+ * the exact name, else the one matching without casing, as a retail archive's
+ * `Name.CONST` beside `name.apt` is. Looks nowhere else, so a movie reads its
+ * own copy before any other archive's.
  */
 const readOwn = async (
   aptUri: vscode.Uri,
@@ -114,7 +114,7 @@ const latin1 = decodeWindows1252;
  * `art/textures/` below it.
  */
 export class AptDocument implements vscode.CustomDocument {
-  /** The image as edited; saving writes it */
+  /** The `.apt` image as edited; saving writes it */
   public image: AptImage;
 
   /** Goes up with every change, so a page knows when to take the movie again */
@@ -389,7 +389,7 @@ export class AptDocument implements vscode.CustomDocument {
     };
   }
 
-  /** Every action block decoded, for the preview to run; one that fails is left out */
+  /** Decodes every action block for the preview to run, leaving out one that fails */
   private code(
     movie: AptMovie,
     spriteFrames: Record<number, Frame[]>,
@@ -406,7 +406,7 @@ export class AptDocument implements vscode.CustomDocument {
     return code;
   }
 
-  /** What each action block does to timelines, for the preview to play */
+  /** Works out what each action block does to timelines, for the preview to play */
   private behaviours(
     movie: AptMovie,
     spriteFrames: Record<number, Frame[]>,

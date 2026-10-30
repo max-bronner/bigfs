@@ -9,7 +9,7 @@
 export const AUTO_LANGUAGE = 'auto';
 
 /**
- * The language a `lang/<Language>.big` archive holds, lowercased, or
+ * Gets the language a `lang/<Language>.big` archive holds, lowercased, or
  * undefined for any other archive (speech archives included)
  */
 export const languageOfArchive = (archivePath: string): string | undefined => {
@@ -19,7 +19,7 @@ export const languageOfArchive = (archivePath: string): string | undefined => {
   return name && !name.endsWith('audio') ? name : undefined;
 };
 
-/** The languages the archives hold, each once, in the order first met */
+/** Lists the languages the archives hold, each once, in the order first met */
 export const installedLanguages = (
   archivePaths: Iterable<string>,
 ): string[] => {
@@ -35,6 +35,7 @@ export const installedLanguages = (
   return [...found];
 };
 
+/** Outcome of `chooseLanguage`: a settled language, or whether the user must pick one */
 export interface LanguageChoice {
   /** The language to read, when it is settled */
   language?: string;

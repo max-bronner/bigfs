@@ -41,10 +41,10 @@ const rootList = () =>
     ? state.scene.fxLists[state.scene.root.name.toLowerCase()]
     : undefined;
 
-/** Frames from a delay in milliseconds, as the simulation rounds them */
+/** Converts a delay in milliseconds to frames, as the simulation rounds them */
 const delayFrames = (ms: number) => Math.ceil((ms * STEP_HZ) / 1000);
 
-/** Frames a nugget's systems take: emitting, then their last particle's life */
+/** Counts the frames a nugget's systems take: emitting, then their last particle's life */
 const duration = (system: string): number | undefined => {
   const def = library.systems.get(system.toLowerCase());
 
@@ -57,7 +57,7 @@ const duration = (system: string): number | undefined => {
     : Number.POSITIVE_INFINITY;
 };
 
-/** The InitialDelay tokens of a nugget's module: one, or min and max */
+/** Finds the InitialDelay fields of a nugget's module: one, or min and max */
 const delayFields = (module: number): NumericField[] =>
   (state.scene?.fields ?? []).filter(
     (field) =>
@@ -65,7 +65,7 @@ const delayFields = (module: number): NumericField[] =>
       field.keyword.toLowerCase() === 'initialdelay',
   );
 
-/** The list the world plays: the extension's, less muted nuggets */
+/** Filters the list down to what the world plays: the extension's, less muted nuggets */
 const playedList = (list: FxListDef): FxListDef => ({
   ...list,
   nuggets: list.nuggets.filter((_, index) =>
@@ -73,7 +73,7 @@ const playedList = (list: FxListDef): FxListDef => ({
   ),
 });
 
-/** Puts the muting into the library */
+/** Replaces the previewed FX list in the library with the one the world plays, less muted nuggets */
 export const applyMuting = (): void => {
   const list = rootList();
 
@@ -106,7 +106,7 @@ const span = (list: FxListDef): number => {
   );
 };
 
-/** The other nuggets of the list on show, which the page approximates */
+/** Lists the non-particle nuggets of the FX list on show, which the page approximates */
 export const listEffects = (): readonly FxEffect[] => original?.effects ?? [];
 
 /** Draws the rows and the playhead; called every frame */
@@ -246,7 +246,7 @@ export const drawTimeline = (): void => {
   ctx.fillRect(head, PAD - 2, 2, rows * ROW + 4);
 };
 
-/** The nugget row under a point, if a particle nugget */
+/** Finds the particle nugget row under a point, if any */
 const rowAt = (y: number) => {
   const index = Math.floor((y - PAD) / ROW);
 
@@ -255,7 +255,7 @@ const rowAt = (y: number) => {
     : undefined;
 };
 
-/** The sound nugget under a point, if a sound row */
+/** Finds the sound nugget row under a point, if any */
 const soundAt = (y: number) => {
   const index =
     Math.floor((y - PAD) / ROW) - (original ? original.nuggets.length : 0);
@@ -270,6 +270,7 @@ let soundsBox: HTMLInputElement | undefined;
 /** The frame sounds were last due at, so each plays once per pass */
 let soundFrame = 0;
 
+/** Width in pixels of the play mark at the start of a sound row's label */
 const PLAY_ZONE = 18;
 
 /** Plays the sounds that fell due since the last frame, when opted in */

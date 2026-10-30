@@ -38,7 +38,7 @@ layer.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none';
 stage.replaceWith(wrap);
 wrap.append(stage, layer);
 
-/** The gadgets of the shown run; the Engine panel lists these too */
+/** Gets the gadgets of the shown run; the Engine panel lists these too */
 export const currentGadgets = (): Gadget[] =>
   state.movie ? findGadgets(currentPlayer()) : [];
 

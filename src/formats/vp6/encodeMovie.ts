@@ -2,12 +2,13 @@ import { writeVp6 } from './container';
 import { Vp6Encoder, pictureFromRgba } from './encoder';
 
 /**
- * A whole movie from a stream of RGBA frames: colour, and alpha when any
- * frame has transparency, each its own VP6 stream as EA's movies carry
+ * Encoding of a whole movie from a stream of RGBA frames: colour, and alpha
+ * when the source asks for it, each its own VP6 stream as EA's movies carry
  * them. Frames are pulled one at a time, so a long movie never sits in
  * memory as pictures.
  */
 
+/** Source of RGBA frames for `encodeMovie`, pulled one at a time */
 export interface FrameSource {
   width: number;
   height: number;
@@ -15,11 +16,13 @@ export interface FrameSource {
   rateDenominator: number;
   /** Whether the frames carry alpha the movie should keep */
   alpha: boolean;
-  /** The next frame, `width * height * 4` bytes, or nothing at the end */
+  /** Reads the next frame, `width * height * 4` bytes, or `undefined` at the end */
   next(): Promise<Uint8Array | undefined>;
 }
 
+/** Settings for `encodeMovie` */
 export interface MovieOptions {
+  /** 0 (smallest) to 63 (best), VP6's quantizer index */
   quality: number;
   /** Frames between forced key frames; scene changes add their own */
   keyInterval?: number;
@@ -29,9 +32,14 @@ export interface MovieOptions {
   cancelled?: () => boolean;
 }
 
-/** The largest side VP6 can code: 255 macroblocks */
+/** Largest picture side in pixels VP6 can code (255 macroblocks), checked before encoding */
 export const MAX_SIDE = 255 * 16;
 
+/**
+ * Encodes a movie in EA's VP6 container, with a key frame every two seconds
+ * unless `keyInterval` says otherwise.
+ * @returns `undefined` when `cancelled` stopped the encode
+ */
 export const encodeMovie = async (
   source: FrameSource,
   options: MovieOptions,
@@ -94,7 +102,7 @@ export const encodeMovie = async (
   });
 };
 
-/** Bilinear resize of an RGBA image, for sources that cannot scale themselves */
+/** Resizes an RGBA image bilinearly, for sources that cannot scale themselves */
 export const resizeRgba = (
   rgba: Uint8Array,
   width: number,

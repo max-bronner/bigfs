@@ -108,7 +108,7 @@ for (const name of Object.keys(state.layers) as (keyof typeof state.layers)[]) {
 listenToCanvas(actions);
 new ResizeObserver(() => draw()).observe(canvas.parentElement!);
 
-/** The owners and teams the "owner" box suggests: those the objects and teams name */
+/** Lists the owners and teams the "owner" box suggests: those the objects and teams name */
 const ownerNames = (): string[] =>
   [
     ...new Set([

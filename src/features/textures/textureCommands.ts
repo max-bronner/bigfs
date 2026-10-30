@@ -44,7 +44,7 @@ export const encodeLike = (
   return encodeDds(image, format, original.levels.length > 1);
 };
 
-/** Beside a loose file; for an archive entry, where the user picks */
+/** Picks where an output file goes: beside a loose file, or where the user says for an archive entry */
 const pickOutput = async (
   source: vscode.Uri,
   name: string,
@@ -71,6 +71,7 @@ const run = (task: () => Promise<void>) => async () => {
   }
 };
 
+/** Registers the PNG export, import and conversion commands for textures */
 export const registerTextureCommands = (
   context: vscode.ExtensionContext,
 ): void => {

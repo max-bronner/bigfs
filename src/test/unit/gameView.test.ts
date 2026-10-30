@@ -6,7 +6,7 @@ import {
 } from '../../game/install/gameView';
 import type { GameFile } from '../../game/install/gameView';
 
-/** Candidate files from archives, in the order the caller ranks them */
+/** Builds a candidate game file whose ref names its origin and entry path */
 const file = (entryPath: string, origin: string): GameFile<string> => ({
   entryPath,
   origin,

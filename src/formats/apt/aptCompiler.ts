@@ -47,14 +47,14 @@ const OPCODE_OF_OPERATOR = new Map(
   Object.entries(OPERATORS).map(([op, text]) => [text, op]),
 );
 
-/** A compile error, naming what could not be encoded */
+/** Error thrown for a script construct the compiler cannot encode, naming it */
 export class CompileError extends Error {}
 
 /** Shared state of one compile: the `.const` items, extended as needed */
 class ConstTable {
   public constructor(public readonly items: ConstItem[]) {}
 
-  /** The index of an item with this value, appending one when there is none */
+  /** Gets the index of the item with this value, appending one when there is none */
   public indexOf(value: string | number): number {
     const found = this.items.findIndex((item) =>
       typeof value === 'string'
@@ -373,6 +373,7 @@ class Lowering {
     }
   }
 
+  /** Emits code that runs `stmts` in order */
   public statements(stmts: Stmt[]): void {
     stmts.forEach((stmt) => this.statement(stmt));
   }

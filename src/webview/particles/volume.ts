@@ -4,6 +4,7 @@ import type { ParticleDef, Vec3 } from '../../formats/particles/particleIni';
 
 type Color = [number, number, number, number];
 
+/** Appends a line's two vertices, xyz rgba each */
 export const pushLine = (
   out: number[],
   a: Vec3,
@@ -13,7 +14,7 @@ export const pushLine = (
   out.push(...a, ...color, ...b, ...color);
 };
 
-/** A circle flat on the ground around a point */
+/** Appends a circle flat on the ground around a point */
 export const pushRing = (
   out: number[],
   center: Vec3,
@@ -33,7 +34,7 @@ export const pushRing = (
   }
 };
 
-/** A rough size for the camera to frame a system */
+/** Estimates a rough size for the camera to frame a system */
 export const reach = (def: ParticleDef | undefined): number => {
   if (!def) {
     return 100;
@@ -59,6 +60,7 @@ export const reach = (def: ParticleDef | undefined): number => {
   );
 };
 
+/** Appends the outline of a system's emitter volume and a small axis cross at its origin */
 export const volumeLines = (
   out: number[],
   def: ParticleDef,
@@ -133,6 +135,7 @@ export const volumeLines = (
   pushLine(out, at([0, 0, -s]), at([0, 0, s]), color);
 };
 
+/** Line vertices of the ground grid and the red, green and blue axes */
 export const GRID: number[] = (() => {
   const out: number[] = [];
   const color: Color = [1, 1, 1, 0.12];

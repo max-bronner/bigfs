@@ -48,7 +48,7 @@ import { registerCommand } from '../../platform/commands';
 const TEMPLATES = ['Object', 'ChildObject', 'ObjectReskin'];
 const NAME = /^[A-Za-z0-9_]+$/;
 
-/** What the wizard asks, given up front for automation */
+/** Answers to the wizard's questions, given up front for automation */
 export interface NewObjectRequest {
   source: string;
   name: string;
@@ -76,14 +76,19 @@ interface EntryAdditions {
   raw: string[];
 }
 
+/** Path of an INI file below `Data\INI\Object`; group 2 is its entry path from `data/` */
 const OBJECT_ENTRY = /^(.*\/)?(data\/ini\/object\/(?:.+\/)?[^/]+\.ini)$/i;
 
+/**
+ * Registers `bigfs.newObject`, which asks for a request, or takes one for
+ * automation, and resolves to the new name and what is left to do by hand
+ */
 export const registerNewObjectWizard = (
   documents: SageIniDocuments,
   index: SageIniIndex,
   archiveModel: ArchiveModel,
 ): vscode.Disposable => {
-  /** The block a definition or reference sits in, parsed from its file */
+  /** Finds the block a definition or reference sits in, parsed from its file */
   const blockAt = async (
     uri: vscode.Uri,
     line: number,
@@ -111,7 +116,7 @@ export const registerNewObjectWizard = (
     return undefined;
   };
 
-  /** Buttons that build the source, and the sets that hold each */
+  /** Finds the buttons that build the source, and the sets that hold each */
   const buildersOf = async (source: string) => {
     const builders: { button: Located; set: Located }[] = [];
 
@@ -227,7 +232,7 @@ export const registerNewObjectWizard = (
   };
 
   /**
-   * Where the new definitions go, always at a path the game loads: the
+   * Chooses where the new definitions go, always at a path the game loads: the
    * original's own file when that is one, else `Data\INI\Object\<name>.ini`
    * beside it in the same archive or mod folder. Nothing is written to a base
    * game archive, so a new file for one goes to a folder of the workspace.

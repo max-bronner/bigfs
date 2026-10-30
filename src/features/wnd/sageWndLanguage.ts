@@ -32,7 +32,7 @@ import { registerCommand } from '../../platform/commands';
  * the string tables, when the index and locator are supplied.
  */
 
-/** What the preview reads the game's data through */
+/** Services the layout preview reads the game's images and text through */
 export interface WndPreviewServices {
   index: SageIniIndex;
   /** Settles the language labels resolve in before the text is drawn */
@@ -46,6 +46,7 @@ interface ResolvedImage {
   dataUri: string;
 }
 
+/** Language id of `.wnd` window layouts */
 export const WND_LANGUAGE = 'sage-wnd';
 
 const selector: vscode.DocumentSelector = { language: WND_LANGUAGE };
@@ -215,9 +216,9 @@ const createWndPreview = (
   services: WndPreviewServices | undefined,
   onClose: () => void,
 ) => {
-  /** Images already resolved, by lowercased name; `null` for a name nothing defines */
+  // Images already resolved, by lowercased name; `null` for a name nothing defines
   const images = new Map<string, Promise<ResolvedImage | null>>();
-  /** Textures the page already has */
+  // Textures the page already has
   const sent = new Set<string>();
   let version = 0;
 
@@ -251,8 +252,8 @@ const createWndPreview = (
   });
 
   /**
-   * The image a `MappedImage` of this name draws: its texture as a PNG data
-   * URI, and the rect of it the definition's `Coords` cover
+   * Resolves the image a `MappedImage` of this name draws, once per name: its
+   * texture as a PNG data URI, and the rect of it the definition's `Coords` cover
    */
   const resolveImage = (name: string): Promise<ResolvedImage | null> => {
     const key = name.toLowerCase();
@@ -374,7 +375,7 @@ const refreshWndPreview = (document: vscode.TextDocument): void => {
   void openWndPreviews.get(document.uri.toString())?.update();
 };
 
-/** The preview page: the windows drawn at their creation resolution */
+/** Renders the layout preview page: the windows drawn at their creation resolution */
 export const renderPreviewHtml = (
   webview: vscode.Webview,
   scripts: vscode.Uri,
@@ -395,6 +396,11 @@ export const renderPreviewHtml = (
   });
 };
 
+/**
+ * Registers the WND language support: problems, outline, folding, completion
+ * and `bigfs.showWndPreview`. Without services the preview draws no images or
+ * game text.
+ */
 export const registerSageWndLanguage = (
   context: vscode.ExtensionContext,
   services?: WndPreviewServices,

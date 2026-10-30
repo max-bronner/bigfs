@@ -173,12 +173,12 @@ const SIGNED_BYTE = new Set([0xb5]);
 /** Opcodes whose short operand is signed */
 const SIGNED_SHORT = new Set([0xb6]);
 
-/** The opcode of a name, for an encoder */
+/** Opcode byte of each opcode name, for the compiler to encode with */
 export const OPCODE_BY_NAME = new Map(
   Array.from(OPCODES, ([opcode, [name]]) => [name, opcode]),
 );
 
-/** The operand shape of an opcode */
+/** Gets how an opcode's operand is stored, or undefined for an unknown opcode */
 export const getOperandShape = (opcode: number): OperandShape | undefined =>
   OPCODES.get(opcode)?.[1];
 

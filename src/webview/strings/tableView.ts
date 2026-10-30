@@ -2,7 +2,7 @@ import { editCell } from './cellEditor';
 import type { FromStringsPage, StringRow } from './protocol';
 import { ROWS_PER_PAGE, describeCount, filterRows } from './rowFilter';
 
-/** What the table shows: the rows the editor sent, and how much of them */
+/** View state of the string table: the rows the editor sent, the filter, and how many pages are shown */
 export interface TableState {
   rows: StringRow[];
   hasSpeech: boolean;
@@ -21,7 +21,7 @@ const cell = (text: string, className?: string): HTMLTableCellElement => {
   return element;
 };
 
-/** Draws the table body, the count and "Show more" for the current state. */
+/** Renders the table body, the label count and "Show more" for the current state */
 export const renderTable = (
   state: TableState,
   post: (message: FromStringsPage) => void,

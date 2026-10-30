@@ -72,7 +72,7 @@ const placementOf = (instance: Instance): Affine => [
   ...instance.translate,
 ];
 
-/** Where an instance's own space sits in the shown character's */
+/** Gets the matrix from an instance's own space to the shown character's */
 export const absoluteOf = (instance: Instance): Affine => {
   let matrix = IDENTITY;
 
@@ -82,16 +82,16 @@ export const absoluteOf = (instance: Instance): Affine => {
   return matrix;
 };
 
-/**
- * Whether moving an instance can be written: it sits in a timeline of the
- * movie being edited, placed by a record there. One drawn from an imported
- * movie is edited in that movie.
- */
 /** Whether the box and handles show: a shape's vertices take over in wireframe */
 const handlesShown = (instance: Instance | undefined): instance is Instance =>
   editable(instance) &&
   !(view.wireframe && instance.character?.type === 'shape');
 
+/**
+ * Whether moving an instance can be written: it sits in a timeline of the
+ * movie being edited, placed by a record there. One drawn from an imported
+ * movie is edited in that movie.
+ */
 export const editable = (
   instance: Instance | undefined,
 ): instance is Instance =>
@@ -259,7 +259,7 @@ export const commit = (instance: Instance, matrix: Affine): void => {
   });
 };
 
-/** Moves an instance by an offset in its parent's space, now and in the file */
+/** Moves the inspected instance by an offset in its parent's space, now and in the file; false when it cannot be edited */
 export const nudge = (dx: number, dy: number): boolean => {
   const instance = inspected();
 

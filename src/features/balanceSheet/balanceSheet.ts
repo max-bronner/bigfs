@@ -91,8 +91,9 @@ const createBalanceSheet = (
   const whenLoaded = (): Promise<void> => loaded ?? Promise.resolve();
 
   /**
-   * The page names a row and a column only; where the value is written is
-   * looked up here, so the page can never point an edit at another file.
+   * Handles a message from the page. The page names a row and a column only;
+   * where the value is written is looked up here, so the page can never point
+   * an edit at another file.
    */
   const receive = async (message: FromSheetPage): Promise<void> => {
     switch (message?.kind) {
@@ -173,7 +174,7 @@ const createBalanceSheet = (
     await refresh();
   };
 
-  /** The top-level block a definition opens */
+  /** Finds the top-level block a definition opens, with its parsed document and lines */
   const blockAt = async (
     uri: vscode.Uri,
     line: number,
@@ -400,6 +401,7 @@ const renderHtml = (webview: vscode.Webview, scripts: vscode.Uri): string => {
   });
 };
 
+/** Registers `bigfs.openBalanceSheet`, which opens the sheet and returns it for automation */
 export const registerBalanceSheet = (
   extensionUri: vscode.Uri,
   documents: SageIniDocuments,

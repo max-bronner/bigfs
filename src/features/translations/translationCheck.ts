@@ -45,6 +45,7 @@ import { registerCommand } from '../../platform/commands';
 /** Where each table is, by the path the report shows */
 const located = new Map<string, { uri: vscode.Uri; readOnly: boolean }>();
 
+/** A string table to read, loose or inside an archive */
 interface TableSource {
   uri: vscode.Uri;
   /** The path the report shows */
@@ -124,7 +125,7 @@ const readTables = async (
   return tables;
 };
 
-/** The labels the INI files, loose and in archives, use, with the first file using each */
+/** Collects the labels the INI files, loose and in archives, use, with the first file using each */
 const usedLabels = async (
   archiveModel: ArchiveModel,
 ): Promise<Map<string, { label: string; usedIn: string }>> => {
@@ -192,7 +193,7 @@ const report = (
     '',
   ].join('\n');
 
-/** The first `.str` table of a gap that may be written to */
+/** Finds the first `.str` table of a gap that may be written to */
 const editableTable = (gap: LanguageGap): string | undefined =>
   gap.tables.find(
     (table) => /\.str$/i.test(table) && !located.get(table)?.readOnly,
@@ -246,12 +247,16 @@ const fill = async (
   return true;
 };
 
+/**
+ * Registers `bigfs.checkTranslations`, which resolves to the gaps it found.
+ * Given options it shows no report and fills only the languages `fill`
+ * names, for automation.
+ */
 export const registerTranslationCheck = (
   archiveModel: ArchiveModel,
 ): vscode.Disposable =>
   registerCommand(
     'bigfs.checkTranslations',
-    /** `fill` names the languages to fill without asking, for automation */
     async (options?: { fill?: string[] }) => {
       const tables = await readTables(archiveModel);
       const gaps = translationGaps(tables);

@@ -1,5 +1,5 @@
 /**
- * Which definitions "Find Unused Definitions" may report. Only a kind that
+ * Definition keywords, lowercased, that "Find Unused Definitions" may report. Only a kind that
  * nothing outside the INI files looks up by name can be called unused from
  * the INI alone: maps and their scripts name objects, upgrades, sciences,
  * special powers, sounds, movies and command sets; the engine looks up
@@ -22,6 +22,7 @@ export const REPORTABLE_KINDS: ReadonlySet<string> = new Set(
   ].map((kind) => kind.toLowerCase()),
 );
 
+/** Whether "Find Unused Definitions" may report a definition with this keyword */
 export const isReportableKind = (keyword: string): boolean =>
   REPORTABLE_KINDS.has(keyword.toLowerCase());
 

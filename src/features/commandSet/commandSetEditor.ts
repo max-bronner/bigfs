@@ -95,7 +95,7 @@ body { color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vsco
     onDispose: onClose,
   });
 
-  /** The set's block as the file has it now */
+  /** Reads the set's block, and the file's lines, as the file has them now */
   const block = async () => {
     const lines = (await readWorkspaceText(uri)).split(/\r?\n/);
     const block = parseSageIni(lines, await documents.getSchema()).blocks.find(
@@ -289,6 +289,10 @@ const createCommandSetLensProvider = (): vscode.CodeLensProvider => ({
   },
 });
 
+/**
+ * Registers the Edit slots lens and `bigfs.editCommandSet`, which opens one
+ * editor per set; given a message it acts as the page does, for automation.
+ */
 export const registerCommandSetEditor = (
   context: vscode.ExtensionContext,
   selector: vscode.DocumentSelector,
@@ -325,7 +329,6 @@ export const registerCommandSetEditor = (
     ),
     registerCommand(
       'bigfs.editCommandSet',
-      /** With `message`, acts as the page does, for automation */
       async (uri?: vscode.Uri, name?: string, message?: FromCommandSetPage) => {
         if (!uri || !name) {
           void vscode.window.showInformationMessage(

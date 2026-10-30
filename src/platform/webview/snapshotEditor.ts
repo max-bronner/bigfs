@@ -5,6 +5,7 @@ import * as vscode from "vscode";
  * an edit replaces the snapshot, and its undo step puts the previous one back.
  */
 export interface SnapshotDocument<T> extends vscode.CustomDocument {
+  /** The current parsed form, replaced whole by each edit */
   snapshot: T;
   /** Whether the file is read-only to the user, as one in a game install is */
   readonly isReadOnly: boolean;
@@ -14,6 +15,7 @@ export interface SnapshotDocument<T> extends vscode.CustomDocument {
 
 /** Conversion between a file's bytes and its snapshot, used to open, save, revert and back up */
 export interface SnapshotFormat<T> {
+  /** Parses a file's bytes into a snapshot */
   read(bytes: Uint8Array): T;
   /** May throw to refuse writing a snapshot the format cannot store */
   write(snapshot: T): Uint8Array;

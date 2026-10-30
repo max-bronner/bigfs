@@ -33,7 +33,7 @@ const RADIUS = 6;
 
 const fieldsOf = () => state.scene?.fields ?? [];
 
-/** A field of the emission volume, by any of its spellings, block or flat */
+/** Finds a field of the emission volume, by any of its spellings, block or flat */
 const volumeField = (names: string[], part = ''): NumericField | undefined =>
   fieldsOf().find(
     (field) =>
@@ -151,7 +151,7 @@ const handlesOf = (def: ParticleDef): Handle[] => {
   }
 };
 
-/** The previewed system's live instance and definition, if it is one */
+/** Finds the previewed system's live origin and definition, when the previewed block is a system */
 const target = () => {
   const name =
     state.scene?.root?.kind === 'system' ? state.scene.root.name : '';
@@ -163,7 +163,7 @@ const target = () => {
   return def && system ? { def, origin: system.origin } : undefined;
 };
 
-/** A world point in CSS pixels of the view, or undefined behind the camera */
+/** Projects a world point to CSS pixels of the view; undefined behind the camera */
 const project = (
   matrix: Float32Array,
   p: Vec3,
@@ -264,7 +264,7 @@ const send = (handle: Handle, values: number[]) =>
     post({ kind: 'set', id, value });
   });
 
-/** Takes the pointer from the camera when it lands on a handle */
+/** Attaches the handle drags, which take the pointer from the camera when it lands on a handle */
 export const attachHandles = (): void => {
   canvas.addEventListener(
     'pointerdown',

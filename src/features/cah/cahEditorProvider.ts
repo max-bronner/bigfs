@@ -58,11 +58,12 @@ import { describeError } from '../../core/errors';
  * recomputes the trailer checksum exactly as mint does (`formats/cah.ts`).
  */
 
+/** View type the Create-a-Hero editor is registered under */
 export const CAH_VIEW_TYPE = "bigfs.cahEditor";
 
 const MAX_U32 = 0xffffffff;
 
-/** What the page sends */
+/** Message from the hero page, with the fields any of its kinds may carry */
 interface PageMessage {
   kind: FromCahPage["kind"];
   index?: number;
@@ -70,7 +71,7 @@ interface PageMessage {
   value?: string;
 }
 
-/** The services the editor resolves names with */
+/** Services the Create-a-Hero editor resolves names and reads files with */
 export interface CahServices {
   documents: SageIniDocuments;
   index: SageIniIndex;
@@ -153,7 +154,7 @@ const renderHtml = (webview: vscode.Webview, extensionUri: vscode.Uri): string =
 <div id="notice" hidden></div>`,
   });
 
-/** The hero file editor: the binary file as a form, saved whole */
+/** Custom editor for Create-a-Hero files: the binary file as a form, saved whole */
 export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocument> {
   private readonly changes = new vscode.EventEmitter<
     vscode.CustomDocumentEditEvent<CahDocument>
@@ -166,6 +167,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     this.parses = createParseCache(services.documents);
   }
 
+  /** Registers the editor for `.cah` files */
   public static register(services: CahServices): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       CAH_VIEW_TYPE,
@@ -174,6 +176,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     );
   }
 
+  /** Reads a hero file into an editable snapshot, keeping the parsed original for its checksum report */
   public async openCustomDocument(
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
@@ -205,7 +208,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     redrawSnapshotViews(document);
   }
 
-  /** The create-a-hero tables, read once from the first INI that holds a `CreateAHeroSystem` */
+  /** Reads the create-a-hero tables from the first INI that holds a `CreateAHeroSystem`, once; a miss is retried next time */
   private loadSystem(): Promise<HeroSystem | undefined> {
     this.system ??= this.readSystem().then((system) => {
       if (!system) {
@@ -243,7 +246,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     return undefined;
   }
 
-  /** The fields of a definition the index knows, if its file can be read */
+  /** Reads the fields of a definition the index knows, if its file can be read */
   private async fieldsOf(namespace: string, name: string) {
     const [definition] = this.services.index.findDefinitions(namespace, name);
     const parsed = definition && (await this.parses.get(definition.uri));
@@ -370,6 +373,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     };
   }
 
+  /** Shows the hero as a form and applies the page's edits as undoable steps */
   public resolveCustomEditor(
     document: CahDocument,
     panel: vscode.WebviewPanel,
@@ -532,6 +536,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     }
   }
 
+  /** Writes the hero back with a recomputed checksum; a read-only file throws */
   public async saveCustomDocument(document: CahDocument): Promise<void> {
     if (document.isReadOnly) {
       throw new Error(
@@ -541,6 +546,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     await saveSnapshot(document, CAH_FORMAT);
   }
 
+  /** Writes the hero to another file */
   public saveCustomDocumentAs(
     document: CahDocument,
     destination: vscode.Uri,
@@ -548,10 +554,12 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     return saveSnapshot(document, CAH_FORMAT, destination);
   }
 
+  /** Rereads the hero from disk, dropping unsaved edits */
   public revertCustomDocument(document: CahDocument): Promise<void> {
     return revertSnapshot(document, CAH_FORMAT);
   }
 
+  /** Backs up the unsaved hero so it survives a reload */
   public backupCustomDocument(
     document: CahDocument,
     context: vscode.CustomDocumentBackupContext,

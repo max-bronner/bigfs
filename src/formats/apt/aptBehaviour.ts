@@ -4,7 +4,7 @@ import type { ConstItem } from './aptMovie';
 import type { Expr, Stmt } from './aptScriptSyntax';
 
 /**
- * What an action block does to timelines, read from its lifted script, so
+ * Reads what an action block does to timelines from its lifted script, so
  * a preview can play menus without running ActionScript: `gotoAndPlay`,
  * `gotoAndStop`, `play`, `stop`, `nextFrame`, `prevFrame`, in their call
  * and opcode forms (`GotoLabel`, `GotoFrame`, `Play`, ...), on `this`, a
@@ -18,6 +18,7 @@ import type { Expr, Stmt } from './aptScriptSyntax';
 /** A timeline path from the block's own timeline: `[]` is itself */
 export type TargetPath = string[];
 
+/** A timeline control an action block runs: a goto, or play, stop, next or prev */
 export type TimelineCommand =
   | {
       op: 'goto';
@@ -29,6 +30,7 @@ export type TimelineCommand =
     }
   | { op: 'play' | 'stop' | 'next' | 'prev'; target: TargetPath };
 
+/** The timeline commands an action block runs unconditionally, and how much it left unread */
 export interface Behaviour {
   commands: TimelineCommand[];
   /** Statements not run: anything that is not a timeline command */
@@ -111,6 +113,7 @@ const callCommand = (
   return op && !args.length ? { op, target } : undefined;
 };
 
+/** Reads the timeline commands an action block runs before its first branch */
 export const behaviourOf = (
   apt: Uint8Array,
   block: number,

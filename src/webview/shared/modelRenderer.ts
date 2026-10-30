@@ -8,9 +8,9 @@ import type { W3dBlend } from "../../formats/w3d/w3dTools";
  * Draws a W3D model with WebGL: every mesh textured and lit from the
  * camera, or flat grey where it has no texture, skinned on the CPU to the
  * pose it is given, its bones and collision boxes as lines when asked, one
- * level of detail at a time and without the meshes marked hidden. One renderer serves
- * the W3D viewer and the particle preview, so a model looks the same in
- * both. WebGL 1, which the particle preview draws with.
+ * level of detail at a time and without the meshes marked hidden. One
+ * renderer serves the W3D viewer and the particle preview, so a model looks
+ * the same in both. WebGL 1, which the particle preview draws with.
  */
 
 const VERTEX_SHADER = `
@@ -49,6 +49,7 @@ void main() {
 const BONE_COLOUR = [1, 0.75, 0.2, 1];
 const BOX_COLOUR = [0.3, 0.9, 0.5, 1];
 
+/** Settings for one `ModelRenderer.draw` call: where the model stands, the light, and what to show */
 export interface DrawOptions {
   /** Where the model stands */
   offset?: Vec3;
@@ -65,11 +66,13 @@ export interface DrawOptions {
   showBoxes?: boolean;
 }
 
+/** WebGL renderer for one W3D model at a time, shared by the W3D viewer and the particle preview */
 export interface ModelRenderer {
   /** Replaces the model, or clears it */
   setModel(scene: ModelScene | undefined): void;
   /** Skins the model to a pose; the bind pose when none */
   setPose(pose: Pose | undefined): void;
+  /** Draws the model; does nothing until a model is set */
   draw(viewProjection: Float32Array | number[], options: DrawOptions): void;
 }
 
@@ -121,6 +124,7 @@ const poseAtBind = (skeleton: NonNullable<ModelScene["skeleton"]>): Pose => {
 
 const isPowerOfTwo = (value: number) => (value & (value - 1)) === 0;
 
+/** Creates a model renderer on a WebGL 1 context that other programs may share */
 export const createModelRenderer = (
   gl: WebGLRenderingContext,
 ): ModelRenderer => {
@@ -313,7 +317,7 @@ export const createModelRenderer = (
     gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
   };
 
-  /** The framebuffer operation a material asks for; blended ones keep the depth buffer */
+  // Blended materials test against the depth buffer but do not write to it
   const applyBlend = (blend: W3dBlend) => {
     gl.depthMask(blend === "opaque");
     if (blend === "opaque") {

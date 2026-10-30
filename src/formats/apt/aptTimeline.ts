@@ -3,7 +3,7 @@ import { AptReader } from './aptMovie';
 import type { Frame, Matrix2 } from './aptMovie';
 
 /**
- * A timeline as what is on stage at every frame, so it can be edited the
+ * Edits a timeline as what is on stage at every frame, so it can be edited the
  * way an animation editor edits it, and written back as the records APT
  * keeps. APT has no tweens: like a published Flash file, every frame of a
  * motion is baked into its own PlaceObject. Editing frames one by one is
@@ -16,7 +16,7 @@ import type { Frame, Matrix2 } from './aptMovie';
  * operation unchanged keeps its original records, byte for byte.
  */
 
-/** What is placed at a depth in one frame */
+/** A placement at a depth in one frame */
 export interface Slot {
   /** One instance across frames: a move keeps it, a new placement makes another */
   token: string;
@@ -33,6 +33,7 @@ export interface Slot {
   clipActions?: number;
 }
 
+/** One frame of a decoded timeline: what is on stage, plus the records kept as they are */
 export interface FrameState {
   display: Map<number, Slot>;
   /** Records kept as they are, in order: actions, init actions and the like */
@@ -43,6 +44,7 @@ export interface FrameState {
   source?: number;
 }
 
+/** A frame label and its record's flags */
 export interface Label {
   label: string;
   flags: number;
@@ -57,6 +59,7 @@ export type FrameSpec =
       )[];
     };
 
+/** A PlaceObject record to write, as `encodeTimeline` describes it */
 export interface PlaceSpec {
   /** A change to what is already at the depth, not a new instance */
   move: boolean;
@@ -302,6 +305,7 @@ export interface Pose {
   alpha: number;
 }
 
+/** Reads a slot's matrix, translation and alpha as a pose */
 export const poseOf = (slot: Slot): Pose => {
   const [a, b, c, d] = slot.matrix;
   const scaleX = Math.hypot(a, b);
@@ -322,7 +326,7 @@ export const poseOf = (slot: Slot): Pose => {
   };
 };
 
-/** A slot with a pose applied; colour other than alpha is kept */
+/** Applies a pose to a copy of a slot; colour other than alpha is kept */
 export const withPose = (slot: Slot, pose: Pose): Slot => {
   const radians = (pose.rotation * Math.PI) / 180;
   const cos = Math.cos(radians);
@@ -351,6 +355,7 @@ export const withPose = (slot: Slot, pose: Pose): Slot => {
   };
 };
 
+/** Formula text per pose property, as `animate` evaluates them */
 export type PoseFormulas = Partial<Record<keyof Pose, string>>;
 
 /**
@@ -427,7 +432,7 @@ export const animate = (
   return next;
 };
 
-/** A straight tween from the pose at `from` to `end` at `to`, eased */
+/** Tweens a depth in a straight line from its pose at `from` to `end` at `to`, eased */
 export const tween = (
   states: FrameState[],
   depth: number,
@@ -674,10 +679,10 @@ export const retimeFrames = (
   return next;
 };
 
-/** How a pose changes over frames, from its first: added, scales multiplied */
+/** Per-frame change of a pose from its first frame: added, scales multiplied */
 export type Motion = Pose[];
 
-/** The motion of a depth over frames `from`..`to`, relative to its first frame */
+/** Reads the motion of a depth over frames `from`..`to`, relative to its first frame */
 export const motionOf = (
   states: FrameState[],
   depth: number,
@@ -772,7 +777,7 @@ export const applyMotion = (
   return next;
 };
 
-/** One of the operations above, as a value the editor page can send */
+/** A timeline operation of this module as a value the editor page can send */
 export type TimelineOperation =
   | {
       op: 'animate';
@@ -811,6 +816,7 @@ export type TimelineOperation =
       mirror?: 'x' | 'y';
     };
 
+/** Applies one timeline operation to the frame states, returning new ones */
 export const applyOperation = (
   states: FrameState[],
   operation: TimelineOperation,

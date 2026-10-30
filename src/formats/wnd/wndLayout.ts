@@ -13,6 +13,7 @@
  * can show every problem at once, and it keeps offsets for each part.
  */
 
+/** One `KEY = value;` statement, with the value's whitespace runs read as one space */
 export interface WndField {
   key: string;
   value: string;
@@ -22,6 +23,7 @@ export interface WndField {
   keyEnd: number;
 }
 
+/** One `WINDOW` … `END` block: its fields and child windows */
 export interface WndWindow {
   fields: WndField[];
   children: WndWindow[];
@@ -30,12 +32,14 @@ export interface WndWindow {
   end: number;
 }
 
+/** A problem found while reading a layout, with the text span it concerns */
 export interface WndProblem {
   start: number;
   end: number;
   message: string;
 }
 
+/** A parsed `.wnd` file: its layout-level fields, top windows and every problem found */
 export interface WndLayout {
   fields: WndField[];
   windows: WndWindow[];
@@ -229,7 +233,8 @@ export const parseWnd = (text: string): WndLayout => {
 };
 
 /**
- * A window's field by key, without casing. A key stated twice reads as its
+ * Finds a window's field by key, which must be given upper case; the file's
+ * casing does not matter. A key stated twice reads as its
  * last statement, as mint's `wnd` reader (`field_of`) and EA's table do.
  */
 export const fieldOf = (
@@ -246,7 +251,7 @@ export const fieldOf = (
 };
 
 /**
- * `LABEL: value` items, tokenised as EA's `strtok` over ` :,` does, so a
+ * Splits a record value into `LABEL: value` items, tokenised as EA's `strtok` over ` :,` does, so a
  * dropped comma reads the same; a quoted value stays whole
  */
 export const labelled = (value: string): [string, string[]][] => {
@@ -276,6 +281,7 @@ export const labelled = (value: string): [string, string[]][] => {
 const numbers = (values: string[] | undefined) =>
   (values ?? []).map(Number).filter((value) => Number.isFinite(value));
 
+/** A colour as red, green, blue and alpha, 0–255 each */
 export type Rgba = [number, number, number, number];
 
 /** One `IMAGE:` of a `*DRAWDATA` line with the `COLOR` and `BORDERCOLOR` after it */
@@ -294,7 +300,7 @@ const rgba = (values: string[] | undefined): Rgba => {
   return [r, g, b, a];
 };
 
-/** The slots of a `*DRAWDATA` value, one per `IMAGE:` as mint's `draw_items` reads them */
+/** Reads the slots of a `*DRAWDATA` value, one per `IMAGE:` as mint's `draw_items` reads them */
 export const drawItems = (value: string): WndDrawItem[] => {
   const items: WndDrawItem[] = [];
 
@@ -331,11 +337,13 @@ export interface WndPart {
   border?: Rgba;
 }
 
+/** A window state that has its own draw data */
 export type WndState = 'enabled' | 'hilite' | 'disabled';
 
 /** A window's look in a state; a checked check box has its own, `enabled+checked` */
 export type WndLookKey = WndState | `${WndState}+checked`;
 
+/** Every window state, in the order a preview lists the looks */
 export const WND_STATES: readonly WndState[] = [
   'enabled',
   'hilite',
@@ -373,7 +381,7 @@ const partOf = (role: string, item: WndDrawItem | undefined) => {
 };
 
 /**
- * What a window of `type` draws in `state`, by the slot map of its gadget in
+ * Lists what a window of `type` draws in `state`, by the slot map of its gadget in
  * mint's `apt-viewer` (`gadget/{check,slider,list,combo}.rs`, from EA's
  * `W3D*` draw code); any other window draws slot 0 of the state's data.
  */
@@ -431,13 +439,14 @@ export const partsOf = (
   }
 };
 
+/** A window's `FONT` record */
 export interface WndFont {
   name: string;
   size: number;
   bold: boolean;
 }
 
-/** What a preview needs of one window */
+/** One window as a preview draws it, resolved from its fields */
 export interface WndBox {
   name: string;
   type: string;
@@ -469,6 +478,7 @@ export interface WndBox {
   children: WndBox[];
 }
 
+/** Options for `toBoxes` */
 export interface BoxOptions {
   /** The text a `TEXT` value shows; `undefined` when it names no string */
   text?: (value: string) => string | undefined;
@@ -581,7 +591,7 @@ const settle = (box: WndBox, parent: WndBox | undefined) => {
   }
 };
 
-/** The boxes a preview draws */
+/** Converts windows into the boxes a preview draws, placing the children the engine lays out */
 export const toBoxes = (
   windows: WndWindow[],
   options: BoxOptions = {},

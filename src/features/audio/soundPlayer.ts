@@ -31,7 +31,7 @@ const ROTWK_HINT =
 
 const SOUND_EXTENSIONS = ['wav', 'mp3'];
 
-/** The file names a variant may be stored under, the first found playing */
+/** Lists the file names a variant may be stored under, in the order they are tried; the first found plays */
 export const soundCandidates = (name: string): string[] => {
   const base = name.replace(/^.*[\\/]/, '').toLowerCase();
 
@@ -136,7 +136,7 @@ const playSound = async (
   return undefined;
 };
 
-/** The variants as a quick pick offers them: role, side or subsound, then file */
+/** Converts a variant to a quick pick item: role, side or subsound, then file */
 const toPickItem = (variant: AudioVariant) => ({
   label: variant.label,
   description: variant.file,
@@ -171,6 +171,10 @@ const createSoundLensProvider = (
   },
 });
 
+/**
+ * Registers the sound lens and the `bigfs.playSound` and
+ * `bigfs.playAudioEvent` commands. Without a locator the commands do nothing.
+ */
 export const registerSoundPlayer = (
   extensionUri: vscode.Uri,
   selector: vscode.DocumentSelector,

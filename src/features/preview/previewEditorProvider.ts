@@ -19,17 +19,17 @@ import type {
 } from '../../webview/preview/protocol';
 import { describeError } from '../../core/errors';
 
-/** The file's name, as the INI files write it */
+/** Gets a file's name, lowercased, as the INI files are matched against it */
 const basename = (uri: vscode.Uri) =>
   uri.path.slice(uri.path.lastIndexOf('/') + 1).toLowerCase();
 
 /**
  * Read-only editor that previews the binary entries a text editor cannot
  * show: TGA and DDS textures, drawn on a canvas with zoom, channel and mip
- * controls, WAV sounds, played after IMA ADPCM is decoded, and W3D models,
- * drawn in 3D with their skeleton and textures found wherever they live. It opens files
- * inside archives and loose on disk alike, since it only reads bytes through
- * `workspace.fs`.
+ * controls, WAV and MP3 sounds, a WAV played after IMA ADPCM is decoded, VP6
+ * movies, and W3D models, drawn in 3D with their skeleton and textures found
+ * wherever they live. It opens files inside archives and loose on disk alike,
+ * since it only reads bytes through `workspace.fs`.
  */
 
 
@@ -136,7 +136,7 @@ const buildMessage = async (
   }
 };
 
-/** The page: a toolbar, a canvas or an audio element, and a status line */
+/** Renders the preview page: a toolbar, a canvas or an audio element, and a status line */
 export const renderHtml = (
   webview: vscode.Webview,
   modelScript: vscode.Uri,
@@ -217,7 +217,7 @@ export class PreviewEditorProvider
   }
 
   /**
-   * Files that look like animations of a skeleton: for `GUArcher_SKL`, every
+   * Finds the files that look like animations of a skeleton: for `GUArcher_SKL`, every
    * `guarcher_*.w3d` but the skeleton itself
    */
   private findAnimations(skeleton: string): Promise<string[]> {
@@ -231,10 +231,12 @@ export class PreviewEditorProvider
     );
   }
 
+  /** Opens a file as a document that holds only its URI; the bytes are read when it is shown */
   public openCustomDocument(uri: vscode.Uri): vscode.CustomDocument {
     return { uri, dispose: () => undefined };
   }
 
+  /** Decodes the file and sends it to the page once the page is ready */
   public async resolveCustomEditor(
     document: vscode.CustomDocument,
     panel: vscode.WebviewPanel,

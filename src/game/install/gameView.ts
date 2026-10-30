@@ -39,7 +39,7 @@ export interface GameNode<T> {
 }
 
 /**
- * The key the engine orders an install's archives by: the path below the
+ * Gets the key the engine orders an install's archives by: the path below the
  * install, lowercased, with backslashes
  */
 export const archiveOrderKey = (pathInInstall: string): string =>
@@ -104,7 +104,7 @@ export const compareArchivePaths = (a: string, b: string): number => {
   return keyA < keyB ? -1 : keyA > keyB ? 1 : 0;
 };
 
-/** What one install gives the game, before it is put in order */
+/** The files one install gives the game, before they are put in order */
 export interface InstallFiles<T> {
   /** Files on disk below the install: they beat every archive of it */
   loose: GameFile<T>[];
@@ -113,7 +113,7 @@ export interface InstallFiles<T> {
 }
 
 /**
- * The candidates for `buildGameTree`, highest priority first. `installs` come
+ * Orders the candidates for `buildGameTree`, highest priority first. `installs` come
  * highest layer first; inside one, loose files precede the archives, which
  * are taken in the engine's order.
  */
@@ -128,8 +128,8 @@ export const orderInstallFiles = <T>(
   ]);
 
 /**
- * Every file name of the game view, lowercased, with the file the game loads
- * for it: when several paths end in one name, the one that ranks highest
+ * Indexes every file name of the game view, lowercased, to the file the game
+ * loads for it: when several paths end in one name, the one that ranks highest
  */
 export const indexByName = <T>(root: GameNode<T>): Map<string, GameNode<T>> => {
   const byName = new Map<string, GameNode<T>>();
@@ -146,7 +146,7 @@ export const indexByName = <T>(root: GameNode<T>): Map<string, GameNode<T>> => {
   return byName;
 };
 
-/** Every file at or below a node, in path order */
+/** Lists every file at or below a node, in path order */
 export const getGameFiles = <T>(node: GameNode<T>): GameNode<T>[] =>
   node.children
     ? Array.from(node.children.values()).flatMap(getGameFiles)

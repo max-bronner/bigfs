@@ -21,27 +21,28 @@ import { registerCommand } from '../../platform/commands';
  * shipping it does. The report lists, against the base game, the files the
  * archive overrides, the new ones, and the ones it would not override
  * because a base archive sorts before its name; and the INI errors of the
- * folder's files, checked here rather than read off the Problems panel. Hidden files and archives inside the
- * folder are left out.
+ * folder's files, checked here rather than read off the Problems panel.
+ * Hidden files and archives inside the folder are left out.
  *
  * The base game is every install the settings name, ROTWK above BFME II,
  * loose files included. The archive is offered beside the mod folder, never
  * in the base game folder, and a copy saved there is not counted as base.
  */
 
+/** What to package and how: the mod folder, the archive's name and how players install it */
 export interface PackageRequest {
   folder: vscode.Uri;
   name: string;
   delivery: Delivery;
   /** Where the archive goes; asked for when missing */
   target?: vscode.Uri;
-  /** False packs without asking, for automation */
+  /** `false` packs without showing the report first, for automation */
   confirm?: boolean;
 }
 
 /**
- * The INI errors of the mod folder's files, found by checking them here: a
- * file nobody opened has no diagnostics in the Problems panel to count
+ * Checks the mod folder's INI files and lists their errors. They are checked
+ * here because a file nobody opened has no diagnostics in the Problems panel.
  */
 const errorsIn = async (
   files: { uri: vscode.Uri; relativePath: string }[],
@@ -128,6 +129,11 @@ const ask = async (): Promise<PackageRequest | undefined> => {
   return delivery && { folder, name, delivery: delivery.delivery };
 };
 
+/**
+ * Registers `bigfs.packageMod`, which reports what the archive would override
+ * and packs it on confirmation. Given a request it asks nothing; the command
+ * resolves to the report and how many files were packed.
+ */
 export const registerPackageMod = (
   baseLayers: () => Promise<string[]>,
   documents: SageIniDocuments,

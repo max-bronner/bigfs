@@ -8,7 +8,7 @@ import { registerCommand } from '../../platform/commands';
 
 /** The command that inserts a particle system template into an INI file */
 
-/** A definition name not used in the text yet */
+/** Picks a definition name not used in the text yet, numbering the base from 2 */
 const freeName = (text: string, base: string): string => {
   const used = new Set(
     findParticleDefinitions(text).map((each) => each.name.toLowerCase()),
@@ -22,13 +22,13 @@ const freeName = (text: string, base: string): string => {
 };
 
 /**
- * Inserts a template into the active INI file: after the definition the
- * cursor is in, or at the cursor's line
+ * Registers `bigfs.newParticleSystem`, which inserts a template into the
+ * active INI file after the definition the cursor is in, or at the cursor's
+ * line. A template label picks one without asking, for automation.
  */
 export const registerParticleTemplates = (): vscode.Disposable =>
   registerCommand(
     'bigfs.newParticleSystem',
-    /** `label` picks a template without asking, for automation */
     async (label?: string) => {
       const editor = vscode.window.activeTextEditor;
 
