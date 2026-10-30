@@ -1,4 +1,4 @@
-﻿import { env } from 'vscode';
+import { env } from 'vscode';
 import { setContextKey } from '../../platform/contextKeys';
 import {
   copyNodes,

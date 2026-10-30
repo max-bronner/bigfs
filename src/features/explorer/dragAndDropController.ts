@@ -1,4 +1,4 @@
-﻿import { Uri, DataTransfer, DataTransferItem, FileType, window } from 'vscode';
+import { Uri, DataTransfer, DataTransferItem, FileType, window } from 'vscode';
 import type { TreeDragAndDropController } from 'vscode';
 import { importFromDisk, transferNodes } from './fileActions';
 import { formatCount } from '../../core/messages';

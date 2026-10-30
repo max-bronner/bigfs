@@ -1,4 +1,4 @@
-﻿import { window } from 'vscode';
+import { window } from 'vscode';
 import type { ConflictChoice } from '../game/install/transferPlan';
 
 const MAX_LISTED_NAMES = 5;

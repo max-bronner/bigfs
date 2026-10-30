@@ -1,4 +1,4 @@
-﻿import { commands, window, workspace } from 'vscode';
+import { commands, window, workspace } from 'vscode';
 import { formatCount } from '../../core/messages';
 import { getChildUri, getNodeUri } from '../../services/archives/nodeAddress';
 import { askForName } from '../../platform/dialogs';

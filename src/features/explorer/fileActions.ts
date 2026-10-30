@@ -1,4 +1,4 @@
-﻿import { FileType, Uri, window, workspace } from 'vscode';
+import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
 import { getAvailableName } from '../../core/paths';
 import {

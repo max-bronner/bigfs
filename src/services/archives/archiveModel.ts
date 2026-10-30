@@ -1,4 +1,4 @@
-﻿import type { Event, LogOutputChannel, Uri } from 'vscode';
+import type { Event, LogOutputChannel, Uri } from 'vscode';
 import type { ConflictChoice } from '../../game/install/transferPlan';
 import type { Archive } from './archive';
 import { createArchiveOperations } from './archiveOperations';

@@ -1,4 +1,4 @@
-﻿import type { Event } from 'vscode';
+import type { Event } from 'vscode';
 import { settings } from '../../platform/settings';
 import {
   TreeItem,

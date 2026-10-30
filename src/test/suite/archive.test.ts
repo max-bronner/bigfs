@@ -1,4 +1,4 @@
-﻿import * as assert from 'assert';
+import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
 import { mkdir, readFile, rm, unlink, writeFile } from 'fs/promises';

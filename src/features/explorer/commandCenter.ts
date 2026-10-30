@@ -1,4 +1,4 @@
-﻿import type { ExtensionContext, TreeView } from 'vscode';
+import type { ExtensionContext, TreeView } from 'vscode';
 import { registerCommand } from '../../platform/commands';
 import { isGameRow, isVirtualNode } from '../../services/archives/explorerRow';
 import { toEntryDirectory } from '../../services/archives/gameViewModel';

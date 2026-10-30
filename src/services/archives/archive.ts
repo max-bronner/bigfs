@@ -1,4 +1,4 @@
-﻿import { Uri, workspace } from 'vscode';
+import { Uri, workspace } from 'vscode';
 import path from 'path';
 import {
   IN_PLACE_THRESHOLD,

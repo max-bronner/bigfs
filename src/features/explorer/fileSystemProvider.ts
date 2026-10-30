@@ -1,4 +1,4 @@
-﻿import * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { SCHEME } from '../../constants';
 import type { VirtualNode } from '../../services/archives/virtualNode';
