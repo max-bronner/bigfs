@@ -17,6 +17,7 @@ import type { Picture } from './dsp';
  * (mint's `crates/core/movie/src/yuv.rs`).
  */
 
+/** Header of an EA VP6 movie: picture size, frame count and frame rate */
 export interface Vp6Header {
   width: number;
   height: number;
@@ -33,7 +34,7 @@ interface FrameChunks {
   isAlphaKey?: boolean;
 }
 
-const tag = (bytes: Uint8Array, at: number) =>
+const readTag = (bytes: Uint8Array, at: number) =>
   String.fromCharCode(...bytes.subarray(at, at + 4));
 
 const readHeader = (
@@ -45,7 +46,7 @@ const readHeader = (
 
   if (
     at + 32 > bytes.length ||
-    tag(bytes, at) !== expected ||
+    readTag(bytes, at) !== expected ||
     view.getUint32(at + 4, true) !== 32
   ) {
     throw new Error(`Expected a ${expected} header at ${at}`);
@@ -73,7 +74,7 @@ export const parseVp6 = (
 
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let at = 0;
-  const hasAlpha = tag(bytes, 0) === 'AVP6';
+  const hasAlpha = readTag(bytes, 0) === 'AVP6';
 
   if (hasAlpha) {
     at = view.getUint32(4, true);
@@ -92,7 +93,7 @@ export const parseVp6 = (
   let isAlphaKey = false;
 
   while (at + 8 <= bytes.length) {
-    const kind = tag(bytes, at);
+    const kind = readTag(bytes, at);
     const size = view.getUint32(at + 4, true);
 
     if (size < 8 || at + size > bytes.length) {
@@ -171,7 +172,7 @@ export const toRgba = (
   return out;
 };
 
-/** A movie decoded on demand, frame by frame, seeking through key frames */
+/** VP6 movie decoded on demand, frame by frame, seeking through key frames */
 export class Vp6Movie {
   public readonly header: Vp6Header;
   public readonly hasAlpha: boolean;
@@ -192,10 +193,12 @@ export class Vp6Movie {
     this.frames = parsed.frames;
   }
 
+  /** Number of frames the movie holds, which may differ from the header's count */
   public get frameCount(): number {
     return this.frames.length;
   }
 
+  /** Frame rate from the header, or 15 when the header leaves it unset */
   public get framesPerSecond(): number {
     const { rateNumerator, rateDenominator } = this.header;
 
@@ -204,8 +207,8 @@ export class Vp6Movie {
       : 15;
   }
 
-  /** The RGBA image of frame `index` */
-  public frame(index: number): Uint8ClampedArray {
+  /** Decodes frame `index`, clamped to the movie, as RGBA */
+  public decodeFrame(index: number): Uint8ClampedArray {
     const target = Math.max(0, Math.min(this.frames.length - 1, index));
 
     // Going back, or far ahead, starts again from key frames before it. The
@@ -266,7 +269,7 @@ export class Vp6Movie {
   }
 }
 
-/** A movie to write: its size, rate and coded frames */
+/** Movie for `writeVp6` to write: its size, rate and coded frames */
 export interface Vp6Output {
   width: number;
   height: number;
@@ -281,7 +284,7 @@ export interface Vp6Output {
   }[];
 }
 
-const latin1 = (text: string) =>
+const encodeLatin1 = (text: string) =>
   Uint8Array.from(text, (character) => character.charCodeAt(0));
 
 /** Writes EA's container around coded frames, as `parseVp6` reads it */
@@ -290,7 +293,7 @@ export const writeVp6 = (movie: Vp6Output): Uint8Array => {
   const chunk = (kind: string, payload: Uint8Array) => {
     const out = new Uint8Array(8 + payload.length);
 
-    out.set(latin1(kind), 0);
+    out.set(encodeLatin1(kind), 0);
     new DataView(out.buffer).setUint32(4, out.length, true);
     out.set(payload, 8);
     return out;
@@ -311,9 +314,9 @@ export const writeVp6 = (movie: Vp6Output): Uint8Array => {
     const out = new Uint8Array(32);
     const view = new DataView(out.buffer);
 
-    out.set(latin1(kind), 0);
+    out.set(encodeLatin1(kind), 0);
     view.setUint32(4, 32, true);
-    out.set(latin1('vp60'), 8);
+    out.set(encodeLatin1('vp60'), 8);
     view.setUint16(12, movie.width, true);
     view.setUint16(14, movie.height, true);
     view.setUint32(16, movie.frames.length, true);

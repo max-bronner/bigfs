@@ -10,6 +10,7 @@ import { state } from '../state';
  * close, Alt with up or down reorders, Delete removes, Ctrl+D duplicates.
  */
 
+/** Options for `blockCard`: what the header shows, the body, and the actions the card offers */
 export interface BlockOptions {
   /** Keeps the card open or closed across redraws */
   key: string;
@@ -50,6 +51,7 @@ const iconButton = (
   return element;
 };
 
+/** Creates a block card; its open state is kept in `state.cards` under `key` */
 export const blockCard = (options: BlockOptions): HTMLElement => {
   const card = document.createElement('section');
   const head = document.createElement('div');

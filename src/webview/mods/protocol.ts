@@ -1,4 +1,4 @@
-/** What the report's buttons ask for: a file by its path in the report */
+/** Message the mod report's page sends when a row's button asks to diff or open that row's file */
 export interface FromModDiffPage {
   action: 'diff' | 'open';
   path: string;

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import {
   CsfFile,
-  csfNameProblem,
+  describeCsfNameProblem,
   keepLineBreaks,
   parseCsf,
   writeCsf,
@@ -10,8 +10,8 @@ import {
   parseStringRecords,
   quoteStringText,
 } from '../../formats/str/sageStringRecords';
-import { webviewPage } from '../../platform/webview/webviewPage';
-import { pageBundle, pageBundleFolder } from '../../platform/webview/pageBundle';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
+import { getPageBundleOptions, getPageBundleFolder } from '../../platform/webview/pageBundle';
 import type {
   FromStringsPage,
   StringRow,
@@ -38,10 +38,12 @@ import { describeError } from '../../core/errors';
  * editor.
  */
 
+/** View type of the `.str` table, an alternative view of the text file */
 export const STR_TABLE_VIEW_TYPE = 'bigfs.strTable';
+/** View type of the `.csf` editor, the default for those files */
 export const CSF_VIEW_TYPE = 'bigfs.csfEditor';
 
-/** What the page sends */
+/** Message from the string table page, with the fields any of its kinds may carry */
 interface PageMessage {
   kind: FromStringsPage['kind'];
   id?: number;
@@ -49,12 +51,13 @@ interface PageMessage {
   value?: string;
 }
 
+/** Renders the string table page around its script bundle, shared by both editors */
 export const renderHtml = (
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
 ): string => {
-  return webviewPage({
-    ...pageBundle(extensionUri, webview, 'strings'),
+  return renderWebviewPage({
+    ...getPageBundleOptions(extensionUri, webview, 'strings'),
     style: `
   body { margin: 0; padding: 8px 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
@@ -97,7 +100,7 @@ const connect = (
 ): (() => Thenable<boolean>) => {
   panel.webview.options = {
     enableScripts: true,
-    localResourceRoots: [pageBundleFolder(extensionUri)],
+    localResourceRoots: [getPageBundleFolder(extensionUri)],
   };
   panel.webview.html = renderHtml(panel.webview, extensionUri);
 
@@ -137,17 +140,18 @@ const checkLabel = (label: string) => {
 
 /** Refuses a label or speech name the `.csf` cannot store */
 const checkEncodable = (name: string) => {
-  const problem = csfNameProblem(name);
+  const problem = describeCsfNameProblem(name);
 
   if (problem) {
     throw new Error(problem);
   }
 };
 
-/** The `.str` table: a view over the text document */
+/** Custom text editor showing a `.str` file as a table, editing through the text document */
 export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
+  /** Shows the records as rows and turns the page's edits into text edits */
   public resolveCustomTextEditor(
     document: vscode.TextDocument,
     panel: vscode.WebviewPanel,
@@ -165,8 +169,8 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
         throw new Error('The edit was refused');
       }
     };
-    /** The record a message means, refused if the file moved under it */
-    const recordOf = (message: PageMessage) => {
+    /** Finds the record a message means, refusing it if the file moved under it */
+    const findRecord = (message: PageMessage) => {
       const record = records()[message.id ?? -1];
 
       if (
@@ -219,7 +223,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
       async (message) => {
         switch (message.kind) {
           case 'setText': {
-            const record = recordOf(message);
+            const record = findRecord(message);
             const quoted = quoteStringText(message.value ?? '');
 
             return apply((edit) => {
@@ -239,7 +243,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
             });
           }
           case 'setLabel': {
-            const record = recordOf(message);
+            const record = findRecord(message);
             const label = (message.value ?? '').trim();
 
             checkLabel(label);
@@ -269,7 +273,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
             );
           }
           case 'remove': {
-            const record = recordOf(message);
+            const record = findRecord(message);
 
             return apply((edit) =>
               edit.delete(
@@ -279,7 +283,7 @@ export class StrTableEditorProvider implements vscode.CustomTextEditorProvider {
             );
           }
           case 'reveal': {
-            const record = recordOf(message);
+            const record = findRecord(message);
 
             await vscode.window.showTextDocument(document, {
               selection: range(record.labelSpan.start, record.labelSpan.end),
@@ -318,7 +322,7 @@ const cloneCsf = (file: CsfFile): CsfFile => ({
   })),
 });
 
-/** The `.csf` editor: the binary file as a table, saved whole */
+/** Custom editor for `.csf` files: the binary file as a table, saved whole */
 export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocument> {
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
@@ -327,6 +331,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
   >();
   public readonly onDidChangeCustomDocument = this.changes.event;
 
+  /** Parses a `.csf` into an editable snapshot */
   public async openCustomDocument(
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
@@ -349,11 +354,12 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     redrawSnapshotViews(document);
   }
 
+  /** Shows the labels as rows and applies the page's edits as undoable steps */
   public resolveCustomEditor(
     document: CsfDocument,
     panel: vscode.WebviewPanel,
   ): void {
-    const labelOf = (file: CsfFile, message: PageMessage) => {
+    const findLabel = (file: CsfFile, message: PageMessage) => {
       const label = file.labels[message.id ?? -1];
 
       if (
@@ -401,7 +407,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
       (message) => {
         switch (message.kind) {
           case 'setText': {
-            const previous = labelOf(document.snapshot, message).strings[0]?.text;
+            const previous = findLabel(document.snapshot, message).strings[0]?.text;
             const text = keepLineBreaks(previous ?? '', message.value ?? '');
 
             if (previous === text) {
@@ -409,7 +415,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             }
 
             return this.change(document, 'Edit text', (file) => {
-              const label = labelOf(file, message);
+              const label = findLabel(file, message);
 
               if (label.strings.length) {
                 label.strings[0].text = text;
@@ -419,11 +425,11 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             });
           }
           case 'setSpeech':
-            labelOf(document.snapshot, message);
+            findLabel(document.snapshot, message);
             checkEncodable((message.value ?? '').trim());
 
             return this.change(document, 'Edit speech', (file) => {
-              const label = labelOf(file, message);
+              const label = findLabel(file, message);
               const speech = (message.value ?? '').trim();
 
               if (!label.strings.length) {
@@ -437,10 +443,10 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
 
             checkLabel(name);
             checkEncodable(name);
-            labelOf(document.snapshot, message);
+            findLabel(document.snapshot, message);
 
             return this.change(document, 'Rename label', (file) => {
-              labelOf(file, message).name = name;
+              findLabel(file, message).name = name;
             });
           }
           case 'add': {
@@ -457,7 +463,7 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
             });
           }
           case 'remove':
-            labelOf(document.snapshot, message);
+            findLabel(document.snapshot, message);
 
             return this.change(document, 'Remove label', (file) => {
               file.labels.splice(message.id ?? -1, 1);
@@ -469,10 +475,12 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     addSnapshotView(document, panel, send);
   }
 
+  /** Writes the table back whole */
   public saveCustomDocument(document: CsfDocument): Promise<void> {
     return saveSnapshot(document, CSF_FORMAT);
   }
 
+  /** Writes the table to another file */
   public saveCustomDocumentAs(
     document: CsfDocument,
     destination: vscode.Uri,
@@ -480,10 +488,12 @@ export class CsfEditorProvider implements vscode.CustomEditorProvider<CsfDocumen
     return saveSnapshot(document, CSF_FORMAT, destination);
   }
 
+  /** Rereads the table from disk, dropping unsaved edits */
   public revertCustomDocument(document: CsfDocument): Promise<void> {
     return revertSnapshot(document, CSF_FORMAT);
   }
 
+  /** Backs up the unsaved table so it survives a reload */
   public backupCustomDocument(
     document: CsfDocument,
     context: vscode.CustomDocumentBackupContext,

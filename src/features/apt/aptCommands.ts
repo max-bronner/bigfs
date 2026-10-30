@@ -23,7 +23,7 @@ import { checkAptWorkspace } from './aptWorkspaceCheck';
 
 type Target = CommandTarget;
 
-const folderOf = async (target: Target): Promise<vscode.Uri | undefined> => {
+const resolveTargetFolder = async (target: Target): Promise<vscode.Uri | undefined> => {
   const uri = toUri(target);
 
   if (!uri) {
@@ -49,7 +49,7 @@ const exists = async (uri: vscode.Uri) =>
     () => false,
   );
 
-/** What a new movie is, when a caller supplies it instead of the prompts */
+/** Options for a new movie, when a caller supplies them instead of the prompts */
 export interface NewMovieOptions {
   name: string;
   width?: number;
@@ -109,11 +109,11 @@ const askOptions = async (): Promise<NewMovieOptions | undefined> => {
 };
 
 /** Writes the movie's three files and opens it; returns the `.apt` */
-const newMovie = async (
+const createMovie = async (
   target: Target,
   given?: NewMovieOptions,
 ): Promise<vscode.Uri | undefined> => {
-  const folder = await folderOf(target);
+  const folder = await resolveTargetFolder(target);
 
   if (!folder) {
     return undefined;
@@ -156,7 +156,7 @@ const newMovie = async (
   return aptUri;
 };
 
-const openedDocument = (
+const getOpenDocument = (
   editor: AptEditorProvider,
   uri: vscode.Uri,
 ): AptDocument => {
@@ -192,7 +192,7 @@ export const registerAptCommands = (
       'bigfs.newAptMovie',
       async (target: Target, options?: NewMovieOptions) => {
         try {
-          return await newMovie(target, options);
+          return await createMovie(target, options);
         } catch (error) {
           void vscode.window.showErrorMessage(
             describeError(error),
@@ -238,12 +238,12 @@ export const registerAptCommands = (
     registerCommand(
       'bigfs.aptOpenScript',
       async (uri: vscode.Uri, block: number, label = `block ${block}`) =>
-        editor.openScript(openedDocument(editor, uri), block, label),
+        editor.openScript(getOpenDocument(editor, uri), block, label),
     ),
     registerCommand(
       'bigfs.aptAddScript',
       async (uri: vscode.Uri, site: ScriptSite, label = 'new script') => {
-        const document = openedDocument(editor, uri);
+        const document = getOpenDocument(editor, uri);
 
         return editor.openScript(
           document,
@@ -256,12 +256,12 @@ export const registerAptCommands = (
     registerCommand(
       'bigfs.aptApplyEdit',
       async (uri: vscode.Uri, edit?: AptEdit) => {
-        const document = openedDocument(editor, uri);
+        const document = getOpenDocument(editor, uri);
 
         if (!edit) {
           return {
             pageReady: editor.isPageReady(document),
-            ...editor.shownImports(document),
+            ...editor.getShownImports(document),
           };
         }
 

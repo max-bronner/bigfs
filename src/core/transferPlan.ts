@@ -1,4 +1,4 @@
-import { getAvailableName, getParentPath } from '../../core/paths';
+import { getAvailableName, getParentPath } from './paths';
 
 /**
  * Plans a transfer of files into a directory of another archive: which target
@@ -14,7 +14,7 @@ export interface TransferItem {
   path: string;
 }
 
-/** What the target directory holds, by path below it */
+/** Contents of the target directory, by path below it */
 export interface TargetContent {
   files: Iterable<string>;
   directories: Iterable<string>;

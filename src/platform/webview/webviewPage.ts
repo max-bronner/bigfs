@@ -21,7 +21,7 @@ export interface WebviewPage {
 }
 
 /** Renders a webview page's HTML, with a fresh nonce on its policy, style and scripts */
-export const webviewPage = ({
+export const renderWebviewPage = ({
   style,
   body,
   script,

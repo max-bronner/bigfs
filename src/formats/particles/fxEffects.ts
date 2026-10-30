@@ -2,7 +2,7 @@ import type { SageToken } from '../ini/sageIniParser';
 import type { Range, Vec3 } from './particleIni';
 
 /**
- * The FX list nuggets other than `ParticleSystem` and `Sound`. mint fires
+ * Preview of the FX list nuggets other than `ParticleSystem` and `Sound`. mint fires
  * only particle nuggets and records the rest in its FX tree as inert rows;
  * the preview does the same for what it cannot show and approximates the
  * three it can: `LightPulse` as a screen flash, `ViewShake` and
@@ -12,7 +12,7 @@ import type { Range, Vec3 } from './particleIni';
  * big, not how it looks in game.
  */
 
-/** What the preview draws for a nugget it can approximate */
+/** Shape the preview draws for a nugget it can approximate */
 export type FxApproximation =
   | {
       type: 'shake';
@@ -25,8 +25,9 @@ export type FxApproximation =
       type: 'flash';
       /** 0..1 per channel */
       color: Vec3;
-      /** Milliseconds to the peak and back down */
+      /** Milliseconds to the peak */
       rise: number;
+      /** Milliseconds from the peak back down */
       fall: number;
     }
   | { type: 'scorch'; radius: number };
@@ -65,7 +66,7 @@ const numberAt = (
 const textAt = (fields: Fields, key: string): string | undefined =>
   fields.get(key)?.[0]?.text;
 
-/** `R:255 G:128 B:0` as 0..1 channels; white when absent or unreadable */
+/** Reads `R:255 G:128 B:0` as 0..1 channels; white when absent or unreadable */
 const colorAt = (fields: Fields, key: string, parse: ParseNumber): Vec3 => {
   const values = fields.get(key) ?? [];
   const channels = values.slice(0, 3).map((value) => parse(value.text));
@@ -184,7 +185,7 @@ export const readFxEffect = (
   return base;
 };
 
-/** What the approximated nuggets add to the picture at one moment */
+/** Contribution of the approximated nuggets to the picture at one moment */
 export interface FxEffectState {
   /** Degrees to swing the camera by, signed */
   shake: number;
@@ -198,11 +199,11 @@ export interface FxEffectState {
 const FLASH_PEAK = 0.45;
 
 /**
- * The approximated nuggets at a simulation frame. Deterministic: the shake
+ * Computes what the approximated nuggets add at a simulation frame. Deterministic: the shake
  * is a fixed wobble scaled by a falloff, so a paused or stepped preview
  * shows the same picture each time.
  */
-export const effectsAt = (
+export const getEffectStateAt = (
   effects: readonly FxEffect[],
   frame: number,
   hz: number,
@@ -245,8 +246,8 @@ export const effectsAt = (
   return state;
 };
 
-/** Milliseconds an approximated nugget is visibly doing something; zero for a scorch, which stays */
-export const effectLength = (effect: FxEffect): number => {
+/** Gets the milliseconds an approximated nugget is visibly doing something; zero for a scorch, which stays */
+export const getEffectLength = (effect: FxEffect): number => {
   const approximation = effect.approximation;
 
   return approximation?.type === 'shake'

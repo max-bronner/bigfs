@@ -1,4 +1,4 @@
-﻿import * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { SCHEME } from '../../constants';
 import type { VirtualNode } from '../../services/archives/virtualNode';
@@ -12,6 +12,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
   private onDidChangeFileEmitter = new vscode.EventEmitter<
     vscode.FileChangeEvent[]
   >();
+  /** Fires once per burst of changes, so a batch rewrite reloads each editor once */
   readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
   /** Events of the current burst, held until `fireSoon` delivers them as one */
@@ -63,8 +64,8 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     }, 5);
   }
 
+  /** Watches nothing: changes arrive through the archive model instead */
   watch(_uri: vscode.Uri): vscode.Disposable {
-    // Required by the API; changes arrive through the archive model instead
     return new vscode.Disposable(() => {});
   }
 
@@ -77,6 +78,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     return this.archiveModel.resolveNode(uri);
   }
 
+  /** Describes a node; an entry of a read-only source is reported read-only */
   async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
     const node = await this.resolveNode(uri);
     if (!node) {
@@ -104,6 +106,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     };
   }
 
+  /** Lists a directory node's children under their stored casing */
   async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
     const node = await this.resolveNode(uri);
     if (!node || node.type !== vscode.FileType.Directory) {
@@ -121,6 +124,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     return result;
   }
 
+  /** Reads an entry's content out of its archive */
   async readFile(uri: vscode.Uri): Promise<Uint8Array> {
     const node = await this.resolveNode(uri);
     if (!node) {
@@ -134,6 +138,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     return content;
   }
 
+  /** Creates a directory in the tree; nothing reaches the archive until a file below it is stored */
   async createDirectory(uri: vscode.Uri): Promise<void> {
     this.archiveModel.ensureWritable(uri);
 
@@ -147,6 +152,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     this.fireSoon({ type: vscode.FileChangeType.Created, uri });
   }
 
+  /** Writes an entry, rewriting its archive */
   async writeFile(
     uri: vscode.Uri,
     content: Uint8Array,
@@ -175,6 +181,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     });
   }
 
+  /** Deletes a node and every entry below it from its archive */
   async delete(uri: vscode.Uri): Promise<void> {
     this.archiveModel.ensureWritable(uri);
 
@@ -184,6 +191,7 @@ export class BigFileSystemProvider implements vscode.FileSystemProvider {
     this.fireSoon({ type: vscode.FileChangeType.Deleted, uri });
   }
 
+  /** Renames or moves a node; a rename that only changes casing is allowed without `overwrite` */
   async rename(
     oldUri: vscode.Uri,
     newUri: vscode.Uri,

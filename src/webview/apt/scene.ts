@@ -6,7 +6,7 @@ import { state } from './state';
 import {
   IDENTITY_COLOR,
   concatColor,
-  displayList,
+  buildDisplayList,
   type ColorTransform,
 } from './timeline';
 
@@ -20,11 +20,13 @@ import {
 /** The box an import that does not resolve draws */
 export const UNRESOLVED: Rect = [0, 0, 64, 24];
 
-/** a, b, c, d, tx, ty as canvas `transform` takes them */
+/** 2D affine matrix in the order canvas `transform` takes it: a, b, c, d, tx, ty */
 export type Affine = [number, number, number, number, number, number];
 
+/** Matrix that leaves every point where it is */
 export const IDENTITY: Affine = [1, 0, 0, 1, 0, 0];
 
+/** Multiplies two matrices: the result applies `n` first, then `m` */
 export const multiply = (m: Affine, n: Affine): Affine => [
   m[0] * n[0] + m[2] * n[1],
   m[1] * n[0] + m[3] * n[1],
@@ -34,7 +36,7 @@ export const multiply = (m: Affine, n: Affine): Affine => [
   m[1] * n[4] + m[3] * n[5] + m[5],
 ];
 
-/** The matrix that undoes another; the identity for one that cannot be undone */
+/** Inverts a matrix; the identity for one that cannot be undone */
 export const invert = ([a, b, c, d, tx, ty]: Affine): Affine => {
   const det = a * d - b * c;
 
@@ -51,12 +53,13 @@ export const invert = ([a, b, c, d, tx, ty]: Affine): Affine => {
   ];
 };
 
+/** Transforms a point by a matrix */
 export const apply = (
   [a, b, c, d, tx, ty]: Affine,
   [x, y]: [number, number],
 ): [number, number] => [a * x + c * y + tx, b * x + d * y + ty];
 
-/** One thing that draws, where it draws */
+/** A shape, image or text that draws, with the transform and colour it draws with */
 export interface Leaf {
   movie: PageMovie;
   id: number;
@@ -83,22 +86,22 @@ export interface Leaf {
   text?: string;
 }
 
-/** Where a button can be pointed at: one of its hit-test records' leaves */
+/** Pointer target of a button: one of its hit-test records' leaves */
 export interface HitArea {
   leaf: Leaf;
   button: Instance;
 }
 
 /**
- * The colour transform an instance places itself with: the timeline's
+ * Gets the colour transform an instance places itself with: the timeline's
  * red, green, blue and add terms, and the instance's own alpha, which a
  * script may have changed
  */
-export const placedColor = (child: Instance): ColorTransform => {
+export const getPlacedColor = (child: Instance): ColorTransform => {
   const depth = Number(child.path.split('/').pop());
   const placement =
     child.parent && !child.dynamic && Number.isInteger(depth)
-      ? displayList(child.parent.frames, child.parent.frame).find(
+      ? buildDisplayList(child.parent.frames, child.parent.frame).find(
           (each) =>
             each.depth === depth &&
             each.born === child.born &&
@@ -110,7 +113,7 @@ export const placedColor = (child: Instance): ColorTransform => {
   return { mult: [mult[0], mult[1], mult[2], child.alpha], add };
 };
 
-/** What a player shows right now, flattened in paint order, with button hit areas */
+/** Collects what a player shows right now, flattened in paint order, with button hit areas */
 export const collect = (
   player: Player,
 ): { leaves: Leaf[]; hits: HitArea[] } => {
@@ -179,7 +182,7 @@ export const collect = (
       visit(
         child,
         place(child),
-        concatColor(color, placedColor(child)),
+        concatColor(color, getPlacedColor(child)),
         childTop,
         out,
         [
@@ -204,11 +207,11 @@ export const collect = (
 };
 
 /**
- * The texture an image character draws: an import placeholder takes the
+ * Gets the texture an image character draws: an import placeholder takes the
  * texture of the character the exporting movie names, as mint's apt-viewer
  * resolves it through the library
  */
-export const textureOf = (
+export const getImageTexture = (
   movie: PageMovie,
   id: number,
 ): HTMLCanvasElement | undefined => {
@@ -217,8 +220,8 @@ export const textureOf = (
   return found && state.textures.get(found.movie.imageTextures[found.id]);
 };
 
-/** The box a leaf covers in its own space */
-export const localBounds = (leaf: Leaf): Rect => {
+/** Gets the box a leaf covers in its own space */
+export const getLocalBounds = (leaf: Leaf): Rect => {
   const { character } = leaf;
 
   if (!character) {
@@ -228,12 +231,12 @@ export const localBounds = (leaf: Leaf): Rect => {
     return character.bounds;
   }
 
-  const texture = textureOf(leaf.movie, leaf.id);
+  const texture = getImageTexture(leaf.movie, leaf.id);
 
   return [0, 0, texture?.width ?? 64, texture?.height ?? 64];
 };
 
-/** The box around a rectangle once transformed */
+/** Transforms a rectangle, giving the box around the result */
 export const transformRect = (m: Affine, [l, t, r, b]: Rect): Rect => {
   const xs = [l, r, l, r].map(
     (x, i) => m[0] * x + m[2] * [t, t, b, b][i] + m[4],
@@ -245,7 +248,7 @@ export const transformRect = (m: Affine, [l, t, r, b]: Rect): Rect => {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 };
 
-/** The smallest box around several, or nothing for none */
+/** Gets the smallest box around several, or nothing for none */
 export const union = (boxes: Rect[]): Rect | undefined =>
   boxes.length
     ? [
@@ -270,10 +273,10 @@ const intersect = (a: Rect, b: Rect): Rect | undefined => {
 
 /** The box a leaf covers, cut to its masks unless they are not applied */
 const leafBounds = (leaf: Leaf, masked: boolean): Rect | undefined => {
-  let box: Rect | undefined = transformRect(leaf.matrix, localBounds(leaf));
+  let box: Rect | undefined = transformRect(leaf.matrix, getLocalBounds(leaf));
 
   for (const mask of masked ? (leaf.masks ?? []) : []) {
-    const area = boundsOf(mask, true);
+    const area = getLeafBounds(mask, true);
 
     box = box && area && intersect(box, area);
   }
@@ -281,10 +284,10 @@ const leafBounds = (leaf: Leaf, masked: boolean): Rect | undefined => {
 };
 
 /**
- * The box around everything the leaves draw; with `masked`, only what
+ * Gets the box around everything the leaves draw; with `masked`, only what
  * their masks let show
  */
-export const boundsOf = (leaves: Leaf[], masked = false): Rect | undefined =>
+export const getLeafBounds = (leaves: Leaf[], masked = false): Rect | undefined =>
   union(
     leaves.flatMap((leaf) => {
       const box = leafBounds(leaf, masked);

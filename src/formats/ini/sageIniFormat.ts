@@ -2,7 +2,7 @@ import type { SageDocument } from './sageIniParser';
 import { forEachBlock } from './sageIniParser';
 
 /**
- * Indentation from the block structure: a line's depth is the number of
+ * Re-indents INI lines from the block structure: a line's depth is the number of
  * blocks it sits inside (headers and `End`s at their block's own depth).
  * Embedded scripts are left exactly as written; everything else keeps its
  * text and loses only leading and trailing whitespace.
@@ -47,7 +47,7 @@ export const formatSageIni = (
 const MAX_PASSES = 8;
 
 /**
- * The text formatting settles on: `formatSageIni` repeated, each pass parsed
+ * Formats INI text until it settles: `formatSageIni` repeated, each pass parsed
  * afresh, until a pass changes nothing. A keyword the grammar does not hold
  * is nested by its indentation, which a pass rewrites, so one pass can
  * change what the next reads; formatting the result again is then a no-op by
@@ -72,7 +72,7 @@ export const formatSageIniStable = (
   return lines;
 };
 
-/** Edit distance, for suggesting the name a typo meant */
+/** Computes the Levenshtein edit distance, for suggesting the name a typo meant */
 export const editDistance = (a: string, b: string): number => {
   const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
 
@@ -96,8 +96,8 @@ export const editDistance = (a: string, b: string): number => {
   return previous[b.length];
 };
 
-/** The closest few candidates within a few edits, nearest first */
-export const closestNames = (
+/** Finds the closest few candidates within a few edits, nearest first, ignoring case */
+export const findClosestNames = (
   name: string,
   candidates: readonly string[],
   limit = 3,
@@ -120,10 +120,10 @@ export const closestNames = (
 };
 
 /**
- * Where a missing `End` belongs: after the last line below the header that
- * is indented deeper than it, or straight after the header
+ * Finds the line a missing `End` belongs on: after the last line below the
+ * header that is indented deeper than it, or straight after the header
  */
-export const missingEndLine = (lines: string[], headerLine: number): number => {
+export const findMissingEndLine = (lines: string[], headerLine: number): number => {
   const indent = (line: string) => line.length - line.trimStart().length;
   const headerIndent = indent(lines[headerLine]);
   let last = headerLine;

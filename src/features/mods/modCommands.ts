@@ -15,10 +15,10 @@ import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { getFileNodes } from '../../services/archives/virtualNode';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import { getNodeUri } from '../../services/archives/nodeAddress';
-import { skippedFromPackage } from '../../node/modPackage';
+import { isSkippedFromPackage } from '../../node/modPackage';
 import { recordPackedArchive } from '../../services/archives/packagedOutputs';
 import { formatCount } from '../../core/messages';
-import type { RegisterNodeCommand } from '../explorer/commandCenter';
+import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
 import { decodeWindows1252 } from '../../core/windows1252';
 import { registerCommand } from '../../platform/commands';
 
@@ -41,7 +41,7 @@ const TEXT_ENTRY_PATTERN =
 /** Results a search stops at, which is more than anyone reads in a list */
 const SEARCH_RESULT_LIMIT = 2000;
 
-/** Every file below a folder on disk, as paths relative to it with '/' */
+/** Lists every file below a folder on disk, with its size and its path relative to the folder, joined with '/' */
 export const listFiles = async (
   folder: Uri,
   relative = '',
@@ -91,7 +91,7 @@ const packFolder = async (folder: Uri): Promise<void> => {
       location: ProgressLocation.Notification,
       title: `Packing ${path.basename(target.fsPath)}`,
     },
-    () => packFolderInto(folder, target, skippedFromPackage),
+    () => packFolderInto(folder, target, isSkippedFromPackage),
   );
 
   if (count) {

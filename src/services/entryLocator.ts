@@ -5,31 +5,17 @@ import type { GameViewModel, GameViewNode } from './archives/gameViewModel';
 import { getNodeUri } from './archives/nodeAddress';
 import type { VirtualNode } from './archives/virtualNode';
 
-/**
- * Finds a file the way the game would. A model names its skeleton and
- * textures by file name only, and those usually sit in another archive than
- * the model itself, so a name is looked up in the game view: loose files
- * before archives, archives in the engine's order with the first holding the
- * file winning, and installs layered (a mod, then ROTWK, then BFME II), so
- * the copy found is the copy the game loads. A name with folders in front
- * (`art/textures/x.tga`) is looked up by that path first. Only what the game
- * view does not hold, a file beside the one asking or loose elsewhere in the
- * workspace, is looked for afterwards.
- *
- * The name table is the game view's, built on first use and dropped when an
- * archive changes, so a lookup after the first costs a map read.
- */
 /** Loose files that can satisfy an asset reference */
 const LOOSE_ASSETS =
   '**/*.{w3d,W3D,dds,DDS,tga,TGA,jpg,JPG,png,PNG,wav,WAV,mp3,MP3}';
 
-/** The last segment of a path written with either slash */
-const baseName = (fileName: string): string =>
+/** Gets the last segment of a path written with either slash */
+const getBaseName = (fileName: string): string =>
   fileName.slice(
     Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\')) + 1,
   );
 
-/** The game view node at a path, if a file is there */
+/** Finds the game view node at a path, if a file is there */
 const findByPath = (
   root: GameViewNode,
   fileName: string,
@@ -47,6 +33,20 @@ const findByPath = (
   return node.winner ? node : undefined;
 };
 
+/**
+ * Locator of files by name, found the way the game would. A model names its skeleton and
+ * textures by file name only, and those usually sit in another archive than
+ * the model itself, so a name is looked up in the game view: loose files
+ * before archives, archives in the engine's order with the first holding the
+ * file winning, and installs layered (a mod, then ROTWK, then BFME II), so
+ * the copy found is the copy the game loads. A name with folders in front
+ * (`art/textures/x.tga`) is looked up by that path first. Only what the game
+ * view does not hold, a file beside the one asking or loose elsewhere in the
+ * workspace, is looked for afterwards.
+ *
+ * The name table is the game view's, built on first use and dropped when an
+ * archive changes, so a lookup after the first costs a map read.
+ */
 export class EntryLocator implements Disposable {
   /** Archive and loose asset names together, until either changes */
   private allNames?: Promise<Set<string>>;
@@ -74,15 +74,16 @@ export class EntryLocator implements Disposable {
     ];
   }
 
+  /** Stops watching archives, the game view and loose asset files */
   public dispose(): void {
     this.subscriptions.forEach((subscription) => subscription.dispose());
   }
 
   /**
-   * Lowercased names of every asset file the archives and the workspace
-   * folders hold, for checking references without reading anything
+   * Gets the lowercased names of every asset file the archives and the
+   * workspace folders hold, for checking references without reading anything
    */
-  public fileNames(): Promise<Set<string>> {
+  public getFileNames(): Promise<Set<string>> {
     this.allNames ??= (async () => {
       const uris = await workspace.findFiles(
         LOOSE_ASSETS,
@@ -146,7 +147,7 @@ export class EntryLocator implements Disposable {
       : workspace.fs.readFile(found.uri);
   }
 
-  /** Where the file `read` would read lives, to open it */
+  /** Finds the uri of the file `read` would read, to open it */
   public async findUri(
     fileName: string,
     nearUri: Uri,
@@ -160,7 +161,7 @@ export class EntryLocator implements Disposable {
     fileName: string,
     nearUri: Uri,
   ): Promise<{ uri: Uri } | { node: VirtualNode } | undefined> {
-    const name = baseName(fileName);
+    const name = getBaseName(fileName);
     const root = await this.gameView.getRoot();
     const held =
       (/[\\/]/.test(fileName) ? findByPath(root, fileName) : undefined) ??
@@ -185,8 +186,8 @@ export class EntryLocator implements Disposable {
   }
 
   /**
-   * Names of every file in the archives and loose in the workspace whose
-   * lowercased name passes `matches`, lowercased, without repeats
+   * Finds the names of every file in the archives and loose in the workspace
+   * whose lowercased name passes `matches`, lowercased, sorted, without repeats
    */
   public async findNames(
     matches: (lowerName: string) => boolean,
@@ -213,7 +214,7 @@ export class EntryLocator implements Disposable {
     return [...names].sort();
   }
 
-  /** A file of this name in the same directory, whatever its casing */
+  /** Finds a file of this name in the same directory, whatever its casing */
   private async findBeside(
     fileName: string,
     nearUri: Uri,

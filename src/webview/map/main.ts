@@ -4,7 +4,7 @@ import { listenToCanvas } from './canvasInput';
 import { buildRelief, draw } from './draw';
 import { canvas } from './elements';
 import { showInfo } from './infoPanel';
-import { ownerOf } from './mapModel';
+import { getOwner } from './mapModel';
 import { vscode } from './messaging';
 import { WAYPOINT_TEMPLATE, finishArea, setMode } from './modes';
 import { showObject } from './objectDetails';
@@ -108,11 +108,11 @@ for (const name of Object.keys(state.layers) as (keyof typeof state.layers)[]) {
 listenToCanvas(actions);
 new ResizeObserver(() => draw()).observe(canvas.parentElement!);
 
-/** The owners and teams the "owner" box suggests: those the objects and teams name */
-const ownerNames = (): string[] =>
+/** Lists the owners and teams the "owner" box suggests: those the objects and teams name */
+const listOwnerNames = (): string[] =>
   [
     ...new Set([
-      ...state.map.objects.map(ownerOf).filter(Boolean),
+      ...state.map.objects.map(getOwner).filter(Boolean),
       ...state.map.teams
         .map((team) => team.find((entry) => entry.key === 'teamName')?.value.value)
         .filter(Boolean)
@@ -147,7 +147,7 @@ window.addEventListener('message', ({ data }: MessageEvent<MapToPage>) => {
     ) {
       state.selectedArea = undefined;
     }
-    fillList('owners', ownerNames());
+    fillList('owners', listOwnerNames());
     refresh();
   } else if (data.kind === 'notice' || data.kind === 'error') {
     showNotice(data.message);

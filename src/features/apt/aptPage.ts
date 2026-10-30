@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 import { SPEEDS } from '../../webview/apt/protocol';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 
 const STYLE = /* css */ `
   body { margin: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); display: grid; grid-template-columns: 240px 1fr minmax(360px, 42%); height: 100vh; }
@@ -70,7 +70,7 @@ export const renderAptPage = (
   webview: vscode.Webview,
   script: vscode.Uri,
 ): string =>
-  webviewPage({
+  renderWebviewPage({
     style: STYLE,
     body: /* html */ `<aside><input id="filter" placeholder="Filter characters, exports, text"><div id="list"></div></aside>
 <main>

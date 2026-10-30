@@ -15,7 +15,7 @@ import { mappedImagesArrived } from './mappedSurfaces';
 import { showIntegrity } from './integrity';
 import { nudge } from './edit';
 import './geometry';
-import { freeDepth, showInspector, updateInspector } from './inspector';
+import { findFreeDepth, showInspector, updateInspector } from './inspector';
 import { markPlayhead, setOnion, showTimeline } from './timelinePanel';
 import {
   currentPlayer,
@@ -191,7 +191,7 @@ stage.addEventListener('drop', (event) => {
     return;
   }
 
-  const depth = freeDepth(root);
+  const depth = findFreeDepth(root);
 
   state.inspected = `/${depth}`;
   send({

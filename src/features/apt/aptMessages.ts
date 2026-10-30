@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { decompileBlock } from '../../formats/apt/aptScript';
-import { checkRuns, fitRunTo } from '../../formats/apt/aptGeometry';
+import { areRunsWellFormed, fitRunTo } from '../../formats/apt/aptGeometry';
 import type { RuRun } from '../../formats/apt/aptGeometry';
 import type { EntryLocator } from '../../services/entryLocator';
 import type { FromPage, ToPage } from '../../webview/apt/protocol';
@@ -135,7 +135,7 @@ const HANDLERS: {
   },
 
   async geometry(message, { document, record }) {
-    if (!checkRuns(message.runs)) {
+    if (!areRunsWellFormed(message.runs)) {
       throw new Error('The geometry is not well formed');
     }
     await record(document, 'geometry', async () =>
@@ -154,7 +154,7 @@ const HANDLERS: {
       );
 
       // Laid over the shape's run it was chosen for, in the same step
-      if (message.assign && checkRuns(message.assign.runs)) {
+      if (message.assign && areRunsWellFormed(message.assign.runs)) {
         const runs: RuRun[] = message.assign.runs;
         const run = runs[Number(message.assign.run)];
 
@@ -174,7 +174,7 @@ const HANDLERS: {
 
   async loadMovie(message, { post, imports, sentTextures, sentMovies }) {
     await post(
-      await imports.loadedMovie(String(message.name), sentTextures, sentMovies),
+      await imports.buildLoadedMovieMessage(String(message.name), sentTextures, sentMovies),
     );
   },
 

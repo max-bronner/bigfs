@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { EntryLocator } from '../../services/entryLocator';
-import { PREVIEW_VIEW_TYPE } from '../preview/previewEditorProvider';
+import { PREVIEW_VIEW_TYPE } from '../../constants';
 import { findAssetReferences } from '../../formats/ini/sageIniAssets';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { registerCommand } from '../../platform/commands';
@@ -40,6 +40,7 @@ const createAssetLinkProvider = (
   },
 });
 
+/** Registers the asset links and the `bigfs.openAsset` command they run */
 export const registerAssetLinks = (
   selector: vscode.DocumentSelector,
   documents: SageIniDocuments,

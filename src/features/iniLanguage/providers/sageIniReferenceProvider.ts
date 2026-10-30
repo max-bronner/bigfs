@@ -5,7 +5,8 @@ import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
 import { resolveSageSymbol } from '../../../formats/ini/sageIniSymbol';
 
 /**
- * Answers "what uses this", across every open archive.
+ * Creates the reference provider, which answers "what uses this" across every
+ * open archive.
  *
  * Registering this is what puts VS Code's own Go to References, Find All
  * References and the reference peek in front of the user - the editor builds
@@ -13,8 +14,7 @@ import { resolveSageSymbol } from '../../../formats/ini/sageIniSymbol';
  *
  * It works from either end. On `Object GondorArcher` it finds every field that
  * names it; on a `Weapon = PRIMARY GondorBow` value it finds every other place
- * that names the same weapon. That is the question modders currently answer
- * with grep across an extracted install.
+ * that names the same weapon.
  */
 export const createSageIniReferenceProvider = (
   documents: SageIniDocuments,

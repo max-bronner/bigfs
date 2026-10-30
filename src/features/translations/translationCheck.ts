@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
 import { parseCsf } from '../../formats/csf/csf';
-import { strRecord } from '../../formats/str/sageStringRecords';
+import { formatStrRecord } from '../../formats/str/sageStringRecords';
 import { parseStringTable } from '../../formats/str/sageStringTable';
-import { labelsInText } from '../../game/text/gameTextLabels';
-import { languageOfArchive } from '../../game/text/gameLanguage';
+import { findLabelsInText } from '../../game/text/gameTextLabels';
+import { getArchiveLanguage } from '../../game/text/gameLanguage';
 import {
-  languageOf,
-  translationGaps,
-  undefinedLabels,
+  detectTableLanguage,
+  findTranslationGaps,
+  findUndefinedLabels,
 } from '../../game/text/translations';
 import type {
   LanguageGap,
@@ -45,6 +45,7 @@ import { registerCommand } from '../../platform/commands';
 /** Where each table is, by the path the report shows */
 const located = new Map<string, { uri: vscode.Uri; readOnly: boolean }>();
 
+/** A string table to read, loose or inside an archive */
 interface TableSource {
   uri: vscode.Uri;
   /** The path the report shows */
@@ -54,7 +55,7 @@ interface TableSource {
   readOnly: boolean;
 }
 
-const tableSources = async (
+const listTableSources = async (
   archiveModel: ArchiveModel,
 ): Promise<TableSource[]> => {
   const files = await vscode.workspace.findFiles(
@@ -72,7 +73,7 @@ const tableSources = async (
     ...entries.map((entry) => ({
       uri: entry.uri,
       path: `${entry.archivePath.split(/[\\/]/).pop()}/${entry.uri.path.split('/').slice(2).join('/')}`,
-      archiveLanguage: languageOfArchive(entry.archivePath),
+      archiveLanguage: getArchiveLanguage(entry.archivePath),
       readOnly: entry.readOnly,
     })),
   ];
@@ -89,7 +90,7 @@ const readTables = async (
     path: relative,
     archiveLanguage,
     readOnly,
-  } of await tableSources(archiveModel)) {
+  } of await listTableSources(archiveModel)) {
     located.set(relative, { uri, readOnly });
 
     try {
@@ -98,7 +99,7 @@ const readTables = async (
 
         tables.push({
           path: relative,
-          language: archiveLanguage ?? languageOf(relative, csf.language),
+          language: archiveLanguage ?? detectTableLanguage(relative, csf.language),
           labels: new Map(
             csf.labels.map((label) => [
               label.name.toLowerCase(),
@@ -109,7 +110,7 @@ const readTables = async (
       } else {
         tables.push({
           path: relative,
-          language: archiveLanguage ?? languageOf(relative),
+          language: archiveLanguage ?? detectTableLanguage(relative),
           labels: new Map(
             [...parseStringTable(await readWorkspaceText(uri))].map(
               ([key, { label, text }]) => [key, { label, text }],
@@ -124,8 +125,8 @@ const readTables = async (
   return tables;
 };
 
-/** The labels the INI files, loose and in archives, use, with the first file using each */
-const usedLabels = async (
+/** Collects the labels the INI files, loose and in archives, use, with the first file using each */
+const collectUsedLabels = async (
   archiveModel: ArchiveModel,
 ): Promise<Map<string, { label: string; usedIn: string }>> => {
   const used = new Map<string, { label: string; usedIn: string }>();
@@ -141,7 +142,7 @@ const usedLabels = async (
         ? decodeIniText(await vscode.workspace.fs.readFile(uri))
         : await readWorkspaceText(uri);
 
-      for (const label of labelsInText(text)) {
+      for (const label of findLabelsInText(text)) {
         const key = label.toLowerCase();
 
         if (!used.has(key)) {
@@ -192,8 +193,8 @@ const report = (
     '',
   ].join('\n');
 
-/** The first `.str` table of a gap that may be written to */
-const editableTable = (gap: LanguageGap): string | undefined =>
+/** Finds the first `.str` table of a gap that may be written to */
+const findEditableTable = (gap: LanguageGap): string | undefined =>
   gap.tables.find(
     (table) => /\.str$/i.test(table) && !located.get(table)?.readOnly,
   );
@@ -204,7 +205,7 @@ const fill = async (
   edit: vscode.WorkspaceEdit,
   archiveTexts: { uri: vscode.Uri; text: string }[],
 ) => {
-  const tablePath = editableTable(gap);
+  const tablePath = findEditableTable(gap);
   const uri = tablePath && located.get(tablePath)?.uri;
 
   if (!uri) {
@@ -219,7 +220,7 @@ const fill = async (
     );
     const text = earlier?.text ?? before;
     const records = gap.missing
-      .map((entry) => strRecord(entry.label, entry.text, eol))
+      .map((entry) => formatStrRecord(entry.label, entry.text, eol))
       .join('');
     const filled = text + (text && !/\n$/.test(text) ? eol : '') + records;
 
@@ -240,23 +241,27 @@ const fill = async (
     last.range.end,
     (last.text ? eol : '') +
       gap.missing
-        .map((entry) => strRecord(entry.label, entry.text, eol))
+        .map((entry) => formatStrRecord(entry.label, entry.text, eol))
         .join(''),
   );
   return true;
 };
 
+/**
+ * Registers `bigfs.checkTranslations`, which resolves to the gaps it found.
+ * Given options it shows no report and fills only the languages `fill`
+ * names, for automation.
+ */
 export const registerTranslationCheck = (
   archiveModel: ArchiveModel,
 ): vscode.Disposable =>
   registerCommand(
     'bigfs.checkTranslations',
-    /** `fill` names the languages to fill without asking, for automation */
     async (options?: { fill?: string[] }) => {
       const tables = await readTables(archiveModel);
-      const gaps = translationGaps(tables);
-      const undefinedStrings = undefinedLabels(
-        await usedLabels(archiveModel),
+      const gaps = findTranslationGaps(tables);
+      const undefinedStrings = findUndefinedLabels(
+        await collectUsedLabels(archiveModel),
         tables,
       );
 
@@ -270,10 +275,10 @@ export const registerTranslationCheck = (
       }
 
       const fillable = gaps.filter(
-        (gap) => gap.missing.length && editableTable(gap),
+        (gap) => gap.missing.length && findEditableTable(gap),
       );
       const readOnlyTables = gaps
-        .filter((gap) => gap.missing.length && !editableTable(gap))
+        .filter((gap) => gap.missing.length && !findEditableTable(gap))
         .flatMap((gap) => gap.tables)
         .filter((table) => located.get(table)?.readOnly);
       let chosen = fillable.filter((gap) =>
@@ -296,7 +301,7 @@ export const registerTranslationCheck = (
               await vscode.window.showQuickPick(
                 fillable.map((gap) => ({
                   label: gap.language,
-                  description: `${gap.missing.length} labels into ${editableTable(gap)}`,
+                  description: `${gap.missing.length} labels into ${findEditableTable(gap)}`,
                   gap,
                 })),
                 {

@@ -25,7 +25,7 @@ export const CHARACTER_SIGNATURE = 0x09876543;
 /** The `.const` file's opening bytes */
 const CONST_MAGIC = 'Apt constant file\x1a\0\0';
 
-/** Little-endian, bounds-checked reads over one file */
+/** Reader of little-endian, bounds-checked values from one `.apt` or `.const` file */
 export class AptReader {
   private readonly cursor: ByteReader;
 
@@ -43,27 +43,32 @@ export class AptReader {
     return read(this.cursor);
   }
 
+  /** Reads an unsigned byte at an offset */
   public u8(offset: number): number {
     return this.at(offset, 1, (cursor) => cursor.u8());
   }
 
+  /** Reads an unsigned 16-bit integer at an offset */
   public u16(offset: number): number {
     return this.at(offset, 2, (cursor) => cursor.u16());
   }
 
+  /** Reads an unsigned 32-bit integer at an offset */
   public u32(offset: number): number {
     return this.at(offset, 4, (cursor) => cursor.u32());
   }
 
+  /** Reads a signed 32-bit integer at an offset */
   public i32(offset: number): number {
     return this.at(offset, 4, (cursor) => cursor.i32());
   }
 
+  /** Reads a 32-bit float at an offset */
   public f32(offset: number): number {
     return this.at(offset, 4, (cursor) => cursor.f32());
   }
 
-  /** A NUL-terminated string, decoded as Latin-1 so every byte survives */
+  /** Reads a NUL-terminated string at an offset, decoded as Latin-1 so every byte survives */
   public cstr(offset: number, maxLength = 65536): string {
     this.u8(offset);
     this.cursor.seek(offset);
@@ -82,7 +87,7 @@ export class AptReader {
     return text;
   }
 
-  /** A string a pointer names, or nothing for the null pointer */
+  /** Reads the string a pointer names, or undefined for the null pointer */
   public optionalString(pointer: number): string | undefined {
     return pointer === 0 ? undefined : this.cstr(pointer);
   }
@@ -93,7 +98,7 @@ export type ConstItem =
   | { kind: 'string'; value: string; offset: number }
   | { kind: 'number'; value: number };
 
-/** A parsed `.const` file */
+/** A `.const` file read: the Movie record offset and the constant pool */
 export interface ConstFile {
   /** Where the Movie record sits in the `.apt` */
   movieOffset: number;
@@ -102,7 +107,7 @@ export interface ConstFile {
   itemsOffset: number;
 }
 
-/** Parses a `.const` file */
+/** Parses a `.const` file into the Movie record offset and its constant pool */
 export const parseConst = (bytes: Uint8Array): ConstFile => {
   const reader = new AptReader(bytes);
 
@@ -145,7 +150,7 @@ export type Rect = [number, number, number, number];
 /** A 2x2 matrix in the stored field order m00, m01, m10, m11 */
 export type Matrix2 = [number, number, number, number];
 
-/** The fields of a Movie record */
+/** The header of a movie, or of a movie character: its counts and table offsets */
 export interface MovieRecord {
   offset: number;
   frameCount: number;
@@ -314,7 +319,7 @@ export interface AptExport {
   character: number;
 }
 
-/** A parsed movie */
+/** A movie read from its `.apt` image: characters, imports, exports and the root timeline */
 export interface AptMovie {
   record: MovieRecord;
   characters: Character[];

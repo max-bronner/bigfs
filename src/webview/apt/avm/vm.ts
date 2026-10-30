@@ -4,7 +4,7 @@ import type {
 } from '../../../formats/apt/aptBytecode';
 import type { PageMovie } from '../protocol';
 import type { Instance } from '../player';
-import { isWindowTarget, levelOf } from './movieLoad';
+import { isWindowTarget, parseLevel } from './movieLoad';
 import { installNatives } from './natives';
 import {
   AsObject,
@@ -45,22 +45,23 @@ import { describeError } from '../../../core/errors';
  * their values.
  */
 
-/** What the movie asks of the game, answered by the engine panel */
+/** Engine boundary of the AVM: what the movie asks of the game, answered by the engine panel */
 export interface EngineHooks {
-  /** The machine asking, told once when it starts */
+  /** Binds the machine asking, told once when it starts */
   bind(vm: Vm): void;
-  /** `GetExtern(name)`, `extern.name`: the value the engine gives */
+  /** Answers `GetExtern(name)` and `extern.name` */
   extern(name: string): Value;
+  /** Records the movie's own write to an extern */
   setExtern(name: string, value: Value): void;
-  /** A call nothing in the movie defines: `GameCode`, an engine function */
+  /** Answers a call nothing in the movie defines: `GameCode`, an engine function */
   call(name: string, args: string[]): Value;
-  /** `getURL("FSCommand:...")` */
+  /** Takes a `getURL("FSCommand:...")` */
   command(command: string, args: string): void;
   /**
-   * Every variable read, with what the movie holds (`found` says whether it
-   * holds anything): the engine may override it. `counted` is false for
-   * reads the preview makes itself, such as a text field's bound variable.
-   * `local` says a function's own local or parameter answered, which is
+   * Notes every variable read, with what the movie holds (`found` says whether
+   * it holds anything), and returns what the script sees: the engine may
+   * override it. `counted` is false for reads the preview makes itself, such
+   * as a text field's bound variable. `local` says a function's own local or parameter answered, which is
    * never the game's to override.
    */
   read(
@@ -71,12 +72,13 @@ export interface EngineHooks {
     local: boolean,
   ): Value;
   /**
-   * Called around each top-level script, with the machine idle: the engine
-   * writes its sticky values back into the movie
+   * Writes the engine's sticky values back into the movie; called around each
+   * top-level script, with the machine idle
    */
   sync(): void;
-  /** A function the movie stores where the engine can call it */
+  /** Notes a function the movie stores where the engine can call it */
   defined(owner: AsObject, name: string, fn: AsObject): void;
+  /** Logs a line from the machine */
   log(line: string): void;
 }
 
@@ -159,8 +161,11 @@ const PRELOAD = {
   global: 0x100,
 };
 
+/** AVM1 interpreter running one movie's scripts against the player's clips */
 export class Vm implements NativeHost {
+  /** The `_global` object */
   public readonly global: AsObject;
+  /** Prototypes of the built-in classes, each inheriting from `object` */
   public readonly protos: Record<
     | 'object'
     | 'function'
@@ -173,6 +178,7 @@ export class Vm implements NativeHost {
     | 'textField',
     AsObject
   >;
+  /** The `extern` object, whose members the engine answers */
   public readonly externObject: AsObject;
   private readonly clips = new WeakMap<Instance, AsObject>();
   private readonly registers: Value[] = [];
@@ -183,6 +189,7 @@ export class Vm implements NativeHost {
   private nextInterval = 1;
   /** Ticks of the player, which `getTimer` counts at 30 a second */
   public ticks = 0;
+  /** Timers `setInterval` started, by id; `every` and `due` count ticks */
   public readonly intervals = new Map<
     number,
     { callee: Value; self: Value; every: number; due: number; args: Value[] }
@@ -298,7 +305,7 @@ export class Vm implements NativeHost {
     ) as Value;
   }
 
-  /** The script object of a clip, made on first use */
+  /** Gets the script object of a clip, made on first use */
   public objectOf(instance: Instance): AsObject {
     let object = this.clips.get(instance);
 
@@ -319,7 +326,7 @@ export class Vm implements NativeHost {
   }
 
   /** Whether a script is running, so a frame entered now waits its turn */
-  public get busy(): boolean {
+  public get isBusy(): boolean {
     return this.nesting > 0;
   }
 
@@ -337,15 +344,17 @@ export class Vm implements NativeHost {
     };
   }
 
+  /** Finds the clip a target path or clip value names, a path read from `from` */
   public clipAt(target: Value, from: Instance): Instance | undefined {
     return this.targetClip(this.frameOn(from), from, target, false);
   }
 
-  /** A clip's script object if a script has touched it, without making one */
+  /** Gets a clip's script object if a script has touched it, without making one */
   public peekObject(instance: Instance): AsObject | undefined {
     return this.clips.get(instance);
   }
 
+  /** Gets the clip a value is the script object of, if it is one */
   public clipOf(value: Value): Instance | undefined {
     return value instanceof AsObject && value.kind.type === 'clip'
       ? value.kind.instance
@@ -354,6 +363,7 @@ export class Vm implements NativeHost {
 
   // ---- NativeHost
 
+  /** Converts a value to a string as AVM1 does */
   public string(value: Value): string {
     if (value === undefined) {
       return 'undefined';
@@ -389,6 +399,7 @@ export class Vm implements NativeHost {
     }
   }
 
+  /** Joins an array's items as `Array.join` does; the length read is capped */
   public join(array: AsObject, separator: string): string {
     const length = Math.min(100_000, Math.max(0, toInt32(array.get('length'))));
     const parts: string[] = [];
@@ -405,6 +416,7 @@ export class Vm implements NativeHost {
     return parts.join(separator);
   }
 
+  /** Creates an array object holding the values */
   public array(values: Value[]): AsObject {
     const array = new AsObject(this.protos.array, { type: 'array' });
 
@@ -413,10 +425,12 @@ export class Vm implements NativeHost {
     return array;
   }
 
+  /** Creates an empty plain object */
   public object(): AsObject {
     return new AsObject(this.protos.object);
   }
 
+  /** Gets the next random number in `0..1`, the same sequence every run */
   public random(): number {
     // xorshift: the same sequence every run
     let x = this.seed;
@@ -428,10 +442,12 @@ export class Vm implements NativeHost {
     return this.seed / 0x1_0000_0000;
   }
 
+  /** Gets the milliseconds since the run started, counted from ticks at 30 a second */
   public now(): number {
     return Math.trunc((this.ticks * 1000) / 30);
   }
 
+  /** Starts a `setInterval` timer, rounded to whole ticks, and returns its id */
   public interval(
     callee: Value,
     self: Value,
@@ -451,6 +467,7 @@ export class Vm implements NativeHost {
     return id;
   }
 
+  /** Stops a `setInterval` timer */
   public clearInterval(id: number): void {
     this.intervals.delete(id);
   }
@@ -465,6 +482,7 @@ export class Vm implements NativeHost {
     }
   }
 
+  /** Gets a member of a value, through prototypes, clip children and display properties */
   public member(object: Value, name: string): Value {
     if (typeof object === 'string' && name.toLowerCase() === 'length') {
       return object.length;
@@ -492,6 +510,7 @@ export class Vm implements NativeHost {
     return undefined;
   }
 
+  /** Sets a member of an object; a clip's display property moves the clip */
   public setMember(object: Value, name: string, value: Value): void {
     if (!(object instanceof AsObject) || !name) {
       return;
@@ -536,6 +555,7 @@ export class Vm implements NativeHost {
     object.set(name, value);
   }
 
+  /** Calls a function value; one nothing defines is asked of the engine under `name` */
   public call(callee: Value, self: Value, args: Value[], name: string): Value {
     if (callee instanceof AsObject && callee.kind.type === 'function') {
       return this.callBytecode(callee, callee.kind.fn, self, args);
@@ -633,7 +653,7 @@ export class Vm implements NativeHost {
 
   /** The clip a script loaded into a level (`_level1`), if one is there */
   private levelClip(lower: string): Instance | undefined {
-    const level = levelOf(lower);
+    const level = parseLevel(lower);
 
     return level
       ? [...this.stage.root.children.values()].find(
@@ -642,6 +662,7 @@ export class Vm implements NativeHost {
       : undefined;
   }
 
+  /** Gets the target path of a clip, as `_level0.a.b` or `/a/b` */
   public targetPath(instance: Instance, separator: '.' | '/'): string {
     const names: string[] = [];
 
@@ -650,7 +671,7 @@ export class Vm implements NativeHost {
     }
 
     // A level is not below `_level0`: its path starts at itself
-    const level = names[0] && levelOf(names[0]) ? names[0] : undefined;
+    const level = names[0] && parseLevel(names[0]) ? names[0] : undefined;
 
     return separator === '/'
       ? `/${names.join('/')}`
@@ -1458,7 +1479,7 @@ export class Vm implements NativeHost {
     // A target that names a clip or level is Flash's loadMovie (an empty
     // URL its unloadMovie); a window target is only the call above
     if (!isWindowTarget(target)) {
-      const level = levelOf(target);
+      const level = parseLevel(target);
       const into =
         level ??
         this.targetClip(frame, frame.target ?? this.stage.root, target, false);
@@ -2251,7 +2272,7 @@ export class Vm implements NativeHost {
     frame.scope = replace(frame.scope);
   }
 
-  /** For natives that take a function: `(fn, self, args)` with nesting counted */
+  /** Creates the function object of a native, named `name` */
   public native(name: string, call: NativeFunction): AsObject {
     const fn = new AsObject(this.protos.function, { type: 'native', call });
 

@@ -1,9 +1,9 @@
 import {
   DEFAULT_SIZE,
-  fraction,
-  itemsOf,
-  numberOf,
-  rangeOf,
+  getFillFraction,
+  splitItems,
+  toNumberOr,
+  getRange,
 } from '../../formats/apt/aptGadgets';
 import type { Rect } from '../../formats/apt/aptMovie';
 import { byId } from './dom';
@@ -14,10 +14,10 @@ import {
   writeBinding,
 } from './gadgetModel';
 import type { Gadget } from './gadgetModel';
-import { mappedImage, onMappedImages } from './mappedSurfaces';
+import { getMappedImage, onMappedImages } from './mappedSurfaces';
 import type { Affine } from './scene';
 import { multiply } from './scene';
-import { addRenderHook, currentPlayer, instanceBox, render } from './stage';
+import { addRenderHook, currentPlayer, measureInstanceBox, render } from './stage';
 import { state } from './state';
 
 /**
@@ -38,7 +38,7 @@ layer.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none';
 stage.replaceWith(wrap);
 wrap.append(stage, layer);
 
-/** The gadgets of the shown run; the Engine panel lists these too */
+/** Gets the gadgets of the shown run; the Engine panel lists these too */
 export const currentGadgets = (): Gadget[] =>
   state.movie ? findGadgets(currentPlayer()) : [];
 
@@ -57,7 +57,7 @@ const absolute = (gadget: Gadget): Affine => {
 
 /** Where a gadget sits in the shown character's space */
 const boxOf = (gadget: Gadget): Rect => {
-  const drawn = instanceBox(gadget.instance);
+  const drawn = measureInstanceBox(gadget.instance);
 
   if (drawn) {
     return drawn;
@@ -96,11 +96,11 @@ const control = (
       return {
         element: range,
         fill: (g) => {
-          const [low, high] = rangeOf(value(g, '_min'), value(g, '_max'));
+          const [low, high] = getRange(value(g, '_min'), value(g, '_max'));
 
           range.min = String(low);
           range.max = String(high);
-          range.value = String(numberOf(value(g, '_value'), low));
+          range.value = String(toNumberOr(value(g, '_value'), low));
           if (g.kind === 'scrollbar' && g.instance) {
             range.title = `${g.label} ${range.value}`;
           }
@@ -128,14 +128,14 @@ const control = (
       return {
         element: select,
         fill: (g) => {
-          const items = itemsOf(value(g, '_items'));
+          const items = splitItems(value(g, '_items'));
 
           select.replaceChildren(
             ...items.map((item, at) => new Option(item, String(at))),
           );
           select.selectedIndex = Math.min(
             items.length - 1,
-            numberOf(value(g, '_selected'), -1),
+            toNumberOr(value(g, '_selected'), -1),
           );
         },
       };
@@ -160,10 +160,10 @@ const control = (
       return {
         element: bar,
         fill: (g) => {
-          const range = rangeOf(0, value(g, '_max'));
+          const range = getRange(0, value(g, '_max'));
 
           bar.max = range[1] || 1;
-          bar.value = fraction(numberOf(value(g, '_value'), 0), range) * bar.max;
+          bar.value = getFillFraction(toNumberOr(value(g, '_value'), 0), range) * bar.max;
         },
       };
     }
@@ -233,9 +233,9 @@ const paintImage = (
   [left, top, right, bottom]: Rect,
 ): void => {
   const name = gadget.imageName?.trim() || gadget.imageMap?.trim() || '';
-  const image = mappedImage(name);
+  const image = getMappedImage(name);
   const texture = image && state.textures.get(image.texture);
-  const boxed = instanceBox(gadget.instance);
+  const boxed = measureInstanceBox(gadget.instance);
   const [w, h] = image?.extent ?? [right - left, bottom - top];
   const dest: Rect = boxed ?? [left, top, left + w, top + h];
   const [x, y] = [dest[0], dest[1]];

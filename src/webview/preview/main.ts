@@ -39,7 +39,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
     case 'videoError': {
       const error = document.createElement('p');
 
-      movie?.failed();
+      movie?.reportFrameError();
       error.className = 'error';
       error.textContent = `Cannot decode this frame: ${data.message}`;
       main.append(error);
@@ -55,7 +55,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
       modelControl?.play(data);
       break;
     case 'animationError':
-      modelControl?.notice(data.message);
+      modelControl?.showNotice(data.message);
       break;
     case 'texture':
       showTexture(data);

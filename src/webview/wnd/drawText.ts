@@ -1,7 +1,7 @@
 import type { WndBox, WndState } from '../../formats/wnd/wndLayout';
-import { css, POINTS_TO_UNITS } from './paint';
+import { toCssRgba, POINTS_TO_UNITS } from './paint';
 
-const lineBreaks = (
+const wrapLines = (
   context: CanvasRenderingContext2D,
   text: string,
   width: number,
@@ -28,6 +28,10 @@ const lineBreaks = (
   return out;
 };
 
+/**
+ * Draws a window's text in its state's colour, wrapped and aligned the way its
+ * gadget type lays text out. `textLeft` starts the text after a check box's square.
+ */
 export const drawText = (
   context: CanvasRenderingContext2D,
   box: WndBox,
@@ -48,14 +52,14 @@ export const drawText = (
     stateColour && stateColour[3] > 0 ? stateColour : [255, 255, 255, 255];
 
   context.font = `${box.font?.bold ? 'bold ' : ''}${size}px ${box.font?.name ? `"${box.font.name}", ` : ''}sans-serif`;
-  context.fillStyle = css(colour as [number, number, number, number]);
+  context.fillStyle = toCssRgba(colour as [number, number, number, number]);
   context.textBaseline = 'middle';
 
   const start = textLeft === undefined ? left : textLeft;
   const centred = box.wrapCentered || box.type === 'PUSHBUTTON';
   const lines =
     box.wrapCentered || box.type === 'STATICTEXT'
-      ? lineBreaks(context, text, right - start)
+      ? wrapLines(context, text, right - start)
       : [text];
   const height = lines.length * size * 1.15;
   const middleAligned =

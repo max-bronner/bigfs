@@ -5,26 +5,28 @@ import type { Vec3 } from '../../formats/w3d/w3dPose';
  * scroll to zoom, double-click to go back to where it started.
  */
 
+/** Orbit camera state a page reads each frame to draw */
 export interface Orbit {
-  /** View times projection, column major */
+  /** Returns view times projection, column major */
   viewProjection(aspect: number): Float32Array;
-  /** Unit vector from the target towards the eye */
+  /** Returns the unit vector from the target towards the eye */
   towardsEye(): Vec3;
 }
 
-const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const subtract = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const cross = (a: Vec3, b: Vec3): Vec3 => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
   a[0] * b[1] - a[1] * b[0],
 ];
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const unit = (v: Vec3): Vec3 => {
+const normalize = (v: Vec3): Vec3 => {
   const length = Math.hypot(...v) || 1;
 
   return [v[0] / length, v[1] / length, v[2] / length];
 };
 
+/** Creates an orbit camera around `target` driven by the canvas's pointer and wheel; `onChange` asks for a redraw */
 export const createOrbit = (
   canvas: HTMLCanvasElement,
   target: Vec3,
@@ -76,11 +78,11 @@ export const createOrbit = (
   });
 
   return {
-    towardsEye: () => unit(sub(eye(), target)),
+    towardsEye: () => normalize(subtract(eye(), target)),
     viewProjection: (aspect) => {
       const from = eye();
-      const z = unit(sub(from, target));
-      const x = unit(cross([0, 0, 1], z));
+      const z = normalize(subtract(from, target));
+      const x = normalize(cross([0, 0, 1], z));
       const y = cross(z, x);
       const near = radius / 100;
       const far = radius * 100;

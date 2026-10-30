@@ -14,7 +14,7 @@ import { AptImage } from './writer/aptImage';
 import { describeError } from '../../core/errors';
 
 /**
- * Reading and replacing action blocks as script text.
+ * Reads and replaces action blocks as script text.
  *
  * A block is shown as a script only once compiling that script has been
  * shown to give back code that runs the same as the block: the instructions
@@ -26,6 +26,7 @@ import { describeError } from '../../core/errors';
  * pointer to the old block is moved to it.
  */
 
+/** An action block as text, and the mode it could be shown in */
 export interface BlockScript {
   text: string;
   /** How the text was made; `listing` cannot be compiled back */
@@ -43,7 +44,7 @@ const recompile = (text: string, constants: readonly ConstItem[]) => {
   return { code: decodeBlock(scratch.bytes, start), items };
 };
 
-/** The block at `block` as text, in the best mode that is checked exact */
+/** Decompiles the block at `block` to text, in the best mode checked to compile back exact */
 export const decompileBlock = (
   apt: Uint8Array,
   block: number,
@@ -74,7 +75,7 @@ export const decompileBlock = (
   return { text: printListing(code, constants), mode: 'listing', note };
 };
 
-/** Every place in the movie that points at the block at `block` */
+/** Finds the offset of every pointer in the movie to the block at `block` */
 export const findBlockPointers = (
   apt: Uint8Array,
   movieOffset: number,
@@ -205,7 +206,7 @@ export const addBlock = (
   return { start, added: items.slice(constants.length) };
 };
 
-/** Where a script fails to compile, if it does; `line` and `column` from 1 */
+/** Compiles a script to find where it fails, if it does; `line` and `column` count from 1 */
 export const checkScript = (
   text: string,
   constants: readonly ConstItem[],

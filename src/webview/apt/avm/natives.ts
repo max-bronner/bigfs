@@ -3,7 +3,7 @@ import {
   apply,
   invert,
   multiply,
-  placedColor,
+  getPlacedColor,
   transformRect,
   union,
 } from '../scene';
@@ -73,7 +73,7 @@ const asAffine = (clip: Instance): Affine => [
   ...clip.translate,
 ];
 
-/** Clip space to the stage's */
+/** The matrix from a clip's space to the stage's */
 const worldOf = (clip: Instance): Affine => {
   const chain: Instance[] = [];
 
@@ -117,6 +117,7 @@ const repath = (clip: Instance, path: string) => {
   }
 };
 
+/** Installs the built-in objects and functions on a machine's globals and prototypes */
 export const installNatives = (vm: Vm): void => {
   const { protos, global } = vm;
   const method = (on: AsObject, name: string, call: NativeFunction) =>
@@ -371,7 +372,7 @@ export const installNatives = (vm: Vm): void => {
   });
   method(protos.movieClip, 'getBytesLoaded', () => 1);
   method(protos.movieClip, 'getBytesTotal', () => 1);
-  /** A point or clip argument as a box in the stage's space */
+  // A clip argument as a box in the stage's space
   const stageBox = (at: Instance): Rect | undefined => {
     const box = ownBounds(at);
 
@@ -510,7 +511,7 @@ export const installNatives = (vm: Vm): void => {
   });
   method(colorProto, 'getRGB', (_, self) => {
     const at = colorTarget(self);
-    const add = at && placedColor(at).add;
+    const add = at && getPlacedColor(at).add;
 
     return add && (byte(add[0]) << 16) | (byte(add[1]) << 8) | byte(add[2]);
   });
@@ -519,7 +520,7 @@ export const installNatives = (vm: Vm): void => {
     const given = args[0];
 
     if (at && given instanceof AsObject) {
-      const { mult, add } = placedColor(at);
+      const { mult, add } = getPlacedColor(at);
       const next = { mult: [...mult], add: [...add] } as typeof at.tint &
         object;
 
@@ -544,7 +545,7 @@ export const installNatives = (vm: Vm): void => {
       return undefined;
     }
 
-    const { mult, add } = placedColor(at);
+    const { mult, add } = getPlacedColor(at);
     const result = vm.object();
 
     CHANNELS.forEach(([m, a], channel) => {

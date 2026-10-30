@@ -2,10 +2,10 @@ import * as assert from "assert";
 import {
   Crc32,
   POWER_SLOTS,
-  cahRecordProblem,
+  describeCahRecordProblem,
   cloneCahRecord,
   computeCahCrc,
-  emptyCahRecord,
+  createEmptyCahRecord,
   parseCah,
   writeCah,
 } from "../../formats/cah/cah";
@@ -29,17 +29,17 @@ const referenceCrc = (bytes: number[]): number => {
   return ~state >>> 0;
 };
 
-const le = (value: number) => [
+const toLittleEndian = (value: number) => [
   value & 0xff,
   (value >>> 8) & 0xff,
   (value >>> 16) & 0xff,
   value >>> 24,
 ];
-const ascii = (text: string) => Array.from(text, (c) => c.charCodeAt(0));
+const toAsciiCodes = (text: string) => Array.from(text, (c) => c.charCodeAt(0));
 
 // Invented values; only the layout is the game's
-const sample = (): CahRecord => {
-  const record = emptyCahRecord();
+const buildSampleRecord = (): CahRecord => {
+  const record = createEmptyCahRecord();
 
   record.objectId = 7;
   record.name = "Aragwen é";
@@ -57,56 +57,56 @@ const sample = (): CahRecord => {
 };
 
 /** The file laid out by hand from the documented field order, trailer included */
-const handBuilt = (record: CahRecord): number[] => {
+const buildByHand = (record: CahRecord): number[] => {
   const hashed: number[] = [
-    ...le(record.objectId),
+    ...toLittleEndian(record.objectId),
     ...Array.from(new TextEncoder().encode(record.name)),
-    ...le(record.classIndex),
-    ...le(record.subclassIndex),
-    ...le(0),
-    ...le(0),
-    ...record.colors.flatMap(le),
+    ...toLittleEndian(record.classIndex),
+    ...toLittleEndian(record.subclassIndex),
+    ...toLittleEndian(0),
+    ...toLittleEndian(0),
+    ...record.colors.flatMap(toLittleEndian),
     ...record.powers.flatMap((p) => [
-      ...ascii(p.button),
-      ...le(p.level),
-      ...le(p.slot),
+      ...toAsciiCodes(p.button),
+      ...toLittleEndian(p.level),
+      ...toLittleEndian(p.slot),
     ]),
-    ...le(record.blings.length),
-    ...record.blings.flatMap((b) => [...ascii(b.group), ...le(b.index)]),
+    ...toLittleEndian(record.blings.length),
+    ...record.blings.flatMap((b) => [...toAsciiCodes(b.group), ...toLittleEndian(b.index)]),
     0,
   ];
   const out = [
-    ...ascii("ALAE2STR"),
-    ...le(1),
-    ...le(0),
+    ...toAsciiCodes("ALAE2STR"),
+    ...toLittleEndian(1),
+    ...toLittleEndian(0),
     8,
-    ...le(record.objectId),
+    ...toLittleEndian(record.objectId),
     record.name.length,
     ...Array.from(record.name).flatMap((c) => [
       c.charCodeAt(0) & 0xff,
       c.charCodeAt(0) >> 8,
     ]),
-    ...le(record.classIndex),
-    ...le(record.subclassIndex),
-    ...le(0),
-    ...le(0),
-    ...record.colors.flatMap(le),
+    ...toLittleEndian(record.classIndex),
+    ...toLittleEndian(record.subclassIndex),
+    ...toLittleEndian(0),
+    ...toLittleEndian(0),
+    ...record.colors.flatMap(toLittleEndian),
     ...record.powers.flatMap((p) => [
       p.button.length,
-      ...ascii(p.button),
-      ...le(p.level),
-      ...le(p.slot),
+      ...toAsciiCodes(p.button),
+      ...toLittleEndian(p.level),
+      ...toLittleEndian(p.slot),
     ]),
-    ...le(record.blings.length),
+    ...toLittleEndian(record.blings.length),
     ...record.blings.flatMap((b) => [
       b.group.length,
-      ...ascii(b.group),
-      ...le(b.index),
+      ...toAsciiCodes(b.group),
+      ...toLittleEndian(b.index),
     ]),
     (record.id ?? "").length,
-    ...ascii(record.id ?? ""),
+    ...toAsciiCodes(record.id ?? ""),
     0,
-    ...le(referenceCrc(hashed)),
+    ...toLittleEndian(referenceCrc(hashed)),
   ];
 
   return out;
@@ -116,7 +116,7 @@ suite("Create-a-Hero file", () => {
   test("the CRC-32 is the standard one", () => {
     const crc = new Crc32();
 
-    crc.update(ascii("123456789"));
+    crc.update(toAsciiCodes("123456789"));
     assert.strictEqual(crc.finish(), 0xcbf43926);
   });
 
@@ -130,13 +130,13 @@ suite("Create-a-Hero file", () => {
   });
 
   test("write produces the hand-built file with the trailer mint computes", () => {
-    const record = sample();
+    const record = buildSampleRecord();
 
-    assert.deepStrictEqual(Array.from(writeCah(record)), handBuilt(record));
+    assert.deepStrictEqual(Array.from(writeCah(record)), buildByHand(record));
   });
 
   test("a written file parses back to the same record with a matching checksum", () => {
-    const record = sample();
+    const record = buildSampleRecord();
     const parsed = parseCah(writeCah(record));
 
     assert.strictEqual(parsed.crcMatches, true);
@@ -153,7 +153,7 @@ suite("Create-a-Hero file", () => {
   });
 
   test("a string longer than 254 bytes uses the long length form", () => {
-    const record = sample();
+    const record = buildSampleRecord();
 
     record.powers[1].button = "B".repeat(300);
     const parsed = parseCah(writeCah(record));
@@ -163,7 +163,7 @@ suite("Create-a-Hero file", () => {
   });
 
   test("strings stop at a NUL when hashed, as the game reads them", () => {
-    const record = sample();
+    const record = buildSampleRecord();
     const other = cloneCahRecord(record);
 
     other.powers[0].button = "Command_PowerOne\0junk";
@@ -171,27 +171,27 @@ suite("Create-a-Hero file", () => {
   });
 
   test("an edit changes the checksum and a stale trailer is reported", () => {
-    const bytes = writeCah(sample());
+    const bytes = writeCah(buildSampleRecord());
     const edited = Uint8Array.from(bytes);
 
     edited[edited.length - 1] ^= 0xff;
     assert.strictEqual(parseCah(edited).crcMatches, false);
 
-    const record = sample();
+    const record = buildSampleRecord();
 
     record.name = "Other";
-    assert.notStrictEqual(computeCahCrc(record), computeCahCrc(sample()));
+    assert.notStrictEqual(computeCahCrc(record), computeCahCrc(buildSampleRecord()));
   });
 
   test("bytes after the record are counted and ignored", () => {
-    const bytes = writeCah(sample());
+    const bytes = writeCah(buildSampleRecord());
     const longer = Uint8Array.from([...bytes, 1, 2, 3]);
 
     assert.strictEqual(parseCah(longer).trailing, 3);
   });
 
   test("an older record version parses without id, flag or checksum", () => {
-    const v8 = Array.from(writeCah(sample()));
+    const v8 = Array.from(writeCah(buildSampleRecord()));
     const headerLength = 16;
     const bytes = Uint8Array.from(v8);
 
@@ -207,14 +207,14 @@ suite("Create-a-Hero file", () => {
   });
 
   test("a bad header, version or truncation fails with a message", () => {
-    const good = Array.from(writeCah(sample()));
+    const good = Array.from(writeCah(buildSampleRecord()));
 
     assert.throws(
-      () => parseCah(Uint8Array.from(ascii("NOPE"))),
+      () => parseCah(Uint8Array.from(toAsciiCodes("NOPE"))),
       /bad container magic|runs past/,
     );
     assert.throws(
-      () => parseCah(Uint8Array.from(ascii("XXXX2STR"))),
+      () => parseCah(Uint8Array.from(toAsciiCodes("XXXX2STR"))),
       /bad container magic/,
     );
     assert.throws(
@@ -243,7 +243,7 @@ suite("Create-a-Hero file", () => {
   });
 
   test("a huge bling count is refused before anything is allocated", () => {
-    const record = emptyCahRecord();
+    const record = createEmptyCahRecord();
     const bytes = Array.from(writeCah(record));
     // The count sits after the fixed part: container 16, version 1, object 4, name 1, class 8, reserved 8, colours 12, powers 15 x 9
     const countAt = 16 + 1 + 4 + 1 + 8 + 8 + 12 + POWER_SLOTS * 9;
@@ -256,27 +256,27 @@ suite("Create-a-Hero file", () => {
   });
 
   test("a huge wide-string length is refused against the bytes present", () => {
-    const bytes = Array.from(writeCah(sample()));
+    const bytes = Array.from(writeCah(buildSampleRecord()));
 
     bytes.splice(21, 1, 0xff, 0xff, 0xff, 0xff, 0x7f);
     assert.throws(() => parseCah(Uint8Array.from(bytes)), /runs past the end/);
   });
 
   test("an empty bling group is refused", () => {
-    const record = sample();
+    const record = buildSampleRecord();
 
     record.blings[0].group = "";
-    assert.ok(cahRecordProblem(record));
+    assert.ok(describeCahRecordProblem(record));
     assert.throws(() => parseCah(writeCah(record)), /Empty bling group/);
   });
 
   test("a fresh record has all power slots", () => {
-    assert.strictEqual(emptyCahRecord().powers.length, POWER_SLOTS);
-    assert.strictEqual(cahRecordProblem(emptyCahRecord()), undefined);
+    assert.strictEqual(createEmptyCahRecord().powers.length, POWER_SLOTS);
+    assert.strictEqual(describeCahRecordProblem(createEmptyCahRecord()), undefined);
   });
 
   test("every truncation of a file fails with a message naming the offset", () => {
-    const good = writeCah(sample());
+    const good = writeCah(buildSampleRecord());
 
     for (let length = 0; length < good.length; length++) {
       assert.throws(

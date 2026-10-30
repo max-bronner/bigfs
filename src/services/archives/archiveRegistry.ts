@@ -38,8 +38,11 @@ export interface ArchiveChange {
  * archive it has not heard of, and to look again at one that failed to read
  */
 export interface ArchiveDiscovery {
+  /** Resolves once the latest scan is done */
   whenReady(): Promise<void>;
+  /** Takes on the archive a uri points into when its file is there but no scan has found it */
   discover(uri: Uri): Promise<void>;
+  /** Reads an archive that failed once more, a moment later; each path gets one retry */
   retryLater(archivePath: string): void;
 }
 
@@ -68,9 +71,9 @@ export interface ArchiveRegistry {
     kind: ArchiveChange['type'],
     loaded?: boolean,
   ): void;
-  /** The root node of every archive found, for a view that shows them flat */
+  /** Gets the root node of every archive found, for a view that shows them flat */
   getArchiveRoots(): VirtualNode[];
-  /** Every archive of a source, for a view that groups them by folder */
+  /** Gets every archive of a source, for a view that groups them by folder */
   getArchivesOf(sourceId: string): readonly Archive[];
   /**
    * Finds an archive by its path on disk, matched case insensitively. This is
@@ -87,7 +90,7 @@ export interface ArchiveRegistry {
    * the `FileNotFound` the file system provider API asks for when the uri
    * names no archive this model knows.
    */
-  getArchiveContext(uri: Uri): ResolvedUri;
+  requireResolvedUri(uri: Uri): ResolvedUri;
   /** Gets the archive a node belongs to, or reports the node as missing */
   getArchiveOf(node: VirtualNode): Archive;
   /**
@@ -119,7 +122,7 @@ export interface ArchiveRegistry {
    * Nothing for a directory, or for a node the entries no longer hold.
    */
   getFileContent(node: VirtualNode): Promise<Uint8Array | undefined>;
-  /** From the index table, or from a write that has not been saved yet */
+  /** Gets a file node's size, from the index table or from a write that has not been saved yet */
   getFileSize(node: VirtualNode): number;
   /** Lists the files and directories below a directory, by path below it */
   getDirectoryContent(directory: VirtualNode): {
@@ -156,11 +159,11 @@ export const createArchiveRegistry = (
   const onDidChangeArchive = new EventEmitter<ArchiveChange>();
   let disposed = false;
 
-  /** Reads the user is waiting on, which the background work steps aside for */
+  // Reads the user is waiting on, which the background work steps aside for
   let awaitedLoads = 0;
   let backgroundLoading: Promise<void> | undefined;
 
-  /** Nothing for a directory, which an archive stores no entry for */
+  // Nothing for a directory, which an archive stores no entry for
   const getEntryForNode = (node: VirtualNode): BigFileEntry | undefined => {
     if (node.type !== FileType.File) {
       return undefined;
@@ -171,10 +174,8 @@ export const createArchiveRegistry = (
     return archive?.getEntry(node.entryPath);
   };
 
-  /**
-   * Walks the archives that are still unread, one at a time and behind
-   * anything the user is waiting on. Stops as soon as the model is disposed.
-   */
+  // Walks the archives that are still unread, one at a time and behind
+  // anything the user is waiting on. Stops as soon as the model is disposed.
   const loadRemaining = async (): Promise<void> => {
     await delay(BACKGROUND_LOAD_DELAY);
 
@@ -250,7 +251,7 @@ export const createArchiveRegistry = (
       return parseNodeUri(uri, registry.archives.values());
     },
 
-    getArchiveContext(uri) {
+    requireResolvedUri(uri) {
       const resolved = registry.resolveUri(uri);
 
       if (!resolved) {

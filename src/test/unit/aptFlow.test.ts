@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { timelineFlow } from '../../formats/apt/aptFlow';
+import { readTimelineFlow } from '../../formats/apt/aptFlow';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { Character, Frame } from '../../formats/apt/aptMovie';
 
@@ -53,7 +53,7 @@ suite('APT timeline flow', () => {
 
     characters[5] = { type: 'button', actions: [{ condition: 8, block: 9 }] };
 
-    const flow = timelineFlow(
+    const flow = readTimelineFlow(
       frames,
       behaviours,
       characters as unknown as Character[],

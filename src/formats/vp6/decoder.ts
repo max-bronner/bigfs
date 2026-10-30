@@ -1,13 +1,13 @@
-import { BitReader, BoolDecoder, Huff, MAX_OVERRUN, tree } from './coders';
-import { Filter, Mv, Picture, addBlock, mcBlock, putBlock } from './dsp';
+import { BitReader, BoolDecoder, HuffmanCode, MAX_OVERRUN, readBranch } from './coders';
+import { Filter, Mv, Picture, addBlock, predictMotionBlock, putBlock } from './dsp';
 import { CoeffModel, Models, MvModel } from './models';
 import {
   DcPredictor,
   MbType,
   Ref,
   ZERO_MV,
-  mvCandidates,
-  referenceOf,
+  findMvCandidates,
+  getReference,
 } from './prediction';
 import type { MvCandidates } from './prediction';
 import * as T from './tables';
@@ -28,8 +28,9 @@ const TOKEN_EOB = 42;
 const PROFILE_SIMPLE = 0;
 const PROFILE_ADVANCED = 3;
 
-export { MbType, Ref, referenceOf } from './prediction';
+export { MbType, Ref, getReference as referenceOf } from './prediction';
 
+/** Slot of each macroblock mode in the mode probability tables, which order them differently */
 export const MODEL_INDEX: Record<MbType, number> = {
   [MbType.InterNoMv]: 0,
   [MbType.Intra]: 1,
@@ -204,6 +205,7 @@ type CoeffReader =
   | { kind: 'bool'; bc: BoolDecoder }
   | { kind: 'huff'; br: BitReader };
 
+/** Stateful VP6 decoder for one stream, holding the reference pictures between frames */
 export class Vp6Decoder {
   private st: StreamState = {
     version: 0,
@@ -365,7 +367,7 @@ export class Vp6Decoder {
 
       for (let mbX = 0; mbX < this.mbWidth; mbX++) {
         this.decodeMb(frame, bc, reader, header, mbX, mbY);
-        this.dcPred.nextMb();
+        this.dcPred.advanceMacroblock();
 
         const coeffOverrun = reader.kind === 'bool' ? reader.bc.overrun : 0;
 
@@ -374,12 +376,12 @@ export class Vp6Decoder {
         }
       }
 
-      this.dcPred.newRow();
+      this.dcPred.startRow();
     }
   }
 
   private findMvPred(mbX: number, mbY: number, want: Ref): MvCandidates {
-    return mvCandidates(
+    return findMvCandidates(
       (index) => this.mbInfo[index],
       mbX,
       mbY,
@@ -402,22 +404,22 @@ export class Vp6Decoder {
       new Array(10).fill(128);
 
     if (!bc.readProb(probs[9])) {
-      this.lastMbt = tree(
+      this.lastMbt = readBranch(
         bc,
         probs[0],
         () =>
-          tree(
+          readBranch(
             bc,
             probs[1],
             () =>
-              tree(
+              readBranch(
                 bc,
                 probs[3],
                 () => MbType.InterNoMv,
                 () => MbType.InterMv,
               ),
             () =>
-              tree(
+              readBranch(
                 bc,
                 probs[4],
                 () => MbType.InterNearest,
@@ -425,29 +427,29 @@ export class Vp6Decoder {
               ),
           ),
         () =>
-          tree(
+          readBranch(
             bc,
             probs[2],
             () =>
-              tree(
+              readBranch(
                 bc,
                 probs[5],
                 () => MbType.Intra,
                 () => MbType.InterFourMv,
               ),
             () =>
-              tree(
+              readBranch(
                 bc,
                 probs[6],
                 () =>
-                  tree(
+                  readBranch(
                     bc,
                     probs[7],
                     () => MbType.GoldenNoMv,
                     () => MbType.GoldenMv,
                   ),
                 () =>
-                  tree(
+                  readBranch(
                     bc,
                     probs[8],
                     () => MbType.GoldenNearest,
@@ -552,7 +554,7 @@ export class Vp6Decoder {
 
     this.mbInfo[mbPos] = { type, mv };
 
-    const reference = referenceOf(type);
+    const reference = getReference(type);
 
     if (reference !== Ref.Intra) {
       const source = reference === Ref.Golden ? this.golden : this.last;
@@ -616,7 +618,7 @@ export class Vp6Decoder {
   }
 
   private predictDc(type: MbType, blockNo: number): void {
-    const reference = referenceOf(type);
+    const reference = getReference(type);
     const coeffs = this.coeffs[blockNo];
     const dc = i16(coeffs[0] + this.dcPred.predict(blockNo, reference));
 
@@ -625,6 +627,10 @@ export class Vp6Decoder {
   }
 }
 
+/**
+ * Predicts an inter macroblock into `frame` from the reference picture `src`.
+ * A four-vector macroblock gives chroma the average of its four vectors.
+ */
 export const predictMb = (
   frame: Picture,
   src: Picture,
@@ -641,7 +647,7 @@ export const predictMb = (
 
   if (type === MbType.InterFourMv) {
     fourMv.forEach((blockMv, block) =>
-      mcBlock(
+      predictMotionBlock(
         frame.planes[0],
         src.planes[0],
         x + (block & 1) * 8,
@@ -662,11 +668,11 @@ export const predictMb = (
       [0, 8],
       [8, 8],
     ]) {
-      mcBlock(frame.planes[0], src.planes[0], x + bx, y + by, mv, true, filter);
+      predictMotionBlock(frame.planes[0], src.planes[0], x + bx, y + by, mv, true, filter);
     }
   }
 
-  mcBlock(
+  predictMotionBlock(
     frame.planes[1],
     src.planes[1],
     mbX * 8,
@@ -675,7 +681,7 @@ export const predictMb = (
     false,
     filter,
   );
-  mcBlock(
+  predictMotionBlock(
     frame.planes[2],
     src.planes[2],
     mbX * 8,
@@ -691,22 +697,22 @@ const decodeMvComponent = (bc: BoolDecoder, model: MvModel): number => {
   let value: number;
 
   if (!bc.readProb(model.nzProb)) {
-    value = tree(
+    value = readBranch(
       bc,
       tp[0],
       () =>
-        tree(
+        readBranch(
           bc,
           tp[1],
           () =>
-            tree(
+            readBranch(
               bc,
               tp[2],
               () => 0,
               () => 1,
             ),
           () =>
-            tree(
+            readBranch(
               bc,
               tp[3],
               () => 2,
@@ -714,18 +720,18 @@ const decodeMvComponent = (bc: BoolDecoder, model: MvModel): number => {
             ),
         ),
       () =>
-        tree(
+        readBranch(
           bc,
           tp[4],
           () =>
-            tree(
+            readBranch(
               bc,
               tp[5],
               () => 4,
               () => 5,
             ),
           () =>
-            tree(
+            readBranch(
               bc,
               tp[6],
               () => 6,
@@ -762,29 +768,29 @@ const expandToken = (
   if (token < TOKEN_LARGE) {
     level = token;
   } else {
-    const category = tree(
+    const category = readBranch(
       bc,
       valProbs[6],
       () =>
-        tree(
+        readBranch(
           bc,
           valProbs[7],
           () => 0,
           () => 1,
         ),
       () =>
-        tree(
+        readBranch(
           bc,
           valProbs[8],
           () =>
-            tree(
+            readBranch(
               bc,
               valProbs[9],
               () => 2,
               () => 3,
             ),
           () =>
-            tree(
+            readBranch(
               bc,
               valProbs[10],
               () => 4,
@@ -818,21 +824,21 @@ const decodeToken = (
     return isDc || bc.readProb(probs[1]) ? 0 : TOKEN_EOB;
   }
 
-  return tree(
+  return readBranch(
     bc,
     probs[2],
     () => 1,
     () =>
-      tree(
+      readBranch(
         bc,
         probs[3],
         () =>
-          tree(
+          readBranch(
             bc,
             probs[4],
             () => 2,
             () =>
-              tree(
+              readBranch(
                 bc,
                 probs[5],
                 () => 3,
@@ -845,22 +851,22 @@ const decodeToken = (
 };
 
 const decodeZeroRun = (bc: BoolDecoder, probs: readonly number[]): number => {
-  const value = tree(
+  const value = readBranch(
     bc,
     probs[0],
     () =>
-      tree(
+      readBranch(
         bc,
         probs[1],
         () =>
-          tree(
+          readBranch(
             bc,
             probs[2],
             () => 0,
             () => 1,
           ),
         () =>
-          tree(
+          readBranch(
             bc,
             probs[3],
             () => 2,
@@ -868,22 +874,22 @@ const decodeZeroRun = (bc: BoolDecoder, probs: readonly number[]): number => {
           ),
       ),
     () =>
-      tree(
+      readBranch(
         bc,
         probs[4],
         () =>
-          tree(
+          readBranch(
             bc,
             probs[5],
             () =>
-              tree(
+              readBranch(
                 bc,
                 probs[6],
                 () => 4,
                 () => 5,
               ),
             () =>
-              tree(
+              readBranch(
                 bc,
                 probs[7],
                 () => 6,
@@ -971,8 +977,8 @@ const decodeBlock = (
   return category;
 };
 
-/** A Huffman-coded token's value, or nothing at the end of the block */
-const decodeTokenHuff = (br: BitReader, huff: Huff): number | undefined => {
+/** Reads a Huffman-coded token's value, or `undefined` at the end of the block */
+const decodeTokenHuff = (br: BitReader, huff: HuffmanCode): number | undefined => {
   const token = huff.read(br);
 
   if (token === 0) {

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import {
-  soundParameterIndexes,
+  findSoundParameterIndexes,
   withSoundParameters,
 } from '../../formats/map/mapScriptSounds';
 
@@ -18,7 +18,7 @@ suite('Map script sounds', () => {
       'HAS_FINISHED_AUDIO',
     ]) {
       assert.deepStrictEqual(
-        soundParameterIndexes(verb, ['TestEvent', 'TestWaypoint']),
+        findSoundParameterIndexes(verb, ['TestEvent', 'TestWaypoint']),
         [0],
         verb,
       );
@@ -27,33 +27,33 @@ suite('Map script sounds', () => {
 
   test('the verb is matched without regard to case', () => {
     assert.deepStrictEqual(
-      soundParameterIndexes('Play_Sound_Effect', ['TestEvent']),
+      findSoundParameterIndexes('Play_Sound_Effect', ['TestEvent']),
       [0],
     );
   });
 
   test('other parameters of the same call are not sounds', () => {
     assert.deepStrictEqual(
-      soundParameterIndexes('PLAY_SOUND_EFFECT_AT', ['TestEvent', 'Spot']),
+      findSoundParameterIndexes('PLAY_SOUND_EFFECT_AT', ['TestEvent', 'Spot']),
       [0],
     );
   });
 
   test('calls that do not name a sound have none', () => {
     assert.deepStrictEqual(
-      soundParameterIndexes('MUSIC_SET_VOLUME', ['50']),
+      findSoundParameterIndexes('MUSIC_SET_VOLUME', ['50']),
       [],
     );
     assert.deepStrictEqual(
-      soundParameterIndexes('EVA_SET_ENABLED_DISABLED', ['1']),
+      findSoundParameterIndexes('EVA_SET_ENABLED_DISABLED', ['1']),
       [],
     );
-    assert.deepStrictEqual(soundParameterIndexes('SET_FLAG', ['Flag']), []);
+    assert.deepStrictEqual(findSoundParameterIndexes('SET_FLAG', ['Flag']), []);
   });
 
   test('an empty name has nothing to play', () => {
-    assert.deepStrictEqual(soundParameterIndexes('SPEECH_PLAY', ['']), []);
-    assert.deepStrictEqual(soundParameterIndexes('SPEECH_PLAY', []), []);
+    assert.deepStrictEqual(findSoundParameterIndexes('SPEECH_PLAY', ['']), []);
+    assert.deepStrictEqual(findSoundParameterIndexes('SPEECH_PLAY', []), []);
   });
 
   test('a call keeps its fields and gains the sound indexes', () => {

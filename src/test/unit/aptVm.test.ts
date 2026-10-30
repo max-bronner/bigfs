@@ -120,7 +120,7 @@ const run = (overrides: Record<string, string> = {}, script = ROOT_SCRIPT) => {
 };
 
 /** What the movie passed to `trace`, which the engine hears as a call */
-const traced = (lines: string[]) =>
+const readTraced = (lines: string[]) =>
   lines.flatMap((line) => {
     const match = /^engine: trace\("(.*)"\)$/.exec(line);
 
@@ -188,7 +188,7 @@ suite('APT ActionScript machine', () => {
       `extern.Flag = 7; flag = "mine"; trace(flag); trace(GetExtern("Flag")); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['mine', '7']);
+    assert.deepStrictEqual(readTraced(lines), ['mine', '7']);
     assert.strictEqual(engine.overrides.size, 0);
     assert.strictEqual(engine.externOverrides.size, 0);
     assert.deepStrictEqual(
@@ -203,7 +203,7 @@ suite('APT ActionScript machine', () => {
       `extern.Flag = 7; trace(GetExtern("Flag")); trace(extern.Flag); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['9', '9']);
+    assert.deepStrictEqual(readTraced(lines), ['9', '9']);
   });
 
   test('ToggleExtern flips every time', () => {
@@ -212,7 +212,7 @@ suite('APT ActionScript machine', () => {
       `ToggleExtern("A"); trace(GetExtern("A")); ToggleExtern("A"); trace(GetExtern("A")); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['true', 'false']);
+    assert.deepStrictEqual(readTraced(lines), ['true', 'false']);
   });
 
   test('an override leaves a parameter of the same name alone', () => {
@@ -221,7 +221,7 @@ suite('APT ActionScript machine', () => {
       `function Pick(side) { trace(side); } Pick("arg"); trace(side); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['arg', 'engine']);
+    assert.deepStrictEqual(readTraced(lines), ['arg', 'engine']);
   });
 
   test('an override matches the whole path, not the last name', () => {
@@ -230,7 +230,7 @@ suite('APT ActionScript machine', () => {
       `ring.side = "own"; trace(ring.side); trace(_root.ring.side); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['own', 'own']);
+    assert.deepStrictEqual(readTraced(lines), ['own', 'own']);
   });
 
   test('member reads of an overridden name see it after the movie writes it', () => {
@@ -240,7 +240,7 @@ suite('APT ActionScript machine', () => {
     );
 
     engine.invoke([...engine.functions.values()][0], []);
-    assert.deepStrictEqual(traced(lines), ['engine', 'engine']);
+    assert.deepStrictEqual(readTraced(lines), ['engine', 'engine']);
   });
 
   test('only the engine calls what the movie defines but never names', () => {
@@ -286,7 +286,7 @@ suite('APT ActionScript machine', () => {
        stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), [
+    assert.deepStrictEqual(readTraced(lines), [
       '5',
       '10',
       '9',
@@ -317,7 +317,7 @@ suite('APT ActionScript machine', () => {
       `i = new Object(); i.n = 4; d = ring.duplicateMovieClip("d", 3, i); trace(d.n); trace(d.getDepth()); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['4', '3']);
+    assert.deepStrictEqual(readTraced(lines), ['4', '3']);
   });
 
   test('localToGlobal and globalToLocal go through the clip chain and back', () => {
@@ -328,7 +328,7 @@ suite('APT ActionScript machine', () => {
        ring.globalToLocal(p); trace(p.x); trace(p.y); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['11', '22', '1', '2']);
+    assert.deepStrictEqual(readTraced(lines), ['11', '22', '1', '2']);
   });
 
   test('Color sets and reads a clip tint through the colour transform', () => {
@@ -339,7 +339,7 @@ suite('APT ActionScript machine', () => {
        trace(t.ra); trace(t.bb); stop();`,
     );
 
-    assert.deepStrictEqual(traced(lines), ['16744448', '50', '51']);
+    assert.deepStrictEqual(readTraced(lines), ['16744448', '50', '51']);
     assert.deepStrictEqual(player.find('/1')!.tint!.mult.slice(0, 1), [0.5]);
   });
 });

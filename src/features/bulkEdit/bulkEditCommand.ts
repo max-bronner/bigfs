@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import {
   BulkQueryError,
-  bulkChangesAcross,
+  planBulkChangesAcross,
   compileBulkQuery,
 } from '../../game/ini-tools/bulkEdit';
 import type { BulkQuery, BulkSource } from '../../game/ini-tools/bulkEdit';
@@ -71,7 +71,7 @@ const STEPS: {
   },
 ];
 
-/** The four parts, asked for one after another with the last answers filled in */
+/** Asks for the four parts of a query one after another, with the last answers filled in */
 const askQuery = async (
   state: vscode.Memento,
 ): Promise<BulkQuery | undefined> => {
@@ -112,6 +112,11 @@ const askQuery = async (
   return query;
 };
 
+/**
+ * Registers `bigfs.bulkEditIni`. Given a query it runs without asking;
+ * `confirm: false` applies it without the preview, for automation. The
+ * command resolves to how many values changed.
+ */
 export const registerBulkEdit = (
   context: vscode.ExtensionContext,
   documents: SageIniDocuments,
@@ -119,10 +124,6 @@ export const registerBulkEdit = (
 ): vscode.Disposable =>
   registerCommand(
     'bigfs.bulkEditIni',
-    /**
-     * With a query, runs it without asking; `confirm: false` applies it
-     * without the preview, for automation. Returns how many values changed.
-     */
     async (given?: BulkQuery & { confirm?: boolean }) => {
       const query = given ?? (await askQuery(context.workspaceState));
 
@@ -167,7 +168,7 @@ export const registerBulkEdit = (
         }
         return sources.get(key);
       };
-      const includesOf = async (source: BulkSource) => {
+      const readIncludes = async (source: BulkSource) => {
         for (const include of source.document.includes) {
           const target = resolveIncludeUri(
             vscode.Uri.parse(source.uri),
@@ -178,7 +179,7 @@ export const registerBulkEdit = (
             const loaded = await read(target);
 
             if (loaded) {
-              await includesOf(loaded);
+              await readIncludes(loaded);
             }
           }
         }
@@ -198,13 +199,13 @@ export const registerBulkEdit = (
 
             if (source) {
               roots.push(source);
-              await includesOf(source);
+              await readIncludes(source);
             }
           }
         },
       );
 
-      const result = bulkChangesAcross(
+      const result = planBulkChangesAcross(
         {
           sources: roots,
           include: (from, path) =>

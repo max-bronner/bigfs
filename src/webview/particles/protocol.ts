@@ -10,6 +10,7 @@ import type { ObjectScene, SceneFocus } from '../../game/objects/objectScene';
 
 /** Messages between the particle preview and its page */
 
+/** Message carrying the previewed effect: its definitions, textures, slider fields and pending values */
 export interface SceneMessage {
   kind: 'scene';
   /** Whether the page starts the effect over */
@@ -31,6 +32,7 @@ export interface SceneMessage {
   budgets: { lod: string; max: number }[];
 }
 
+/** Messages the particle preview sends its page */
 export type ToPage =
   | SceneMessage
   | { kind: 'notice'; message: string }
@@ -40,6 +42,7 @@ export type ToPage =
   | { kind: 'object'; object: ObjectScene; focus: SceneFocus }
   | { kind: 'animation'; name: string; animation?: W3dAnimation };
 
+/** Messages the particle page sends the preview: status, slider values and requests */
 export type FromPage =
   | { kind: 'ready' }
   | { kind: 'status'; frame: number; systems: number; particles: number }

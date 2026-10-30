@@ -8,13 +8,13 @@ import type { ScriptTreeNode } from '../shared/scriptTreeText';
 
 /** The messages the map editor's page and its editor exchange */
 
-/** One entry of a dictionary: the world's, a player's, a team's or an object's */
+/** One entry of a map dictionary: the world's, a player's, a team's or an object's */
 export interface DictEntryView {
   key: string;
   value: DictValue;
 }
 
-/** A placed object or waypoint */
+/** One placed object or waypoint; `index` is its position in the map's object list */
 export interface ObjectView {
   index: number;
   x: number;
@@ -25,14 +25,14 @@ export interface ObjectView {
   properties: DictEntryView[];
 }
 
-/** A named polygon scripts refer to */
+/** One trigger area: a named polygon scripts refer to */
 export interface TriggerAreaView {
   name: string;
   id: number;
   points: [number, number][];
 }
 
-/** What the page draws of the map, without the terrain heights */
+/** The map as the page shows it, without the terrain heights */
 export interface MapView {
   compression: 'ear' | 'none';
   worldInfo: DictEntryView[];
@@ -48,7 +48,7 @@ export interface MapView {
   problems: string[];
 }
 
-/** The terrain: one height sample per cell, row-major */
+/** Terrain height map: one height sample per cell, row-major, the south row first */
 export interface HeightsView {
   width: number;
   height: number;
@@ -57,7 +57,7 @@ export interface HeightsView {
   samples: ArrayLike<number>;
 }
 
-/** The map and what the page needs beside it; heights and templates are sent once */
+/** Message carrying the map and what the page needs beside it; heights and templates are sent once */
 export interface MapMessage {
   kind: 'map';
   readOnly: boolean;
@@ -66,19 +66,20 @@ export interface MapMessage {
   heights: HeightsView | undefined;
 }
 
-/** A refused edit, or an error to show */
+/** Notice the editor sends: a refused edit, or an error to show */
 export interface MapNotice {
   kind: 'notice' | 'error';
   message: string;
 }
 
+/** Messages the editor sends to the map page */
 export type MapToPage = MapMessage | MapNotice;
 
-/** What the page sends */
+/** Messages the map page sends to its editor */
 export type FromMapPage =
   | { kind: 'ready' }
   | { kind: 'edit'; edit: MapEdit }
   | { kind: 'playSound'; name: string };
 
-/** Whom a dictionary edit means */
+/** Owner of the dictionary an edit changes: the world, a player, a team or an object */
 export type DictOwner = Extract<MapEdit, { kind: 'dict' }>['owner'];

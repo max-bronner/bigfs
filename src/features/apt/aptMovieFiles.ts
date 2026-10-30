@@ -4,8 +4,8 @@ import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
 import { AptImage } from '../../formats/apt/writer/aptImage';
 import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
-import { findBeside, listBeside, workspaceMovies } from './aptAccess';
-import { movieKey } from './aptLibrary';
+import { findBeside, listBeside, findWorkspaceMovies } from './aptAccess';
+import { toMovieKey } from './aptLibrary';
 import { toUri } from '../../services/archives/commandTarget';
 
 /**
@@ -15,7 +15,7 @@ import { toUri } from '../../services/archives/commandTarget';
  * of the old name in the workspace's other movies, so they keep resolving.
  */
 
-/** What the commands need from the APT editor */
+/** Callbacks the rename and delete commands reach the APT editor through */
 export interface MovieHost {
   archiveModel: ArchiveModel;
   /** Applies an edit to a movie open in the editor, as one undoable edit */
@@ -28,12 +28,12 @@ interface MovieFile {
   relative: (name: string) => string;
 }
 
-const nameOf = (uri: vscode.Uri) =>
+const getMovieName = (uri: vscode.Uri) =>
   uri.path.slice(uri.path.lastIndexOf('/') + 1).replace(/\.apt$/i, '');
 
-/** Every file of the movie whose `.apt` this is */
-export const movieFiles = async (aptUri: vscode.Uri): Promise<MovieFile[]> => {
-  const name = nameOf(aptUri);
+/** Lists every file of the movie whose `.apt` this is */
+export const listMovieFiles = async (aptUri: vscode.Uri): Promise<MovieFile[]> => {
+  const name = getMovieName(aptUri);
   const files: MovieFile[] = [{ uri: aptUri, relative: (to) => `${to}.apt` }];
 
   for (const extension of ['const', 'dat']) {
@@ -89,19 +89,19 @@ export const movieFiles = async (aptUri: vscode.Uri): Promise<MovieFile[]> => {
   return files;
 };
 
-/** The workspace's other movies that import this one, with which imports */
-const importersOf = async (host: MovieHost, aptUri: vscode.Uri) => {
-  const key = movieKey(nameOf(aptUri));
+/** Finds the workspace's other movies that import this one, with which imports */
+const findImporters = async (host: MovieHost, aptUri: vscode.Uri) => {
+  const key = toMovieKey(getMovieName(aptUri));
   const found: { uri: vscode.Uri; imports: number[] }[] = [];
 
-  for (const uri of await workspaceMovies(host.archiveModel)) {
+  for (const uri of await findWorkspaceMovies(host.archiveModel)) {
     if (uri.toString() === aptUri.toString()) {
       continue;
     }
     try {
       const constUri = await findBeside(
         uri,
-        `${nameOf(uri)}.const`,
+        `${getMovieName(uri)}.const`,
         vscode.FileType.File,
       );
 
@@ -114,7 +114,7 @@ const importersOf = async (host: MovieHost, aptUri: vscode.Uri) => {
         parseConst(await vscode.workspace.fs.readFile(constUri)).movieOffset,
       );
       const imports = movie.imports.flatMap((entry, index) =>
-        movieKey(entry.movie) === key ? [index] : [],
+        toMovieKey(entry.movie) === key ? [index] : [],
       );
 
       if (imports.length) {
@@ -139,7 +139,7 @@ const closeTabs = async (aptUri: vscode.Uri): Promise<boolean> => {
 
   if (tabs.some((tab) => tab.isDirty)) {
     void vscode.window.showWarningMessage(
-      `${nameOf(aptUri)} has unsaved changes: save or revert it first`,
+      `${getMovieName(aptUri)} has unsaved changes: save or revert it first`,
     );
     return false;
   }
@@ -147,8 +147,8 @@ const closeTabs = async (aptUri: vscode.Uri): Promise<boolean> => {
   return true;
 };
 
-/** The movie a command was given, or the one in the active editor */
-const targetOf = (target: unknown): vscode.Uri | undefined => {
+/** Resolves the movie a command was given, or the one in the active editor */
+const resolveTargetMovie = (target: unknown): vscode.Uri | undefined => {
   const given = toUri(target);
   const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
 
@@ -163,13 +163,13 @@ export const renameMovie = async (
   target: unknown,
   newName?: string,
 ): Promise<vscode.Uri | undefined> => {
-  const aptUri = targetOf(target);
+  const aptUri = resolveTargetMovie(target);
 
   if (!aptUri || !/\.apt$/i.test(aptUri.path)) {
     return undefined;
   }
 
-  const name = nameOf(aptUri);
+  const name = getMovieName(aptUri);
   const to =
     newName ??
     (await vscode.window.showInputBox({
@@ -192,8 +192,8 @@ export const renameMovie = async (
   }
 
   const folder = vscode.Uri.joinPath(aptUri, '..');
-  const files = await movieFiles(aptUri);
-  const importers = await importersOf(host, aptUri);
+  const files = await listMovieFiles(aptUri);
+  const importers = await findImporters(host, aptUri);
 
   for (const file of files) {
     const destination = vscode.Uri.joinPath(folder, file.relative(to));
@@ -233,7 +233,7 @@ export const renameMovie = async (
     if (!applied) {
       const constUri = (await findBeside(
         importer.uri,
-        `${nameOf(importer.uri)}.const`,
+        `${getMovieName(importer.uri)}.const`,
         vscode.FileType.File,
       ))!;
       const image = new AptImage(
@@ -251,7 +251,7 @@ export const renameMovie = async (
   void vscode.window.showInformationMessage(
     `Renamed ${name} to ${to}: ${files.length} file${files.length === 1 ? '' : 's'}` +
       (importers.length
-        ? `, and the imports of ${importers.map((each) => nameOf(each.uri)).join(', ')}`
+        ? `, and the imports of ${importers.map((each) => getMovieName(each.uri)).join(', ')}`
         : ''),
   );
   return vscode.Uri.joinPath(folder, `${to}.apt`);
@@ -263,15 +263,15 @@ export const deleteMovie = async (
   target: unknown,
   confirmed = false,
 ): Promise<boolean> => {
-  const aptUri = targetOf(target);
+  const aptUri = resolveTargetMovie(target);
 
   if (!aptUri || !/\.apt$/i.test(aptUri.path)) {
     return false;
   }
 
-  const name = nameOf(aptUri);
-  const files = await movieFiles(aptUri);
-  const importers = await importersOf(host, aptUri);
+  const name = getMovieName(aptUri);
+  const files = await listMovieFiles(aptUri);
+  const importers = await findImporters(host, aptUri);
 
   if (!confirmed) {
     const answer = await vscode.window.showWarningMessage(
@@ -279,7 +279,7 @@ export const deleteMovie = async (
       {
         modal: true,
         detail: importers.length
-          ? `${importers.map((each) => nameOf(each.uri)).join(', ')} import${importers.length === 1 ? 's' : ''} it and will no longer resolve.`
+          ? `${importers.map((each) => getMovieName(each.uri)).join(', ')} import${importers.length === 1 ? 's' : ''} it and will no longer resolve.`
           : 'No other movie in the workspace imports it.',
       },
       'Delete',

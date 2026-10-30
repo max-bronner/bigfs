@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import path from 'path';
 import { mkdir, readFile, rm } from 'fs/promises';
-import { behaviourOf } from '../../formats/apt/aptBehaviour';
+import { readBehaviour } from '../../formats/apt/aptBehaviour';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
 
 /**
@@ -105,7 +105,7 @@ suite('APT script tabs', () => {
       ).frames[0].items.find((item) => item.type === 'action');
 
       assert.ok(action?.type === 'action', 'no frame script was saved');
-      return behaviourOf(apt, action.block, constFile.items).commands;
+      return readBehaviour(apt, action.block, constFile.items).commands;
     });
 
     assert.deepStrictEqual(commands, [

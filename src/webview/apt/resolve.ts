@@ -5,19 +5,20 @@ import { state } from './state';
 /** Imports filling imports deeper than this are a loop in the data */
 const MAX_HOPS = 8;
 
-/** A movie name as imports compare it: no casing, no `.apt` */
-export const movieKey = (name: string): string =>
+/** Gets the key imports compare movie names by: lowercased, without `.apt` */
+export const toMovieKey = (name: string): string =>
   name.toLowerCase().replace(/\.apt$/, '');
 
-/** The movie an import names: the shown one, or one it imports from */
-export const movieNamed = (name: string): PageMovie | undefined => {
-  const key = movieKey(name);
+/** Finds the movie an import names: the shown one, or one it imports from */
+export const findMovieNamed = (name: string): PageMovie | undefined => {
+  const key = toMovieKey(name);
 
-  return state.movie && movieKey(state.movie.name) === key
+  return state.movie && toMovieKey(state.movie.name) === key
     ? state.movie
     : state.library.get(key);
 };
 
+/** A character a placeholder resolves to, with the movie and id it lives at */
 export interface Resolved {
   movie: PageMovie;
   id: number;
@@ -25,7 +26,7 @@ export interface Resolved {
 }
 
 /**
- * What a character draws as: itself, or for an import placeholder the
+ * Resolves what a character draws as: itself, or for an import placeholder the
  * character the named movie exports under that name, followed through
  * imports of imports. Names compare without casing and the first export
  * of a name wins, as in the game. Nothing when the import does not resolve.
@@ -41,7 +42,7 @@ export const resolve = (movie: PageMovie, id: number): Resolved | undefined => {
     const from: PageMovie = current.movie;
     const slot: number = current.id;
     const entry = from.imports.find((each) => each.character === slot);
-    const target = entry && movieNamed(entry.movie);
+    const target = entry && findMovieNamed(entry.movie);
     const exported = target?.exports.find(
       (each) => each.name.toLowerCase() === entry!.name.toLowerCase(),
     );

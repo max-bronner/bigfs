@@ -1,4 +1,4 @@
-import type { Tool } from "../../services/toolRegistry";
+import type { Tool } from "../../core/toolRegistry";
 
 /**
  * Parser for the parts of a W3D model a preview draws: meshes with their
@@ -185,10 +185,10 @@ const readChunks = (bytes: Uint8Array): Chunk[] => {
   return chunks;
 };
 
-const viewOf = (bytes: Uint8Array) =>
+const createView = (bytes: Uint8Array) =>
   new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
-/** A fixed-length, NUL-padded name */
+/** Reads a fixed-length, NUL-padded name */
 const readName = (bytes: Uint8Array, at: number, length: number): string => {
   const slice = bytes.subarray(at, Math.min(at + length, bytes.length));
   const end = slice.indexOf(0);
@@ -196,9 +196,9 @@ const readName = (bytes: Uint8Array, at: number, length: number): string => {
   return String.fromCharCode(...(end < 0 ? slice : slice.subarray(0, end)));
 };
 
-/** The floats a payload holds, copied so the result owns its memory */
+/** Reads the floats a payload holds, copied so the result owns its memory */
 const readFloats = (bytes: Uint8Array): Float32Array => {
-  const view = viewOf(bytes);
+  const view = createView(bytes);
   const floats = new Float32Array(Math.floor(bytes.length / 4));
 
   floats.forEach((_, index) => {
@@ -209,7 +209,7 @@ const readFloats = (bytes: Uint8Array): Float32Array => {
 };
 
 /**
- * What a shader material says: the texture it binds by name, never by
+ * Reads what a shader material says: the texture it binds by name, never by
  * position (a material is a list of named parameters, and the diffuse map
  * is not always first), and whether it alpha-tests
  */
@@ -228,7 +228,7 @@ const readShaderMaterial = (
       continue;
     }
 
-    const view = viewOf(property.payload);
+    const view = createView(property.payload);
     const type = view.getUint32(0, true);
     const nameLength = view.getUint32(4, true);
     const name = readName(property.payload, 8, nameLength);
@@ -260,17 +260,17 @@ const readShaderMaterial = (
   return { texture: texture ?? fallback, alphaTest };
 };
 
-/** The little-endian 32-bit values of a payload */
+/** Reads the little-endian 32-bit values of a payload */
 const readIds = (bytes: Uint8Array): number[] => {
-  const view = viewOf(bytes);
+  const view = createView(bytes);
 
   return Array.from({ length: Math.floor(bytes.length / 4) }, (_, index) =>
     view.getUint32(index * 4, true),
   );
 };
 
-/** A `SHADERS` entry's blend, from its source and destination factors */
-const blendOf = (shader: Uint8Array): W3dBlend => {
+/** Classifies a `SHADERS` entry's blend from its source and destination factors */
+const classifyBlend = (shader: Uint8Array): W3dBlend => {
   const [, depthMask, , destBlend, , , , srcBlend, , , , , alphaTest] = shader;
 
   // Alpha-blended but writing depth and alpha-testing is a cutout
@@ -293,7 +293,7 @@ const blendOf = (shader: Uint8Array): W3dBlend => {
 const BLEND_RANK: W3dBlend[] = ["opaque", "multiply", "alpha", "additive"];
 
 /**
- * The first material pass, the one a single-pass renderer draws (mint's
+ * Reads the first material pass, the one a single-pass renderer draws (mint's
  * `Mesh::texcoords`, `texture_name` and `drawn_shaders`): its first stage's
  * texture and coordinates, or the coordinates a shader-material mesh keeps
  * on the pass itself, and the shaders it names
@@ -339,7 +339,7 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   const materials: { texture?: string; alphaTest: boolean }[] = [];
 
   for (const chunk of readChunks(payload)) {
-    const view = viewOf(chunk.payload);
+    const view = createView(chunk.payload);
 
     switch (chunk.type) {
       case CHUNK.MESH_HEADER3:
@@ -427,9 +427,9 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
     name: readName(header, 8, 16),
     container: readName(header, 24, 16),
     isSkin:
-      (viewOf(header).getUint32(4, true) & GEOMETRY_TYPE_MASK) ===
+      (createView(header).getUint32(4, true) & GEOMETRY_TYPE_MASK) ===
       GEOMETRY_TYPE_SKIN,
-    hidden: (viewOf(header).getUint32(4, true) & MESH_FLAG_HIDDEN) !== 0,
+    hidden: (createView(header).getUint32(4, true) & MESH_FLAG_HIDDEN) !== 0,
     positions,
     normals: normals?.length === positions.length ? normals : undefined,
     uvs: pass?.uvs?.length === vertexCount * 2 ? pass.uvs : undefined,
@@ -445,7 +445,7 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
       drawn.some((shader) => shader[12] !== 0) ||
       materials.some((material) => material.alphaTest),
     blend: drawn
-      .map(blendOf)
+      .map(classifyBlend)
       .reduce<W3dBlend>(
         (best, each) =>
           BLEND_RANK.indexOf(each) > BLEND_RANK.indexOf(best) ? each : best,
@@ -464,7 +464,7 @@ const readHierarchy = (payload: Uint8Array): W3dHierarchy | undefined => {
     }
 
     if (chunk.type === CHUNK.PIVOTS) {
-      const view = viewOf(chunk.payload);
+      const view = createView(chunk.payload);
 
       for (let at = 0; at + 60 <= chunk.payload.length; at += 60) {
         const parent = view.getUint32(at + 16, true);
@@ -483,7 +483,7 @@ const readHierarchy = (payload: Uint8Array): W3dHierarchy | undefined => {
   return pivots.length ? { name, pivots } : undefined;
 };
 
-/** One LOD, aggregate or proxy array: a header, then its sub-objects */
+/** Reads one LOD, aggregate or proxy array: a header, then its sub-objects */
 const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
   let maxScreenSize = 0;
   const subObjects: W3dSubObject[] = [];
@@ -495,7 +495,7 @@ const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
           `W3D HLOD array header is ${chunk.payload.length} bytes, expected ${HLOD_ARRAY_HEADER_SIZE}`,
         );
       }
-      maxScreenSize = viewOf(chunk.payload).getFloat32(4, true);
+      maxScreenSize = createView(chunk.payload).getFloat32(4, true);
     } else if (chunk.type === CHUNK.HLOD_SUB_OBJECT) {
       if (chunk.payload.length < HLOD_SUB_OBJECT_SIZE) {
         throw new Error(
@@ -503,7 +503,7 @@ const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
         );
       }
       subObjects.push({
-        bone: viewOf(chunk.payload).getUint32(0, true),
+        bone: createView(chunk.payload).getUint32(0, true),
         name: readName(chunk.payload, 4, 32),
       });
     }
@@ -546,7 +546,7 @@ const readHlod = (payload: Uint8Array): W3dHlod | undefined => {
 };
 
 /**
- * A `BOX` chunk: version, attributes, name, colour, centre and extent
+ * Reads a `BOX` chunk: version, attributes, name, colour, centre and extent
  * (EA's `W3dBoxStruct`, 68 bytes; the layout is from `w3d_file.h`, the
  * extent being the half-size as in `OBBoxClass`)
  */
@@ -557,7 +557,7 @@ const readBox = (payload: Uint8Array): W3dBox => {
     );
   }
 
-  const view = viewOf(payload);
+  const view = createView(payload);
   const float = (offset: number) => view.getFloat32(offset, true);
 
   return {
@@ -568,7 +568,10 @@ const readBox = (payload: Uint8Array): W3dBox => {
   };
 };
 
-/** Reads the meshes, hierarchy and HLOD of a W3D file */
+/**
+ * Reads the meshes, collision boxes, hierarchy and HLOD of a W3D file.
+ * Throws when a chunk overruns its parent or a mesh indexes past its vertices.
+ */
 export const parseW3d = (bytes: Uint8Array): W3dFile => {
   const file: W3dFile = { meshes: [], boxes: [] };
 
@@ -598,7 +601,7 @@ export const parseW3d = (bytes: Uint8Array): W3dFile => {
   return file;
 };
 
-/** Tool that parses a W3D entry */
+/** Registered tool that parses a W3D entry into a `W3dFile` */
 export const parseW3dTool: Tool<Uint8Array, W3dFile> = {
   id: "model.parseW3d",
   run: parseW3d,

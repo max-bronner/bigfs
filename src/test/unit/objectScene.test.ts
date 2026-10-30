@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
-import { focusAt, readObjectScene } from '../../game/objects/objectScene';
+import { findSceneFocus, readObjectScene } from '../../game/objects/objectScene';
 
 const schema = createSageIniSchema(
   JSON.parse(
@@ -83,12 +83,12 @@ suite('Object scene', () => {
   });
 
   test('a line opens the preview on its state and what it names', () => {
-    assert.deepStrictEqual(focusAt(parsed, 11, scene), {
+    assert.deepStrictEqual(findSceneFocus(parsed, 11, scene), {
       state: 2,
       animation: 'TH_SKL.TH_RUNA',
     });
-    assert.deepStrictEqual(focusAt(parsed, 18, scene), { fx: 'FX_Fall' });
-    assert.deepStrictEqual(focusAt(parsed, 4, scene), {
+    assert.deepStrictEqual(findSceneFocus(parsed, 18, scene), { fx: 'FX_Fall' });
+    assert.deepStrictEqual(findSceneFocus(parsed, 4, scene), {
       state: 0,
       system: 'TorchFire',
     });

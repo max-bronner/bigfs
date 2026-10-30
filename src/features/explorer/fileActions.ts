@@ -1,4 +1,4 @@
-﻿import { FileType, Uri, window, workspace } from 'vscode';
+import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
 import { getAvailableName } from '../../core/paths';
 import {
@@ -6,16 +6,16 @@ import {
   confirmDelete,
   resolveConflicts,
 } from '../../platform/dialogs';
-import { findConflicts, planTransfer } from '../../game/install/transferPlan';
+import { findConflicts, planTransfer } from '../../core/transferPlan';
 import {
   findChild,
   getTopLevelNodes,
   isArchiveRoot,
-  isInside,
+  isBelow,
 } from '../../services/archives/virtualNode';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../../services/archives/archiveModel';
-import type { ConflictChoice } from '../../game/install/transferPlan';
+import type { ConflictChoice } from '../../core/transferPlan';
 
 /**
  * Gets the directory an operation on a node applies to: the node itself for a
@@ -28,7 +28,7 @@ export const getTargetDirectory = (
 
 /** Whether a node can move into a directory: not already there, and not into itself or below it */
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean =>
-  source.parent !== target && !isInside(target, source) && target !== source;
+  source.parent !== target && !isBelow(target, source) && target !== source;
 
 /**
  * Keeps the sources that belong to the target's archive and warns about the
@@ -188,7 +188,7 @@ export const deleteNodes = async (
  * only move when the archive is written; anything else has to be read into
  * memory first.
  */
-const readFiles = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
+const readFilesFromDisk = async (sourceUris: Uri[]): Promise<ImportedFile[]> => {
   const files: ImportedFile[] = [];
 
   const read = async (uri: Uri, parentPath: string): Promise<void> => {
@@ -240,7 +240,7 @@ export const importFromDisk = async (
     return 0;
   }
 
-  const files = await readFiles(sourceUris);
+  const files = await readFilesFromDisk(sourceUris);
   const content = archiveModel.getDirectoryContent(targetDirectory);
   const conflicts = findConflicts(
     files.map((file) => ({ path: file.name })),
@@ -278,7 +278,7 @@ export const importFromDisk = async (
   return plan.length;
 };
 
-/** What a transfer between archives did, for the message that reports it */
+/** Result of `transferNodes`, for the message that reports it */
 export interface TransferOutcome {
   transferred: number;
   /** Whether the files left their source: false for a copy, and for a move out of a read-only source */

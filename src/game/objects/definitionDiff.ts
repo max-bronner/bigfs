@@ -9,12 +9,14 @@ import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
  * outside a value do not count as changes.
  */
 
+/** One value a mod changed, added or removed, named by its path in the definition */
 export interface FieldChange {
   path: string;
   before?: string;
   after?: string;
 }
 
+/** The definitions a mod adds, removes and changes in one INI file */
 export interface DefinitionDiff {
   added: string[];
   removed: string[];
@@ -24,15 +26,15 @@ export interface DefinitionDiff {
 const definitionKey = (block: SageBlock) =>
   `${block.keyword} ${block.name?.split(/\s+/)[0] ?? ''}`.trim();
 
-/** A block's segment of a path: its keyword, and its tag or its count */
-const segmentOf = (block: SageBlock, count: number) =>
+/** Formats a block's segment of a path: its keyword, and its tag or its count */
+const formatPathSegment = (block: SageBlock, count: number) =>
   block.moduleTag
     ? `${block.keyword}[${block.moduleTag}]`
     : count > 1
       ? `${block.keyword}#${count}`
       : block.keyword;
 
-/** Every value a definition holds, by its path, as written without spacing */
+/** Flattens a definition into every value it holds, by its path, as written without spacing */
 export const flattenDefinition = (
   document: SageDocument,
   lines: string[],
@@ -51,8 +53,8 @@ export const flattenDefinition = (
       const count = (seen.get(child.keyword.toLowerCase()) ?? 0) + 1;
 
       seen.set(child.keyword.toLowerCase(), count);
-      paths.set(child, `${path}${segmentOf(child, count)}`);
-      walk(child, `${path}${segmentOf(child, count)}/`);
+      paths.set(child, `${path}${formatPathSegment(child, count)}`);
+      walk(child, `${path}${formatPathSegment(child, count)}/`);
     }
   };
 
@@ -82,7 +84,7 @@ export const flattenDefinition = (
   return values;
 };
 
-const definitionsOf = (document: SageDocument, lines: string[]) =>
+const readDefinitions = (document: SageDocument, lines: string[]) =>
   new Map(
     document.blocks
       .filter((block) => block.name)
@@ -95,13 +97,13 @@ const definitionsOf = (document: SageDocument, lines: string[]) =>
       ]),
   );
 
-/** The changes from the base game's text of a file to the mod's */
+/** Compares the base game's text of a file with the mod's, definition by definition */
 export const diffDefinitions = (
   base: { document: SageDocument; lines: string[] },
   mod: { document: SageDocument; lines: string[] },
 ): DefinitionDiff => {
-  const before = definitionsOf(base.document, base.lines);
-  const after = definitionsOf(mod.document, mod.lines);
+  const before = readDefinitions(base.document, base.lines);
+  const after = readDefinitions(mod.document, mod.lines);
   const diff: DefinitionDiff = { added: [], removed: [], changed: [] };
 
   for (const [key, { name, values }] of after) {

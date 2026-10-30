@@ -1,6 +1,6 @@
-import { boneLines, poseAt, skin } from "../../formats/w3d/w3dPose";
+import { buildBoneLines, poseAt, skin } from "../../formats/w3d/w3dPose";
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
-import { visibleMeshes } from "../../formats/w3d/w3dScene";
+import { getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { ModelScene } from "../../formats/w3d/w3dScene";
 import type { W3dBlend } from "../../formats/w3d/w3dTools";
 
@@ -8,9 +8,9 @@ import type { W3dBlend } from "../../formats/w3d/w3dTools";
  * Draws a W3D model with WebGL: every mesh textured and lit from the
  * camera, or flat grey where it has no texture, skinned on the CPU to the
  * pose it is given, its bones and collision boxes as lines when asked, one
- * level of detail at a time and without the meshes marked hidden. One renderer serves
- * the W3D viewer and the particle preview, so a model looks the same in
- * both. WebGL 1, which the particle preview draws with.
+ * level of detail at a time and without the meshes marked hidden. One
+ * renderer serves the W3D viewer and the particle preview, so a model looks
+ * the same in both. WebGL 1, which the particle preview draws with.
  */
 
 const VERTEX_SHADER = `
@@ -49,6 +49,7 @@ void main() {
 const BONE_COLOUR = [1, 0.75, 0.2, 1];
 const BOX_COLOUR = [0.3, 0.9, 0.5, 1];
 
+/** Settings for one `ModelRenderer.draw` call: where the model stands, the light, and what to show */
 export interface DrawOptions {
   /** Where the model stands */
   offset?: Vec3;
@@ -65,11 +66,13 @@ export interface DrawOptions {
   showBoxes?: boolean;
 }
 
+/** WebGL renderer for one W3D model at a time, shared by the W3D viewer and the particle preview */
 export interface ModelRenderer {
   /** Replaces the model, or clears it */
   setModel(scene: ModelScene | undefined): void;
   /** Skins the model to a pose; the bind pose when none */
   setPose(pose: Pose | undefined): void;
+  /** Draws the model; does nothing until a model is set */
   draw(viewProjection: Float32Array | number[], options: DrawOptions): void;
 }
 
@@ -121,6 +124,7 @@ const poseAtBind = (skeleton: NonNullable<ModelScene["skeleton"]>): Pose => {
 
 const isPowerOfTwo = (value: number) => (value & (value - 1)) === 0;
 
+/** Creates a model renderer on a WebGL 1 context that other programs may share */
 export const createModelRenderer = (
   gl: WebGLRenderingContext,
 ): ModelRenderer => {
@@ -152,7 +156,7 @@ export const createModelRenderer = (
   let textures: WebGLTexture[] = [];
   let pose: Pose | undefined;
 
-  const buffer = (
+  const uploadBuffer = (
     target: number,
     data: ArrayBufferView,
     usage: number = gl.STATIC_DRAW,
@@ -252,10 +256,10 @@ export const createModelRenderer = (
           hasNormals: !!mesh.normals,
           alphaTest: mesh.alphaTest,
           blend: mesh.blend,
-          position: buffer(gl.ARRAY_BUFFER, mesh.positions, usage),
-          normal: mesh.normals && buffer(gl.ARRAY_BUFFER, mesh.normals, usage),
-          uv: mesh.uvs && buffer(gl.ARRAY_BUFFER, mesh.uvs),
-          index: buffer(
+          position: uploadBuffer(gl.ARRAY_BUFFER, mesh.positions, usage),
+          normal: mesh.normals && uploadBuffer(gl.ARRAY_BUFFER, mesh.normals, usage),
+          uv: mesh.uvs && uploadBuffer(gl.ARRAY_BUFFER, mesh.uvs),
+          index: uploadBuffer(
             gl.ELEMENT_ARRAY_BUFFER,
             narrow ? Uint16Array.from(mesh.indices) : mesh.indices,
           ),
@@ -296,7 +300,7 @@ export const createModelRenderer = (
     });
   };
 
-  const bind = (
+  const bindAttribute = (
     location: number,
     data: WebGLBuffer | undefined,
     size: number,
@@ -313,7 +317,7 @@ export const createModelRenderer = (
     gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
   };
 
-  /** The framebuffer operation a material asks for; blended ones keep the depth buffer */
+  // Blended materials test against the depth buffer but do not write to it
   const applyBlend = (blend: W3dBlend) => {
     gl.depthMask(blend === "opaque");
     if (blend === "opaque") {
@@ -355,7 +359,7 @@ export const createModelRenderer = (
     gl.disable(gl.BLEND);
 
     // Opaque first, so what blends over it finds it in the depth buffer
-    const visible = visibleMeshes(scene, { lod, showHidden });
+    const visible = getMeshVisibility(scene, { lod, showHidden });
     const shown = showMeshes
       ? drawables.filter((each) => visible[each.mesh])
       : [];
@@ -377,9 +381,9 @@ export const createModelRenderer = (
         gl.bindTexture(gl.TEXTURE_2D, drawable.texture);
         gl.uniform1i(uniform("tex"), 0);
       }
-      bind(attributes.position, drawable.position, 3);
-      bind(attributes.normal, drawable.normal, 3);
-      bind(attributes.uv, drawable.uv, 2);
+      bindAttribute(attributes.position, drawable.position, 3);
+      bindAttribute(attributes.normal, drawable.normal, 3);
+      bindAttribute(attributes.uv, drawable.uv, 2);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, drawable.index);
       gl.drawElements(gl.TRIANGLES, drawable.count, drawable.indexType, 0);
     }
@@ -389,16 +393,16 @@ export const createModelRenderer = (
     if (showBoxes && boxVertices) {
       gl.uniform1i(uniform("useSolid"), 1);
       gl.uniform4fv(uniform("solid"), BOX_COLOUR);
-      bind(attributes.normal, undefined, 3);
-      bind(attributes.uv, undefined, 2);
-      bind(attributes.position, boxBuffer, 3);
+      bindAttribute(attributes.normal, undefined, 3);
+      bindAttribute(attributes.uv, undefined, 2);
+      bindAttribute(attributes.position, boxBuffer, 3);
       gl.drawArrays(gl.LINES, 0, boxVertices);
     }
 
     const skeleton = scene.skeleton;
     const lines =
       showBones && skeleton
-        ? boneLines(skeleton, pose ?? poseAtBind(skeleton))
+        ? buildBoneLines(skeleton, pose ?? poseAtBind(skeleton))
         : [];
 
     if (lines.length) {
@@ -407,9 +411,9 @@ export const createModelRenderer = (
       gl.uniform4fv(uniform("solid"), BONE_COLOUR);
       gl.bindBuffer(gl.ARRAY_BUFFER, boneBuffer);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
-      bind(attributes.normal, undefined, 3);
-      bind(attributes.uv, undefined, 2);
-      bind(attributes.position, boneBuffer, 3);
+      bindAttribute(attributes.normal, undefined, 3);
+      bindAttribute(attributes.uv, undefined, 2);
+      bindAttribute(attributes.position, boneBuffer, 3);
       gl.drawArrays(gl.LINES, 0, lines.length / 3);
       gl.drawArrays(gl.POINTS, 0, lines.length / 3);
       gl.enable(gl.DEPTH_TEST);

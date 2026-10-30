@@ -4,7 +4,7 @@ import { send } from '../details';
 import { getVsCodeApi } from '../../shared/vscodeApi';
 import { state } from '../state';
 import { blockCard } from './blockCard';
-import { action, field } from './controls';
+import { action, createField } from './controls';
 import { scriptField } from './scriptField';
 
 const vscode = getVsCodeApi<FromPage>();
@@ -15,6 +15,7 @@ const vscode = getVsCodeApi<FromPage>();
  * opened; "Open in tab" gives it an editor of its own.
  */
 
+/** A script and where it runs, as a script block shows it */
 export interface ScriptSite {
   /** When it runs, such as `frame 3` or `on press` */
   label: string;
@@ -36,6 +37,7 @@ export interface ScriptSite {
 const host = (block: number): Element | null =>
   document.querySelector(`#details [data-script-block="${block}"]`);
 
+/** Creates the block of a script; its text is asked of the extension when the block opens */
 export const scriptBlock = (site: ScriptSite): HTMLElement => {
   const open = action(
     '↗ Open in tab',
@@ -68,7 +70,7 @@ export const scriptBlock = (site: ScriptSite): HTMLElement => {
       placeholder.dataset.scriptBlock = String(site.block);
       placeholder.textContent = '…';
       return [
-        ...(site.when ? [field(site.whenLabel ?? 'When', site.when())] : []),
+        ...(site.when ? [createField(site.whenLabel ?? 'When', site.when())] : []),
         placeholder,
       ];
     },
@@ -90,7 +92,7 @@ export const showScript = (data: Extract<ToPage, { kind: 'script' }>): void => {
   );
 };
 
-/** After a script was compiled into a new block: its card carries over, open */
+/** Carries a script's card over, open, to the new block the script was compiled into */
 export const scriptSaved = (previous: number, block: number): void => {
   state.drafts.delete(previous);
   state.cards.delete(`script:${previous}`);

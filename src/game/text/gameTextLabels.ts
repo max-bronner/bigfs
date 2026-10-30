@@ -10,6 +10,7 @@ import type { SageDocument } from '../../formats/ini/sageIniParser';
 
 const LABEL = /^[A-Z][A-Z0-9_]{2,}:[A-Za-z_][\w.-]*$/;
 
+/** A game-text label written as an INI value, with where it sits in the file */
 export interface LabelToken {
   text: string;
   line: number;
@@ -17,6 +18,7 @@ export interface LabelToken {
   end: number;
 }
 
+/** Finds the game-text labels a parsed INI document writes as field values */
 export const findGameTextLabels = (parsed: SageDocument): LabelToken[] =>
   parsed.statements.flatMap((statement) =>
     statement.kind === 'field'
@@ -32,11 +34,11 @@ export const findGameTextLabels = (parsed: SageDocument): LabelToken[] =>
   );
 
 /**
- * The labels an INI text writes as values, found without a schema: the words
- * after the first on each line, so a tool that only counts them need not
- * parse the file
+ * Lists the labels an INI text writes as values, found without a schema: the
+ * words after the first on each line, so a tool that only counts them need
+ * not parse the file
  */
-export const labelsInText = (text: string): string[] =>
+export const findLabelsInText = (text: string): string[] =>
   text.split(/\r?\n/).flatMap((line) =>
     tokenize(stripComment(line))
       .slice(1)
@@ -44,15 +46,16 @@ export const labelsInText = (text: string): string[] =>
       .filter((word) => LABEL.test(word)),
   );
 
-export const missingTextMessage = (label: string): string =>
+/** Formats the diagnostic message for a label no string table defines; `parseMissingTextLabel` reads it back */
+export const formatMissingTextMessage = (label: string): string =>
   `No game text for '${label}' in any string table`;
 
-/** The label a missing-text message names */
-export const labelOfMissingText = (message: string): string | undefined =>
+/** Reads the label back out of a `formatMissingTextMessage` diagnostic */
+export const parseMissingTextLabel = (message: string): string | undefined =>
   /^No game text for '(.+)' in any string table$/.exec(message)?.[1];
 
-/** A first text for a new label: its name split into words */
-export const placeholderText = (label: string): string =>
+/** Builds a first text for a new label: its name split into words */
+export const createPlaceholderText = (label: string): string =>
   label
     .slice(label.indexOf(':') + 1)
     .replace(/_/g, ' ')

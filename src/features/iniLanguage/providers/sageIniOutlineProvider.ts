@@ -9,8 +9,8 @@ import type { SageBlock } from '../../../formats/ini/sageIniParser';
  * without this.
  */
 
-/** The symbol kind that reads best in the outline for each shape of block */
-const symbolKindOf = (block: SageBlock, isRoot: boolean): SymbolKind => {
+/** Picks the symbol kind that reads best in the outline for each shape of block */
+const getSymbolKind = (block: SageBlock, isRoot: boolean): SymbolKind => {
   if (block.moduleType) {
     return SymbolKind.Method;
   }
@@ -50,7 +50,7 @@ const toSymbol = (
   const symbol = new DocumentSymbol(
     name,
     detail,
-    symbolKindOf(block, isRoot),
+    getSymbolKind(block, isRoot),
     range,
     document.lineAt(block.startLine).range,
   );
@@ -62,6 +62,7 @@ const toSymbol = (
   return symbol;
 };
 
+/** Creates the outline provider over the shared parse */
 export const createSageIniOutlineProvider = (
   documents: SageIniDocuments,
 ): DocumentSymbolProvider => ({

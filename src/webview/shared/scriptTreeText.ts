@@ -26,7 +26,7 @@ export interface SideEntry {
   value: { value: boolean | number | string };
 }
 
-/** Counts the scripts of a tree, groups not included. */
+/** Counts the scripts of a tree, groups not included */
 export const countScripts = (nodes: readonly ScriptTreeNode[]): number =>
   nodes.reduce(
     (sum, node) =>
@@ -34,7 +34,7 @@ export const countScripts = (nodes: readonly ScriptTreeNode[]): number =>
     0,
   );
 
-/** The text of a script's label: its name and the ways it differs from the default. */
+/** Formats a script's label: its name and the ways it differs from the default */
 export const describeScript = (
   node: Extract<ScriptTreeNode, { kind: 'script' }>,
 ): string =>
@@ -43,7 +43,7 @@ export const describeScript = (
   (node.subroutine ? ' · subroutine' : '') +
   (node.difficulties.length < 3 ? ` · ${node.difficulties.join('/')}` : '');
 
-/** The summary of one player's list: the player's name, or its place when the player has none. */
+/** Formats the summary of one player's list: the player's name, or its place when the player has none */
 export const describePlayerList = (
   list: readonly ScriptTreeNode[],
   side: readonly SideEntry[] | undefined,

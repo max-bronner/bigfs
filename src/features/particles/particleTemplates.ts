@@ -2,14 +2,14 @@ import * as vscode from 'vscode';
 import { findParticleDefinitions } from '../../formats/particles/particleIni';
 import {
   PARTICLE_TEMPLATES,
-  templateSnippet,
+  createTemplateSnippet,
 } from '../../formats/particles/particleTemplates';
 import { registerCommand } from '../../platform/commands';
 
 /** The command that inserts a particle system template into an INI file */
 
-/** A definition name not used in the text yet */
-const freeName = (text: string, base: string): string => {
+/** Picks a definition name not used in the text yet, numbering the base from 2 */
+const pickFreeName = (text: string, base: string): string => {
   const used = new Set(
     findParticleDefinitions(text).map((each) => each.name.toLowerCase()),
   );
@@ -22,13 +22,13 @@ const freeName = (text: string, base: string): string => {
 };
 
 /**
- * Inserts a template into the active INI file: after the definition the
- * cursor is in, or at the cursor's line
+ * Registers `bigfs.newParticleSystem`, which inserts a template into the
+ * active INI file after the definition the cursor is in, or at the cursor's
+ * line. A template label picks one without asking, for automation.
  */
 export const registerParticleTemplates = (): vscode.Disposable =>
   registerCommand(
     'bigfs.newParticleSystem',
-    /** `label` picks a template without asking, for automation */
     async (label?: string) => {
       const editor = vscode.window.activeTextEditor;
 
@@ -68,9 +68,9 @@ export const registerParticleTemplates = (): vscode.Disposable =>
       // A blank line between it and the text above, and a line break at the very end
       const above = at > 0 && document.lineAt(at - 1).text.trim() !== '';
       const atEnd = at >= document.lineCount;
-      const snippet = templateSnippet(
+      const snippet = createTemplateSnippet(
         choice.template,
-        freeName(text, `FX_${choice.label.replace(/\s+/g, '')}`),
+        pickFreeName(text, `FX_${choice.label.replace(/\s+/g, '')}`),
       );
 
       await editor.insertSnippet(

@@ -7,7 +7,7 @@ import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
  * the set are left as they are.
  */
 
-/** Replaces `remove` lines from `line` with `insert` */
+/** A line-range edit: replaces `remove` lines from `line` with `insert` */
 export interface LineEdit {
   line: number;
   remove: number;
@@ -15,23 +15,23 @@ export interface LineEdit {
 }
 
 /**
- * The name a `CommandSet NAME` header line opens. A `CommandSet = NAME`
+ * Reads the name a `CommandSet NAME` header line opens. A `CommandSet = NAME`
  * field, as an Object lists its set, opens nothing.
  */
-export const commandSetHeader = (line: string): string | undefined =>
+export const readCommandSetName = (line: string): string | undefined =>
   /^\s*CommandSet\s+([^\s=;/]+)\s*(?:[;]|\/\/|$)/i.exec(line)?.[1];
 
-const slotOf = (line: string) => {
+const readSlotNumber = (line: string) => {
   const [key] = tokenize(stripComment(line));
 
   return key && /^\d+$/.test(key.text) ? Number(key.text) : undefined;
 };
 
 /**
- * The edits that make the set at `startLine`..`endLine` hold `slots`
+ * Builds the edits that make the set at `startLine`..`endLine` hold `slots`
  * (slot number to button name) and nothing else in its numbered lines
  */
-export const slotEdits = (
+export const buildSlotEdits = (
   lines: string[],
   startLine: number,
   endLine: number,
@@ -40,7 +40,7 @@ export const slotEdits = (
   const existing: number[] = [];
 
   for (let line = startLine + 1; line < endLine; line++) {
-    if (slotOf(lines[line]) !== undefined) {
+    if (readSlotNumber(lines[line]) !== undefined) {
       existing.push(line);
     }
   }
@@ -65,7 +65,7 @@ export const slotEdits = (
 };
 
 /** Whether two slot maps hold the same buttons */
-export const sameSlots = (
+export const hasSameSlots = (
   a: ReadonlyMap<number, string>,
   b: ReadonlyMap<number, string>,
 ): boolean =>
@@ -85,12 +85,14 @@ export interface EditorSlot {
   icon?: string;
 }
 
+/** Message the command set editor sends its page: the set's name and slots */
 export interface CommandSetMessage {
   kind: 'set';
   name: string;
   slots: EditorSlot[];
 }
 
+/** Message the command set editor page posts back: ready, or a slot edit */
 export type FromCommandSetPage =
   | { kind: 'ready' }
   | { kind: 'move'; from: number; to: number }
@@ -98,7 +100,7 @@ export type FromCommandSetPage =
   | { kind: 'add'; slot: number; button?: string }
   | { kind: 'reveal'; slot: number };
 
-/** The slots after moving `from` to `to`, swapping with what is there */
+/** Moves the button in `from` to `to`, swapping with what is there, into a new map */
 export const moveSlot = (
   slots: ReadonlyMap<number, string>,
   from: number,

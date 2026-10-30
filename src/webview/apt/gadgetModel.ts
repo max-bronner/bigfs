@@ -1,6 +1,6 @@
 import { BINDINGS, classifySurface } from '../../formats/apt/aptGadgets';
 import type { Binding, GadgetInfo } from '../../formats/apt/aptGadgets';
-import { pathKey } from './avm/engine';
+import { toPathKey } from './avm/engine';
 import type { Engine } from './avm/engine';
 import { parseTyped } from './avm/engine';
 import type { Value } from './avm/value';
@@ -15,6 +15,7 @@ import type { Instance, Player } from './player';
  * override it like any other value.
  */
 
+/** A gadget found on the stage: its kind and the clip instance that holds it */
 export interface Gadget extends GadgetInfo {
   instance: Instance;
   /** The clip's instance names from the root, which an override is keyed by */
@@ -24,8 +25,8 @@ export interface Gadget extends GadgetInfo {
 const text = (value: Value): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
-/** The instance names down from the root, or nothing if one on the way has none */
-export const namePath = (instance: Instance, root: Instance): string | undefined => {
+/** Gets the instance names down from the root, or nothing if one on the way has none */
+export const getNamePath = (instance: Instance, root: Instance): string | undefined => {
   const names: string[] = [];
 
   for (let at: Instance | undefined = instance; at && at !== root; at = at.parent) {
@@ -37,7 +38,7 @@ export const namePath = (instance: Instance, root: Instance): string | undefined
   return names.join('.');
 };
 
-/** Every surface the player shows now that is a gadget or an image, in tree order */
+/** Finds every surface the player shows now that is a gadget or an image, in tree order */
 export const findGadgets = (player: Player): Gadget[] => {
   const { vm } = player;
 
@@ -64,7 +65,7 @@ export const findGadgets = (player: Player): Gadget[] => {
     });
 
     if (info) {
-      found.push({ ...info, instance, path: namePath(instance, player.root) });
+      found.push({ ...info, instance, path: getNamePath(instance, player.root) });
     }
   }
   return found;
@@ -72,7 +73,7 @@ export const findGadgets = (player: Player): Gadget[] => {
 
 const show = (value: string | number | boolean): string => String(value);
 
-/** What a bound variable holds now: the override, else the clip's own value */
+/** Reads what a bound variable holds now: the override, else the clip's own value */
 export const readBinding = (
   player: Player,
   engine: Engine,
@@ -81,7 +82,7 @@ export const readBinding = (
 ): Value => {
   const override =
     gadget.path !== undefined
-      ? engine.overrides.get(pathKey(`${gadget.path}.${binding.name}`))
+      ? engine.overrides.get(toPathKey(`${gadget.path}.${binding.name}`))
       : undefined;
 
   if (override !== undefined) {
@@ -117,8 +118,8 @@ export const writeBinding = (
   }
 };
 
-/** The bound variables of a gadget with what each reads as, for the panel */
-export const bindingsOf = (
+/** Lists the bound variables of a gadget with what each reads as, for the panel */
+export const listBindings = (
   player: Player,
   engine: Engine,
   gadget: Gadget,
@@ -131,5 +132,5 @@ export const bindingsOf = (
     ),
     overridden:
       gadget.path !== undefined &&
-      engine.overrides.has(pathKey(`${gadget.path}.${binding.name}`)),
+      engine.overrides.has(toPathKey(`${gadget.path}.${binding.name}`)),
   }));

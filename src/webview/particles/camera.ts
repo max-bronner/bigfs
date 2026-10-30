@@ -3,6 +3,7 @@ import { $, state } from './page';
 
 /** The orbit camera: yaw and pitch around a target, at a distance */
 
+/** Camera frame: the eye and its unit forward, right and up vectors */
 export interface Basis {
   eye: Vec3;
   forward: Vec3;
@@ -10,22 +11,26 @@ export interface Basis {
   up: Vec3;
 }
 
+/** Computes the cross product of two vectors */
 export const cross = (a: Vec3, b: Vec3): Vec3 => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
   a[0] * b[1] - a[1] * b[0],
 ];
 
+/** Scales a vector to unit length; a zero vector stays zero */
 export const normalize = (a: Vec3): Vec3 => {
   const length = Math.hypot(...a) || 1;
 
   return a.map((value) => value / length) as Vec3;
 };
 
+/** Computes the dot product of two vectors */
 export const dot = (a: Vec3, b: Vec3): number =>
   a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-export const cameraBasis = (): Basis => {
+/** Computes the camera frame from the orbit's yaw, pitch, distance and target, Z up */
+export const computeCameraBasis = (): Basis => {
   const cp = Math.cos(state.pitch);
   const sp = Math.sin(state.pitch);
   const forward: Vec3 = [
@@ -41,8 +46,8 @@ export const cameraBasis = (): Basis => {
   return { eye, forward, right, up: cross(right, forward) };
 };
 
-/** Column-major view (rows right, up, -forward) times a perspective */
-export const viewProjection = (
+/** Computes the column-major view (rows right, up, -forward) times a perspective for the canvas's aspect */
+export const computeViewProjection = (
   { eye, forward, right, up }: Basis,
   canvas: HTMLCanvasElement,
 ): Float32Array => {
@@ -101,7 +106,7 @@ export const viewProjection = (
   return out;
 };
 
-/** Drag to orbit, right-drag to pan, wheel to zoom */
+/** Attaches the orbit controls to the canvas: drag to orbit, right-drag to pan, wheel to zoom */
 export const attachCamera = (canvas: HTMLCanvasElement): void => {
   let drag: { x: number; y: number; pan: boolean } | undefined;
 
@@ -122,7 +127,7 @@ export const attachCamera = (canvas: HTMLCanvasElement): void => {
     drag.x = event.clientX;
     drag.y = event.clientY;
     if (drag.pan) {
-      const { right, up } = cameraBasis();
+      const { right, up } = computeCameraBasis();
       const k = state.distance / 600;
 
       state.target = state.target.map(
@@ -146,15 +151,15 @@ export const attachCamera = (canvas: HTMLCanvasElement): void => {
   );
 };
 
-/** Where the model stands and which bone the effect starts on */
+/** Whether a model is shown, and the offset of the bone the effect starts on */
 export const attachment = {
-  /** The model's own place, which the emitter motion moves */
+  /** Offset of the chosen bone from the model's origin, in the bind pose; zero for the origin itself */
   bone: [0, 0, 0] as Vec3,
   hasModel: false,
 };
 
-/** Where the model stands: still, circling or going back and forth */
-export const modelOrigin = (): Vec3 => {
+/** Computes where the model stands this frame: still, circling or going back and forth */
+export const getModelOrigin = (): Vec3 => {
   const motion = $<HTMLSelectElement>('motion').value;
   const t = state.time;
 
@@ -167,6 +172,6 @@ export const modelOrigin = (): Vec3 => {
   return [0, 0, 0];
 };
 
-/** Where the previewed effect starts: the model's bone, wherever it stands */
-export const rootOrigin = (): Vec3 =>
-  modelOrigin().map((value, axis) => value + attachment.bone[axis]) as Vec3;
+/** Computes where the previewed effect starts: the model's bone, wherever it stands */
+export const getRootOrigin = (): Vec3 =>
+  getModelOrigin().map((value, axis) => value + attachment.bone[axis]) as Vec3;

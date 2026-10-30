@@ -1,6 +1,6 @@
 import type { PageMovie } from './protocol';
 
-/** What the page shows: the movie, the selection and what was decoded for it */
+/** Page-wide state of the APT editor: the movie shown, the selection and what was decoded for it */
 export interface PageState {
   movie?: PageMovie;
   /** Movies the shown one imports from, by lowercased name */
@@ -20,6 +20,7 @@ export interface PageState {
   cards: Map<string, boolean>;
 }
 
+/** The page's single state, shared by every panel */
 export const state: PageState = {
   library: new Map(),
   selected: 0,
@@ -30,5 +31,5 @@ export const state: PageState = {
   cards: new Map(),
 };
 
-/** The movie; the page only runs code that needs it once one arrived */
+/** Gets the shown movie; the page only runs code that needs it once one arrived */
 export const movie = (): PageMovie => state.movie!;

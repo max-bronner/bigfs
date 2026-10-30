@@ -7,7 +7,7 @@ import type { SceneMessage } from './protocol';
  * module. Moving one previews it; Apply writes them all to the INI.
  */
 
-/** A slider's span: around the value, wide enough to explore */
+/** Picks a slider's min, max and step: around the value, wide enough to explore */
 const sliderSpan = (field: NumericField): [number, number, number] => {
   const key = field.keyword.toLowerCase();
   const value = field.value;
@@ -33,7 +33,7 @@ const sliderSpan = (field: NumericField): [number, number, number] => {
   return [value < 0 ? -width : Math.min(0, value - width), width, width / 500];
 };
 
-const fieldRow = (field: NumericField, scene: SceneMessage): HTMLElement => {
+const createFieldRow = (field: NumericField, scene: SceneMessage): HTMLElement => {
   const row = document.createElement('div');
   const pending = scene.values[field.id];
   const current = pending ?? field.value;
@@ -74,6 +74,10 @@ const fieldRow = (field: NumericField, scene: SceneMessage): HTMLElement => {
   return row;
 };
 
+/**
+ * Renders the slider rows of the previewed block, grouped by module. While a
+ * slider is being dragged only the values are updated, so the drag survives.
+ */
 export const renderFields = (scene: SceneMessage): void => {
   const container = $('fields');
   const changed = Object.keys(scene.values).length > 0;
@@ -112,7 +116,7 @@ export const renderFields = (scene: SceneMessage): void => {
       const heading = document.createElement('h3');
 
       heading.textContent = group;
-      return [heading, ...fields.map((field) => fieldRow(field, scene))];
+      return [heading, ...fields.map((field) => createFieldRow(field, scene))];
     }),
   );
 };

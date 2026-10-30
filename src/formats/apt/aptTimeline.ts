@@ -3,7 +3,7 @@ import { AptReader } from './aptMovie';
 import type { Frame, Matrix2 } from './aptMovie';
 
 /**
- * A timeline as what is on stage at every frame, so it can be edited the
+ * Edits a timeline as what is on stage at every frame, so it can be edited the
  * way an animation editor edits it, and written back as the records APT
  * keeps. APT has no tweens: like a published Flash file, every frame of a
  * motion is baked into its own PlaceObject. Editing frames one by one is
@@ -16,7 +16,7 @@ import type { Frame, Matrix2 } from './aptMovie';
  * operation unchanged keeps its original records, byte for byte.
  */
 
-/** What is placed at a depth in one frame */
+/** A placement at a depth in one frame */
 export interface Slot {
   /** One instance across frames: a move keeps it, a new placement makes another */
   token: string;
@@ -33,6 +33,7 @@ export interface Slot {
   clipActions?: number;
 }
 
+/** One frame of a decoded timeline: what is on stage, plus the records kept as they are */
 export interface FrameState {
   display: Map<number, Slot>;
   /** Records kept as they are, in order: actions, init actions and the like */
@@ -43,6 +44,7 @@ export interface FrameState {
   source?: number;
 }
 
+/** A frame label and its record's flags */
 export interface Label {
   label: string;
   flags: number;
@@ -57,6 +59,7 @@ export type FrameSpec =
       )[];
     };
 
+/** A PlaceObject record to write, as `encodeTimeline` describes it */
 export interface PlaceSpec {
   /** A change to what is already at the depth, not a new instance */
   move: boolean;
@@ -160,7 +163,7 @@ const SLOT_KEYS: (keyof Slot)[] = [
   'clipActions',
 ];
 
-const sameSlot = (a: Slot | undefined, b: Slot | undefined): boolean =>
+const isSameSlot = (a: Slot | undefined, b: Slot | undefined): boolean =>
   a === b ||
   (!!a &&
     !!b &&
@@ -168,13 +171,13 @@ const sameSlot = (a: Slot | undefined, b: Slot | undefined): boolean =>
       (key) => JSON.stringify(a[key]) === JSON.stringify(b[key]),
     ));
 
-const sameDisplay = (
+const isSameDisplay = (
   a: Map<number, Slot> | undefined,
   b: Map<number, Slot> | undefined,
 ) =>
   (a?.size ?? 0) === (b?.size ?? 0) &&
   [...(a ?? new Map<number, Slot>())].every(([depth, slot]) =>
-    sameSlot(slot, b?.get(depth)),
+    isSameSlot(slot, b?.get(depth)),
   );
 
 /** Writes states back as records, reusing each frame that came through unchanged */
@@ -190,8 +193,8 @@ export const encodeTimeline = (
       source !== undefined &&
       before &&
       (index === source || !state.labels.length) &&
-      sameDisplay(state.display, before.display) &&
-      sameDisplay(next[index - 1]?.display, original[source - 1]?.display) &&
+      isSameDisplay(state.display, before.display) &&
+      isSameDisplay(next[index - 1]?.display, original[source - 1]?.display) &&
       JSON.stringify([state.kept, state.labels]) ===
         JSON.stringify([before.kept, before.labels])
     ) {
@@ -229,7 +232,7 @@ export const encodeTimeline = (
             clipActions: slot.clipActions,
           },
         });
-      } else if (!sameSlot(was, slot)) {
+      } else if (!isSameSlot(was, slot)) {
         const moved =
           was.matrix.some((value, at) => value !== slot.matrix[at]) ||
           was.translate.some((value, at) => value !== slot.translate[at]);
@@ -302,7 +305,8 @@ export interface Pose {
   alpha: number;
 }
 
-export const poseOf = (slot: Slot): Pose => {
+/** Reads a slot's matrix, translation and alpha as a pose */
+export const getPose = (slot: Slot): Pose => {
   const [a, b, c, d] = slot.matrix;
   const scaleX = Math.hypot(a, b);
   const rotation = Math.atan2(b, a);
@@ -322,7 +326,7 @@ export const poseOf = (slot: Slot): Pose => {
   };
 };
 
-/** A slot with a pose applied; colour other than alpha is kept */
+/** Applies a pose to a copy of a slot; colour other than alpha is kept */
 export const withPose = (slot: Slot, pose: Pose): Slot => {
   const radians = (pose.rotation * Math.PI) / 180;
   const cos = Math.cos(radians);
@@ -351,6 +355,7 @@ export const withPose = (slot: Slot, pose: Pose): Slot => {
   };
 };
 
+/** Formula text per pose property, as `animate` evaluates them */
 export type PoseFormulas = Partial<Record<keyof Pose, string>>;
 
 /**
@@ -383,7 +388,7 @@ export const animate = (
   const compiled = Object.entries(formulas)
     .filter(([, formula]) => formula !== undefined && formula.trim() !== '')
     .map(([key, formula]) => [key, compileExpression(formula!)] as const);
-  const base = poseOf(start);
+  const base = getPose(start);
   const startVariables = Object.fromEntries(
     Object.entries(base).map(([key, value]) => [`${key}0`, value]),
   );
@@ -402,7 +407,7 @@ export const animate = (
     // What the formulas leave alone keeps its own frame's value
     const here = states[frame].display.get(depth);
     const pose =
-      here && here.token === start.token ? poseOf(here) : { ...base };
+      here && here.token === start.token ? getPose(here) : { ...base };
 
     for (const [key, formula] of compiled) {
       pose[key as keyof Pose] = formula(variables);
@@ -419,7 +424,7 @@ export const animate = (
     let frame = to + 1;
     frame < states.length &&
     end &&
-    sameSlot(states[frame].display.get(depth), end);
+    isSameSlot(states[frame].display.get(depth), end);
     frame++
   ) {
     next[frame].display.set(depth, { ...next[to].display.get(depth)! });
@@ -427,7 +432,7 @@ export const animate = (
   return next;
 };
 
-/** A straight tween from the pose at `from` to `end` at `to`, eased */
+/** Tweens a depth in a straight line from its pose at `from` to `end` at `to`, eased */
 export const tween = (
   states: FrameState[],
   depth: number,
@@ -477,7 +482,7 @@ export const hide = (
     } else {
       next[frame].display.set(
         depth,
-        withPose(slot, { ...poseOf(slot), alpha: 0 }),
+        withPose(slot, { ...getPose(slot), alpha: 0 }),
       );
     }
   }
@@ -519,7 +524,7 @@ export const show = (
   for (let frame = from; frame <= to; frame++) {
     next[frame].display.set(
       depth,
-      withPose({ ...model }, { ...poseOf(model), alpha: 1 }),
+      withPose({ ...model }, { ...getPose(model), alpha: 1 }),
     );
   }
   return next;
@@ -642,8 +647,8 @@ export const retimeFrames = (
       const b = range[high].display.get(depth);
 
       if (a && b && a.token === b.token && t > 0) {
-        const pa = poseOf(a);
-        const pb = poseOf(b);
+        const pa = getPose(a);
+        const pb = getPose(b);
         const pose = Object.fromEntries(
           (Object.keys(pa) as (keyof Pose)[]).map((key) => [
             key,
@@ -674,11 +679,11 @@ export const retimeFrames = (
   return next;
 };
 
-/** How a pose changes over frames, from its first: added, scales multiplied */
+/** Per-frame change of a pose from its first frame: added, scales multiplied */
 export type Motion = Pose[];
 
-/** The motion of a depth over frames `from`..`to`, relative to its first frame */
-export const motionOf = (
+/** Reads the motion of a depth over frames `from`..`to`, relative to its first frame */
+export const readMotion = (
   states: FrameState[],
   depth: number,
   from: number,
@@ -692,11 +697,11 @@ export const motionOf = (
     throw new Error(`Nothing is placed at depth ${depth} in frame ${from}`);
   }
 
-  const base = poseOf(start);
+  const base = getPose(start);
 
   return states.slice(from, to + 1).map((state) => {
     const slot = state.display.get(depth);
-    const pose = slot && slot.token === start.token ? poseOf(slot) : base;
+    const pose = slot && slot.token === start.token ? getPose(slot) : base;
 
     return {
       x: pose.x - base.x,
@@ -728,7 +733,7 @@ export const applyMotion = (
     throw new Error(`Nothing is placed at depth ${depth} in frame ${at}`);
   }
 
-  const base = poseOf(start);
+  const base = getPose(start);
   const next = cloneStates(states);
   const flipX = mirror === 'x' ? -1 : 1;
   const flipY = mirror === 'y' ? -1 : 1;
@@ -764,7 +769,7 @@ export const applyMotion = (
     let frame = last + 1;
     frame < states.length &&
     held &&
-    sameSlot(states[frame].display.get(depth), held);
+    isSameSlot(states[frame].display.get(depth), held);
     frame++
   ) {
     next[frame].display.set(depth, { ...next[last].display.get(depth)! });
@@ -772,7 +777,7 @@ export const applyMotion = (
   return next;
 };
 
-/** One of the operations above, as a value the editor page can send */
+/** A timeline operation of this module as a value the editor page can send */
 export type TimelineOperation =
   | {
       op: 'animate';
@@ -811,6 +816,7 @@ export type TimelineOperation =
       mirror?: 'x' | 'y';
     };
 
+/** Applies one timeline operation to the frame states, returning new ones */
 export const applyOperation = (
   states: FrameState[],
   operation: TimelineOperation,
@@ -962,7 +968,7 @@ export const detectTweens = (states: FrameState[]): DetectedTween[] => {
 
   for (const depth of [...depths].sort((a, b) => a - b)) {
     const slots = states.map((state) => state.display.get(depth));
-    const poses = slots.map((slot) => slot && poseOf(slot));
+    const poses = slots.map((slot) => slot && getPose(slot));
     const moves = (at: number) =>
       !!slots[at] &&
       slots[at]!.token === slots[at - 1]?.token &&

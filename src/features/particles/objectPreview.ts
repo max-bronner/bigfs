@@ -7,13 +7,13 @@ import {
   parseW3dAnimations,
 } from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
-import { createToolRegistry } from '../../services/toolRegistry';
-import { EffectLibrary } from '../particles/effectLibrary';
-import { composeEffective } from './effectiveObjectView';
-import { focusAt, readObjectScene } from '../../game/objects/objectScene';
+import { createToolRegistry } from '../../core/toolRegistry';
+import { EffectLibrary } from '../../services/effectLibrary';
+import { composeEffectiveObject } from '../../services/ini/effectiveObject';
+import { findSceneFocus, readObjectScene } from '../../game/objects/objectScene';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
-import { particlePageHtml } from '../particles/particlePreview';
+import { renderParticlePage } from './particlePreview';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
@@ -36,8 +36,8 @@ const STATE =
 /** Definitions an object's effects may reach between them */
 const MAX_EFFECT_REFERENCES = 512;
 
-/** The object template written around a line */
-const objectAt = (parsed: SageDocument, line: number) =>
+/** Finds the object template written around a line */
+const findObjectAt = (parsed: SageDocument, line: number) =>
   parsed.blocks.find(
     (block) =>
       TEMPLATE.test(block.keyword) &&
@@ -45,18 +45,18 @@ const objectAt = (parsed: SageDocument, line: number) =>
       line <= block.endLine,
   );
 
-/** The object template a name defines, wherever it has moved to in the file */
-const objectNamed = (parsed: SageDocument, name: string) =>
+/** Finds the object template a name defines, wherever it has moved to in the file */
+const findObjectNamed = (parsed: SageDocument, name: string) =>
   parsed.blocks.find(
     (block) =>
       TEMPLATE.test(block.keyword) &&
       block.name?.split(/\s+/)[0].toLowerCase() === name.toLowerCase(),
   );
 
-/** How long after an edit the preview is drawn again */
+/** Milliseconds after an edit before the preview is drawn again */
 const REDRAW_DELAY = 300;
 
-const noticeOf = (error: unknown): ToPage => ({
+const toNotice = (error: unknown): ToPage => ({
   kind: 'notice',
   message: describeError(error),
 });
@@ -74,12 +74,12 @@ const createObjectPreview = (
   const library = new EffectLibrary(index, locator, uri);
   const tools = createToolRegistry();
   const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
-  /** Lines below the object's header the preview opens on */
+  // Lines below the object's header the preview opens on
   let focusOffset = 0;
   let isReady = false;
 
   const redrawSoon = createDebouncer(() => {
-    send().catch((error: unknown) => panel.post(noticeOf(error)));
+    send().catch((error: unknown) => panel.post(toNotice(error)));
   }, REDRAW_DELAY);
 
   const panel = createSingletonPanel<FromPage, ToPage>({
@@ -92,7 +92,7 @@ const createObjectPreview = (
       localResourceRoots: [scripts],
     },
     render: ({ webview }) => {
-      webview.html = particlePageHtml(
+      webview.html = renderParticlePage(
         webview.cspSource,
         webview
           .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
@@ -110,7 +110,7 @@ const createObjectPreview = (
       ];
     },
     onMessage: (message): Promise<unknown> =>
-      receive(message).catch((error: unknown) => panel.post(noticeOf(error))),
+      receive(message).catch((error: unknown) => panel.post(toNotice(error))),
     onDispose: () => {
       isReady = false;
       onClose();
@@ -132,18 +132,18 @@ const createObjectPreview = (
     }
   };
 
-  /** The object, the effects on it, and where to open it */
+  /** Sends the object, the effects on it, and where to open it */
   const send = async (): Promise<void> => {
     const schema = await documents.getSchema();
     const source = parseSageIni(
       (await readWorkspaceText(uri)).split(/\r?\n/),
       schema,
     );
-    const header = objectNamed(source, name)?.startLine;
+    const header = findObjectNamed(source, name)?.startLine;
     const composed =
       header === undefined
         ? undefined
-        : await composeEffective(documents, index, uri, header);
+        : await composeEffectiveObject(documents, index, uri, header);
 
     if (header === undefined || composed === undefined) {
       await panel.post({
@@ -197,7 +197,7 @@ const createObjectPreview = (
     await panel.post({
       kind: 'object',
       object: scene,
-      focus: focusAt(source, header + focusOffset, scene),
+      focus: findSceneFocus(source, header + focusOffset, scene),
     });
   };
 
@@ -222,7 +222,7 @@ const createObjectPreview = (
     });
   };
 
-  /** `SKELETON.CLIP` lives in the clip's file */
+  /** Sends a clip's animation; `SKELETON.CLIP` lives in the clip's file */
   const sendAnimation = async (clipName: string): Promise<void> => {
     const clip = clipName.slice(clipName.lastIndexOf('.') + 1);
     const bytes = await locator?.read(`${clip}.w3d`, uri);
@@ -235,7 +235,7 @@ const createObjectPreview = (
     });
   };
 
-  /** Opens the preview, or brings it forward, on the line `focusOffset` lines below the header */
+  /** Opens the preview, or brings it forward, on the line `offset` lines below the header */
   const show = async (offset: number): Promise<void> => {
     focusOffset = offset;
     panel.show({ preserveFocus: true });
@@ -265,7 +265,7 @@ const showObjectPreview = async (
     (await readWorkspaceText(uri)).split(/\r?\n/),
     await documents.getSchema(),
   );
-  const object = objectAt(parsed, line);
+  const object = findObjectAt(parsed, line);
 
   if (!object) {
     void vscode.window.showInformationMessage(
@@ -343,6 +343,7 @@ const createObjectActionProvider = (): vscode.CodeActionProvider => ({
   },
 });
 
+/** Registers the object preview's lenses, its code action and `bigfs.previewObject` */
 export const registerObjectPreview = (
   context: vscode.ExtensionContext,
   selector: vscode.DocumentSelector,

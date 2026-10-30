@@ -11,13 +11,13 @@ import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 import {
   AUDIO_NAMESPACES,
   EVA_NAMESPACES,
-  audioReferenceKind,
-} from '../../game/audio/sageAudioFields';
+  getAudioReferenceKind,
+} from '../../formats/ini/sageAudioFields';
 import {
-  audioNamesIn,
+  findAudioNames,
   isAudioSentinel,
-  referencedNames,
-} from '../../game/audio/sageAudioValues';
+  findReferencedNames,
+} from '../../formats/ini/sageAudioValues';
 
 const schema = createSageIniSchema(
   JSON.parse(
@@ -95,11 +95,11 @@ const FIXTURE = [
 const parsed = parseSageIni(FIXTURE, schema);
 
 /** Every name the document's reference fields write, with the field and text */
-const uses = () =>
+const listUses = () =>
   parsed.statements
     .filter((statement) => !statement.block)
     .flatMap((statement) =>
-      referencedNames(statement, schema).map((reference) => ({
+      findReferencedNames(statement, schema).map((reference) => ({
         line: statement.line,
         field: statement.keyword.text,
         reference,
@@ -124,7 +124,7 @@ suite('SAGE INI audio references', () => {
         )
         .map((statement) => statement.values[0]?.text.toLowerCase()),
     );
-    const unknown = uses().filter(
+    const unknown = listUses().filter(
       ({ reference }) =>
         !declared.has(reference.name.toLowerCase()) &&
         !isAudioSentinel(reference.name),
@@ -134,11 +134,11 @@ suite('SAGE INI audio references', () => {
       unknown.map(({ field, reference }) => `${field}: ${reference.name}`),
       [],
     );
-    assert.ok(uses().every(({ field }) => field.toLowerCase() !== 'filename'));
+    assert.ok(listUses().every(({ field }) => field.toLowerCase() !== 'filename'));
   });
 
   test('a use of one sound is found in each of its eight spellings', () => {
-    const found = uses().filter(
+    const found = listUses().filter(
       ({ reference }) => reference.name === 'TestVoiceMove',
     );
 
@@ -159,7 +159,7 @@ suite('SAGE INI audio references', () => {
 
   test('an announcer name excludes its EVA: prefix and sits in announcer namespaces', () => {
     const line = FIXTURE.indexOf('  VoiceCreated = EVA:TestUnitReady');
-    const [reference] = audioNamesIn(
+    const [reference] = findAudioNames(
       parsed.statements.find((statement) => statement.line === line)!,
       'audio',
     );
@@ -207,43 +207,43 @@ suite('SAGE INI audio references', () => {
     )!;
 
     assert.deepStrictEqual(
-      audioNamesIn(statement, 'audio').map(({ name }) => name),
+      findAudioNames(statement, 'audio').map(({ name }) => name),
       ['TestVoiceSelect'],
     );
   });
 
   test('field kinds follow the last context segment and the field', () => {
-    assert.strictEqual(audioReferenceKind('Object', 'VoiceSelect'), 'audio');
-    assert.strictEqual(audioReferenceKind('Object', 'EvaEventDieOwner'), 'eva');
+    assert.strictEqual(getAudioReferenceKind('Object', 'VoiceSelect'), 'audio');
+    assert.strictEqual(getAudioReferenceKind('Object', 'EvaEventDieOwner'), 'eva');
     assert.strictEqual(
-      audioReferenceKind('Object', 'EvaEventSecondDamageFarFromFirstScanRange'),
+      getAudioReferenceKind('Object', 'EvaEventSecondDamageFarFromFirstScanRange'),
       undefined,
     );
     assert.strictEqual(
-      audioReferenceKind('Object', 'VoicePriority'),
+      getAudioReferenceKind('Object', 'VoicePriority'),
       undefined,
     );
     assert.strictEqual(
-      audioReferenceKind('AmbientStream', 'Filename'),
+      getAudioReferenceKind('AmbientStream', 'Filename'),
       undefined,
     );
-    assert.strictEqual(audioReferenceKind('FXList > Sound', 'Name'), 'audio');
+    assert.strictEqual(getAudioReferenceKind('FXList > Sound', 'Name'), 'audio');
     assert.strictEqual(
-      audioReferenceKind('FXList > ParticleSystem', 'Name'),
+      getAudioReferenceKind('FXList > ParticleSystem', 'Name'),
       undefined,
     );
     assert.strictEqual(
-      audioReferenceKind('Object > UnitSpecificSounds', 'AnyKey'),
+      getAudioReferenceKind('Object > UnitSpecificSounds', 'AnyKey'),
       'audio',
     );
     assert.strictEqual(
-      audioReferenceKind('Object', 'UnitSpecificSoundToUseAsVoiceMove'),
+      getAudioReferenceKind('Object', 'UnitSpecificSoundToUseAsVoiceMove'),
       undefined,
     );
   });
 
   test('a ship death names its sound as the second token only', () => {
-    const [name, ...rest] = audioNamesIn(
+    const [name, ...rest] = findAudioNames(
       {
         keyword: { text: 'Sound', start: 0, end: 5 },
         values: [

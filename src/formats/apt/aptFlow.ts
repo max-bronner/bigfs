@@ -2,7 +2,7 @@ import type { Behaviour, TimelineCommand } from './aptBehaviour';
 import type { Character, Frame } from './aptMovie';
 
 /**
- * How a timeline flows: its frame labels, the frames whose script stops
+ * Reads how a timeline flows: its frame labels, the frames whose script stops
  * it, and every jump into it - a frame script's `gotoAndPlay`/
  * `gotoAndStop` on its own timeline, and a button's on the timeline the
  * button sits in, where SWF runs button actions - each resolved to the
@@ -11,11 +11,13 @@ import type { Character, Frame } from './aptMovie';
  * branches says so.
  */
 
+/** A frame label and the frame it names */
 export interface FrameLabel {
   label: string;
   frame: number;
 }
 
+/** A `goto` into a timeline, from a frame script or a placed button */
 export interface Jump {
   from:
     | { kind: 'frame'; frame: number }
@@ -26,6 +28,7 @@ export interface Jump {
   play: boolean;
 }
 
+/** Summary of how a timeline flows, as `readTimelineFlow` reads it */
 export interface TimelineFlow {
   labels: FrameLabel[];
   /** Frames whose script stops the timeline there */
@@ -41,7 +44,8 @@ export interface TimelineFlow {
 const own = (commands: TimelineCommand[]) =>
   commands.filter((command) => command.target.length === 0);
 
-export const timelineFlow = (
+/** Reads a timeline's labels, stops, plays and jumps from its lifted behaviours */
+export const readTimelineFlow = (
   frames: readonly Frame[],
   behaviours: Readonly<Record<number, Behaviour>>,
   characters: readonly (Character | undefined)[],

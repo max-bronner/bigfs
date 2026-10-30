@@ -5,34 +5,20 @@ import type { VirtualNode } from "../archives/virtualNode";
 import { getFileNodes } from "../archives/virtualNode";
 import { getNodeUri } from "../archives/nodeAddress";
 import type { SageIniSchema } from "../../formats/ini/sageIniSchema";
-import { languageOfArchive } from "../../game/text/gameLanguage";
+import { getArchiveLanguage } from "../../game/text/gameLanguage";
 import {
   FILE_USES,
   collectEntries,
   reachedThroughMacros,
 } from "../../formats/ini/sageIniEntries";
 import type { EntryBodyToken } from "../../formats/ini/sageIniEntries";
-import { canonicalNamespace } from "../../formats/ini/sageReferenceFields";
+import { toCanonicalNamespace } from "../../formats/ini/sageReferenceFields";
 import { SAGE_INI_LANGUAGE } from "../../constants";
 import { findString, parseStringTable } from "../../formats/str/sageStringTable";
 import type { SageString } from "../../formats/str/sageStringTable";
 import { decodeIniText } from "../../core/windows1252";
 
-/**
- * Where every definition, reference and macro in every open archive lives, so
- * a name can be followed in every direction the editor asks for.
- *
- * A reference does not say which archive holds its target, and in a real
- * install it usually is not the one being edited: a mod's `Object` refers to a
- * `Weapon` in the base game's `INI.big`. So the index spans every archive the
- * model knows and a lookup never has to guess which file to open.
- *
- * Everything is recorded in the same pass over an entry, because reading it is
- * the expensive part and every question - where is this declared, what uses
- * it, is this a macro - needs exactly the same parse to answer.
- */
-
-/** Where a name was declared, by a block at file scope */
+/** Declaration of a name by a block at file scope, and where it sits */
 export interface SageDefinition {
   uri: Uri;
   /** Line of the block header, which is what a jump reveals */
@@ -82,7 +68,7 @@ export interface SageStringPlace extends SageString {
 const isMapStringTable = (uri: Uri): boolean =>
   uri.path.toLowerCase().endsWith("/map.str");
 
-/** Where a name was used, as the value of a reference field or a macro */
+/** Use of a name as the value of a reference field or a macro, and where it sits */
 export interface SageReference {
   uri: Uri;
   line: number;
@@ -174,6 +160,20 @@ const purgeNamespaced = <T extends { uri: Uri }>(
   }
 };
 
+/**
+ * Index of where every definition, reference, macro and string table record
+ * in every archive and loose file lives, so a name can be followed in every
+ * direction the editor asks for.
+ *
+ * A reference does not say which archive holds its target, and in a real
+ * install it usually is not the one being edited: a mod's `Object` refers to a
+ * `Weapon` in the base game's `INI.big`. So the index spans every archive the
+ * model knows and a lookup never has to guess which file to open.
+ *
+ * Everything is recorded in the same pass over an entry, because reading it is
+ * the expensive part and every question - where is this declared, what uses
+ * it, is this a macro - needs exactly the same parse to answer.
+ */
 export class SageIniIndex implements Disposable {
   private definitions = new Map<string, Map<string, SageDefinition[]>>();
   private references = new Map<string, Map<string, SageReference[]>>();
@@ -255,6 +255,7 @@ export class SageIniIndex implements Disposable {
     ];
   }
 
+  /** Stops watching archives, loose files and open documents */
   public dispose(): void {
     this.pendingOpen.forEach((timeout) => clearTimeout(timeout));
     this.subscriptions.forEach((subscription) => subscription.dispose());
@@ -279,7 +280,7 @@ export class SageIniIndex implements Disposable {
   }
 
   /**
-   * The macro a name defines, if it is one. Checked before any namespace: a
+   * Finds the macro a name defines, if it is one. Checked before any namespace: a
    * macro reference is written exactly like a cross reference, and the engine
    * substitutes the macro before anything else looks at the value.
    */
@@ -288,16 +289,16 @@ export class SageIniIndex implements Disposable {
   }
 
   /**
-   * The string table record an INI value names, such as the text a
+   * Finds the string table record an INI value names, such as the text a
    * `DisplayName = OBJECT:GondorFighter` shows, if it names one
    */
   public findString(value: string): SageStringPlace | undefined {
-    return findString(this.activeTable(), value) as SageStringPlace | undefined;
+    return findString(this.getActiveStringTable(), value) as SageStringPlace | undefined;
   }
 
-  /** How many string table records are indexed in the chosen language */
+  /** Number of string table records indexed in the chosen language */
   public get stringCount(): number {
-    return this.activeTable().size;
+    return this.getActiveStringTable().size;
   }
 
   /**
@@ -312,10 +313,10 @@ export class SageIniIndex implements Disposable {
   }
 
   /**
-   * One record per label: the first in load order that is in the chosen
+   * Gets one record per label: the first in load order that is in the chosen
    * language, a map's own table only when the main tables have none
    */
-  private activeTable(): Map<string, SageStringPlace> {
+  private getActiveStringTable(): Map<string, SageStringPlace> {
     if (!this.activeStrings) {
       const table = new Map<string, SageStringPlace>();
 
@@ -335,45 +336,45 @@ export class SageIniIndex implements Disposable {
     return this.activeStrings;
   }
 
-  /** Every place a macro is used, which is what find references answers with */
+  /** Finds every place a macro is used, which is what find references answers with */
   public findMacroUses(name: string): readonly SageReference[] {
     return this.constantUses.get(name.toLowerCase()) ?? [];
   }
 
-  /** Every macro name, which completion offers on any field */
-  public getMacroNames(): SageMacro[] {
+  /** Gets every macro, sorted by name, which completion offers on any field */
+  public getMacros(): SageMacro[] {
     return [...this.macros.values()].sort((a, b) =>
       a.name.localeCompare(b.name),
     );
   }
 
-  /** Every place a name is declared in a namespace */
+  /** Finds every place a name is declared in a namespace */
   public findDefinitions(
     namespace: string,
     name: string,
   ): readonly SageDefinition[] {
     return (
       this.definitions
-        .get(canonicalNamespace(namespace).toLowerCase())
+        .get(toCanonicalNamespace(namespace).toLowerCase())
         ?.get(name.toLowerCase()) ?? []
     );
   }
 
-  /** How many distinct names a namespace declares across everything indexed */
+  /** Counts the distinct names a namespace declares across everything indexed */
   public countDefinitions(namespace: string): number {
     return (
-      this.definitions.get(canonicalNamespace(namespace).toLowerCase())?.size ??
+      this.definitions.get(toCanonicalNamespace(namespace).toLowerCase())?.size ??
       0
     );
   }
 
   /**
-   * Every name declared in a namespace, in the casing it was declared with.
+   * Gets every name declared in a namespace, in the casing it was declared with.
    * This is what completion offers on a reference field's value.
    */
   public getNames(namespace: string): string[] {
     const byName = this.definitions.get(
-      canonicalNamespace(namespace).toLowerCase(),
+      toCanonicalNamespace(namespace).toLowerCase(),
     );
 
     if (!byName) {
@@ -390,8 +391,9 @@ export class SageIniIndex implements Disposable {
   }
 
   /**
-   * Every definition no reference field anywhere names, in the namespaces
+   * Finds every definition no reference field anywhere names, in the namespaces
    * some reference field can name at all; `include` picks which places count
+   * and `skip` names lowercased namespaces to leave out
    */
   public findUnreferenced(
     include: (definition: SageDefinition) => boolean,
@@ -415,12 +417,12 @@ export class SageIniIndex implements Disposable {
     return unused;
   }
 
-  /** Every place a name is used as a reference value */
+  /** Finds every place a name is used as a reference value, including through a macro's body */
   public findReferences(
     namespace: string,
     name: string,
   ): readonly SageReference[] {
-    const key = canonicalNamespace(namespace).toLowerCase();
+    const key = toCanonicalNamespace(namespace).toLowerCase();
     const folded = name.toLowerCase();
     const written = this.references.get(key);
     const direct = written?.get(folded) ?? [];
@@ -658,13 +660,13 @@ export class SageIniIndex implements Disposable {
           node.entryPath,
           content,
           schema,
-          languageOfArchive(root.archive.archivePath),
+          getArchiveLanguage(root.archive.archivePath),
         );
       },
     );
   }
 
-  /** Records the records of one string table, behind the main table's */
+  /** Adds the records of one string table, behind those of the tables read before it */
   private indexStrings(uri: Uri, text: string, language?: string): void {
     for (const [key, record] of parseStringTable(text)) {
       this.strings.set(key, [
@@ -683,8 +685,8 @@ export class SageIniIndex implements Disposable {
     schema: SageIniSchema,
     language?: string,
   ): void {
-    // The WHATWG `latin1` decoder is Windows-1252, which is what the text in
-    // the string tables means: 0x92 is an apostrophe there
+    // Decoded as Windows-1252, which is what the text in the string tables
+    // means: 0x92 is an apostrophe there
     this.indexText(uri, entryPath, decodeIniText(content), schema, language);
   }
 

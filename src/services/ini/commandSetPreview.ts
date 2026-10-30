@@ -1,6 +1,6 @@
-import { readWorkspaceText } from '../../services/ini/workspaceText';
-import type { SageDefinition, SageIniIndex } from '../../services/ini/sageIniIndex';
-import { hotkeyClashes, hotkeyOf } from '../../game/ini-tools/hotkeys';
+import { readWorkspaceText } from './workspaceText';
+import type { SageDefinition, SageIniIndex } from './sageIniIndex';
+import { findHotkeyClashes, readHotkey } from '../../game/ini-tools/hotkeys';
 
 /**
  * A CommandSet as the player sees it: its numbered slots in order, each
@@ -10,10 +10,11 @@ import { hotkeyClashes, hotkeyOf } from '../../game/ini-tools/hotkeys';
 
 /** Columns of the hover's grid */
 const COLUMNS = 5;
+/** Side of a slot's icon in the hover, in pixels */
 const ICON_SIZE = 40;
 
 /** The `key = value` fields of a block's own lines */
-const fieldsOf = (lines: string[]): Map<string, string> =>
+const readFields = (lines: string[]): Map<string, string> =>
   new Map(
     lines.flatMap((line) => {
       const match = /^\s*([\w]+)\s*=\s*([^;]*?)\s*(?:;.*)?$/.exec(line);
@@ -22,14 +23,15 @@ const fieldsOf = (lines: string[]): Map<string, string> =>
     }),
   );
 
+/** A numbered slot of a CommandSet and the CommandButton it holds */
 export interface CommandSetSlot {
   slot: number;
   button: string;
 }
 
-/** The numbered slots of a CommandSet's lines, in slot order */
-export const commandSetSlots = (lines: string[]): CommandSetSlot[] =>
-  [...fieldsOf(lines)]
+/** Reads the numbered slots from a CommandSet's lines, in slot order */
+export const readCommandSetSlots = (lines: string[]): CommandSetSlot[] =>
+  [...readFields(lines)]
     .filter(([key, value]) => /^\d+$/.test(key) && value)
     .map(([key, value]) => ({
       slot: Number(key),
@@ -49,7 +51,7 @@ export interface ResolvedSlot extends CommandSetSlot {
   needsAny?: boolean;
 }
 
-/** Reads the lines of definitions, each file once per call */
+/** Creates a reader of definitions' own lines that reads each file once */
 export const createLineReader = () => {
   const texts = new Map<string, Promise<string[]>>();
 
@@ -69,13 +71,13 @@ export const createLineReader = () => {
 };
 
 /** Lower case names of a field that lists several */
-const namesOf = (value: string | undefined): string[] =>
+const splitNames = (value: string | undefined): string[] =>
   (value ?? '')
     .toLowerCase()
     .split(/\s+/)
     .filter((name) => name && name !== 'none');
 
-/** Each slot's button: its game text, hotkey, command and icon name */
+/** Resolves each slot's button to its game text, hotkey, command and icon name; one not defined is marked so */
 export const resolveSlots = async (
   index: SageIniIndex,
   slots: CommandSetSlot[],
@@ -89,7 +91,7 @@ export const resolveSlots = async (
         return { ...slot, defined: false };
       }
 
-      const fields = fieldsOf(await linesOf(place));
+      const fields = readFields(await linesOf(place));
       const label = fields.get('textlabel');
       const text = label ? index.findString(label)?.text : undefined;
 
@@ -99,21 +101,25 @@ export const resolveSlots = async (
         ...slot,
         defined: true,
         grants: [
-          ...namesOf(fields.get('upgrade')),
-          ...namesOf(fields.get('science')),
+          ...splitNames(fields.get('upgrade')),
+          ...splitNames(fields.get('science')),
         ],
-        needs: gated ? namesOf(fields.get('neededupgrade')) : [],
+        needs: gated ? splitNames(fields.get('neededupgrade')) : [],
         needsAny: /^(yes|true|1)$/i.test(fields.get('neededupgradeany') ?? ''),
         text,
-        hotkey: text ? hotkeyOf(text) : undefined,
+        hotkey: text ? readHotkey(text) : undefined,
         command: fields.get('command'),
         imageName: fields.get('buttonimage'),
       };
     }),
   );
 
-const escape = (text: string) => text.replace(/[|<>*_`[\]\\]/g, '\\$&');
+const escapeMarkdown = (text: string) => text.replace(/[|<>*_`[\]\\]/g, '\\$&');
 
+/**
+ * Creates the renderer of a CommandSet's hover: a Markdown grid of its slots,
+ * icons drawn by `previewImage` when given, with clashing hotkeys flagged
+ */
 export const createCommandSetPreview = (
   index: SageIniIndex,
   previewImage?: (definition: SageDefinition) => Promise<string | undefined>,
@@ -122,14 +128,14 @@ export const createCommandSetPreview = (
     const linesOf = createLineReader();
     const slots = await resolveSlots(
       index,
-      commandSetSlots(await linesOf(definition)),
+      readCommandSetSlots(await linesOf(definition)),
       linesOf,
     );
-    const clashes = hotkeyClashes(slots);
+    const clashes = findHotkeyClashes(slots);
     const cells = await Promise.all(
       slots.map(async (slot) => {
         if (!slot.defined) {
-          return `**${slot.slot}**<br>${escape(slot.button)}<br>*not defined*`;
+          return `**${slot.slot}**<br>${escapeMarkdown(slot.button)}<br>*not defined*`;
         }
 
         const [image] = slot.imageName
@@ -139,16 +145,16 @@ export const createCommandSetPreview = (
         const uri =
           picture && /\((data:image\/png;base64,[^)]+)\)/.exec(picture)?.[1];
         const icon = uri
-          ? `![${escape(slot.imageName!)}](${uri}|width=${ICON_SIZE},height=${ICON_SIZE})`
+          ? `![${escapeMarkdown(slot.imageName!)}](${uri}|width=${ICON_SIZE},height=${ICON_SIZE})`
           : '▫';
-        const text = escape((slot.text ?? slot.button).replace(/&(?!&)/, ''));
+        const text = escapeMarkdown((slot.text ?? slot.button).replace(/&(?!&)/, ''));
         const key = slot.hotkey
           ? clashes.has(slot.slot)
             ? ` ⚠ **${slot.hotkey}**, as slot ${clashes.get(slot.slot)!.join(', ')}`
             : ` [${slot.hotkey}]`
           : '';
 
-        return `${icon}<br>**${slot.slot}** ${text}${key}<br><sub>${escape(slot.command ?? '')}</sub>`;
+        return `${icon}<br>**${slot.slot}** ${text}${key}<br><sub>${escapeMarkdown(slot.command ?? '')}</sub>`;
       }),
     );
 

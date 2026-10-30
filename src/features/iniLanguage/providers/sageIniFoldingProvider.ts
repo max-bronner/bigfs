@@ -4,12 +4,9 @@ import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
 import type { SageBlock } from '../../../formats/ini/sageIniParser';
 
 /**
- * Folds each block from its header to its closing `End`, and each embedded
- * Lua region between `BeginScript` and `EndScript`.
- *
- * This is the cheapest of the providers - it only needs the block tree, not
- * the schema - and on its own is already a large quality-of-life win in the
- * 5,000-line files this dialect produces.
+ * Creates the folding provider: each block from its header to its closing
+ * `End`, and each embedded Lua region between `BeginScript` and `EndScript`.
+ * It needs only the block tree, not the schema.
  */
 export const createSageIniFoldingProvider = (
   documents: SageIniDocuments,

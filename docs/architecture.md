@@ -31,80 +31,115 @@ the casing an entry was stored with.
 
 ## 2. The layers
 
-The extension began as an archive explorer and has grown a language service,
-several editors and previews on top of it. The layers are the same ones, with
-the later features built on `model/` and `formats/` rather than beside them.
+The code is layered from generic helpers at the bottom to user-facing
+features at the top. `conventions.md` holds the import matrix and says where
+new code goes; `eslint.config.mjs` enforces it, and a layer import that breaks
+it fails `npm run lint`.
 
 ```mermaid
 flowchart TD
-  VS["VS Code"]
+  EXT["extension.ts<br/>createServices, then each register&lt;Feature&gt;"]
+  FEAT["features/&lt;feature&gt;/<br/>commands, providers, editors, views"]
+  SVC["services/<br/>archives, INI documents and index, locator, tools"]
+  PLAT["platform/<br/>commands, settings, context keys, webview plumbing"]
+  NODE["node/<br/>archive files on disk, FFmpeg, launching the game"]
+  GAME["game/<br/>engine rules: load order, layering, objects, audio, text"]
+  FMT["formats/&lt;format&gt;/<br/>BIG, INI, APT, W3D, maps, textures, VP6, ..."]
+  CORE["core/<br/>paths, byte reader, encodings, expression, tool registry"]
+  PAGE["webview/&lt;page&gt;/ and webview/shared/<br/>runs in the browser"]
 
-  subgraph entry["extension.ts - createServices, then one register per feature"]
-  end
-
-  subgraph surface["VS Code surface"]
-    CMD["commands - palette and context menu"]
-    PRV["providers - explorer, file system, custom editors"]
-    LANG["language - INI, STR and WND support, previews, checks"]
-    UI["ui, actions - prompts, shared operations"]
-  end
-
-  subgraph pages["webview/ - page code, bundled for the browser"]
-    WP["particles, apt, model, armor, commandset"]
-    WS["scene - orbit camera, model renderer"]
-  end
-
-  subgraph model["model - owns the rules"]
-    AM["archiveModel, archive, virtualNode"]
-    NA["nodeAddress, archiveSource"]
-    GV["gameView, gameViewModel, install*, modDiff, modPackage"]
-  end
-
-  subgraph pure["no vscode import"]
-    LM["language/model - the INI dialect"]
-    FMT["formats - w3d, apt, map, csf, vp6, particles, refpack"]
-    TLS["tools - decoders behind a registry"]
-    BIN["binary - the BIG format"]
-    COM["common - paths, expression, windows1252"]
-  end
-
-  VS --> entry
-  entry --> CMD & PRV & LANG
-  CMD --> UI
-  CMD & PRV & LANG --> model
-  LANG --> LM
-  PRV & LANG --> FMT
-  FMT --> TLS
-  PRV & LANG -. "page script, messages" .-> pages
-  pages --> FMT
-  pages --> LM
-  model --> BIN
+  EXT --> FEAT & SVC
+  FEAT --> SVC & PLAT & NODE & GAME & FMT & CORE
+  FEAT -. "html + protocol.ts messages" .-> PAGE
+  SVC --> PLAT & NODE & GAME & FMT & CORE
+  PLAT --> CORE
+  NODE --> GAME & FMT & CORE
+  GAME --> FMT & CORE
+  FMT --> CORE
+  PAGE --> GAME & FMT & CORE
 ```
 
-The arrows that matter: **`binary` and `language/model` know nothing about VS
-Code, `model` knows nothing about commands or views, and the code in
-`webview/` runs in a browser, so it imports only the pure layers.** The pure
-layers are what the unit tests in `src/test/unit` reach without starting VS
-Code. This is checked by review, not by tooling, and the dependency graph is
-not clean: `model/` and `formats/` import `vscode` for `Uri` and `FileType`,
-and a few modules import across layers: `common/commandTarget` from
-`providers/`, `formats/entryLocator` from `model/`, and `formats/particles`
-from `language/model` for the INI lexer.
+| folder | holds | may import |
+| --- | --- | --- |
+| `core/` | generic, browser-safe helpers: paths, `byteReader`, Windows-1252, expressions, debounce, messages, the tool registry, transfer planning | itself |
+| `formats/<format>/` | one file format each, parse, write and edit, no host: `big`, `ini` (the SAGE INI dialect: lexer, parser, schema, references, problems), `apt`, `w3d`, `map`, `texture`, `audio`, `vp6`, `wnd`, `str`, `csf`, `cah`, `refpack`, `particles`, `mappedImage` | core |
+| `game/` | how the engine behaves: the game view and install layering (`install/`), object composition and stats (`objects/`), audio resolution (`audio/`), language and translations (`text/`), the policies behind the INI checks (`ini-tools/`) | core, formats |
+| `node/` | Node I/O: reading and writing archive files, install discovery, mod diff and packaging on disk, FFmpeg, PNG encoding, the launch plan | core, formats, game |
+| `platform/` | VS Code adapters with no domain knowledge: `registerCommand`, typed settings, context keys, dialogs, webview pages, singleton panels, snapshot editors | core |
+| `services/` | the long-lived state built once in `createServices.ts`: `archives/` (`ArchiveModel` and its scanner, registry, policy and operations, the virtual tree, addressing, the game view model, the explorer selection and node command registrar), `ini/` (`SageIniDocuments`, `SageIniIndex`, game language, audio lookup, asset check, effective objects), `entryLocator`, `mappedImagePreview`, `effectLibrary` | everything below, `vscode` |
+| `features/<feature>/` | one user-facing feature each, wired by its `index.ts` | everything below, its own `webview/<feature>/protocol` |
+| `webview/<page>/` | the code inside one webview page, bundled by `esbuild.mjs` into `dist/webview/<name>.js` | core, formats, game, `webview/shared/` |
 
-| directory | holds |
-| --- | --- |
-| `binary/` | the BIG file format: parse, serialize, read, write |
-| `model/` | archives, the virtual tree, addressing, sources; the game view (which file the engine loads), install discovery and layering, mod diff and packaging |
-| `providers/` | the explorer tree, drag and drop, the `bigfs` file system, and the custom editors: preview, APT, map, string table, Create-a-Hero |
-| `commands/` | what the palette and context menu invoke |
-| `actions/`, `ui/` | operations shared by commands and drag and drop; prompts and confirmations |
-| `tools/` | pure decoders and parsers (TGA/DDS, WAV, W3D) behind a registry, and the FFmpeg wrapper |
-| `formats/` | parsers and writers that need no host: W3D animation and pose, APT (`apt/`), maps (`map/`), particles (`particles/`), VP6 (`vp6/`), CSF, CAH, RefPack, texture encoding, mapped images; and `entryLocator`, which finds a file the way the game would |
-| `language/` | the SAGE INI, STR and WND languages: `model/` is the dialect (lexer, parser, schema, references, checks) with no editor dependency, `providers/` adapts it to VS Code, and the files beside them are the features built on it (previews, balance sheet, armor table, bulk edit, asset and translation checks) |
-| `webview/` | the code that runs inside each webview page, bundled per page by `esbuild.mjs` into `dist/webview/` |
-| `common/` | generic helpers, no domain knowledge |
+The pure layers (`core`, `formats`, `game`) import neither `vscode` nor Node,
+which is what lets the unit tests in `src/test/unit` reach them without
+starting VS Code and lets the pages bundle them for the browser. A feature
+never imports another feature: what two features share lives in a service or
+lower.
 
----
+### How a request flows
+
+`extension.ts` is the composition root. `activate` calls `createServices`,
+which builds the services and starts the archive scan and the INI index
+without awaiting them, then calls each feature's `register<Feature>` from the
+ordered `FEATURES` list. The order matters only where VS Code consults
+providers in registration order (lenses and code actions on INI lines).
+
+```mermaid
+sequenceDiagram
+  actor U as User
+  participant VS as VS Code
+  participant F as features/x (registered command or provider)
+  participant S as services
+  participant L as formats / game / node
+
+  Note over VS,S: activate: createServices, then register<Feature> per feature
+  U->>VS: runs a command, opens an entry, hovers a line
+  VS->>F: the callback the feature registered
+  F->>S: archives, iniDocuments, iniIndex, locator ...
+  S->>L: parse, resolve, read or write the archive
+  L-->>S: plain data
+  S-->>F: nodes, documents, definitions
+  F-->>VS: edits, diagnostics, a webview message
+  VS-->>U: the result
+```
+
+A webview editor adds one hop: the feature renders the page with
+`platform/webview/webviewPage`, the page code in `webview/<page>/main.ts`
+draws, and the two exchange the messages typed in
+`webview/<page>/protocol.ts`. A page never touches a file; it sends an edit and
+is sent the result.
+
+### Where to start debugging
+
+Every feature starts at `src/features/<feature>/index.ts`, which names the
+modules it registers. From there:
+
+| symptom in | start at | then |
+| --- | --- | --- |
+| archive explorer, the `bigfs:` file system, drag and drop, extract, copy paths | `features/explorer/` | `services/archives/archiveModel.ts` and its `archiveScanner`, `archiveRegistry`, `archivePolicy`, `archiveOperations`; `node/archiveFile.ts`; `formats/big/bigFormat.ts` |
+| the game view (which file wins) | `features/explorer/treeDataProvider.ts` | `services/archives/gameViewModel.ts`, `game/install/gameView.ts` |
+| row commands acting on the wrong rows | `services/archives/nodeCommands.ts` | `services/archives/explorerSelection.ts` |
+| INI highlighting, hover, completion, navigation, rename, diagnostics | `features/iniLanguage/providers/` | `services/ini/sageIniDocuments.ts`, `sageIniIndex.ts`; `formats/ini/` |
+| INI checks (assets, unused, duplicates, validation, hotkeys) | `features/iniLanguage/` | `services/ini/sageIniAssetCheck.ts`, `diagnoseIniText.ts`; `game/ini-tools/` |
+| effective object view, new object wizard | `features/objects/` | `services/ini/effectiveObject.ts`, `game/objects/` |
+| particle and object previews | `features/particles/` | `webview/particles/`, `services/effectLibrary.ts`, `formats/particles/` |
+| texture, audio and W3D previews | `features/preview/` | `webview/preview/`, the tools in `formats/texture`, `formats/audio`, `formats/w3d` |
+| APT movies | `features/apt/` | `webview/apt/` (player and AVM in `avm/`), `formats/apt/`; `docs/apt-scripts.md`, `docs/apt-text-format.md` |
+| maps and map scripts | `features/map/`, `features/scripts/` | `webview/map/`, `webview/scripts/`, `formats/map/` |
+| string tables, translations | `features/strings/`, `features/translations/` | `webview/strings/`, `formats/str/`, `formats/csf/`, `game/text/` |
+| Create-a-Hero | `features/cah/` | `webview/cah/`, `formats/cah/`, `game/objects/cahSystem.ts` |
+| WND layouts | `features/wnd/` | `webview/wnd/`, `formats/wnd/` |
+| CommandSet editor and hover | `features/commandSet/` | `services/ini/commandSetPreview.ts`, `webview/commandset/` |
+| balance sheet, armor table, bulk edit | `features/balanceSheet/`, `features/armorTable/`, `features/bulkEdit/` | `game/objects/`, `game/ini-tools/bulkEdit.ts` |
+| sound playback | `features/audio/` | `services/ini/audioLookup.ts`, `game/audio/sageAudioResolve.ts`, `webview/audio/` |
+| videos | `features/video/` | `formats/vp6/`, `node/ffmpeg.ts`, `webview/video/` |
+| textures and W3D animation commands | `features/textures/`, `features/w3d/` | `formats/texture/`, `formats/w3d/` |
+| installs and launching | `features/installs/` | `node/installDiscovery.ts`, `node/launchPlan.ts`, `game/install/installLayers.ts` |
+| mod diff, packaging, override in folder | `features/mods/` | `node/modDiff.ts`, `node/modPackage.ts` |
+
+Errors from a command are written to the `bigFS` output channel by
+`platform/commands.ts`, which is the first place to look when a command
+appears to do nothing.
 
 ---
 
@@ -185,7 +220,7 @@ The same entry has three names, and only one of them is stored.
 | uri *(rendered)* | `bigfs:/bfme2/mods/textures.big/data/ini/object.ini` | VS Code only |
 
 A node stores its `entryPath` and a reference to its `Archive`. Everything else
-is derived, by `model/nodeAddress`:
+is derived, by `services/archives/nodeAddress`:
 
 ```mermaid
 flowchart LR
@@ -231,7 +266,7 @@ sequenceDiagram
   participant TV as treeDataProvider
   participant AM as archiveModel
   participant AR as Archive
-  participant BIN as binary
+  participant BIN as node/archiveFile
 
   Note over AM: activation
   AM->>AM: createSources
@@ -267,7 +302,7 @@ operation says *what changes*; nothing else.
 
 ```mermaid
 flowchart TD
-  CMD["a command or a drop"] --> ACT["actions: resolve conflicts, confirm"]
+  CMD["a command or a drop"] --> ACT["features/explorer/fileActions: resolve conflicts, confirm"]
   ACT --> OP["archiveOperations, behind archiveModel"]
   OP --> PLAN["a list of EntryChange"]
   PLAN --> POLICY{"archivePolicy: is the source read-only?"}
@@ -312,33 +347,23 @@ apply, so a base game source outside the workspace is never written to.
 
 ## 7. Tools, formats and the game view
 
-Two kinds of reusable code sit under the features, told apart by what they are
-allowed to know.
-
-| | `tools/` | `formats/` |
-| --- | --- | --- |
-| answers | transform this data | read or write this file format |
-| knows about archives | no | no (except `entryLocator`) |
-| knows about VS Code | no | no (except `entryLocator`) |
-| testable without a host | yes | yes |
-
-A tool is a pure function with an id, registered once in
-`services/createServices.ts` through `createToolRegistry` and reached through
-the `ToolBox` the preview editor is handed. A format module is simply imported by what needs it; there is
-no registry between them, and the registry that once stood for it was removed
-as dead code (nothing ever registered a format).
+A format module in `formats/<format>/` is imported by whatever needs it; there
+is no registry between them. A tool is a pure decoder with an id (TGA, DDS,
+playable audio, W3D), declared beside its format (`formats/texture/textureTools.ts`,
+`formats/audio/audioTools.ts`, `formats/w3d/w3dTools.ts`), registered once in
+`services/createServices.ts` through `core/toolRegistry` and reached through
+the `ToolBox` the previews are handed.
 
 Anything that needs "the file the game would load" asks the game view, not the
-archive it happens to hold. `model/gameView` is the engine's rule (loose files
-first, archives in path order with the first holding a path winning, installs
-layered mod over ROTWK over BFME II), `gameViewModel` keeps it current as
-archives change, and `formats/entryLocator` is the lookup viewers use for a
-skeleton or texture named by file name only.
+archive it happens to hold. `game/install/gameView` is the engine's rule (loose
+files first, archives in path order with the first holding a path winning,
+installs layered mod over ROTWK over BFME II), `services/archives/gameViewModel`
+keeps it current as archives change, and `services/entryLocator` is the lookup
+viewers use for a skeleton or texture named by file name only.
 
 Editors and previews that draw in a webview follow one shape: the extension
 side owns the data and the file, the page code in `webview/` draws and sends
-messages, and each page is its own esbuild bundle. A page never touches the
-file; it sends an edit and is sent the result back.
+messages, and each page is one entry in `PAGES` in `esbuild.mjs`.
 
 A format that needs its own viewer also needs a `contributes.customEditors`
 entry in `package.json`, whose file pattern is static. The existing editors
@@ -370,7 +395,7 @@ more than an order of magnitude.
 
 ## 9. Decisions worth remembering
 
-- **Node's `fs`, not `workspace.fs`, in `binary/`** — reading one entry out of
+- **Node's `fs`, not `workspace.fs`, in `node/archiveFile`** — reading one entry out of
   a 2 GB archive needs a positional read, and `workspace.fs` can only read a
   whole file. The cost is that only local files work: a remote workspace has no
   path to open.
@@ -384,7 +409,8 @@ more than an order of magnitude.
   requires thrown `FileSystemError`s. Tagged errors such as `NotAnArchiveError`
   cover the cases callers branch on.
 - **Mutation is confined by structure, not by interception.** Tree mutation
-  happens only in `virtualNode`, entry mutation only in `archive`.
+  happens only in `services/archives/virtualNode`, entry mutation only in
+  `services/archives/archive`.
 
 ---
 
@@ -405,8 +431,8 @@ more than an order of magnitude.
 **Features**
 
 - The INI language service covers folding, outline, highlighting, completion,
-  go to definition, references, rename and diagnostics (`language/`, indexed
-  across archives by `sageIniIndex`). What is open is mostly depth: more
+  go to definition, references, rename and diagnostics (`features/iniLanguage/`,
+  indexed across archives by `services/ini/sageIniIndex`). What is open is mostly depth: more
   field types checked, and a cache of parsed results keyed by archive version
   so a large workspace re-checks only what changed.
 
@@ -438,21 +464,18 @@ Color  = R:255 G:255 B:255           ; a colour value, a leaf field
 
 ### Code layout
 
-`language/` carries the same layering rule as the rest of the extension, one
-level down:
+The INI language follows the same layers as the rest of the extension:
 
-| directory | holds | knows about |
+| folder | holds | knows about |
 | --- | --- | --- |
-| `language/model/` | the dialect itself: schema, parser, symbol resolution | nothing outside the dialect - no `vscode` import |
-| `language/providers/` | one VS Code adapter per feature | the model, and the two services below |
-| `language/` (top) | `sageIniDocuments` (per-document parse and schema, cached), `sageIniIndex` (cross-archive definitions, references, macros), `sageIniDialect` (`.ini` recognition), `sageIniInclude` (path resolution) | `vscode`, and for the index, `ArchiveModel` |
+| `formats/ini/` | the dialect itself: lexer, parser, schema, symbol resolution, problems, the audio field tables | nothing outside the dialect, no `vscode` import |
+| `services/ini/` | `sageIniDocuments` (per-document parse and schema, cached), `sageIniIndex` (cross-archive definitions, references, macros), `sageIniDialect` (`.ini` recognition), `sageIniInclude` (path resolution), and the lookups features share | `vscode`, and for the index, `ArchiveModel` |
+| `features/iniLanguage/providers/` | one VS Code adapter per language feature | the dialect and the two services above |
 
 `features/iniLanguage/index.ts` only wires these together. **Adding a feature
 is adding one file to `providers/` and one registration call there** - a new
-provider takes `(documents, index)`, the same two services every existing one takes,
-and needs to know nothing about how another provider works. This is the
-concrete answer to "how do I add another syntax feature later": the file to
-open is `providers/`, not the registration function.
+provider takes `(documents, index)`, the same two services every existing one
+takes, and needs to know nothing about how another provider works.
 
 ### Where each decision is made
 
@@ -465,12 +488,12 @@ guessing into the grammar is what made `Wind` claim `WindowTransition` and
 flowchart TD
   DOC["a document, from disk or an archive"]
   TM["TextMate grammar<br/>comments, strings, numbers,<br/>End, preprocessor, Lua"]
-  PARSE["model/sageIniParser<br/>block tree + positioned statements"]
-  SCH["model/sageIniSchema"]
+  PARSE["formats/ini/sageIniParser<br/>block tree + positioned statements"]
+  SCH["formats/ini/sageIniSchema"]
   DOCS["sageIniDocuments<br/>parses once per edit, shared by every provider"]
   SEM["providers/semanticTokens<br/>block vs field, slot types,<br/>module tags, references"]
   HOV["providers/hover<br/>engine type, used flag"]
-  SYMB["model/sageIniSymbol<br/>what name is under the cursor"]
+  SYMB["formats/ini/sageIniSymbol<br/>what name is under the cursor"]
   DEF["providers/definition<br/>LocationLink, whole block"]
   REF["providers/reference<br/>both directions"]
   IDX["sageIniIndex<br/>definitions + uses + macros,<br/>every archive"]

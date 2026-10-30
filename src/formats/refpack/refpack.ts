@@ -25,7 +25,7 @@ const EAR_MAGIC = [0x45, 0x41, 0x52, 0x00];
 export const isEarWrapped = (bytes: Uint8Array): boolean =>
   bytes.length >= 8 && EAR_MAGIC.every((byte, index) => bytes[index] === byte);
 
-/** Decompresses a RefPack stream */
+/** Decompresses a RefPack stream; throws on a malformed stream or one claiming more than 256 MiB */
 export const decompressRefPack = (stream: Uint8Array): Uint8Array => {
   if (stream.length < 2 || stream[1] !== 0xfb) {
     throw new Error('Not a RefPack stream');
@@ -160,7 +160,7 @@ export const compressRefPack = (input: Uint8Array): Uint8Array => {
   let pending = 0;
   let position = 0;
 
-  /** Writes all but the last 0-3 pending literals as literal runs */
+  // Writes all but the last 0-3 pending literals as literal runs
   const flushRuns = () => {
     while (pending >= 4) {
       const run = Math.min(112, pending & ~3);

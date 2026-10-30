@@ -27,7 +27,7 @@ export class AptImage {
     return this.size;
   }
 
-  /** The image as it stands */
+  /** A copy of the image as it stands */
   public get bytes(): Uint8Array {
     return this.data.slice(0, this.size);
   }
@@ -59,21 +59,25 @@ export class AptImage {
     }
   }
 
+  /** Reads an unsigned 32-bit word at an offset inside the image */
   public u32(offset: number): number {
     this.check(offset, 4);
     return this.view.getUint32(offset, true);
   }
 
+  /** Overwrites an unsigned 32-bit word in place */
   public setU32(offset: number, value: number): void {
     this.check(offset, 4);
     this.view.setUint32(offset, value >>> 0, true);
   }
 
+  /** Overwrites a signed 32-bit word in place */
   public setI32(offset: number, value: number): void {
     this.check(offset, 4);
     this.view.setInt32(offset, value, true);
   }
 
+  /** Overwrites a 32-bit float in place */
   public setF32(offset: number, value: number): void {
     this.check(offset, 4);
     this.view.setFloat32(offset, value, true);

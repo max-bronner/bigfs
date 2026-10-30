@@ -4,8 +4,8 @@ import type { DictEntryView, DictOwner } from './protocol';
 import { state } from './state';
 import type { DictValue } from '../../formats/map/mapFile';
 
-/** An editor for one dictionary value, committing on change. */
-const valueInput = (
+/** Creates an editor for one dictionary value, committing on change */
+const createValueInput = (
   entry: DictEntryView,
   onCommit: (value: DictValue) => void,
 ): HTMLInputElement => {
@@ -46,7 +46,7 @@ const valueInput = (
   return field;
 };
 
-/** A table of a dictionary's entries, each editable; `removable` adds a button that removes a property. */
+/** Creates a table of a dictionary's entries, each editable; `removable` adds a button that removes a property */
 export const createDictTable = (
   entries: readonly DictEntryView[],
   owner: DictOwner,
@@ -62,7 +62,7 @@ export const createDictTable = (
     const cell = element('td');
 
     cell.append(
-      valueInput(entry, (value) =>
+      createValueInput(entry, (value) =>
         sendEdit({ kind: 'dict', owner, key: entry.key, value }),
       ),
     );

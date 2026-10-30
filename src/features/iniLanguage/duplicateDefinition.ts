@@ -17,9 +17,10 @@ import { registerCommand } from '../../platform/commands';
 
 const NAME_PATTERN = /^[A-Za-z0-9_.\-]+$/;
 
-const blockAt = (blocks: SageBlock[], line: number) =>
+const findBlockAt = (blocks: SageBlock[], line: number) =>
   blocks.find((block) => block.startLine <= line && line <= block.endLine);
 
+/** Outcome of `bigfs.duplicateDefinition`: the copy's name and line, and the labels added to string tables */
 export interface DuplicateResult {
   name: string;
   line: number;
@@ -35,7 +36,7 @@ const duplicate = async (
 ): Promise<DuplicateResult | undefined> => {
   const document = await vscode.workspace.openTextDocument(uri);
   const parsed = await documents.parse(document);
-  const block = blockAt(parsed.blocks, line);
+  const block = findBlockAt(parsed.blocks, line);
 
   if (!block?.name || !block.isClosed) {
     void vscode.window.showInformationMessage(
@@ -135,7 +136,7 @@ const createDuplicateActionProvider = (
 ): vscode.CodeActionProvider => ({
   async provideCodeActions(document, range) {
     const parsed = await documents.parse(document);
-    const block = blockAt(parsed.blocks, range.start.line);
+    const block = findBlockAt(parsed.blocks, range.start.line);
 
     if (!block?.name || !block.isClosed) {
       return [];
@@ -155,6 +156,7 @@ const createDuplicateActionProvider = (
   },
 });
 
+/** Registers the duplicate code action and the `bigfs.duplicateDefinition` command */
 export const registerDuplicateDefinition = (
   selector: vscode.DocumentSelector,
   documents: SageIniDocuments,

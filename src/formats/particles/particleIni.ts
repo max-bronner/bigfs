@@ -12,6 +12,7 @@ import type { SageToken } from '../ini/sageIniParser';
  * 30 Hz frames except a nugget's `InitialDelay`, which is milliseconds.
  */
 
+/** Three-component vector: a position, offset or velocity in world units, or an RGB colour */
 export type Vec3 = [number, number, number];
 
 /** A low/high pair rolled once per particle or per burst; not sorted */
@@ -20,6 +21,7 @@ export interface Range {
   high: number;
 }
 
+/** Emission volume new particles start inside, by module type */
 export type Volume =
   | { type: 'point' }
   | { type: 'line'; start: Vec3; end: Vec3 }
@@ -35,6 +37,7 @@ export type Volume =
   /** A module the preview does not emit from, drawn as a point */
   | { type: 'unread'; module: string };
 
+/** Emission velocity new particles start with, by module type; speeds are per frame */
 export type Velocity =
   | { type: 'ortho'; x: Range; y: Range; z: Range }
   | { type: 'spherical'; speed: Range }
@@ -42,17 +45,20 @@ export type Velocity =
   | { type: 'cylindrical'; radial: Range; normal: Range }
   | { type: 'outward'; speed: Range; otherSpeed: Range };
 
+/** Colour key of a particle's lifetime curve */
 export interface ColorKey {
   /** 0..1 per channel */
   rgb: Vec3;
   frame: number;
 }
 
+/** Alpha key of a particle's lifetime curve, rolled within its range */
 export interface AlphaKey {
   value: Range;
   frame: number;
 }
 
+/** Wind settings of a particle system's `Wind` module */
 export interface Wind {
   motion: 'none' | 'pingpong' | 'circular';
   strength: number;
@@ -63,6 +69,7 @@ export interface Wind {
   end: Range;
 }
 
+/** Particle system read into plain data a preview can simulate, with the games' defaults filled in */
 export interface ParticleDef {
   name: string;
   form: 'block' | 'flat';
@@ -109,6 +116,7 @@ export interface ParticleDef {
   wind?: Wind;
 }
 
+/** `ParticleSystem` nugget of an FX list: the system it starts and where */
 export interface FxNugget {
   system: string;
   /** Which of the FX list's modules it is */
@@ -131,6 +139,7 @@ export interface FxSound {
   initialDelay: Range;
 }
 
+/** FX list read into plain data a preview can play */
 export interface FxListDef {
   name: string;
   nuggets: FxNugget[];
@@ -185,6 +194,7 @@ const SLOTS = new Set(
   ].map((slot) => slot.toLowerCase()),
 );
 
+/** Block keywords of the file-scope definitions this module reads */
 export const DEFINITION_KEYWORDS = [
   'FXParticleSystem',
   'ParticleSystem',
@@ -194,7 +204,7 @@ export const DEFINITION_KEYWORDS = [
 const isEnd = (word: string) => /^end$/i.test(word);
 
 /**
- * Every particle system and FX list defined at file scope in `text`. A
+ * Finds every particle system and FX list defined at file scope in `text`. A
  * module opens on a slot keyword (block form) or on any bare word (an FX
  * list's nuggets); everything else is a field.
  */
@@ -267,7 +277,7 @@ export const findParticleDefinitions = (text: string): IniDefinition[] => {
   return found;
 };
 
-/** A number with an optional one-letter `X:` prefix, or NaN */
+/** Parses a number with an optional one-letter `X:` prefix, or NaN */
 export const parseIniNumber = (text: string): number => {
   const match = /^(?:[A-Za-z]:)?(-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)%?$/i.exec(
     text,
@@ -279,7 +289,7 @@ export const parseIniNumber = (text: string): number => {
 const RANGE_ZERO: Range = { low: 0, high: 0 };
 const RANGE_ONE: Range = { low: 1, high: 1 };
 
-const rangeOf = (values: SageToken[]): Range | undefined => {
+const readRange = (values: SageToken[]): Range | undefined => {
   const numbers = values.map((value) => parseIniNumber(value.text));
 
   if (numbers.length === 1 && !isNaN(numbers[0])) {
@@ -389,7 +399,7 @@ const flatVolume = (fields: Map<string, SageToken[]>): Volume => {
 
 const flatVelocity = (fields: Map<string, SageToken[]>): Velocity => {
   const range = (key: string) =>
-    rangeOf(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
+    readRange(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
 
   switch ((fields.get('velocitytype')?.[0]?.text ?? 'ORTHO').toUpperCase()) {
     case 'SPHERICAL':
@@ -457,7 +467,7 @@ const moduleVelocity = (
   fields: Map<string, SageToken[]>,
 ): Velocity => {
   const range = (key: string) =>
-    rangeOf(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
+    readRange(fields.get(key.toLowerCase()) ?? []) ?? { ...RANGE_ZERO };
 
   switch (type.toLowerCase()) {
     case 'sphericalemissionvelocity':
@@ -506,8 +516,8 @@ const readWind = (fields: Map<string, SageToken[]>): Wind => {
   };
 };
 
-/** Fields of one module, last write winning, keyed lowercased */
-const fieldMap = (lines: IniLine[]) =>
+/** Creates the field map of one module, last write winning, keyed lowercased */
+const createFieldMap = (lines: IniLine[]) =>
   new Map(
     lines.map((entry) => [entry.keyword.text.toLowerCase(), entry.values]),
   );
@@ -516,7 +526,7 @@ const fieldMap = (lines: IniLine[]) =>
 const applyCommonFields = (def: ParticleDef, lines: IniLine[]): void => {
   for (const { keyword, values } of lines) {
     const key = keyword.text.toLowerCase();
-    const range = rangeOf(values);
+    const range = readRange(values);
     const keySlot = /^(color|alpha)([1-8])$/.exec(key);
 
     if (keySlot) {
@@ -615,7 +625,7 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
   applyCommonFields(def, definition.lines);
 
   if (flat) {
-    const fields = fieldMap(definition.lines);
+    const fields = createFieldMap(definition.lines);
 
     def.volume = flatVolume(fields);
     def.velocity = flatVelocity(fields);
@@ -645,22 +655,22 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
   const event = modules.get('event');
 
   if (emitter) {
-    const fields = fieldMap(emitter.lines);
+    const fields = createFieldMap(emitter.lines);
 
     def.volume = flatVolume(fields);
     def.velocity = flatVelocity(fields);
   }
   if (volume) {
-    def.volume = moduleVolume(volume.type, fieldMap(volume.lines));
+    def.volume = moduleVolume(volume.type, createFieldMap(volume.lines));
   }
   if (velocity) {
-    def.velocity = moduleVelocity(velocity.type, fieldMap(velocity.lines));
+    def.velocity = moduleVelocity(velocity.type, createFieldMap(velocity.lines));
   }
   def.hasAlphaBlock = modules.has('alpha');
   if (draw) {
     def.drawModule = draw.type;
 
-    const fields = fieldMap(draw.lines);
+    const fields = createFieldMap(draw.lines);
     const totalFrames = numberOf(fields.get('totalframes') ?? [], 0);
     const framesPerRow = numberOf(fields.get('framesperrow') ?? [], 0);
 
@@ -673,10 +683,10 @@ export const readParticleDef = (definition: IniDefinition): ParticleDef => {
     }
   }
   if (wind) {
-    def.wind = readWind(fieldMap(wind.lines));
+    def.wind = readWind(createFieldMap(wind.lines));
   }
   if (event && /terraincollision/i.test(event.type)) {
-    const fields = fieldMap(event.lines);
+    const fields = createFieldMap(event.lines);
 
     def.event = {
       fx: fields.get('eventfx')?.[0]?.text,
@@ -694,7 +704,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
       return [];
     }
 
-    const fields = fieldMap(
+    const fields = createFieldMap(
       definition.lines.filter((line) => line.moduleIndex === index),
     );
     const system = fields.get('name')?.[0]?.text;
@@ -708,9 +718,9 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
         module: index,
         count: Math.max(1, Math.round(numberOf(fields.get('count') ?? [], 1))),
         offset: coordOf(fields.get('offset') ?? []),
-        radius: rangeOf(fields.get('radius') ?? []) ?? { ...RANGE_ZERO },
-        height: rangeOf(fields.get('height') ?? []) ?? { ...RANGE_ZERO },
-        initialDelay: rangeOf(fields.get('initialdelay') ?? []) ?? {
+        radius: readRange(fields.get('radius') ?? []) ?? { ...RANGE_ZERO },
+        height: readRange(fields.get('height') ?? []) ?? { ...RANGE_ZERO },
+        initialDelay: readRange(fields.get('initialdelay') ?? []) ?? {
           ...RANGE_ZERO,
         },
       },
@@ -722,7 +732,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
       return [];
     }
 
-    const fields = fieldMap(
+    const fields = createFieldMap(
       definition.lines.filter((line) => line.moduleIndex === index),
     );
     const name = fields.get('name')?.[0]?.text;
@@ -732,7 +742,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
           {
             name,
             module: index,
-            initialDelay: rangeOf(fields.get('initialdelay') ?? []) ?? {
+            initialDelay: readRange(fields.get('initialdelay') ?? []) ?? {
               ...RANGE_ZERO,
             },
           },
@@ -745,7 +755,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
       return [];
     }
 
-    const fields = fieldMap(
+    const fields = createFieldMap(
       definition.lines.filter((line) => line.moduleIndex === index),
     );
 
@@ -754,7 +764,7 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
         module.slot,
         index,
         fields,
-        rangeOf(fields.get('initialdelay') ?? []) ?? { ...RANGE_ZERO },
+        readRange(fields.get('initialdelay') ?? []) ?? { ...RANGE_ZERO },
         parseIniNumber,
       ),
     ];
@@ -763,8 +773,8 @@ export const readFxList = (definition: IniDefinition): FxListDef => {
   return { name: definition.name, nuggets, sounds, effects };
 };
 
-/** The names a particle system or FX list starts in turn */
-export const referencedNames = (
+/** Lists the particle systems and FX lists a definition starts in turn */
+export const findStartedNames = (
   def: ParticleDef | FxListDef,
 ): { systems: string[]; fxLists: string[] } =>
   'nuggets' in def
@@ -813,8 +823,8 @@ const partNames = (keyword: string, count: number): string[] => {
   );
 };
 
-/** Every numeric value of a definition, in order, for sliders */
-export const numericFields = (definition: IniDefinition): NumericField[] =>
+/** Lists every numeric value of a definition, in order, for sliders */
+export const findNumericFields = (definition: IniDefinition): NumericField[] =>
   definition.lines.flatMap((line) => {
     const parts = partNames(line.keyword.text, line.values.length);
 
@@ -851,7 +861,7 @@ export const numericFields = (definition: IniDefinition): NumericField[] =>
     });
   });
 
-/** A number written the way the INI writes one */
+/** Formats a number the way the INI writes one */
 export const formatIniNumber = (value: number, integer: boolean): string => {
   if (integer || Number.isInteger(value)) {
     return String(Math.round(value));
@@ -868,14 +878,14 @@ export interface ValueEdit {
 }
 
 /**
- * The text edits that write `values` (by field id) over a definition's
+ * Computes the text edits that write `values` (by field id) over a definition's
  * tokens, keeping each token's `X:` style prefix
  */
-export const valueEdits = (
+export const computeValueEdits = (
   definition: IniDefinition,
   values: ReadonlyMap<string, number>,
 ): ValueEdit[] =>
-  numericFields(definition).flatMap((field) => {
+  findNumericFields(definition).flatMap((field) => {
     const value = values.get(field.id);
 
     if (value === undefined || value === field.value) {
@@ -896,7 +906,7 @@ export const valueEdits = (
     ];
   });
 
-/** `text` with value edits applied, for previewing unsaved slider values */
+/** Applies value edits to `text`, for previewing unsaved slider values */
 export const applyValueEdits = (text: string, edits: ValueEdit[]): string => {
   const lines = text.split(/\r?\n/);
   const newline = /\r\n/.test(text) ? '\r\n' : '\n';

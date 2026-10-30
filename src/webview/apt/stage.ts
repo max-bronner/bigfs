@@ -2,11 +2,11 @@ import { engine, onEngineLog, watchMovie } from "./engineState";
 import { fetchMovie } from "./movieLoads";
 import type { Rect } from "../../formats/apt/aptMovie";
 import { byId } from "./dom";
-import { maskArea, paintLeaf } from "./paint";
+import { buildMaskArea, paintLeaf } from "./paint";
 import { Player } from "./player";
 import type { Instance } from "./player";
 import { resolve } from "./resolve";
-import { boundsOf, collect, localBounds, transformRect, union } from "./scene";
+import { getLeafBounds, collect, getLocalBounds, transformRect, union } from "./scene";
 import type { Affine, HitArea, Leaf } from "./scene";
 import { movie, state } from "./state";
 
@@ -30,7 +30,7 @@ const LOG_LINES = 8;
 /** Frames a second the game plays a movie at, which speed 1 is */
 const FRAME_RATE = 30;
 
-/** The modes the stage draws in; each has a hotkey and is printed on change */
+/** Display modes of the stage; each has a hotkey and is printed on change */
 export const view = {
   origin: true,
   wireframe: false,
@@ -64,13 +64,14 @@ let onRendered: () => void = () => {};
 /** Extra drawing after each render, in the shown character's space (gadget surfaces) */
 const afterRender: ((ctx: CanvasRenderingContext2D, base: Affine) => void)[] = [];
 
+/** Adds drawing run after each render, in the shown character's space */
 export const addRenderHook = (
   hook: (ctx: CanvasRenderingContext2D, base: Affine) => void,
 ): void => {
   afterRender.push(hook);
 };
 
-/** How the stage tells the inspector: a new pick, and each frame drawn */
+/** Sets how the stage tells the inspector of a new pick, and of each frame drawn */
 export const setInspectorView = (
   show: () => void,
   update: () => void,
@@ -85,6 +86,7 @@ export interface StageTool {
   down(point: [number, number], event: MouseEvent): boolean;
   /** Takes a move while it holds the pointer */
   move(point: [number, number], event: MouseEvent): boolean;
+  /** Ends the drag the tool holds the pointer for */
   up(): void;
   /** Draws in the shown character's space, `pixel` wide lines */
   draw(ctx: CanvasRenderingContext2D, pixel: number): void;
@@ -169,7 +171,7 @@ const rootScriptsRun = () => view.interact || view.scripts;
 
 onEngineLog((line) => addLog(line));
 
-/** The player of the shown character, built on first use */
+/** Gets the player of the shown character, built on first use */
 export const currentPlayer = (): Player => {
   player ??= newPlayer(rootScriptsRun(), true);
   return player;
@@ -190,7 +192,7 @@ export const remeasure = (): void => {
   extent = undefined;
 };
 
-/** The frames of the shown character's own timeline */
+/** Counts the frames of the shown character's own timeline */
 export const rootFrames = (): number => currentPlayer().root.frames.length;
 
 /**
@@ -243,7 +245,7 @@ const measure = (): Rect => {
   const boxes: Rect[] = [];
 
   for (let tick = 0; tick < samples; tick++) {
-    const box = boundsOf(collect(sample).leaves, view.masks);
+    const box = getLeafBounds(collect(sample).leaves, view.masks);
 
     if (box) {
       boxes.push(box);
@@ -273,14 +275,14 @@ export const showMode = (): void => {
   ].join(" · ");
 };
 
-/** What is drawn now, in paint order */
-export const sceneLeaves = (): Leaf[] => scene.leaves;
+/** Gets what is drawn now, in paint order */
+export const getSceneLeaves = (): Leaf[] => scene.leaves;
 
-/** The extent the canvas shows, for snapping to its edges */
-export const stageExtent = (): Rect | undefined => extent;
+/** Gets the extent the canvas shows, for snapping to its edges */
+export const getStageExtent = (): Rect | undefined => extent;
 
-/** How many of the shown character's units one screen pixel is */
-export const pixelSize = (): number =>
+/** Gets how many of the shown character's units one screen pixel is */
+export const getPixelSize = (): number =>
   1 / (base[0] / (window.devicePixelRatio || 1));
 
 /** The instance a stage leaf belongs to that is worth inspecting: a timeline or button */
@@ -304,9 +306,9 @@ const inspectable = (leaf: Leaf, deep: boolean): Instance => {
   return at;
 };
 
-/** The box an instance covers now, from what it draws */
-export const instanceBox = (instance: Instance): Rect | undefined =>
-  boundsOf(
+/** Measures the box an instance covers now, from what it draws */
+export const measureInstanceBox = (instance: Instance): Rect | undefined =>
+  getLeafBounds(
     scene.leaves.filter((leaf) => {
       for (let at: Instance | undefined = leaf.instance; at; at = at.parent) {
         if (at === instance) {
@@ -331,7 +333,7 @@ const outlineMasks = (ctx: CanvasRenderingContext2D) => {
   ctx.strokeStyle = "rgba(0, 220, 255, 0.95)";
   ctx.fillStyle = "rgba(0, 220, 255, 0.08)";
   for (const mask of masks) {
-    const area = maskArea(mask);
+    const area = buildMaskArea(mask);
 
     ctx.fill(area);
     ctx.stroke(area);
@@ -345,7 +347,7 @@ export const render = (): void => {
 
   scene = collect(current);
 
-  const frameBox = boundsOf(scene.leaves, view.masks);
+  const frameBox = getLeafBounds(scene.leaves, view.masks);
 
   extent ??= measure();
   if (frameBox) {
@@ -423,7 +425,7 @@ export const render = (): void => {
       if (!mask.length) {
         continue;
       }
-      ctx.clip(maskArea(mask));
+      ctx.clip(buildMaskArea(mask));
     }
     ctx.transform(...leaf.matrix);
     ctx.globalAlpha = leaf.alpha;
@@ -463,7 +465,7 @@ const overlays = (
       if (leaf.top !== undefined) {
         const boxes = byChild.get(leaf.top) ?? [];
 
-        boxes.push(transformRect(leaf.matrix, localBounds(leaf)));
+        boxes.push(transformRect(leaf.matrix, getLocalBounds(leaf)));
         byChild.set(leaf.top, boxes);
       }
     }
@@ -508,9 +510,9 @@ const overlays = (
   ctx.setLineDash([]);
   for (const [instance, colour, width] of [
     [hovered, "rgba(255,0,255,0.6)", 1],
-    [inspected(), "rgba(255,0,255,1)", 2],
+    [getInspectedInstance(), "rgba(255,0,255,1)", 2],
   ] as const) {
-    const rect = instance && instanceBox(instance);
+    const rect = instance && measureInstanceBox(instance);
 
     if (rect) {
       ctx.lineWidth = pixel * width;
@@ -520,8 +522,8 @@ const overlays = (
   }
 };
 
-/** The instance the inspector shows, if it is still there */
-export const inspected = (): Instance | undefined =>
+/** Gets the instance the inspector shows, if it is still there */
+export const getInspectedInstance = (): Instance | undefined =>
   state.inspected === undefined
     ? undefined
     : currentPlayer().find(state.inspected);
@@ -537,7 +539,7 @@ const showFrame = (frameBox: Rect | undefined) => {
     (frameBox ? ` · ${formatRect(frameBox)}` : "");
 };
 
-/** A point on the canvas, in the shown character's space */
+/** Converts a pointer event's position on the canvas to the shown character's space */
 export const pointAt = (event: MouseEvent): [number, number] => {
   const ratio = window.devicePixelRatio || 1;
 
@@ -583,7 +585,7 @@ const covers = (leaf: Leaf, [x, y]: [number, number]): boolean => {
     });
   }
 
-  const [l, top, r, bottom] = localBounds(leaf);
+  const [l, top, r, bottom] = getLocalBounds(leaf);
 
   return lx >= l && lx <= r && ly >= top && ly <= bottom;
 };
@@ -606,7 +608,7 @@ const inTriangle = (
 };
 
 /** The topmost button whose hit area is under the point */
-const buttonAt = (point: [number, number]): Instance | undefined => {
+const findButtonAt = (point: [number, number]): Instance | undefined => {
   for (let index = scene.hits.length - 1; index >= 0; index--) {
     if (covers(scene.hits[index].leaf, point)) {
       return scene.hits[index].button;
@@ -616,7 +618,7 @@ const buttonAt = (point: [number, number]): Instance | undefined => {
 };
 
 /** The topmost instance worth inspecting under the point */
-const instanceAt = (
+const findInstanceAt = (
   point: [number, number],
   deep = false,
 ): Instance | undefined => {
@@ -640,7 +642,7 @@ stage.addEventListener("mousemove", (event) => {
   }
 
   if (view.interact) {
-    const next = buttonAt(point);
+    const next = findButtonAt(point);
 
     if (next !== hovered) {
       currentPlayer().hover(hovered, next);
@@ -649,7 +651,7 @@ stage.addEventListener("mousemove", (event) => {
     }
     stage.style.cursor = next ? "pointer" : "default";
   } else {
-    const next = instanceAt(point);
+    const next = findInstanceAt(point);
 
     stage.style.cursor =
       tools.map((each) => each.cursor(point)).find(Boolean) ?? "default";
@@ -690,7 +692,7 @@ stage.addEventListener("mousedown", (event) => {
   }
 
   // A click picks what the shown timeline places; a double click reaches inside
-  const picked = instanceAt(pointAt(event), event.detail >= 2);
+  const picked = findInstanceAt(pointAt(event), event.detail >= 2);
 
   state.inspected = picked?.path;
   onInspect();
@@ -751,6 +753,7 @@ export const playFrom = (frame: number): void => {
   render();
 };
 
+/** Starts or pauses playback, and shows which on the play button and the mode line */
 export const play = (playing: boolean): void => {
   view.playing = playing;
   owed = 0;

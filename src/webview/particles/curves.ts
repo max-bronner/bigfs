@@ -34,8 +34,8 @@ const fields = (): NumericField[] => state.scene?.fields ?? [];
 const valueOf = (field: NumericField) =>
   state.scene?.values[field.id] ?? field.value;
 
-/** The keys of a kind as the block now has them, slider values included */
-const keysOf = (kind: KeyKind): Key[] => {
+/** Reads the keys of a kind as the block now has them, slider values included */
+const readKeys = (kind: KeyKind): Key[] => {
   const keys: Key[] = [];
 
   for (let index = 1; index <= MAX_KEYS; index++) {
@@ -66,7 +66,7 @@ const keysOf = (kind: KeyKind): Key[] => {
   return keys;
 };
 
-/** A plain field's value, slider value included, or a fallback */
+/** Reads a plain field's value, slider value included, or a fallback */
 const fieldValue = (keyword: string, part: string, fallback: number) => {
   const field = fields().find(
     (each) =>
@@ -77,7 +77,7 @@ const fieldValue = (keyword: string, part: string, fallback: number) => {
   return field ? { value: valueOf(field), id: field.id } : { value: fallback };
 };
 
-const set = (id: string | undefined, value: number) => {
+const setValue = (id: string | undefined, value: number) => {
   if (!id || !state.scene || !Number.isFinite(value)) {
     return;
   }
@@ -109,14 +109,14 @@ const rootDef = () =>
     ? library.systems.get(state.scene.root.name.toLowerCase())
     : undefined;
 
-/** The frames the graphs span: the longest life, or the last key */
+/** Counts the frames the graphs span: the longest life, or the last key */
 const span = (): number => {
   const def = rootDef();
   const life = fieldValue('Lifetime', 'max', def?.lifetime.high ?? 30).value;
   const lastKey = Math.max(
     0,
     ...(['Color', 'Alpha'] as const).flatMap((kind) =>
-      keysOf(kind)
+      readKeys(kind)
         .filter((key) => key.active)
         .map((key) => key.values.frame ?? 0),
     ),
@@ -125,7 +125,7 @@ const span = (): number => {
   return Math.max(1, life, lastKey);
 };
 
-/** A channel or alpha value at a frame, held before the first key and after the last */
+/** Samples a channel or alpha value at a frame, held before the first key and after the last */
 const sample = (keys: Key[], part: Part, frame: number): number => {
   const active = keys.filter((key) => key.active);
 
@@ -149,8 +149,8 @@ const sample = (keys: Key[], part: Part, frame: number): number => {
   return active[active.length - 1].values[part] ?? 0;
 };
 
-/** Size at an age: the start plus each frame's rate, damped */
-const sizeAt = (start: number, rate: number, damping: number, age: number) =>
+/** Computes the size at an age: the start plus each frame's rate, damped */
+const computeSizeAt = (start: number, rate: number, damping: number, age: number) =>
   damping === 1
     ? start + rate * age
     : start + (rate * (1 - damping ** age)) / (1 - damping);
@@ -205,7 +205,7 @@ const attachDrag = (canvas: HTMLCanvasElement) => {
   });
 };
 
-/** The frame a key may move to: after the key before it, before the one after */
+/** Clamps the frame a key may move to: after the key before it, before the one after */
 const clampFrame = (keys: Key[], index: number, frame: number) => {
   if (index === 0) {
     return keys[0].values.frame ?? 0;
@@ -242,7 +242,7 @@ const button = (text: string, title: string, onClick: () => void) => {
 
 /** Adds a key after the selected one, halfway to the next, at the curve's value there */
 const addKey = (kind: KeyKind) => {
-  const keys = keysOf(kind);
+  const keys = readKeys(kind);
   const active = keys.filter((key) => key.active);
   const inactive = keys.filter((key) => !key.active);
 
@@ -280,7 +280,7 @@ const addKey = (kind: KeyKind) => {
 };
 
 const removeKey = (kind: KeyKind) => {
-  const keys = keysOf(kind);
+  const keys = readKeys(kind);
   const index = selected[kind];
 
   if (!keys[index]) {
@@ -296,7 +296,7 @@ const removeKey = (kind: KeyKind) => {
 };
 
 const colourSection = (): HTMLElement[] => {
-  const keys = keysOf('Color');
+  const keys = readKeys('Color');
   const { canvas, ctx, width, height } = makeCanvas(36);
   const strip = 22;
 
@@ -336,11 +336,11 @@ const colourSection = (): HTMLElement[] => {
     }
     selected.Color = hit;
     startDrag(canvas, event, (dragX) => {
-      const now = keysOf('Color');
+      const now = readKeys('Color');
       const frame = clampFrame(now, hit, xToFrame(dragX, width));
 
       if (frame !== now[hit].values.frame) {
-        set(now[hit].ids.frame, frame);
+        setValue(now[hit].ids.frame, frame);
         renderCurves(true);
       }
     });
@@ -354,10 +354,10 @@ const colourSection = (): HTMLElement[] => {
   picker.value = key ? toHex(key) : '#ffffff';
   picker.disabled = !key;
   picker.oninput = () => {
-    const now = keysOf('Color')[selected.Color];
+    const now = readKeys('Color')[selected.Color];
 
     (['R', 'G', 'B'] as const).forEach((part, channel) =>
-      set(
+      setValue(
         now?.ids[part],
         parseInt(picker.value.slice(1 + channel * 2, 3 + channel * 2), 16),
       ),
@@ -368,9 +368,9 @@ const colourSection = (): HTMLElement[] => {
   frameInput.value = String(key?.values.frame ?? 0);
   frameInput.disabled = !key || selected.Color === 0;
   frameInput.onchange = () => {
-    const now = keysOf('Color');
+    const now = readKeys('Color');
 
-    set(
+    setValue(
       now[selected.Color]?.ids.frame,
       clampFrame(now, selected.Color, Number(frameInput.value)),
     );
@@ -395,13 +395,13 @@ const colourSection = (): HTMLElement[] => {
 };
 
 const alphaSection = (): HTMLElement[] => {
-  const keys = keysOf('Alpha');
+  const keys = readKeys('Alpha');
   const { canvas, ctx, width, height } = makeCanvas(90);
   const toY = (value: number) => PAD + (1 - value) * (height - 2 * PAD);
   const fromY = (y: number) =>
     Math.max(0, Math.min(1, 1 - (y - PAD) / (height - 2 * PAD)));
 
-  grid(ctx, width, height);
+  drawGrid(ctx, width, height);
   ctx.beginPath();
   for (let x = PAD; x <= width - PAD; x++) {
     ctx.lineTo(x, toY(sample(keys, 'max', xToFrame(x, width))));
@@ -458,7 +458,7 @@ const alphaSection = (): HTMLElement[] => {
     const together = event.shiftKey;
 
     startDrag(canvas, event, (dragX, dragY) => {
-      const now = keysOf('Alpha');
+      const now = readKeys('Alpha');
       const key = now[hit.index];
       const value = Math.round(fromY(dragY) * 100) / 100;
       const frame = clampFrame(now, hit.index, xToFrame(dragX, width));
@@ -467,16 +467,16 @@ const alphaSection = (): HTMLElement[] => {
         const shift = value - (key.values[hit.part] ?? 0);
 
         for (const part of ['min', 'max'] as const) {
-          set(
+          setValue(
             key.ids[part],
             Math.max(0, Math.min(1, (key.values[part] ?? 0) + shift)),
           );
         }
       } else {
-        set(key.ids[hit.part], value);
+        setValue(key.ids[hit.part], value);
       }
       if (frame !== key.values.frame) {
-        set(key.ids.frame, frame);
+        setValue(key.ids.frame, frame);
       }
       renderCurves(true);
     });
@@ -514,7 +514,7 @@ const sizeSection = (): HTMLElement[] => {
   const life = span();
   const curves = [0, 1].map((at) =>
     Array.from({ length: Math.ceil(life) + 1 }, (_, age) =>
-      sizeAt(sizes[at].value, rates[at].value, dampings[at].value, age),
+      computeSizeAt(sizes[at].value, rates[at].value, dampings[at].value, age),
     ),
   );
   const top = Math.max(1, ...curves.flat()) * 1.15;
@@ -523,7 +523,7 @@ const sizeSection = (): HTMLElement[] => {
     PAD + (1 - Math.max(0, value) / top) * (height - 2 * PAD);
   const fromY = (y: number) => (1 - (y - PAD) / (height - 2 * PAD)) * top;
 
-  grid(ctx, width, height);
+  drawGrid(ctx, width, height);
   curves.forEach((curve, at) => {
     ctx.beginPath();
     curve.forEach((value, age) => ctx.lineTo(frameToX(age, width), toY(value)));
@@ -565,7 +565,7 @@ const sizeSection = (): HTMLElement[] => {
         damping === 1 ? life : (1 - damping ** life) / (1 - damping);
       const rate = (end - sizes[hit.at].value) / (growth || 1);
 
-      set(hit.id, Math.round(rate * 10000) / 10000);
+      setValue(hit.id, Math.round(rate * 10000) / 10000);
       renderCurves(true);
     });
   });
@@ -579,7 +579,7 @@ const sizeSection = (): HTMLElement[] => {
   ];
 };
 
-const grid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
   ctx.fillStyle = 'rgba(24, 24, 24, 0.9)';
   ctx.fillRect(0, 0, width, height);
   ctx.strokeStyle = 'rgba(255,255,255,0.08)';
@@ -624,7 +624,7 @@ const row = (...children: HTMLElement[]) => {
 };
 
 /**
- * Draws the curves of the previewed system; empty for an FX list. During
+ * Renders the curves of the previewed system; empty for an FX list. During
  * a drag only the canvases are redrawn, so the drag survives.
  */
 export const renderCurves = (dragging = false): void => {

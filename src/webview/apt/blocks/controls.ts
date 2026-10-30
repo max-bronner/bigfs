@@ -14,8 +14,8 @@ import {
  * the user is done with it, so one change is one undo step.
  */
 
-/** A labelled field of a block; the label sits left and the controls wrap */
-export const field = (label: string, ...controls: Node[]): HTMLDivElement => {
+/** Creates a labelled field of a block; the label sits left and the controls wrap */
+export const createField = (label: string, ...controls: Node[]): HTMLDivElement => {
   const element = document.createElement('div');
   const name = document.createElement('label');
 
@@ -25,8 +25,8 @@ export const field = (label: string, ...controls: Node[]): HTMLDivElement => {
   return element;
 };
 
-/** A subheading inside a block's body */
-export const section = (title: string): HTMLDivElement => {
+/** Creates a subheading inside a block's body */
+export const createSection = (title: string): HTMLDivElement => {
   const element = document.createElement('div');
 
   element.className = 'bk-section';
@@ -34,6 +34,7 @@ export const section = (title: string): HTMLDivElement => {
   return element;
 };
 
+/** Creates a read-only piece of text, with an optional tooltip */
 export const text = (value: string, title?: string): HTMLSpanElement => {
   const element = document.createElement('span');
 
@@ -45,6 +46,7 @@ export const text = (value: string, title?: string): HTMLSpanElement => {
   return element;
 };
 
+/** Creates a button in the block style, with an optional tooltip */
 export const action = (
   label: string,
   onClick: () => void,
@@ -61,7 +63,7 @@ export const action = (
   return element;
 };
 
-/** A number committed on change; a value that is not a number is marked and kept out */
+/** Creates a number input committed on change; a value that is not a number is marked and not committed */
 export const numberField = (
   value: number | undefined,
   onCommit: (value: number) => void,
@@ -109,7 +111,7 @@ export const numberField = (
   return element;
 };
 
-/** A line of text committed on change */
+/** Creates a one-line text input committed on change */
 export const textField = (
   value: string,
   onCommit: (value: string) => void,
@@ -127,7 +129,7 @@ export const textField = (
   return element;
 };
 
-/** A packed 32-bit word shown as hex */
+/** Creates an input for a packed 32-bit word shown as hex */
 export const hexField = (
   value: number,
   onCommit: (value: number) => void,
@@ -151,7 +153,7 @@ export const hexField = (
 };
 
 /**
- * A colour as a swatch, a native picker for RGB and one number per channel
+ * Creates a colour control: a swatch, a native picker for RGB and one number per channel
  * (bytes, 0 to 255, R G B A). The whole colour commits at once.
  */
 export const colourField = (
@@ -206,7 +208,7 @@ export const colourField = (
   return element;
 };
 
-/** One toggle per named bit of a word; a change commits the whole word */
+/** Creates one toggle per named bit of a word; a change commits the whole word */
 export const flagToggles = (
   names: [string, number][],
   value: number,
@@ -236,7 +238,7 @@ export const flagToggles = (
 };
 
 /**
- * A character picker: a button showing the choice that opens a list with a
+ * Creates a character picker: a button showing the choice that opens a list with a
  * search box, filtered as it is typed; arrows and Enter choose.
  */
 export const characterPicker = (
@@ -341,7 +343,7 @@ export const characterPicker = (
   return element;
 };
 
-/** The change a colour field makes to a placement's multiply or add term */
+/** Creates a colour field that edits a placement's packed multiply or add term */
 export const placementColour = (
   term: 'colorTransform' | 'colorAdd',
   word: number,
@@ -366,7 +368,7 @@ export const placementColour = (
   );
 };
 
-/** Number inputs for a tuple, each committing the whole tuple */
+/** Creates number inputs for a tuple, each committing the whole tuple */
 export const tupleFields = <T extends number[]>(
   values: T,
   names: string[],
@@ -400,7 +402,7 @@ const parseList = (source: string): number[][] =>
     .filter(Boolean)
     .map((part) => part.split(':').map(Number));
 
-/** A line input for a list of numbers (`width` per entry, joined by `:`), refusing one that is not */
+/** Creates a line input for a list of numbers (`width` per entry, joined by `:`), refusing text that is not one */
 export const listField = (
   source: string,
   width: number,

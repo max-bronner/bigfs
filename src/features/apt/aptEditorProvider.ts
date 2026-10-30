@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ToolBox } from '../../services/toolRegistry';
+import type { ToolBox } from '../../core/toolRegistry';
 import type { EntryLocator } from '../../services/entryLocator';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import type { AptEdit, EditResult } from '../../formats/apt/writer/aptEdit';
@@ -35,10 +35,10 @@ export class AptEditorProvider
   /** Fires for every edit, which is what makes the editor dirty and undoable */
   public readonly onDidChangeCustomDocument = this.onDidChangeEmitter.event;
 
-  /** What the integrity check found, on each movie's `.apt` */
+  /** Diagnostics the integrity check reports on each movie's `.apt` */
   public readonly problems = vscode.languages.createDiagnosticCollection('apt');
 
-  /** Redraws of each open document's page */
+  /** Redraw of each open document's page */
   private readonly redraws = new Map<AptDocument, () => Promise<void>>();
 
   /** Open documents by uri, for edits that do not come from the page */
@@ -47,13 +47,13 @@ export class AptEditorProvider
   /** Whether each open document's page has loaded and asked for its data */
   private readonly pagesReady = new Set<AptDocument>();
 
-  /** What each page was last sent about imports: unresolved, and where each movie came from */
+  /** Import state each page was last sent: unresolved imports, and where each movie came from */
   private readonly imported = new Map<
     AptDocument,
     { unresolved: string[]; origins: Record<string, string> }
   >();
 
-  /** Where the page bundle is built */
+  /** Folder the page bundle is built into */
   private readonly scripts: vscode.Uri;
 
   /** Finds the movies imports name, the way the game does */
@@ -149,7 +149,7 @@ export class AptEditorProvider
     vscode.Disposable.from(...this.disposables).dispose();
   }
 
-  /** An open movie by its `.apt` uri, as edited */
+  /** Finds an open movie by its `.apt` uri, as edited */
   public findDocument(key: string): AptDocument | undefined {
     return this.open.get(key);
   }
@@ -159,8 +159,8 @@ export class AptEditorProvider
     return this.pagesReady.has(document);
   }
 
-  /** What a document's page was last sent about its imports */
-  public shownImports(
+  /** Gets the import state a document's page was last sent, for automation and tests */
+  public getShownImports(
     document: AptDocument,
   ): { unresolved: string[]; origins: Record<string, string> } | undefined {
     return this.imported.get(document);
@@ -190,6 +190,7 @@ export class AptEditorProvider
     return this.scriptTabs.open(document, block, label);
   }
 
+  /** Opens a movie, restoring a hot-exit backup when there is one */
   public async openCustomDocument(
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
@@ -205,10 +206,12 @@ export class AptEditorProvider
     return document;
   }
 
+  /** Saves the movie and the files its edits added */
   public async saveCustomDocument(document: AptDocument): Promise<void> {
     await document.save();
   }
 
+  /** Saves the movie and its `.const` beside `destination` */
   public async saveCustomDocumentAs(
     document: AptDocument,
     destination: vscode.Uri,
@@ -216,6 +219,7 @@ export class AptEditorProvider
     await document.save(destination);
   }
 
+  /** Reads the movie from disk again, keeping the document its pages hold */
   public async revertCustomDocument(document: AptDocument): Promise<void> {
     const fresh = await AptDocument.open(
       document.uri,
@@ -227,6 +231,7 @@ export class AptEditorProvider
     await this.redraws.get(document)?.();
   }
 
+  /** Writes a hot-exit backup of the movie as edited */
   public async backupCustomDocument(
     document: AptDocument,
     context: vscode.CustomDocumentBackupContext,
@@ -256,7 +261,7 @@ export class AptEditorProvider
     // and a script tab of this one reads its block again
     const redraw = async () => {
       await this.redrawAll();
-      this.scriptTabs.changed(document);
+      this.scriptTabs.notifyChanged(document);
       this.textView.changed(document.uri);
     };
 
@@ -284,6 +289,7 @@ export class AptEditorProvider
     ).then(() => undefined);
   }
 
+  /** Fills a panel with the editor page and wires it to the document */
   public async resolveCustomEditor(
     document: AptDocument,
     panel: vscode.WebviewPanel,
@@ -302,7 +308,7 @@ export class AptEditorProvider
     const post = (message: ToPage) => panel.webview.postMessage(message);
 
     this.redraws.set(document, async () => {
-      const message = await this.imports.movieMessage(
+      const message = await this.imports.buildMovieMessage(
         document,
         sentTextures,
         sentMovies,

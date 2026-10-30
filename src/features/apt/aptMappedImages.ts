@@ -1,12 +1,13 @@
 import type { EntryLocator } from '../../services/entryLocator';
 import { imageExtent, isRotated, mappedUv } from '../../formats/mappedImage/mappedImage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { loadMappedTexture, readMappedImage } from '../preview/mappedImagePreview';
+import { loadMappedTexture, readMappedImage } from '../../services/mappedImagePreview';
 import type { PageMappedImage, TexturePixels } from '../../webview/apt/protocol';
 
 /** Most names answered per request, so a page cannot ask for the whole INI */
 export const MAX_NAMES = 64;
 
+/** Reply to a page's `MappedImage` request: each name's image and the textures not yet sent */
 export interface MappedAnswer {
   images: Record<string, PageMappedImage | null>;
   textures: Record<string, TexturePixels>;

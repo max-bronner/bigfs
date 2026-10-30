@@ -13,6 +13,7 @@ import type { BaseArchive } from './modPackage';
  * the workspace.
  */
 
+/** Where the base game keeps one file: a span of an archive, or a loose file */
 export interface BaseEntry {
   /** The archive, or for a loose file the file itself */
   archive: string;
@@ -106,7 +107,7 @@ export const listBaseArchives = async (
   };
 };
 
-/** Reads a base game file */
+/** Reads a base game file's bytes, from its archive or from disk when it is loose */
 export const readBaseEntry = async (entry: BaseEntry): Promise<Uint8Array> => {
   if (entry.loose) {
     return readFile(entry.archive);
@@ -124,22 +125,25 @@ export const readBaseEntry = async (entry: BaseEntry): Promise<Uint8Array> => {
   }
 };
 
-export type Change = 'added' | 'changed' | 'same';
+/** How a mod's file compares with the copy the base game loads */
+export type ComparisonKind = 'added' | 'changed' | 'same';
 
+/** A file of the mod, whose bytes are read only when its size matches the base game's */
 export interface ModFile {
   entryPath: string;
   size: number;
   read: () => PromiseLike<Uint8Array>;
 }
 
+/** Result of `compareWithBase` for one mod file; `baseSize` is unset for an added one */
 export interface ComparedFile {
   entryPath: string;
-  change: Change;
+  change: ComparisonKind;
   size: number;
   baseSize?: number;
 }
 
-const equalBytes = (a: Uint8Array, b: Uint8Array) =>
+const areBytesEqual = (a: Uint8Array, b: Uint8Array) =>
   a.length === b.length && a.every((byte, index) => byte === b[index]);
 
 /** Sorts each of the mod's files into added, changed or the same as the base game */
@@ -179,7 +183,7 @@ export const compareWithBase = async (
 
       results.push({
         entryPath: file.entryPath,
-        change: equalBytes(mine, theirs) ? 'same' : 'changed',
+        change: areBytesEqual(mine, theirs) ? 'same' : 'changed',
         size: file.size,
         baseSize: entry.size,
       });

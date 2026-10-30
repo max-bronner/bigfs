@@ -27,7 +27,7 @@ const listFolder = (folder: vscode.Uri) => {
   return listing;
 };
 
-/** A path below a folder, each step matched without casing */
+/** Finds a path below a folder, each step matched without casing */
 const findBelow = async (
   folder: vscode.Uri,
   relative: string,
@@ -52,7 +52,11 @@ const findBelow = async (
   return at;
 };
 
-export const movieAccess = (
+/**
+ * Creates the `MovieAccess` an integrity check reads a movie's neighbours
+ * through. `added` holds an unsaved edit's files; an empty one marks a removal.
+ */
+export const createMovieAccess = (
   aptUri: vscode.Uri,
   name: string,
   apt: Uint8Array,
@@ -115,8 +119,8 @@ export const movieAccess = (
   };
 };
 
-/** Every `.apt` of the workspace, loose and inside archives */
-export const workspaceMovies = async (
+/** Finds every `.apt` of the workspace, loose and inside archives */
+export const findWorkspaceMovies = async (
   archiveModel: ArchiveModel,
 ): Promise<vscode.Uri[]> => {
   await archiveModel.whenReady();
@@ -141,7 +145,7 @@ export const workspaceMovies = async (
   return movies;
 };
 
-/** A file or folder beside a movie, matched without casing */
+/** Finds a file or folder beside a movie, matched without casing */
 export const findBeside = (
   aptUri: vscode.Uri,
   relative: string,
@@ -151,7 +155,7 @@ export const findBeside = (
   return findBelow(vscode.Uri.joinPath(aptUri, '..'), relative, type);
 };
 
-/** The names in a folder beside a movie, matched without casing */
+/** Lists the names in a folder beside a movie, found without casing */
 export const listBeside = async (
   aptUri: vscode.Uri,
   relative: string,

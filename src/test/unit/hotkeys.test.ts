@@ -1,15 +1,15 @@
 import * as assert from 'assert';
-import { hotkeyClashes, hotkeyOf } from '../../game/ini-tools/hotkeys';
+import { findHotkeyClashes, readHotkey } from '../../game/ini-tools/hotkeys';
 
 suite('Hotkey clashes', () => {
   test('the character after a single & is the key', () => {
-    assert.strictEqual(hotkeyOf('&Train'), 'T');
-    assert.strictEqual(hotkeyOf('Fish && &Chips'), 'C');
-    assert.strictEqual(hotkeyOf('No key'), undefined);
+    assert.strictEqual(readHotkey('&Train'), 'T');
+    assert.strictEqual(readHotkey('Fish && &Chips'), 'C');
+    assert.strictEqual(readHotkey('No key'), undefined);
   });
 
   test('two buttons shown together on one key clash', () => {
-    const clashes = hotkeyClashes([
+    const clashes = findHotkeyClashes([
       { slot: 1, hotkey: 'A' },
       { slot: 2, hotkey: 'A' },
       { slot: 3, hotkey: 'B' },
@@ -30,11 +30,11 @@ suite('Hotkey clashes', () => {
       { slot: 2, hotkey: 'F', needs: ['testupgrade'] },
     ];
 
-    assert.strictEqual(hotkeyClashes(slots).size, 0);
+    assert.strictEqual(findHotkeyClashes(slots).size, 0);
   });
 
   test('a third button on the key still clashes with both', () => {
-    const clashes = hotkeyClashes([
+    const clashes = findHotkeyClashes([
       { slot: 1, hotkey: 'F', grants: ['testupgrade'] },
       { slot: 2, hotkey: 'F', needs: ['testupgrade'] },
       { slot: 3, hotkey: 'F' },
@@ -56,9 +56,9 @@ suite('Hotkey clashes', () => {
       { slot: 2, hotkey: 'F', needs: ['one', 'two'], needsAny: true },
     ];
 
-    assert.strictEqual(hotkeyClashes(slots).size, 2);
+    assert.strictEqual(findHotkeyClashes(slots).size, 2);
     assert.strictEqual(
-      hotkeyClashes([slots[0], { slot: 2, hotkey: 'F', needs: ['one', 'two'] }])
+      findHotkeyClashes([slots[0], { slot: 2, hotkey: 'F', needs: ['one', 'two'] }])
         .size,
       0,
     );

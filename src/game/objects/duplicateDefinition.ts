@@ -7,11 +7,13 @@ import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
  * instead of sharing the original's.
  */
 
+/** A game-text label renamed in a copy, so its text can be copied too */
 export interface LabelRename {
   from: string;
   to: string;
 }
 
+/** A copied definition's lines and the labels renamed in it */
 export interface Duplicate {
   lines: string[];
   labels: LabelRename[];
@@ -22,6 +24,11 @@ const LABEL = /^[A-Za-z_]+:\S+$/;
 const escapeRegExp = (text: string) =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/**
+ * Copies the definition at `startLine`..`endLine` under a new name, renaming
+ * the labels that carry the old one.
+ * @throws Error when the header line has no name to replace
+ */
 export const duplicateDefinition = (
   lines: string[],
   startLine: number,
@@ -75,4 +82,4 @@ export const renameLabels = (
     labels: [...labels].map(([from, to]) => ({ from, to })),
   };
 };
-export { strRecord } from '../../formats/str/sageStringRecords';
+export { formatStrRecord as strRecord } from '../../formats/str/sageStringRecords';

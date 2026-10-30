@@ -1,4 +1,4 @@
-import { BoolDecoder, Huff, tree } from './coders';
+import { BoolDecoder, HuffmanCode, readBranch } from './coders';
 import * as T from './tables';
 
 /**
@@ -6,6 +6,7 @@ import * as T from './tables';
  * `crates/core/vp6/src/models.rs` (NihAV via Ruffle, MIT).
  */
 
+/** Motion vector probabilities for one component, horizontal or vertical */
 export interface MvModel {
   nzProb: number;
   signProb: number;
@@ -13,6 +14,7 @@ export interface MvModel {
   treeProbs: number[];
 }
 
+/** Coefficient token probabilities for one plane group, luma or chroma */
 export interface CoeffModel {
   dcTokenProbs: number[][];
   dcValueProbs: number[];
@@ -41,6 +43,7 @@ const rescaleModeProb = (prob: number, total: number) => {
 const rescaleProb = (prob: number, weights: readonly number[]) =>
   Math.max(1, Math.min(255, ((prob * weights[0] + 128) >> 8) + weights[1]));
 
+/** Adaptive probability state a VP6 decoder or encoder carries from frame to frame */
 export class Models {
   public mv: MvModel[] = [0, 1].map(() => ({
     nzProb: 0,
@@ -48,6 +51,7 @@ export class Models {
     rawProbs: new Array(8).fill(0),
     treeProbs: new Array(7).fill(0),
   }));
+  /** Macroblock type probabilities by context, then previous mode */
   public mbtype: number[][][] = Array.from({ length: 3 }, () =>
     Array.from({ length: 10 }, () => new Array(10).fill(0)),
   );
@@ -62,11 +66,12 @@ export class Models {
     new Array(14).fill(0),
   ];
   public huff = {
-    dc: [] as Huff[],
-    ac: [] as Huff[][][],
-    zeroRun: [] as Huff[],
+    dc: [] as HuffmanCode[],
+    ac: [] as HuffmanCode[][][],
+    zeroRun: [] as HuffmanCode[],
   };
 
+  /** Restores the default probabilities and scan order, as every intra frame does */
   public reset(interlaced: boolean): void {
     this.mv.forEach((model, index) => {
       model.nzProb = T.NZ_PROBS[index];
@@ -106,6 +111,7 @@ export class Models {
     }
   }
 
+  /** Reads the macroblock mode probability updates of a frame header, then recomputes `mbtype` */
   public decodeModeProbs(bc: BoolDecoder): void {
     for (let ctx = 0; ctx < 3; ctx++) {
       const px = this.probXmitted[ctx];
@@ -130,30 +136,30 @@ export class Models {
 
           const sign = bc.readBool();
           const diff =
-            tree(
+            readBranch(
               bc,
               171,
               () =>
-                tree(
+                readBranch(
                   bc,
                   83,
                   () => 2,
                   () => 1,
                 ),
               () =>
-                tree(
+                readBranch(
                   bc,
                   199,
                   () =>
-                    tree(
+                    readBranch(
                       bc,
                       140,
                       () =>
-                        tree(
+                        readBranch(
                           bc,
                           125,
                           () =>
-                            tree(
+                            readBranch(
                               bc,
                               104,
                               () => 6,
@@ -185,7 +191,7 @@ export class Models {
     this.computeModeProbs();
   }
 
-  /** The macroblock type probabilities, from the transmitted pairs */
+  /** Derives the macroblock type probabilities from the transmitted pairs */
   public computeModeProbs(): void {
     this.probXmitted.forEach((px, ctx) => {
       this.mbtype[ctx].forEach((probs, mode) => {
@@ -225,6 +231,7 @@ export class Models {
     });
   }
 
+  /** Reads the motion vector probability updates of a frame header */
   public decodeMvModels(bc: BoolDecoder): void {
     this.mv.forEach((model, index) => {
       if (bc.readProb(T.HAS_NZ_PROB[index])) {
@@ -251,6 +258,10 @@ export class Models {
     });
   }
 
+  /**
+   * Reads the coefficient, scan order and zero-run probability updates of a
+   * frame header. An intra frame sets every slot it does not update to the default.
+   */
   public decodeCoeffModels(
     bc: BoolDecoder,
     isIntra: boolean,
@@ -319,17 +330,18 @@ export class Models {
     }
   }
 
+  /** Builds the Huffman tables a frame that codes its coefficients with Huffman reads from */
   public buildHuffman(): void {
     this.huff.dc = this.coeff.map((model) =>
-      Huff.fromTokenProbs(model.dcValueProbs),
+      HuffmanCode.fromTokenProbs(model.dcValueProbs),
     );
     this.huff.ac = this.coeff.map((model) =>
       model.acValProbs.map((mode) =>
-        mode.map((probs) => Huff.fromTokenProbs(probs)),
+        mode.map((probs) => HuffmanCode.fromTokenProbs(probs)),
       ),
     );
     this.huff.zeroRun = this.zeroRunProbs.map((probs) =>
-      Huff.fromZeroRunProbs(probs),
+      HuffmanCode.fromZeroRunProbs(probs),
     );
   }
 }

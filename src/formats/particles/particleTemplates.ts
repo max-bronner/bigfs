@@ -6,13 +6,16 @@
  * Each is a snippet: the name and the texture are tab stops.
  */
 
+/** Starting point for a new particle system, as the template picker lists it */
 export interface ParticleTemplate {
   label: string;
+  /** One-line description of the look, shown beside the label */
   detail: string;
   /** The block after its header line, two-space indented */
   body: string;
 }
 
+/** Templates the new-particle-system command offers, in the order shown */
 export const PARTICLE_TEMPLATES: readonly ParticleTemplate[] = [
   {
     label: 'Fire',
@@ -274,6 +277,6 @@ export const PARTICLE_TEMPLATES: readonly ParticleTemplate[] = [
   },
 ];
 
-/** A template as snippet text: the name is the first tab stop, the texture the second */
-export const templateSnippet = (template: ParticleTemplate, name: string) =>
+/** Creates a template's snippet text: the name is the first tab stop, the texture the second */
+export const createTemplateSnippet = (template: ParticleTemplate, name: string) =>
   `FXParticleSystem \${1:${name}}\n${template.body}\nEnd\n`;

@@ -9,17 +9,17 @@ import type { Uri } from 'vscode';
 import type { CodeActionProvider, Diagnostic, TextDocument } from 'vscode';
 import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
-import { closestNames, missingEndLine } from '../../../formats/ini/sageIniFormat';
+import { findClosestNames, findMissingEndLine } from '../../../formats/ini/sageIniFormat';
 import {
   findGameTextLabels,
-  labelOfMissingText,
-  placeholderText,
+  parseMissingTextLabel,
+  createPlaceholderText,
 } from '../../../game/text/gameTextLabels';
-import { strRecord } from '../../../formats/str/sageStringRecords';
+import { formatStrRecord } from '../../../formats/str/sageStringRecords';
 import type { SageDocument } from '../../../formats/ini/sageIniParser';
 import {
   isMissingAssetMessage,
-  suggestedAssetNames,
+  parseSuggestedAssetNames,
 } from '../../../formats/ini/sageIniAssets';
 
 /**
@@ -27,11 +27,12 @@ import {
  * remove a stray one, and replace an unknown keyword or an unresolved name
  * with the close ones the game does know.
  */
+
 /**
- * The string table a new label belongs in: the one holding the labels this
+ * Finds the string table a new label belongs in: the one holding the labels this
  * file already uses, else the first one in the workspace folders
  */
-const stringTableFor = async (
+const findStringTable = async (
   parsed: SageDocument,
   index: SageIniIndex,
 ): Promise<Uri | undefined> => {
@@ -48,6 +49,7 @@ const stringTableFor = async (
   return loose;
 };
 
+/** Creates the quick-fix provider for the diagnostics bigFS reports */
 export const createSageIniCodeActionProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -94,7 +96,7 @@ export const createSageIniCodeActionProvider = (
       const message = diagnostic.message;
 
       if (message.endsWith('is never closed with End')) {
-        const at = missingEndLine(lines, line);
+        const at = findMissingEndLine(lines, line);
         const indent = lines[line].slice(
           0,
           lines[line].length - lines[line].trimStart().length,
@@ -139,14 +141,14 @@ export const createSageIniCodeActionProvider = (
             .getContextKeywords(statement.context)
             .map((keyword) => keyword.name);
 
-          for (const name of closestNames(statement.keyword.text, known)) {
+          for (const name of findClosestNames(statement.keyword.text, known)) {
             fix(`Change to '${name}'`, diagnostic, (edit) =>
               edit.replace(document.uri, diagnostic.range, name),
             );
           }
         }
       } else if (isMissingAssetMessage(message)) {
-        suggestedAssetNames(message).forEach((name, place) =>
+        parseSuggestedAssetNames(message).forEach((name, place) =>
           fix(
             `Change to '${name}'`,
             diagnostic,
@@ -154,9 +156,9 @@ export const createSageIniCodeActionProvider = (
             place === 0,
           ),
         );
-      } else if (labelOfMissingText(message)) {
-        const label = labelOfMissingText(message)!;
-        const table = await stringTableFor(parsed, index);
+      } else if (parseMissingTextLabel(message)) {
+        const label = parseMissingTextLabel(message)!;
+        const table = await findStringTable(parsed, index);
 
         if (table) {
           const target = await workspace.openTextDocument(table);
@@ -172,7 +174,7 @@ export const createSageIniCodeActionProvider = (
                 table,
                 last.range.end,
                 (last.text ? eol : '') +
-                  strRecord(label, placeholderText(label), eol),
+                  formatStrRecord(label, createPlaceholderText(label), eol),
               ),
             true,
           );
@@ -185,7 +187,7 @@ export const createSageIniCodeActionProvider = (
             .split(' or ')
             .flatMap((namespace) => index.getNames(namespace));
 
-          for (const name of closestNames(unresolved[2], names)) {
+          for (const name of findClosestNames(unresolved[2], names)) {
             fix(`Change to '${name}'`, diagnostic, (edit) =>
               edit.replace(document.uri, diagnostic.range, name),
             );
@@ -198,4 +200,5 @@ export const createSageIniCodeActionProvider = (
   },
 });
 
+/** Code action kinds the quick-fix provider is registered for */
 export const SAGE_INI_CODE_ACTION_KINDS = [CodeActionKind.QuickFix];

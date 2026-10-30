@@ -41,9 +41,9 @@ export interface Tool<Input, Output> {
 export interface ToolRegistry extends ToolBox {
   /** Adds tools. Ids must be unique across all of them: registering one twice throws */
   register(...tools: Tool<never, unknown>[]): void;
-  /** The tool registered under an id, if any */
+  /** Finds the tool registered under an id, if any */
   get(id: string): Tool<never, unknown> | undefined;
-  /** Every registered tool, in registration order */
+  /** Lists every registered tool, in registration order */
   all(): readonly Tool<never, unknown>[];
 }
 

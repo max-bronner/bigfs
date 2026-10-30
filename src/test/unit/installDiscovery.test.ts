@@ -4,8 +4,8 @@ import {
   findInstalls,
   parseRegistryInstallPaths,
   parseWineRegistry,
-  windowsCandidates,
-  winePrefixRoots,
+  listWindowsCandidates,
+  listWinePrefixRoots,
 } from '../../node/installDiscovery';
 import type { DiscoveryHost, Machine } from '../../node/installDiscovery';
 
@@ -59,7 +59,7 @@ suite('install discovery', () => {
   });
 
   test('builds Windows candidates from the environment, each once', () => {
-    const candidates = windowsCandidates({
+    const candidates = listWindowsCandidates({
       platform: 'win32',
       env: { ProgramFiles: 'C:\\Program Files' },
       home: 'C:\\Users\\a',
@@ -74,13 +74,13 @@ suite('install discovery', () => {
   });
 
   test('names Wine, Proton and CrossOver prefixes by platform', () => {
-    const linux = winePrefixRoots({ platform: 'linux', env: {}, home: '/h' });
-    const mac = winePrefixRoots({ platform: 'darwin', env: {}, home: '/h' });
+    const linux = listWinePrefixRoots({ platform: 'linux', env: {}, home: '/h' });
+    const mac = listWinePrefixRoots({ platform: 'darwin', env: {}, home: '/h' });
 
     assert.ok(linux.some((root) => root.endsWith('compatdata')));
     assert.ok(mac.some((root) => root.includes('CrossOver')));
     assert.deepStrictEqual(
-      winePrefixRoots({ platform: 'win32', env: {}, home: 'C:\\' }),
+      listWinePrefixRoots({ platform: 'win32', env: {}, home: 'C:\\' }),
       [],
     );
   });

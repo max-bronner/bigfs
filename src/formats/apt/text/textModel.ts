@@ -36,11 +36,13 @@ export interface ScriptText {
   line?: number;
 }
 
+/** A matrix and translation, as a placement or a Text character stores them */
 export interface Placement {
   matrix: Matrix2;
   translate: [number, number];
 }
 
+/** A frame item as the text holds it */
 export type ItemText = Origin &
   (
     | { type: 'action'; script: ScriptText }
@@ -67,13 +69,16 @@ export type ItemText = Origin &
     | { type: 'unknown'; itemType: number }
   );
 
+/** A clip action of a placement as the text holds it */
 export type ClipActionText = Origin & { events: number; script: ScriptText };
 
+/** A frame of a timeline as the text holds it */
 export interface FrameText extends Origin {
   index: number;
   items: ItemText[];
 }
 
+/** A button record as the text holds it */
 export type ButtonRecordText = Origin & {
   flags: number;
   depth: number;
@@ -83,11 +88,13 @@ export type ButtonRecordText = Origin & {
   unknown: [number, number, number, number];
 };
 
+/** A button action as the text holds it */
 export type ButtonActionText = Origin & {
   condition: number;
   script: ScriptText;
 };
 
+/** A run of a Text character as the text holds it */
 export type TextRunText = Origin & {
   font: number;
   color: [number, number, number, number];
@@ -97,6 +104,7 @@ export type TextRunText = Origin & {
   glyphs: { index: number; advance: number }[];
 };
 
+/** A character as the text holds it */
 export type CharacterText = Origin & { id: number } & (
     | {
         type: 'movie';
@@ -140,12 +148,15 @@ export type CharacterText = Origin & { id: number } & (
     | { type: 'unknown'; characterType: number }
   );
 
+/** A `.const` item as the text holds it */
 export type ConstText = Origin & { index: number; value: string | number };
+/** An import as the text holds it */
 export type ImportText = Origin & {
   character: number;
   movie: string;
   name: string;
 };
+/** An export as the text holds it */
 export type ExportText = Origin & { character: number; name: string };
 
 /** A movie and its `.const`, as the text holds them */
@@ -177,7 +188,7 @@ export interface IdSite {
 export const TEXT_HEADER = 'apt-text 1';
 
 /**
- * What `parseMovieText` returns: the model, and every problem found. A text
+ * Result of `parseMovieText`: the model, and every problem found. A text
  * with problems still gives the parts that read, for an outline and
  * navigation, but is never saved.
  */
@@ -187,15 +198,14 @@ export interface ParsedMovieText {
   ids: IdSite[];
 }
 
-/** The four button states, in the order of their bits in a record's flags */
-
+/** Names of the four button states, in the order of their bits in a record's flags */
 export const BUTTON_STATES = ['up', 'over', 'down', 'hit'];
 
-/** Script text as the text holds it: no trailing blanks on a line or at the end */
+/** Normalizes script text as the text holds it: no trailing blanks on a line or at the end */
 export const normalizeScript = (text: string): string =>
   text.replace(/[ \t]+$/gm, '').replace(/\n+$/, '');
 
-/** The flags word a placement's fields imply */
+/** Computes the flags word a placement's fields imply */
 export const impliedPlaceFlags = (
   item: Extract<ItemText, { type: 'place' }>,
   isMove: boolean,

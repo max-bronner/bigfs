@@ -9,11 +9,11 @@ import type { GameLanguage } from '../../services/ini/gameLanguage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import type { AptDocument, BuiltMovie } from './aptDocument';
 import type { AptLibrary, MovieLocation } from './aptLibrary';
-import { movieKey } from './aptLibrary';
+import { toMovieKey } from './aptLibrary';
 import { describeError } from '../../core/errors';
 import { readEngineAnswers } from './aptEngineAnswers';
 
-/** What a movie reads of the game beside its own files */
+/** Game services a movie reads beside its own files */
 export interface AptGameServices {
   /** Settles the language `$KEY` text is read in */
   gameLanguage: GameLanguage;
@@ -25,7 +25,7 @@ export interface AptGameServices {
 type MovieMessage = Extract<ToPage, { kind: 'movie' }>;
 type MovieLoadedMessage = Extract<ToPage, { kind: 'movieLoaded' }>;
 
-/** What following imports has found so far, and what the page was already sent */
+/** State of one import walk: what it has found so far, and what the page was already sent */
 interface ImportWalk {
   movies: Map<string, PageMovie>;
   library: Record<string, PageMovie>;
@@ -40,21 +40,21 @@ interface ImportWalk {
 const MAX_IMPORT_DEPTH = 8;
 const MAX_IMPORTED_MOVIES = 64;
 
-/** What the import walk needs of the editor and the game */
+/** Callbacks the import walk reaches the editor and the game through */
 export interface AptMovieImportsHost {
   /** Finds the movies imports name, the way the game does */
   library: AptLibrary;
   game: AptGameServices;
-  /** An open movie by `.apt` uri, as edited */
+  /** Finds an open movie by `.apt` uri, as edited */
   findDocument(key: string): AptDocument | undefined;
   /** Reads a movie that is not open */
   load(uri: vscode.Uri): Promise<AptDocument>;
 }
 
 /**
- * The movies a page draws beside its own: what its imports and `loadMovie`
- * calls reach through the install, built once per version, with what the
- * page already holds left out
+ * Import walk building the movies a page draws beside its own: what its
+ * imports and `loadMovie` calls reach through the install, built once per
+ * version, with what the page already holds left out
  */
 export interface AptMovieImports {
   /**
@@ -62,7 +62,7 @@ export interface AptMovieImports {
    * imports reach, followed through their own imports. Movies and textures
    * the page already has are left out; it keeps them.
    */
-  movieMessage(
+  buildMovieMessage(
     document: AptDocument,
     sentTextures: Set<string>,
     sentMovies: Map<string, string>,
@@ -74,7 +74,7 @@ export interface AptMovieImports {
    * holds, or a file that does not read, answers with the reason instead of
    * throwing.
    */
-  loadedMovie(
+  buildLoadedMovieMessage(
     name: string,
     sentTextures: Set<string>,
     sentMovies: Map<string, string>,
@@ -90,17 +90,17 @@ export const createAptMovieImports = ({
   findDocument,
   load,
 }: AptMovieImportsHost): AptMovieImports => {
-  /** Imported movies that are not open, read once, by `.apt` uri */
+  // Imported movies that are not open, read once, by `.apt` uri
   const loaded = new Map<string, Promise<AptDocument | undefined>>();
 
-  /** Imported movies as last built, by `.apt` uri, with the stamp built from */
+  // Imported movies as last built, by `.apt` uri, with the stamp built from
   const built = new Map<string, { stamp: string; movie: Promise<BuiltMovie> }>();
 
-  /** Goes up whenever the library forgets, so every movie is read afresh */
+  // Goes up whenever the library forgets, so every movie is read afresh
   let generation = 0;
 
-  /** The movie at an imported location: an open one as edited, else as read */
-  const importedMovie = (
+  /** Gets the movie at an imported location: an open one as edited, else as read */
+  const getImportedMovie = (
     location: MovieLocation,
   ): Promise<AptDocument | undefined> => {
     const key = location.uri.toString();
@@ -119,7 +119,7 @@ export const createAptMovieImports = ({
     return movie;
   };
 
-  const newWalk = (
+  const createWalk = (
     sentTextures: Set<string>,
     sentMovies: Map<string, string>,
   ): ImportWalk => ({
@@ -133,7 +133,7 @@ export const createAptMovieImports = ({
   });
 
   /** Adds the textures the page was not sent yet */
-  const take = (
+  const takeUnsentTextures = (
     walk: ImportWalk,
     all: Record<string, TexturePixels>,
   ): void => {
@@ -169,7 +169,7 @@ export const createAptMovieImports = ({
 
     walk.movies.set(key, page);
     walk.origins[key] = location.origin;
-    take(walk, own);
+    takeUnsentTextures(walk, own);
     if (walk.sentMovies.get(key) !== stamp) {
       walk.library[key] = page;
       walk.sentMovies.set(key, stamp);
@@ -181,7 +181,7 @@ export const createAptMovieImports = ({
    * Follows the imports of the queued movies through the install, filling
    * the walk. Returns how many imports it looked at.
    */
-  const follow = async (
+  const followImports = async (
     walk: ImportWalk,
     queue: { movie: PageMovie; depth: number }[],
   ): Promise<number> => {
@@ -191,7 +191,7 @@ export const createAptMovieImports = ({
       const { movie, depth } = queue.shift()!;
 
       for (const entry of movie.imports) {
-        const key = movieKey(entry.movie);
+        const key = toMovieKey(entry.movie);
 
         attempted++;
 
@@ -201,7 +201,7 @@ export const createAptMovieImports = ({
           walk.movies.size <= MAX_IMPORTED_MOVIES
         ) {
           const location = await library.locate(entry.movie);
-          const source = location && (await importedMovie(location));
+          const source = location && (await getImportedMovie(location));
 
           if (location && source) {
             queue.push({
@@ -226,11 +226,11 @@ export const createAptMovieImports = ({
   };
 
   /**
-   * Every `$KEY` string the movies hold, as the chosen language reads it, by
-   * the key as written. None when no string table is loaded, in which case
+   * Resolves every `$KEY` string the movies hold, as the chosen language reads
+   * it, by the key as written. None when no string table is loaded, in which case
    * the page shows the keys.
    */
-  const textsOf = async (
+  const resolveTexts = async (
     movies: readonly PageMovie[],
   ): Promise<Record<string, string> | undefined> => {
     await game.gameLanguage.ensure();
@@ -261,7 +261,7 @@ export const createAptMovieImports = ({
     sentTextures: Set<string>,
     sentMovies: Map<string, string>,
   ): Promise<MovieLoadedMessage> => {
-    const key = movieKey(name);
+    const key = toMovieKey(name);
     const failed = (error: string) =>
       ({ kind: 'movieLoaded', name: key, error }) as const;
 
@@ -272,19 +272,19 @@ export const createAptMovieImports = ({
         return failed(`no install holds ${key}.apt`);
       }
 
-      const source = await importedMovie(location);
+      const source = await getImportedMovie(location);
 
       if (!source) {
         return failed(`${key}.apt at ${location.origin} does not read`);
       }
 
-      const walk = newWalk(sentTextures, sentMovies);
+      const walk = createWalk(sentTextures, sentMovies);
       const movie = await fetchMovie(walk, key, location, source);
 
       // The page may hold this version already; it is sent again so a
       // mount never depends on what it kept
       walk.library[key] = movie;
-      await follow(walk, [{ movie, depth: 0 }]);
+      await followImports(walk, [{ movie, depth: 0 }]);
       return {
         kind: 'movieLoaded',
         name: key,
@@ -292,7 +292,7 @@ export const createAptMovieImports = ({
         textures: walk.textures,
         unresolved: walk.unresolved,
         origins: walk.origins,
-        texts: await textsOf([...walk.movies.values()]),
+        texts: await resolveTexts([...walk.movies.values()]),
       };
     } catch (error) {
       return failed(describeError(error));
@@ -305,12 +305,12 @@ export const createAptMovieImports = ({
     sentMovies: Map<string, string>,
   ): Promise<MovieMessage> => {
     const root = await document.build();
-    const walk = newWalk(sentTextures, sentMovies);
+    const walk = createWalk(sentTextures, sentMovies);
 
-    walk.movies.set(movieKey(document.name), root.movie);
-    take(walk, root.textures);
+    walk.movies.set(toMovieKey(document.name), root.movie);
+    takeUnsentTextures(walk, root.textures);
 
-    const attempted = await follow(walk, [{ movie: root.movie, depth: 0 }]);
+    const attempted = await followImports(walk, [{ movie: root.movie, depth: 0 }]);
     const { movies, library: sent, textures, unresolved, origins } = walk;
 
     const imports = attempted
@@ -328,14 +328,14 @@ export const createAptMovieImports = ({
       library: sent,
       unresolved,
       origins,
-      texts: await textsOf([...movies.values()]),
-      answers: readEngineAnswers(game.state)[movieKey(document.name)],
+      texts: await resolveTexts([...movies.values()]),
+      answers: readEngineAnswers(game.state)[toMovieKey(document.name)],
     };
   };
 
   return {
-    movieMessage,
-    loadedMovie,
+    buildMovieMessage: movieMessage,
+    buildLoadedMovieMessage: loadedMovie,
     forget() {
       loaded.clear();
       built.clear();

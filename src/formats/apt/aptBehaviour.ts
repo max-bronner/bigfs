@@ -4,7 +4,7 @@ import type { ConstItem } from './aptMovie';
 import type { Expr, Stmt } from './aptScriptSyntax';
 
 /**
- * What an action block does to timelines, read from its lifted script, so
+ * Reads what an action block does to timelines from its lifted script, so
  * a preview can play menus without running ActionScript: `gotoAndPlay`,
  * `gotoAndStop`, `play`, `stop`, `nextFrame`, `prevFrame`, in their call
  * and opcode forms (`GotoLabel`, `GotoFrame`, `Play`, ...), on `this`, a
@@ -18,6 +18,7 @@ import type { Expr, Stmt } from './aptScriptSyntax';
 /** A timeline path from the block's own timeline: `[]` is itself */
 export type TargetPath = string[];
 
+/** A timeline control an action block runs: a goto, or play, stop, next or prev */
 export type TimelineCommand =
   | {
       op: 'goto';
@@ -29,6 +30,7 @@ export type TimelineCommand =
     }
   | { op: 'play' | 'stop' | 'next' | 'prev'; target: TargetPath };
 
+/** The timeline commands an action block runs unconditionally, and how much it left unread */
 export interface Behaviour {
   commands: TimelineCommand[];
   /** Statements not run: anything that is not a timeline command */
@@ -45,7 +47,7 @@ const CALLS: Record<string, 'play' | 'stop' | 'next' | 'prev'> = {
 };
 
 /** A target written as a path string: `nav`, `../menu`, `/nav`, `_parent.x` */
-const pathOf = (text: string): TargetPath => {
+const parseTargetPath = (text: string): TargetPath => {
   const absolute = text.startsWith('/');
   // Slash paths first, so `..` survives; then dot paths inside each part
   const parts = text
@@ -58,16 +60,16 @@ const pathOf = (text: string): TargetPath => {
 };
 
 /** The timeline an expression names, when it is a plain path */
-const targetOf = (expr: Expr): TargetPath | undefined => {
+const resolveTarget = (expr: Expr): TargetPath | undefined => {
   switch (expr.k) {
     case 'kw':
       return expr.v === 'this' ? [] : undefined;
     case 'var':
-      return pathOf(expr.name);
+      return parseTargetPath(expr.name);
     case 'str':
-      return pathOf(expr.v);
+      return parseTargetPath(expr.v);
     case 'member': {
-      const parent = targetOf(expr.obj);
+      const parent = resolveTarget(expr.obj);
 
       return parent && [...parent, expr.name];
     }
@@ -77,7 +79,7 @@ const targetOf = (expr: Expr): TargetPath | undefined => {
 };
 
 /** A goto's argument: a label, or a frame numbered from 1 as ActionScript does */
-const gotoArgument = (
+const parseGotoArgument = (
   expr: Expr | undefined,
 ): { frame?: number; label?: string } | undefined =>
   expr?.k === 'str'
@@ -87,7 +89,7 @@ const gotoArgument = (
       : undefined;
 
 /** The command a call names on a target, if it is one */
-const callCommand = (
+const toCallCommand = (
   target: TargetPath,
   name: Expr,
   args: Expr[],
@@ -99,7 +101,7 @@ const callCommand = (
   const lower = name.v.toLowerCase();
 
   if (lower === 'gotoandplay' || lower === 'gotoandstop') {
-    const where = gotoArgument(args[0]);
+    const where = parseGotoArgument(args[0]);
 
     return (
       where && { op: 'goto', target, ...where, play: lower === 'gotoandplay' }
@@ -111,7 +113,8 @@ const callCommand = (
   return op && !args.length ? { op, target } : undefined;
 };
 
-export const behaviourOf = (
+/** Reads the timeline commands an action block runs before its first branch */
+export const readBehaviour = (
   apt: Uint8Array,
   block: number,
   constants: readonly ConstItem[],
@@ -142,18 +145,18 @@ export const behaviourOf = (
     let command: TimelineCommand | undefined;
 
     if (e?.k === 'call') {
-      command = callCommand(scope, e.name, e.args);
+      command = toCallCommand(scope, e.name, e.args);
     } else if (e?.k === 'mcall') {
-      const target = targetOf(e.obj);
+      const target = resolveTarget(e.obj);
 
-      command = target && callCommand([...scope, ...target], e.name, e.args);
+      command = target && toCallCommand([...scope, ...target], e.name, e.args);
     } else if (e?.k === 'intr') {
       const operand = e.operand;
 
       switch (e.op) {
         case 'SetTarget':
           if (operand?.k === 'str') {
-            scope = pathOf(operand.v);
+            scope = parseTargetPath(operand.v);
             continue;
           }
           break;

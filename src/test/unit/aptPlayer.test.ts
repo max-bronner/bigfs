@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { behaviourOf } from '../../formats/apt/aptBehaviour';
+import { readBehaviour } from '../../formats/apt/aptBehaviour';
 import { compileScript } from '../../formats/apt/aptCompiler';
 import type { FrameItem } from '../../formats/apt/aptMovie';
 import { parseScript } from '../../formats/apt/aptScriptParser';
@@ -147,7 +147,7 @@ suite('APT player', () => {
     const read = (source: string) => {
       const block = compileScript(parseScript(source), image, []);
 
-      return behaviourOf(image.bytes, block, []);
+      return readBehaviour(image.bytes, block, []);
     };
 
     assert.deepStrictEqual(

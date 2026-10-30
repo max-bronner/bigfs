@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { MapFile, parseMap } from '../../formats/map/mapFile';
 import { markSounds } from '../../formats/map/mapScriptSounds';
-import { webviewPage } from '../../platform/webview/webviewPage';
-import { pageBundle, pageBundleFolder } from '../../platform/webview/pageBundle';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
+import { getPageBundleOptions, getPageBundleFolder } from '../../platform/webview/pageBundle';
 import type {
   FromScriptsPage,
   ScriptsMessage,
@@ -15,8 +15,10 @@ import type {
  * writing one back is not supported.
  */
 
+/** View type the `.scb` script viewer is registered under */
 export const SCRIPT_FILE_VIEW_TYPE = 'bigfs.scriptViewer';
 
+/** An open `.scb` file, decoded once by the map reader */
 class ScriptDocument implements vscode.CustomDocument {
   public constructor(
     public readonly uri: vscode.Uri,
@@ -26,12 +28,13 @@ class ScriptDocument implements vscode.CustomDocument {
   public dispose(): void {}
 }
 
+/** Renders the script viewer's page around its script bundle */
 export const renderScriptFileHtml = (
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
 ): string =>
-  webviewPage({
-    ...pageBundle(extensionUri, webview, 'scripts'),
+  renderWebviewPage({
+    ...getPageBundleOptions(extensionUri, webview, 'scripts'),
     style: `
   body { margin: 0; padding: 0 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   h2 { font-size: 1.2em; margin: 10px 0 6px; }
@@ -45,9 +48,11 @@ export const renderScriptFileHtml = (
     body: '<div id="root"></div>',
   });
 
+/** Read-only custom editor showing a `.scb` file's player, group and script tree */
 export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProvider<ScriptDocument> {
   public constructor(private readonly extensionUri: vscode.Uri) {}
 
+  /** Registers the viewer under `SCRIPT_FILE_VIEW_TYPE` */
   public static register(extensionUri: vscode.Uri): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       SCRIPT_FILE_VIEW_TYPE,
@@ -56,6 +61,7 @@ export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProv
     );
   }
 
+  /** Reads and decodes a script file */
   public async openCustomDocument(uri: vscode.Uri): Promise<ScriptDocument> {
     return new ScriptDocument(
       uri,
@@ -63,13 +69,14 @@ export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProv
     );
   }
 
+  /** Sends the scripts once the page is ready, and plays a sound its play buttons name */
   public resolveCustomEditor(
     document: ScriptDocument,
     panel: vscode.WebviewPanel,
   ): void {
     panel.webview.options = {
       enableScripts: true,
-      localResourceRoots: [pageBundleFolder(this.extensionUri)],
+      localResourceRoots: [getPageBundleFolder(this.extensionUri)],
     };
     panel.webview.html = renderScriptFileHtml(panel.webview, this.extensionUri);
     panel.webview.onDidReceiveMessage((message: FromScriptsPage) => {

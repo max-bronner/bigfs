@@ -1,7 +1,7 @@
 import {
   decodeWindows1252,
   encodeWindows1252,
-  unencodableCharacters,
+  findUnencodableCharacters,
 } from '../../core/windows1252';
 /**
  * The `.csf` compiled string table, ported from mint's
@@ -18,17 +18,20 @@ import {
  * anyway, so a file written back is the file read when nothing changed.
  */
 
+/** One string of a label: its text, and the speech file a `WRTS` string names */
 export interface CsfString {
   text: string;
   /** The speech file of a `WRTS` string; absent for `RTS` */
   speech?: string;
 }
 
+/** One label of a `.csf` and every string stored under it */
 export interface CsfLabel {
   name: string;
   strings: CsfString[];
 }
 
+/** A parsed `.csf` string table: its header words and every label */
 export interface CsfFile {
   version: number;
   /** The header's fourth word, which the game skips */
@@ -42,15 +45,15 @@ const HEADER_LENGTH = 24;
 const tag = (bytes: Uint8Array, at: number) =>
   String.fromCharCode(...bytes.subarray(at, at + 4));
 
-const encodeCp1252 = (text: string): number[] =>
+const encodeWindows1252Bytes = (text: string): number[] =>
   Array.from(encodeWindows1252(text));
 
 /**
- * Why a label or speech file name cannot be saved, if it cannot: a `.csf`
- * stores both as Windows-1252 bytes
+ * Explains why a label or speech file name cannot be saved, or undefined when
+ * it can: a `.csf` stores both as Windows-1252 bytes
  */
-export const csfNameProblem = (name: string): string | undefined => {
-  const missing = unencodableCharacters(name);
+export const describeCsfNameProblem = (name: string): string | undefined => {
+  const missing = findUnencodableCharacters(name);
 
   return missing.length
     ? `${missing.map((char) => JSON.stringify(char)).join(' ')} cannot be stored in a .csf, which writes labels and speech names in Windows-1252`
@@ -58,7 +61,7 @@ export const csfNameProblem = (name: string): string | undefined => {
 };
 
 /**
- * A cell's new text with the line breaks the old one used. A page's text
+ * Gives a cell's new text the line breaks the old one used. A page's text
  * field reports every break as `\n`, so a cell written with `\r\n` would
  * otherwise lose its carriage returns the first time it is edited.
  */
@@ -181,7 +184,7 @@ export const writeCsf = (file: CsfFile): Uint8Array => {
   word(file.language);
 
   for (const label of file.labels) {
-    const name = encodeCp1252(label.name);
+    const name = encodeWindows1252Bytes(label.name);
 
     text(' LBL');
     word(label.strings.length);
@@ -199,7 +202,7 @@ export const writeCsf = (file: CsfFile): Uint8Array => {
       }
 
       if (string.speech !== undefined) {
-        const speech = encodeCp1252(string.speech);
+        const speech = encodeWindows1252Bytes(string.speech);
 
         word(speech.length);
         out.push(...speech);

@@ -1,13 +1,13 @@
-import { effectsAt } from '../../formats/particles/fxEffects';
+import { getEffectStateAt } from '../../formats/particles/fxEffects';
 import { scaleEffect } from '../../formats/particles/particleScale';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
 import {
   attachCamera,
   attachment,
-  cameraBasis,
-  modelOrigin,
-  rootOrigin,
-  viewProjection,
+  computeCameraBasis,
+  getModelOrigin,
+  getRootOrigin,
+  computeViewProjection,
 } from './camera';
 import { renderCurves } from './curves';
 import { renderFields } from './fields';
@@ -26,18 +26,18 @@ import {
 import { $, library, post, state, world } from './page';
 import {
   advanceAnimation,
-  animationLoaded,
+  setLoadedAnimation,
   attachObjectPanel,
-  bonePosition,
-  enabledEffects,
-  modelShown,
+  getBonePosition,
+  listEnabledEffects,
+  setShownModel,
   objectView,
   showObject,
 } from './objectPanel';
 import { poseAt } from '../../formats/w3d/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
 import type { ToPage } from './protocol';
-import { GRID, pushRing, reach, volumeLines } from './volume';
+import { GRID, pushRing, estimateReach, pushVolumeLines } from './volume';
 
 /**
  * The particle preview page: runs the simulation at 30 Hz, draws it, and
@@ -47,8 +47,8 @@ import { GRID, pushRing, reach, volumeLines } from './volume';
  */
 
 const hud = $('hud');
-const checked = (id: string) => $<HTMLInputElement>(id).checked;
-const selected = (id: string) => $<HTMLSelectElement>(id).value;
+const isChecked = (id: string) => $<HTMLInputElement>(id).checked;
+const getSelectedValue = (id: string) => $<HTMLSelectElement>(id).value;
 
 if (!hasGraphics) {
   hud.textContent =
@@ -75,8 +75,8 @@ const start = () => {
   }
 
   if (objectView.scene) {
-    attached = enabledEffects().flatMap((effect) => {
-      const origin = add(modelOrigin(), bonePosition(effect.bone));
+    attached = listEnabledEffects().flatMap((effect) => {
+      const origin = add(getModelOrigin(), getBonePosition(effect.bone));
       const ids =
         effect.kind === 'fxList'
           ? world.fire(effect.name, origin)
@@ -93,7 +93,7 @@ const start = () => {
     return;
   }
 
-  const origin = rootOrigin();
+  const origin = getRootOrigin();
 
   state.roots =
     scene.root.kind === 'fxList'
@@ -104,12 +104,12 @@ const start = () => {
 };
 
 const stepOnce = () => {
-  const origin = rootOrigin();
+  const origin = getRootOrigin();
 
   if (objectView.scene) {
     // Each effect follows the bone it is on, as the model moves and animates
     for (const { id, bone } of attached) {
-      world.setOrigin(id, add(modelOrigin(), bonePosition(bone)));
+      world.setOrigin(id, add(getModelOrigin(), getBonePosition(bone)));
     }
   } else {
     for (const id of state.roots) {
@@ -124,12 +124,12 @@ const stepOnce = () => {
 const flash = $('flash');
 
 const draw = () => {
-  beginFrame(selected('sky'));
+  beginFrame(getSelectedValue('sky'));
 
   // LightPulse, ViewShake and TerrainScorch nuggets, approximated
   const effects = objectView.scene
-    ? effectsAt([], 0, STEP_HZ)
-    : effectsAt(listEffects(), world.frame, STEP_HZ);
+    ? getEffectStateAt([], 0, STEP_HZ)
+    : getEffectStateAt(listEffects(), world.frame, STEP_HZ);
   const swing = (effects.shake * Math.PI) / 180;
 
   if (effects.flash) {
@@ -145,17 +145,17 @@ const draw = () => {
   state.yaw += swing;
   state.pitch += swing * 0.6;
 
-  const basis = cameraBasis();
+  const basis = computeCameraBasis();
 
   state.yaw -= swing;
   state.pitch -= swing * 0.6;
-  const matrix = viewProjection(basis, canvas);
+  const matrix = computeViewProjection(basis, canvas);
 
-  if (checked('showGrid')) {
+  if (isChecked('showGrid')) {
     drawLines(GRID, matrix, true);
   }
   model?.draw(matrix, {
-    offset: modelOrigin(),
+    offset: getModelOrigin(),
     light: basis.forward.map((value) => -value) as Vec3,
     showBones: !!objectView.scene && objectView.showBones,
     showMeshes: !objectView.scene || objectView.showModel,
@@ -164,25 +164,25 @@ const draw = () => {
     matrix,
     basis,
     state.playing ? Math.min(1, state.accumulator * STEP_HZ) : 1,
-    checked('keys'),
+    isChecked('keys'),
   );
   if (effects.scorches.length) {
     const lines: number[] = [];
-    const [x, y, z] = rootOrigin();
+    const [x, y, z] = getRootOrigin();
 
     for (const radius of effects.scorches) {
       pushRing(lines, [x, y, z], radius, [0.85, 0.5, 0.2, 1]);
     }
     drawLines(lines, matrix, false);
   }
-  if (checked('showVolume')) {
+  if (isChecked('showVolume')) {
     const lines: number[] = [];
 
     for (const system of world.systems) {
       const def = library.systems.get(system.name.toLowerCase());
 
       if (def && state.roots.includes(system.id)) {
-        volumeLines(lines, def, system.origin);
+        pushVolumeLines(lines, def, system.origin);
       }
     }
     drawLines(lines, matrix, false);
@@ -208,7 +208,7 @@ const frame = (now: number) => {
     }
     if (!world.systems.length) {
       state.idle += seconds;
-      if (checked('loop') && state.idle > 0.6) {
+      if (isChecked('loop') && state.idle > 0.6) {
         start();
       }
     }
@@ -246,12 +246,12 @@ const setPlaying = (playing: boolean) => {
   $('play').textContent = playing ? 'Pause' : 'Play';
 };
 const syncOptions = () => {
-  world.options.wind = selected('wind') as typeof world.options.wind;
-  world.options.hollowBox = selected(
+  world.options.wind = getSelectedValue('wind') as typeof world.options.wind;
+  world.options.hollowBox = getSelectedValue(
     'hollowBox',
   ) as typeof world.options.hollowBox;
-  world.options.compound = checked('compound');
-  world.options.batchLimit = checked('batchLimit');
+  world.options.compound = isChecked('compound');
+  world.options.batchLimit = isChecked('batchLimit');
 };
 const cycle = (id: string) => {
   const select = $<HTMLSelectElement>(id);
@@ -272,7 +272,7 @@ $('step').onclick = () => {
   setPlaying(false);
   stepOnce();
 };
-$('speed').onchange = () => (state.speed = Number(selected('speed')));
+$('speed').onchange = () => (state.speed = Number(getSelectedValue('speed')));
 for (const id of ['wind', 'hollowBox', 'compound', 'batchLimit']) {
   $(id).onchange = () => {
     syncOptions();
@@ -384,7 +384,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     return;
   }
   if (data.kind === 'animation') {
-    animationLoaded(data.name, data.animation);
+    setLoadedAnimation(data.name, data.animation);
     return;
   }
   if (data.kind === 'model') {
@@ -404,7 +404,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     attachment.hasModel = !!shown;
     $('pickModel').textContent = shown ? shown.name : 'On a model…';
     if (objectView.scene) {
-      modelShown(skeleton);
+      setShownModel(skeleton);
       return;
     }
     start();
@@ -440,8 +440,8 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   if (first) {
     const def = data.root && library.systems.get(data.root.name.toLowerCase());
 
-    state.distance = def ? reach(def) * 2.2 : 260;
-    state.target = [0, 0, def ? Math.min(80, reach(def) / 3) : 20];
+    state.distance = def ? estimateReach(def) * 2.2 : 260;
+    state.target = [0, 0, def ? Math.min(80, estimateReach(def) / 3) : 20];
   }
   if (data.restart || first) {
     start();

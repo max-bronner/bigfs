@@ -1,6 +1,6 @@
 import type { BlingView, HeroView, PowerView } from './protocol';
 
-/** The notes the banner shows above the form; none hides the banner. */
+/** Lists the notes the banner shows above the form; an empty list hides the banner */
 export const describeBanner = (hero: HeroView): string[] => {
   const notes: string[] = [];
 
@@ -22,7 +22,7 @@ export const describeBanner = (hero: HeroView): string[] => {
   return notes;
 };
 
-/** The attribute points line: spent of total, derived from the bling choices. */
+/** Formats the attribute points line: spent of total, derived from the bling choices */
 export const describePoints = (points: HeroView['points']): string =>
   points
     ? `${
@@ -32,7 +32,7 @@ export const describePoints = (points: HeroView['points']): string =>
       } (derived from the bling choices; the file does not store points)`
     : 'Not stored in the file; shown when the class and subclass resolve.';
 
-/** The power's label and special power, as the table's last column shows them. */
+/** Formats the power's label and special power for the power table's last column */
 export const describePower = (power: PowerView): string =>
   [
     power.label,
@@ -42,18 +42,18 @@ export const describePower = (power: PowerView): string =>
     .filter(Boolean)
     .join(', ');
 
-/** The bling's binder, kind, upgrade and label, joined for its row. */
+/** Joins the bling's binder, kind, upgrade and label for its row */
 export const describeBling = (bling: BlingView): string =>
   [bling.binder, bling.kind, bling.upgrade, bling.label]
     .filter(Boolean)
     .join(' - ');
 
-const hex32 = (value: number): string => value.toString(16).padStart(8, '0');
+const formatHex32 = (value: number): string => value.toString(16).padStart(8, '0');
 
-/** The stored checksum and the one a save would write. */
+/** Formats the stored checksum beside the one a save would write */
 export const describeChecksum = (file: HeroView['file']): string =>
-  `${file.storedCrc === undefined ? 'none stored' : `stored ${hex32(file.storedCrc)}`}, will save as ${hex32(file.crc)}`;
+  `${file.storedCrc === undefined ? 'none stored' : `stored ${formatHex32(file.storedCrc)}`}, will save as ${formatHex32(file.crc)}`;
 
-/** The record version, with the version a save writes when it is older. */
+/** Formats the record version, noting the version a save writes when it is older */
 export const describeVersion = (version: number): string =>
   version + (version < 8 ? ' (saving writes version 8)' : '');

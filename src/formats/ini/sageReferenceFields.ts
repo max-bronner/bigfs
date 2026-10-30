@@ -1,5 +1,5 @@
 /**
- * Which INI values name a definition, decided per block and field.
+ * Rules for which INI values name a definition, decided per block and field.
  *
  * The generated schema's reference table is keyed by field name alone, which
  * is how mint's parse tables list them but is not how the engine reads: the
@@ -20,7 +20,7 @@
  * This file knows nothing of the editor, so it runs in the unit tests.
  */
 
-import { lastContextSegment } from '../../game/audio/sageAudioFields';
+import { getLastContextSegment } from './sageAudioFields';
 
 /** The namespace the three object-defining keywords share */
 export const OBJECT_NAMESPACE = 'Object';
@@ -30,17 +30,18 @@ const NAMESPACE_ALIASES: Record<string, string> = {
   objectreskin: OBJECT_NAMESPACE,
 };
 
-/** The namespace a block keyword or a table entry means, with aliases folded */
-export const canonicalNamespace = (namespace: string): string =>
+/** Gets the namespace a block keyword or a table entry means, with aliases folded */
+export const toCanonicalNamespace = (namespace: string): string =>
   NAMESPACE_ALIASES[namespace.toLowerCase()] ?? namespace;
 
 /** Folds aliases and drops repeats, keeping the first spelling */
-export const canonicalNamespaces = (
+export const toCanonicalNamespaces = (
   namespaces: readonly string[],
-): string[] => [...new Set(namespaces.map(canonicalNamespace))];
+): string[] => [...new Set(namespaces.map(toCanonicalNamespace))];
 
 /**
- * Particle systems are declared as `FXParticleSystem` in the new format and
+ * Adds `ParticleSystem` to namespaces that name `FXParticleSystem`. Particle
+ * systems are declared as `FXParticleSystem` in the new format and
  * as `ParticleSystem` in the old one, and the engine reads both into one set.
  * The table lists most particle fields under `FXParticleSystem` alone, which
  * would flag every system the shipped data defines as `ParticleSystem X`.
@@ -62,8 +63,8 @@ const PARENT_HEADERS: ReadonlySet<string> = new Set([
   'objectreskin',
 ]);
 
-/** The namespace the parent a header names is declared in, if it names one */
-export const parentNamespace = (keyword: string): string | undefined =>
+/** Gets the namespace the parent a header names is declared in, if it names one */
+export const getParentNamespace = (keyword: string): string | undefined =>
   PARENT_HEADERS.has(keyword.toLowerCase()) ? OBJECT_NAMESPACE : undefined;
 
 /**
@@ -137,12 +138,12 @@ const scoped = <T>(
 
   return (
     table[`${contextName.toLowerCase()}/${name}`] ??
-    table[`${lastContextSegment(contextName)}/${name}`]
+    table[`${getLastContextSegment(contextName)}/${name}`]
   );
 };
 
-/** The namespaces a block corrects its field to, if it does */
-export const scopedReference = (
+/** Gets the namespaces a block corrects its field to, if it does */
+export const getScopedNamespaces = (
   contextName: string,
   field: string,
 ): readonly string[] | undefined =>
@@ -152,7 +153,7 @@ export const scopedReference = (
  * Whether the value token at `index` of this field is where a name is
  * written. Every token is, for a field that does not say otherwise.
  */
-export const namesTokenAt = (
+export const isNameTokenAt = (
   contextName: string,
   field: string,
   index: number,
@@ -165,7 +166,7 @@ export const namesTokenAt = (
 };
 
 /**
- * A word written in capitals with underscores: an enum value or a macro,
+ * Pattern of a word written in capitals with underscores: an enum value or a macro,
  * never a definition's name. Underscores may repeat (`FOO__BAR`), as macro
  * names do in the shipped data. Case sensitive on purpose: `HumanArmor` is a
  * name and `HUMAN_ARMOR` is not.
@@ -187,12 +188,12 @@ const KEYED_NAME_FIELDS: Record<string, string> = {
 const OPTIONAL_MARKER_FIELDS: ReadonlySet<string> = new Set(['blingupgrades']);
 
 /**
- * Where the name begins inside the value token at `index` of a field, or
- * undefined when the token names nothing. Zero for a field written as bare
+ * Finds where the name begins inside the value token at `index` of a field, or
+ * `undefined` when the token names nothing. Zero for a field written as bare
  * names. `Key: Name` with a space after the colon makes the next token the
  * name.
  */
-export const nameOffsetIn = (
+export const findNameOffset = (
   field: string,
   values: readonly { text: string }[],
   index: number,

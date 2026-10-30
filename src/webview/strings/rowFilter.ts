@@ -1,6 +1,6 @@
 import type { StringRow } from './protocol';
 
-/** How many rows the table shows before "Show more" */
+/** Number of rows the table adds per page, each "Show more" showing the next */
 export const ROWS_PER_PAGE = 200;
 
 /** Whether a row's label, text or speech holds the lower-cased filter text; an empty filter keeps every row. */
@@ -10,7 +10,7 @@ export const matchesFilter = (row: StringRow, text: string): boolean =>
   row.text.toLowerCase().includes(text) ||
   (row.speech ?? '').toLowerCase().includes(text);
 
-/** The rows the filter keeps, case-insensitively. */
+/** Filters rows to those `matchesFilter` keeps, comparing case-insensitively */
 export const filterRows = (
   rows: readonly StringRow[],
   filter: string,
@@ -20,6 +20,6 @@ export const filterRows = (
   return rows.filter((row) => matchesFilter(row, text));
 };
 
-/** The text of the label count: all labels, or how many of them the filter keeps. */
+/** Formats the label count: all labels, or how many of them the filter keeps */
 export const describeCount = (visible: number, total: number): string =>
   visible === total ? `${total} labels` : `${visible} of ${total} labels`;

@@ -10,24 +10,24 @@ import type { SampledChannel, W3dAnimation } from './w3dAnimation';
  * chunk, which BFME reads and ships 1,354 of (mint's w3d-animation.md).
  */
 
-/** The most frames a second a rate may ask for */
+/** Highest frame rate, in frames a second, an edited animation may ask for */
 export const MAX_FRAME_RATE = 1000;
 
 /**
- * Why a rate cannot be stored, if it cannot: the header holds a whole
+ * Explains why a rate cannot be stored, or undefined when it can: the header holds a whole
  * number of frames a second, and a 0 reads back as the default 30
  */
-export const frameRateProblem = (frameRate: number): string | undefined =>
+export const describeFrameRateProblem = (frameRate: number): string | undefined =>
   Number.isInteger(frameRate) && frameRate >= 1 && frameRate <= MAX_FRAME_RATE
     ? undefined
     : `A frame rate is a whole number from 1 to ${MAX_FRAME_RATE}, not ${frameRate}`;
 
-/** The animation played at another rate, which must be a whole number a second */
-export const rateAnimation = (
+/** Sets the rate an animation plays at, which must be a whole number a second */
+export const setAnimationFrameRate = (
   animation: W3dAnimation,
   frameRate: number,
 ): W3dAnimation => {
-  const problem = frameRateProblem(frameRate);
+  const problem = describeFrameRateProblem(frameRate);
 
   if (problem) {
     throw new Error(problem);
@@ -44,7 +44,7 @@ const normalise = (q: number[]) => {
   return q.map((value) => value / length);
 };
 
-/** One channel sampled at a fractional source frame */
+/** Samples one channel at a fractional source frame */
 const sample = (
   channel: SampledChannel,
   at: number,
@@ -106,9 +106,9 @@ const remap = (
   }),
 });
 
-const last = (animation: W3dAnimation) => Math.max(0, animation.frameCount - 1);
+const getLastFrame = (animation: W3dAnimation) => Math.max(0, animation.frameCount - 1);
 
-/** The same motion over `frames` frames, interpolated between the old ones */
+/** Retimes the same motion to `frames` frames, interpolated between the old ones */
 export const retimeAnimation = (
   animation: W3dAnimation,
   frames: number,
@@ -117,14 +117,15 @@ export const retimeAnimation = (
     throw new Error('An animation keeps at least one frame');
   }
   return remap(animation, frames, (frame) =>
-    frames > 1 ? (frame * last(animation)) / (frames - 1) : 0,
+    frames > 1 ? (frame * getLastFrame(animation)) / (frames - 1) : 0,
   );
 };
 
+/** Reverses an animation so it plays from its last frame to its first */
 export const reverseAnimation = (animation: W3dAnimation): W3dAnimation =>
-  remap(animation, animation.frameCount, (frame) => last(animation) - frame);
+  remap(animation, animation.frameCount, (frame) => getLastFrame(animation) - frame);
 
-/** The same frames, played along an easing curve: slow in, slow out, … */
+/** Replays the same frames along a named easing curve: slow in, slow out, … */
 export const easeAnimation = (
   animation: W3dAnimation,
   easing: string,
@@ -138,11 +139,11 @@ export const easeAnimation = (
     animation,
     animation.frameCount,
     (frame) =>
-      ease(last(animation) ? frame / last(animation) : 0) * last(animation),
+      ease(getLastFrame(animation) ? frame / getLastFrame(animation) : 0) * getLastFrame(animation),
   );
 };
 
-/** Frames `from` to `to` only */
+/** Trims an animation to frames `from` to `to`, both included */
 export const trimAnimation = (
   animation: W3dAnimation,
   from: number,
@@ -162,7 +163,7 @@ export const trimAnimation = (
   return remap(animation, to - from + 1, (frame) => from + frame);
 };
 
-/** W3D names hold 15 characters and a terminator */
+/** Most characters a W3D name holds, before its terminator */
 export const MAX_NAME = 15;
 
 const CHUNK = {
@@ -175,10 +176,12 @@ const CHUNK = {
 /** W3D version 4.1, which every uncompressed animation in BFME carries */
 const VERSION = (4 << 16) | 1;
 
+/** Little-endian writer that collects a chunk's bytes */
 class Writer {
   private readonly parts: Uint8Array[] = [];
   private length = 0;
 
+  /** Joins everything written so far into one array */
   public bytes(): Uint8Array {
     const out = new Uint8Array(this.length);
     let at = 0;
@@ -214,6 +217,7 @@ class Writer {
     this.push(4, (view) => view.setFloat32(0, value, true));
   }
 
+  /** Writes a 16-byte NUL-padded name, cut to `MAX_NAME` characters of 7-bit ASCII */
   public name(text: string) {
     const part = new Uint8Array(16);
 
@@ -230,7 +234,7 @@ class Writer {
   }
 }
 
-const chunk = (type: number, payload: Uint8Array, container = false) => {
+const writeChunk = (type: number, payload: Uint8Array, container = false) => {
   const writer = new Writer();
 
   writer.u32(type);
@@ -239,8 +243,8 @@ const chunk = (type: number, payload: Uint8Array, container = false) => {
   return writer.bytes();
 };
 
-/** The frames a channel sets, first to last; frames between it held from the one before */
-const rangeOf = (channel: SampledChannel) => {
+/** Finds the first and last frame a channel sets; frames between hold the value before them */
+const findSetRange = (channel: SampledChannel) => {
   const first = channel.present.indexOf(1);
 
   return first < 0
@@ -248,8 +252,8 @@ const rangeOf = (channel: SampledChannel) => {
     : { first, last: channel.present.lastIndexOf(1) };
 };
 
-const channelChunk = (channel: SampledChannel): Uint8Array | undefined => {
-  const range = rangeOf(channel);
+const writeChannelChunk = (channel: SampledChannel): Uint8Array | undefined => {
+  const range = findSetRange(channel);
 
   if (!range) {
     return undefined;
@@ -272,7 +276,7 @@ const channelChunk = (channel: SampledChannel): Uint8Array | undefined => {
     writer.u16(channel.pivot);
     writer.u8(1);
     writer.raw(bits);
-    return chunk(CHUNK.BIT_CHANNEL, writer.bytes());
+    return writeChunk(CHUNK.BIT_CHANNEL, writer.bytes());
   }
 
   const width = channel.kind === 'rotation' ? 4 : 1;
@@ -292,10 +296,10 @@ const channelChunk = (channel: SampledChannel): Uint8Array | undefined => {
       writer.f32(channel.values[held * width + axis]);
     }
   }
-  return chunk(CHUNK.ANIMATION_CHANNEL, writer.bytes());
+  return writeChunk(CHUNK.ANIMATION_CHANNEL, writer.bytes());
 };
 
-/** A W3D file holding one uncompressed animation */
+/** Writes a W3D file holding one uncompressed animation */
 export const writeW3dAnimation = (animation: W3dAnimation): Uint8Array => {
   if (
     animation.name.length > MAX_NAME ||
@@ -311,19 +315,19 @@ export const writeW3dAnimation = (animation: W3dAnimation): Uint8Array => {
   header.name(animation.hierarchyName);
   header.u32(animation.frameCount);
   if (!Number.isInteger(animation.frameRate) || animation.frameRate < 1) {
-    throw new Error(frameRateProblem(animation.frameRate));
+    throw new Error(describeFrameRateProblem(animation.frameRate));
   }
   header.u32(animation.frameRate);
 
   const body = new Writer();
 
-  body.raw(chunk(CHUNK.ANIMATION_HEADER, header.bytes()));
+  body.raw(writeChunk(CHUNK.ANIMATION_HEADER, header.bytes()));
   for (const channel of animation.channels) {
-    const written = channelChunk(channel);
+    const written = writeChannelChunk(channel);
 
     if (written) {
       body.raw(written);
     }
   }
-  return chunk(CHUNK.ANIMATION, body.bytes(), true);
+  return writeChunk(CHUNK.ANIMATION, body.bytes(), true);
 };

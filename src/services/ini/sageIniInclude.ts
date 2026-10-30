@@ -31,7 +31,7 @@ const normalize = (segments: readonly string[]): string[] => {
 };
 
 /**
- * The uri an include names, relative to the document holding it. The result is
+ * Resolves the uri an include names, relative to the document holding it. The result is
  * where the entry would be; whether it exists is a separate question, since a
  * mod can reference a file it does not ship.
  */

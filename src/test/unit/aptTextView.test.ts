@@ -1,14 +1,14 @@
 import * as assert from 'assert';
 import { CHARACTER_SIGNATURE, parseConst } from '../../formats/apt/aptMovie';
-import { blockScripts, movieText } from '../../formats/apt/text/movieText';
+import { createScriptReader, printMovieFiles } from '../../formats/apt/text/movieText';
 import { saveMovieText } from '../../formats/apt/text/save/saveMovieText';
 import { TextSaveError } from '../../formats/apt/text/save/textSaveError';
 import type { TextSave } from '../../formats/apt/text/save/saveMovieText';
 import { movieToText } from '../../formats/apt/text/fromMovie';
-import { textBlocks } from '../../formats/apt/text/lineTree';
+import { findTextBlocks } from '../../formats/apt/text/lineTree';
 import {
   composeMatrix,
-  f32Bits,
+  toF32Bits,
   formatF32,
 } from '../../formats/apt/text/numbers';
 import { parseMovieText } from '../../formats/apt/text/parser';
@@ -19,11 +19,11 @@ import { Image, buildConst } from './aptSynth';
 /** The full movie's text, and a save of that text with `edit` applied to it */
 const full = () => {
   const { apt, constFile, offsets } = buildFullMovie();
-  const text = movieText(apt, constFile);
+  const text = printMovieFiles(apt, constFile);
   const before = movieToText(
     apt,
     constFile,
-    blockScripts(apt, parseConst(constFile).items),
+    createScriptReader(apt, parseConst(constFile).items),
   );
   const save = (edit: (text: string) => string): TextSave => {
     const parsed = parseMovieText(edit(text));
@@ -45,17 +45,17 @@ const replaceOnce = (text: string, from: string, to: string): string => {
 const buildUnknownMovie = () => {
   const apt = new Image();
 
-  apt.u8(...Array.from('Apt Data:7\x1a\0', (c) => c.charCodeAt(0)));
+  apt.writeU8(...Array.from('Apt Data:7\x1a\0', (c) => c.charCodeAt(0)));
   apt.align();
 
-  const strange = apt.u32(42, CHARACTER_SIGNATURE, 0);
-  const item = apt.u32(77, 0);
-  const items = apt.u32(item);
-  const frames = apt.u32(1, items);
-  const characters = apt.u32(0, strange);
-  const movie = apt.u32(9, CHARACTER_SIGNATURE, 1, frames, 0, 2, characters);
+  const strange = apt.writeU32(42, CHARACTER_SIGNATURE, 0);
+  const item = apt.writeU32(77, 0);
+  const items = apt.writeU32(item);
+  const frames = apt.writeU32(1, items);
+  const characters = apt.writeU32(0, strange);
+  const movie = apt.writeU32(9, CHARACTER_SIGNATURE, 1, frames, 0, 2, characters);
 
-  apt.u32(800, 600, 33, 0, 0, 0, 0, 0);
+  apt.writeU32(800, 600, 33, 0, 0, 0, 0, 0);
   apt.patch(characters, movie);
   return { apt: apt.build(), constFile: buildConst(movie, []) };
 };
@@ -99,7 +99,7 @@ suite('APT text view', () => {
 
   test('unknown characters and frame items keep their type through the text', () => {
     const { apt, constFile } = buildUnknownMovie();
-    const text = movieText(apt, constFile);
+    const text = printMovieFiles(apt, constFile);
 
     assert.match(text, /^character 1 unknown type=42$/m);
     assert.match(text, /^ {4}unknown type=77$/m);
@@ -298,12 +298,12 @@ suite('APT text view', () => {
     assert.deepStrictEqual(saved.edits, []);
     assert.strictEqual(saved.scripts.length, 1);
     assert.ok(saved.scripts[0].start >= apt.length);
-    assert.match(movieText(saved.apt, saved.constBytes), /^ +stop\(\);$/m);
+    assert.match(printMovieFiles(saved.apt, saved.constBytes), /^ +stop\(\);$/m);
   });
 
   test('a script shared by several places cannot be edited in one of them', () => {
     const { apt, constFile } = buildFullMovie();
-    const text = movieText(apt, constFile);
+    const text = printMovieFiles(apt, constFile);
     const edited = replaceOnce(
       text,
       '    action\n      ```as\n      ```',
@@ -312,7 +312,7 @@ suite('APT text view', () => {
     const before = movieToText(
       apt,
       constFile,
-      blockScripts(apt, parseConst(constFile).items),
+      createScriptReader(apt, parseConst(constFile).items),
     );
 
     assert.throws(
@@ -337,7 +337,7 @@ suite('APT text view', () => {
       saved.edits.map((edit) => edit.kind),
       ['addFrameScript'],
     );
-    assert.match(movieText(saved.apt, saved.constBytes), /^ +play\(\);$/m);
+    assert.match(printMovieFiles(saved.apt, saved.constBytes), /^ +play\(\);$/m);
   });
 
   test('constants change in place and new ones are appended', () => {
@@ -379,11 +379,11 @@ suite('APT text view', () => {
 
   test('a text that cannot be saved leaves the movie as it was', () => {
     const { apt, constFile } = buildFullMovie();
-    const text = movieText(apt, constFile);
+    const text = printMovieFiles(apt, constFile);
     const before = movieToText(
       apt,
       constFile,
-      blockScripts(apt, parseConst(constFile).items),
+      createScriptReader(apt, parseConst(constFile).items),
     );
     const copy = Uint8Array.from(apt);
 
@@ -417,7 +417,7 @@ suite('APT text view', () => {
     );
 
     assert.match(
-      movieText(rotated.apt, rotated.constBytes),
+      printMovieFiles(rotated.apt, rotated.constBytes),
       /at 5,6 scale 2,3 rot 30 color/,
     );
     assert.deepStrictEqual(
@@ -430,7 +430,7 @@ suite('APT text view', () => {
     );
 
     assert.match(
-      movieText(raw.apt, raw.constBytes),
+      printMovieFiles(raw.apt, raw.constBytes),
       /at 5,6 matrix 0\.1,0\.2,0\.3,0\.4 color/,
     );
   });
@@ -493,17 +493,17 @@ suite('APT text view', () => {
       ).change;
 
       assert.deepStrictEqual(
-        change.matrix.map(f32Bits),
-        matrix.map(f32Bits),
+        change.matrix.map(toF32Bits),
+        matrix.map(toF32Bits),
         words,
       );
       assert.deepStrictEqual(
-        change.translate.map(f32Bits),
-        at.map(f32Bits),
+        change.translate.map(toF32Bits),
+        at.map(toF32Bits),
         words,
       );
 
-      const text = movieText(placed.apt, placed.constBytes);
+      const text = printMovieFiles(placed.apt, placed.constBytes);
       const parsed = parseMovieText(text);
 
       assert.deepStrictEqual(parsed.problems, [], words);
@@ -515,7 +515,7 @@ suite('APT text view', () => {
         movieToText(
           placed.apt,
           placed.constBytes,
-          blockScripts(placed.apt, parseConst(placed.constBytes).items),
+          createScriptReader(placed.apt, parseConst(placed.constBytes).items),
         ),
         parsed.movie,
       );
@@ -555,7 +555,7 @@ suite('APT text view', () => {
       ),
     );
     assert.ok(
-      textBlocks(text).some(
+      findTextBlocks(text).some(
         (block) => block.start === sprite && block.end === place + 4,
       ),
     );

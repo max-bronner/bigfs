@@ -13,7 +13,7 @@ export interface ReliefSurface {
   high: number;
 }
 
-/** Which layers the map draws */
+/** Visibility of each layer the map draws */
 export interface MapLayers {
   objects: boolean;
   waypoints: boolean;
@@ -23,7 +23,7 @@ export interface MapLayers {
   areas: boolean;
 }
 
-/** Everything the page holds between messages */
+/** State the map page holds between messages */
 export interface MapState {
   map: MapView;
   heights: HeightsView | undefined;
@@ -57,7 +57,7 @@ const EMPTY_MAP: MapView = {
   problems: [],
 };
 
-/** The page's state, shared by every module of the map page */
+/** State shared by every module of the map page */
 export const state: MapState = {
   map: EMPTY_MAP,
   heights: undefined,

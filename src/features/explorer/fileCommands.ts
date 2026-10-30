@@ -1,4 +1,4 @@
-﻿import { commands, window, workspace } from 'vscode';
+import { commands, window, workspace } from 'vscode';
 import { formatCount } from '../../core/messages';
 import { getChildUri, getNodeUri } from '../../services/archives/nodeAddress';
 import { askForName } from '../../platform/dialogs';
@@ -7,7 +7,7 @@ import {
   getTargetDirectory,
   importFromDisk,
 } from './fileActions';
-import type { RegisterNodeCommand } from './commandCenter';
+import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 
@@ -134,8 +134,8 @@ const addFiles = async (
 
 /**
  * Registers the palette and context menu entries for creating, renaming,
- * adding and deleting nodes, through the register callback the command center
- * hands out
+ * adding and deleting nodes, through the register callback
+ * `createNodeCommandRegistrar` hands out
  */
 export const registerFileCommands = (
   register: RegisterNodeCommand,

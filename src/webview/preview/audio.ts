@@ -14,6 +14,7 @@ const addFact = (list: HTMLElement, term: string, value: string) => {
   list.append(dt, dd);
 };
 
+/** Shows a decoded sound's facts and a paused player for its WAV bytes */
 export const showAudio = (main: HTMLElement, { wav, info }: AudioMessage) => {
   const list = document.createElement('dl');
   const audio = document.createElement('audio');
@@ -30,6 +31,7 @@ export const showAudio = (main: HTMLElement, { wav, info }: AudioMessage) => {
   main.replaceChildren(list, audio);
 };
 
+/** Shows a compressed sound the browser plays itself, with its duration once the metadata loads */
 export const showCompressedAudio = (
   main: HTMLElement,
   { bytes, mime, format }: CompressedAudioMessage,

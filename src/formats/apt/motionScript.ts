@@ -30,8 +30,10 @@ const PROPERTIES: (keyof Pose)[] = [
   'alpha',
 ];
 
+/** Error thrown by `parseMotionScript` for a line it cannot read */
 export class MotionScriptError extends Error {
   public constructor(
+    /** Zero-based; the message counts from one */
     public readonly line: number,
     message: string,
   ) {
@@ -39,7 +41,7 @@ export class MotionScriptError extends Error {
   }
 }
 
-const property = (name: string, line: number): keyof Pose => {
+const parseProperty = (name: string, line: number): keyof Pose => {
   const found = PROPERTIES.find(
     (each) => each.toLowerCase() === name.toLowerCase(),
   );
@@ -53,7 +55,7 @@ const property = (name: string, line: number): keyof Pose => {
   return found;
 };
 
-const number = (text: string, line: number): number => {
+const parseNumber = (text: string, line: number): number => {
   const value = Number(text);
 
   if (!Number.isFinite(value)) {
@@ -62,7 +64,10 @@ const number = (text: string, line: number): number => {
   return value;
 };
 
-/** Turns a script into the operations it stands for, in order */
+/**
+ * Parses a motion script into the timeline operations it stands for, in order.
+ * @throws MotionScriptError naming the first line that does not parse
+ */
 export const parseMotionScript = (source: string): TimelineOperation[] => {
   const operations: TimelineOperation[] = [];
 
@@ -112,9 +117,9 @@ export const parseMotionScript = (source: string): TimelineOperation[] => {
       const formula = /^(\w+)\s*=\s*(.+)$/.exec(action);
 
       if (tween) {
-        const key = property(tween[1], line);
-        const start = number(tween[2], line);
-        const end = number(tween[3], line);
+        const key = parseProperty(tween[1], line);
+        const start = parseNumber(tween[2], line);
+        const end = parseNumber(tween[3], line);
         const easing = tween[4] ?? 'linear';
 
         if (!EASINGS[easing]) {
@@ -132,7 +137,7 @@ export const parseMotionScript = (source: string): TimelineOperation[] => {
           easing,
         });
       } else if (formula) {
-        const key = property(formula[1], line);
+        const key = parseProperty(formula[1], line);
 
         try {
           compileExpression(formula[2]);
@@ -166,14 +171,14 @@ export const parseMotionScript = (source: string): TimelineOperation[] => {
         operations.push({
           op: 'insert',
           at: to + 1,
-          count: number(words[1], line),
+          count: parseNumber(words[1], line),
         });
       } else if (verb === 'retime' && words.length === 2) {
         operations.push({
           op: 'retime',
           from,
           to,
-          length: number(words[1], line),
+          length: parseNumber(words[1], line),
         });
       } else if (
         (verb === 'delete' || verb === 'duplicate' || verb === 'reverse') &&
@@ -193,7 +198,7 @@ export const parseMotionScript = (source: string): TimelineOperation[] => {
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-/** A timeline's baked tweens as script lines, to edit and run again */
+/** Writes a timeline's baked tweens as motion script lines, to edit and run again */
 export const tweensAsScript = (tweens: DetectedTween[]): string =>
   tweens
     .map(

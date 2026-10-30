@@ -1,4 +1,4 @@
-import type { ToolBox } from '../../services/toolRegistry';
+import type { ToolBox } from '../../core/toolRegistry';
 import { parseW3dTool } from './w3dTools';
 import type { LoadFile } from './w3dScene';
 
@@ -15,8 +15,8 @@ import type { LoadFile } from './w3dScene';
 /** Files tried at most, so a stem shared by many animations stays quick */
 const MAX_TRIED = 24;
 
-/** File names that could hold the model drawn on a skeleton, likeliest first */
-export const modelCandidates = (
+/** Lists the file names that could hold the model drawn on a skeleton, likeliest first */
+export const listModelCandidates = (
   skeleton: string,
   names: readonly string[],
 ): string[] => {
@@ -42,7 +42,7 @@ export const modelCandidates = (
     .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
 };
 
-/** The first candidate whose HLOD is drawn on `skeleton`, if any */
+/** Finds the first candidate whose HLOD is drawn on `skeleton`, trying at most `MAX_TRIED` files */
 export const findModelForSkeleton = async (
   skeleton: string,
   names: readonly string[],
@@ -51,7 +51,7 @@ export const findModelForSkeleton = async (
 ): Promise<string | undefined> => {
   const parse = tools.use(parseW3dTool);
 
-  for (const name of modelCandidates(skeleton, names).slice(0, MAX_TRIED)) {
+  for (const name of listModelCandidates(skeleton, names).slice(0, MAX_TRIED)) {
     const bytes = await loadFile(name);
 
     if (!bytes) {

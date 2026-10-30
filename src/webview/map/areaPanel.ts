@@ -5,7 +5,7 @@ import { sendEdit } from './messaging';
 import type { TriggerAreaView } from './protocol';
 import { state } from './state';
 
-/** The trigger areas as a list; the chosen one is edited by name and points. */
+/** Creates the trigger area section: the areas as a list, the chosen one editable by name and points */
 export const createAreaSection = (
   areas: readonly TriggerAreaView[],
   actions: MapActions,

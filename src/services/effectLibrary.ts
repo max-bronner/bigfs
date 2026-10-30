@@ -1,40 +1,42 @@
 import type * as vscode from 'vscode';
-import type { EntryLocator } from '../../services/entryLocator';
+import type { EntryLocator } from './entryLocator';
 import {
   findParticleDefinitions,
   readFxList,
   readParticleDef,
-  referencedNames,
-} from '../../formats/particles/particleIni';
+  findStartedNames,
+} from '../formats/particles/particleIni';
 import type {
   FxListDef,
   IniDefinition,
   ParticleDef,
-} from '../../formats/particles/particleIni';
-import { encodePng } from '../../node/png';
-import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
-import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { readWorkspaceText } from '../../services/ini/workspaceText';
-
-/**
- * The definitions and textures an effect needs to play: every particle
- * system and FX list it reaches through its references, found in the file
- * it is written in first and then anywhere indexed, and every texture
- * those systems draw with, as data URIs for the preview page.
- */
+} from '../formats/particles/particleIni';
+import { encodePng } from '../node/png';
+import { decodeDds, decodeTga } from '../formats/texture/textureTools';
+import type { SageIniIndex } from './ini/sageIniIndex';
+import { readWorkspaceText } from './ini/workspaceText';
 
 /** References followed at most, so a loop of FX lists ends */
 const MAX_REFERENCES = 64;
 
+/** The definitions and textures an effect needs to play, as `EffectLibrary.collect` gathers them for the preview page */
 export interface EffectSet {
   /** By lowercased name */
   systems: Record<string, ParticleDef>;
+  /** By lowercased name */
   fxLists: Record<string, FxListDef>;
   /** Data URIs by lowercased texture name; null for one not found */
   textures: Record<string, string | null>;
+  /** What the preview leaves out or approximates, for the user to read */
   notes: string[];
 }
 
+/**
+ * Collector of what an effect needs to play: every particle system and FX
+ * list it reaches through its references, found in the file it is written in
+ * first and then anywhere indexed, and every texture those systems draw
+ * with, as data URIs. Textures are decoded once per library.
+ */
 export class EffectLibrary {
   private readonly textures = new Map<string, Promise<string | null>>();
 
@@ -73,8 +75,8 @@ export class EffectLibrary {
   }
 
   /**
-   * Everything `roots` reach, and the definitions `names` give with what
-   * they reach; `localText` is where a name is looked for first
+   * Collects everything `roots` reach, and the definitions `names` give with
+   * what they reach; `localText` is where a name is looked for first
    */
   public async collect(
     roots: (ParticleDef | FxListDef)[],
@@ -89,7 +91,7 @@ export class EffectLibrary {
     const notes = new Set<string>();
     const queue = [...names];
     const visit = (def: ParticleDef | FxListDef) => {
-      const { systems: reached, fxLists: lists } = referencedNames(def);
+      const { systems: reached, fxLists: lists } = findStartedNames(def);
 
       reached.forEach((name) => queue.push({ name, list: false }));
       lists.forEach((name) => queue.push({ name, list: true }));
@@ -166,7 +168,7 @@ export class EffectLibrary {
         );
       }
       if (def.particleName) {
-        const texture = await this.texture(def.particleName);
+        const texture = await this.loadTexture(def.particleName);
 
         textures[def.particleName.toLowerCase()] = texture;
         if (!texture) {
@@ -179,7 +181,7 @@ export class EffectLibrary {
     return { systems, fxLists, textures, notes: [...notes] };
   }
 
-  private texture(name: string): Promise<string | null> {
+  private loadTexture(name: string): Promise<string | null> {
     const key = name.toLowerCase();
     let entry = this.textures.get(key);
 

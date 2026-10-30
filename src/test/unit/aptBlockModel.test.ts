@@ -5,14 +5,14 @@ import {
   cssColour,
   floatsToBytes,
   hexColour,
-  itemSummary,
-  itemTitle,
+  summarizeItem,
+  getItemTitle,
   matchesSearch,
   moveTarget,
   parseHexColour,
 } from '../../webview/apt/blocks/blockModel';
 import {
-  errorSpan,
+  findErrorSpan,
   offsetOf,
   positionOf,
   segmentScript,
@@ -48,10 +48,10 @@ suite('APT block model', () => {
       translate: [5, 6] as [number, number],
     };
 
-    assert.strictEqual(itemTitle(placed), 'Place @4');
-    assert.strictEqual(itemSummary(placed), '#7 · "clip" · at 5, 6 · move');
+    assert.strictEqual(getItemTitle(placed), 'Place @4');
+    assert.strictEqual(summarizeItem(placed), '#7 · "clip" · at 5, 6 · move');
     assert.strictEqual(
-      itemSummary({
+      summarizeItem({
         offset: 0,
         type: 'frameLabel',
         label: 'go',
@@ -61,7 +61,7 @@ suite('APT block model', () => {
       '"go"',
     );
     assert.strictEqual(
-      itemSummary({ offset: 0, type: 'backgroundColor', color: 0xff102030 }),
+      summarizeItem({ offset: 0, type: 'backgroundColor', color: 0xff102030 }),
       '0xff102030',
     );
   });
@@ -136,7 +136,7 @@ suite('APT script highlighting', () => {
 
   test('segments cut at the error and mark only it', () => {
     const text = 'stop();\nfoo bar;';
-    const span = errorSpan(text, 2, 5);
+    const span = findErrorSpan(text, 2, 5);
     const segments = segmentScript(text, span);
 
     assert.strictEqual(text.slice(span.start, span.end), 'bar');
@@ -164,7 +164,7 @@ suite('APT script highlighting', () => {
 
     assert.ok(problem?.line);
 
-    const span = errorSpan(text, problem.line!, problem.column ?? 1);
+    const span = findErrorSpan(text, problem.line!, problem.column ?? 1);
 
     assert.ok(span.end > span.start);
     assert.ok(span.start >= text.indexOf('\n'));

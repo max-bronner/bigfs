@@ -1,4 +1,4 @@
-﻿import {
+import {
   commands,
   window,
   workspace,
@@ -18,7 +18,7 @@ import {
   isArchiveRoot,
 } from '../../services/archives/virtualNode';
 import { getNodeUri } from '../../services/archives/nodeAddress';
-import type { RegisterNodeCommand } from './commandCenter';
+import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 
@@ -101,7 +101,7 @@ const exists = async (uri: Uri): Promise<boolean> => {
  * Drops the files the user will not overwrite, asking once for every target
  * that already exists on disk
  */
-const withoutRefusedFiles = async (
+const withoutSkippedFiles = async (
   extractedFiles: ExtractedFile[],
 ): Promise<ExtractedFile[]> => {
   const takenNames = new Set<string>();
@@ -158,7 +158,7 @@ const extractToDirectory = async (
     return undefined;
   }
 
-  const extractedFiles = await withoutRefusedFiles(
+  const extractedFiles = await withoutSkippedFiles(
     getExtractedFiles(nodes, targetDirectoryUri),
   );
 
@@ -245,7 +245,7 @@ const extractNodes = async (
 
 /**
  * Registers the palette and context menu entry for extracting nodes to disk,
- * through the register callback the command center hands out
+ * through the register callback `createNodeCommandRegistrar` hands out
  */
 export const registerExtractCommands = (
   register: RegisterNodeCommand,

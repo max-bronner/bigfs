@@ -4,25 +4,25 @@ import type { EntryLocator } from '../../services/entryLocator';
 import {
   applyValueEdits,
   findParticleDefinitions,
-  numericFields,
+  findNumericFields,
   readFxList,
   readParticleDef,
-  valueEdits,
+  computeValueEdits,
 } from '../../formats/particles/particleIni';
 import type {
   FxListDef,
   IniDefinition,
   ParticleDef,
 } from '../../formats/particles/particleIni';
-import { keyEdits } from '../../formats/particles/particleKeys';
+import { computeKeyEdits } from '../../formats/particles/particleKeys';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
-import { createToolRegistry } from '../../services/toolRegistry';
+import { createToolRegistry } from '../../core/toolRegistry';
 import { duplicateDefinition } from '../../game/objects/duplicateDefinition';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { EffectLibrary } from './effectLibrary';
+import { EffectLibrary } from '../../services/effectLibrary';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { registerCommand } from '../../platform/commands';
 import { describeError } from '../../core/errors';
@@ -43,7 +43,7 @@ const findDefinitionAt = (
     (definition) => definition.startLine <= line && line <= definition.endLine,
   );
 
-/** What the page sends; loose, since automation sends the same shapes */
+/** Message from the particle page, loosely typed since automation sends the same shapes */
 interface FromParticlePage {
   kind?: string;
   id?: string;
@@ -72,14 +72,13 @@ const createParticlePreview = (
   const library = new EffectLibrary(index, locator, uri);
   const scripts = vscode.Uri.joinPath(context.extensionUri, 'dist', 'webview');
   let restartNext = true;
-  /** Showing the block as written, slider values held back, to compare */
+  // Showing the block as written, slider values held back, to compare
   let comparing = false;
   let updating: Promise<void> = Promise.resolve();
-  /** Whether an update is waiting; slider drags coalesce into it */
+  // Whether an update is waiting; slider drags coalesce into it
   let queued = false;
-  /** The last scene sent to the page */
   let lastScene: Record<string, unknown> | undefined;
-  /** What the page last said it is running */
+  // What the page last said it is running, read back by automation
   let lastStatus:
     | { frame: number; systems: number; particles: number }
     | undefined;
@@ -94,7 +93,7 @@ const createParticlePreview = (
       localResourceRoots: [scripts],
     },
     render: ({ webview }) => {
-      webview.html = particlePageHtml(
+      webview.html = renderParticlePage(
         webview.cspSource,
         webview
           .asWebviewUri(vscode.Uri.joinPath(scripts, 'particles.js'))
@@ -193,8 +192,8 @@ const createParticlePreview = (
     }
   };
 
-  /** The previewed definition as the file now has it */
-  const rootDefinition = async (): Promise<
+  /** Reads the previewed definition as the file now has it */
+  const readRootDefinition = async (): Promise<
     { definition: IniDefinition; text: string } | undefined
   > => {
     const text = await readWorkspaceText(uri);
@@ -213,7 +212,7 @@ const createParticlePreview = (
     kind: KeyKind;
     keys: KeyValue[];
   }): Promise<void> => {
-    const root = await rootDefinition();
+    const root = await readRootDefinition();
 
     if (!root || (!values.size && !keys)) {
       return;
@@ -222,7 +221,7 @@ const createParticlePreview = (
     const edit = new vscode.WorkspaceEdit();
     const newline = /\r\n/.test(root.text) ? '\r\n' : '\n';
     const rewritten = keys
-      ? keyEdits(root.text, root.definition, keys.kind, keys.keys)
+      ? computeKeyEdits(root.text, root.definition, keys.kind, keys.keys)
       : [];
     const replaced = new Set(
       rewritten.flatMap((change) =>
@@ -237,7 +236,7 @@ const createParticlePreview = (
         change.insert.map((line) => line + newline).join(''),
       );
     }
-    for (const change of valueEdits(root.definition, values).filter(
+    for (const change of computeValueEdits(root.definition, values).filter(
       (each) => !replaced.has(each.line),
     )) {
       edit.replace(
@@ -297,7 +296,7 @@ const createParticlePreview = (
    * it, and leaves the block itself as it was: a variant to keep
    */
   const saveVariant = async (given?: string): Promise<void> => {
-    const root = await rootDefinition();
+    const root = await readRootDefinition();
 
     if (!root) {
       return;
@@ -320,7 +319,7 @@ const createParticlePreview = (
 
     const lines = applyValueEdits(
       root.text,
-      valueEdits(root.definition, values),
+      computeValueEdits(root.definition, values),
     ).split(/\r?\n/);
     const copy = duplicateDefinition(
       lines,
@@ -363,10 +362,10 @@ const createParticlePreview = (
   };
 
   /**
-   * The particle count each detail level allows, from the mod's own
+   * Reads the particle count each detail level allows, from the mod's own
    * `StaticGameLOD` blocks (`MaxParticleCount`), smallest first
    */
-  const particleBudgets = async (): Promise<{ lod: string; max: number }[]> => {
+  const readParticleBudgets = async (): Promise<{ lod: string; max: number }[]> => {
     const budgets: { lod: string; max: number }[] = [];
 
     for (const name of index.getNames('StaticGameLOD')) {
@@ -393,7 +392,7 @@ const createParticlePreview = (
   const send = async (): Promise<void> => {
     await index.whenReady();
 
-    const root = await rootDefinition();
+    const root = await readRootDefinition();
 
     if (!root) {
       await panel.post({
@@ -406,7 +405,7 @@ const createParticlePreview = (
     // Slider values are previewed on a copy of the text, never written
     const text = comparing
       ? root.text
-      : applyValueEdits(root.text, valueEdits(root.definition, values));
+      : applyValueEdits(root.text, computeValueEdits(root.definition, values));
     const definition = findParticleDefinitions(text).find(
       (candidate) => candidate.startLine === root.definition.startLine,
     )!;
@@ -433,10 +432,10 @@ const createParticlePreview = (
       fxLists,
       textures,
       notes,
-      fields: numericFields(root.definition),
+      fields: findNumericFields(root.definition),
       values: Object.fromEntries(values),
       comparing: comparing,
-      budgets: await particleBudgets(),
+      budgets: await readParticleBudgets(),
     };
     await panel.post(lastScene);
     restartNext = false;
@@ -491,9 +490,9 @@ const showParticlePreview = (
   return preview;
 };
 
-/** The preview page: its controls, and the bundle that simulates and draws */
-export const particlePageHtml = (source: string, script: string): string =>
-  webviewPage({
+/** Renders the particle page, shared with the object preview: its controls, and the bundle that simulates and draws */
+export const renderParticlePage = (source: string, script: string): string =>
+  renderWebviewPage({
     allow: { img: 'data:', script: source },
     scriptFiles: [script],
     style: `
@@ -611,6 +610,7 @@ const createParticleLensProvider = (): vscode.CodeLensProvider => ({
   },
 });
 
+/** Registers the particle preview lens and `bigfs.previewParticles`, which resolves to the preview for automation */
 export const registerParticlePreview = (
   context: vscode.ExtensionContext,
   selector: vscode.DocumentSelector,

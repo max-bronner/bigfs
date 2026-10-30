@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { createDebouncer } from '../../core/debounce';
 import {
-  armorEdit,
-  armorValue,
-  damageTypes,
+  planArmorEdit,
+  parseArmorValue,
+  listDamageTypes,
   readArmorRows,
 } from '../../game/objects/armorTable';
 import type {
@@ -27,7 +27,7 @@ import { registerCommand } from '../../platform/commands';
  * the line when it has none.
  */
 
-/** How long after an edit the table is read again */
+/** Milliseconds after an edit before the table is read again */
 const REFRESH_DELAY = 300;
 
 const createArmorTable = (
@@ -49,7 +49,7 @@ const createArmorTable = (
       retainContextWhenHidden: true,
     },
     render: ({ webview }) => {
-      webview.html = webviewPage({
+      webview.html = renderWebviewPage({
         allow: { script: webview.cspSource },
         scriptFiles: [
           webview
@@ -114,7 +114,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
 
     const message: ArmorTableMessage = {
       kind: 'table',
-      types: damageTypes(rows),
+      types: listDamageTypes(rows),
       rows: rows,
     };
 
@@ -122,7 +122,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
     return message;
   };
 
-  const stale = async (): Promise<void> => {
+  const refreshStale = async (): Promise<void> => {
     void vscode.window.showErrorMessage(
       'The file changed since the table was built; it has been refreshed',
     );
@@ -156,7 +156,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
       return;
     }
 
-    const value = armorValue(message.value);
+    const value = parseArmorValue(message.value);
 
     if (!value) {
       void vscode.window.showErrorMessage(
@@ -170,7 +170,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
     // edit must still read as the table saw them
     const document = await vscode.workspace.openTextDocument(uri);
     const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-    const change = armorEdit(row, message.type.toUpperCase(), value, eol);
+    const change = planArmorEdit(row, message.type.toUpperCase(), value, eol);
     const edit = new vscode.WorkspaceEdit();
 
     if (change.kind === 'replace') {
@@ -185,7 +185,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
         change.line >= document.lineCount ||
         document.getText(range) !== change.old
       ) {
-        await stale();
+        await refreshStale();
         return;
       }
       edit.replace(uri, range, value);
@@ -198,7 +198,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
         (change.line === row.endLine &&
           !/^\s*end\b/i.test(document.lineAt(anchor).text))
       ) {
-        await stale();
+        await refreshStale();
         return;
       }
       edit.insert(uri, new vscode.Position(change.line, 0), change.text);
@@ -210,6 +210,7 @@ td.high { background: color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 25%, 
   return { show: panel.show, refresh, receive };
 };
 
+/** Registers `bigfs.showArmorTable`, which opens the armor table and, given a message, acts on it as the page would */
 export const registerArmorTable = (
   context: vscode.ExtensionContext,
   documents: SageIniDocuments,

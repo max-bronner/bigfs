@@ -105,7 +105,7 @@ const addValues = (
   });
 };
 
-/** Creates the provider, sharing the one parse and schema every provider uses */
+/** Creates the semantic tokens provider, sharing the one parse and schema every provider uses */
 export const createSageIniSemanticTokensProvider = (
   documents: SageIniDocuments,
 ): DocumentSemanticTokensProvider => ({

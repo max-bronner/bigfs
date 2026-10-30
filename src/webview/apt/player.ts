@@ -12,24 +12,27 @@ import type {
   Matrix2,
 } from "../../formats/apt/aptMovie";
 import type { PageMovie } from "./protocol";
-import { movieNameOf } from "./avm/movieLoad";
-import { displayList, framesOf } from "./timeline";
+import { getMovieName } from "./avm/movieLoad";
+import { buildDisplayList, getFrames } from "./timeline";
 import type { ColorTransform } from "./timeline";
 
 /**
  * A small APT player: every placed character is an instance, every
  * timeline instance keeps its own playhead, and buttons keep their state,
- * the way a Flash player runs them (mint's player, after Ruffle). Scripts
- * are not run; what an action block does to timelines (`gotoAndPlay`,
- * `stop`, ...) is, from the behaviours the extension read out of it.
+ * the way a Flash player runs them (mint's player, after Ruffle). With an
+ * engine, scripts run as bytecode on the AVM; without one, only what an
+ * action block does to timelines (`gotoAndPlay`, `stop`, ...) is played,
+ * from the behaviours the extension read out of it.
  *
  * Kept free of the DOM: the page draws and picks, this decides what is
  * shown.
  */
 
-/** Button states, as record flags and event dispatch use them */
+/** Button up state, as record flags and event dispatch use it */
 export const UP = 1;
+/** Button over state: the pointer is on it */
 export const OVER = 2;
+/** Button down state: the pointer is pressed on it */
 export const DOWN = 4;
 const HIT = 8;
 
@@ -50,12 +53,14 @@ const MAX_ACTIONS = 1000;
 /** The depth of `_level0`'s next sibling: a level sits above every placed depth */
 const LEVEL_DEPTH = 1_000_000;
 
+/** A character a placeholder resolves to, with the movie and id it lives at */
 export interface Resolved {
   movie: PageMovie;
   id: number;
   character: Character;
 }
 
+/** A placed character in the player's display tree, with its own playhead when it has a timeline */
 export interface Instance {
   /** Depths down from the root, `/` separated; a button record is `b<depth>` */
   path: string;
@@ -109,6 +114,7 @@ export interface Instance {
   created: number;
 }
 
+/** Options for a `Player`: how imports resolve, which scripts run, and who answers for the game */
 export interface PlayerOptions {
   resolve: (movie: PageMovie, id: number) => Resolved | undefined;
   /** Whether nested timelines run their frame scripts */
@@ -154,8 +160,11 @@ const HANDLERS: Record<number, string> = {
 const isTimeline = (instance: Instance) =>
   instance.character?.type === "sprite" || instance.character?.type === "movie";
 
+/** Player of one character's timelines and buttons, and the stage the AVM drives */
 export class Player implements StageHost {
+  /** The instance of the character played, the top of the display tree */
   public readonly root: Instance;
+  /** Ticks played so far; an instance created in this tick starts playing on the next */
   public ticks = 0;
   /** The ActionScript machine, when an engine answers for the game */
   public readonly vm?: Vm;
@@ -226,9 +235,10 @@ export class Player implements StageHost {
   // ---- loadMovie
 
   /**
-   * `loadMovie`/`unloadMovie` into a clip, or into a level (a number): the
-   * movie a URL names replaces the clip's content, once it is found. Nothing
-   * here throws; a movie that cannot be had is a line in the log.
+   * Loads into a clip, or into a level (a number), for `loadMovie`/`unloadMovie`:
+   * the movie a URL names replaces the clip's content, once it is found, and no
+   * URL empties it. Nothing here throws; a movie that cannot be had is a line
+   * in the log.
    */
   public loadMovie(into: Instance | number, url: string | undefined): void {
     const log = (line: string) => this.options.log?.(`loadMovie: ${line}`);
@@ -243,7 +253,7 @@ export class Player implements StageHost {
       return;
     }
 
-    const name = movieNameOf(url);
+    const name = getMovieName(url);
 
     if (!name) {
       log(`${JSON.stringify(url)} names no movie`);
@@ -299,7 +309,7 @@ export class Player implements StageHost {
     clip.id = rootId;
     clip.character = movie.characters[rootId];
     clip.missing = undefined;
-    clip.frames = framesOf(movie, clip.character);
+    clip.frames = getFrames(movie, clip.character);
     clip.frame = 0;
     clip.playing = true;
     clip.visible = true;
@@ -314,7 +324,7 @@ export class Player implements StageHost {
     // Runs inside the drain of the script queue: what these queue follows
     this.queueInitActions(movie, clip);
     this.enter(clip, 0);
-    this.options.log?.(`loadMovie: ${movie.name} is in ${describe(clip)}`);
+    this.options.log?.(`loadMovie: ${movie.name} is in ${describeInstance(clip)}`);
     this.idle();
   }
 
@@ -392,7 +402,7 @@ export class Player implements StageHost {
    * goto each other take turns instead of nesting without end.
    */
   public idle(): void {
-    if (!this.vm || this.draining || this.vm.busy) {
+    if (!this.vm || this.draining || this.vm.isBusy) {
       return;
     }
     this.draining = true;
@@ -416,6 +426,7 @@ export class Player implements StageHost {
     this.waiting.push(run);
   }
 
+  /** Plays or stops a clip's timeline */
   public setPlaying(clip: Instance, playing: boolean): void {
     clip.playing = playing;
   }
@@ -454,6 +465,7 @@ export class Player implements StageHost {
     );
   }
 
+  /** Creates an empty clip on a clip, at a depth, under a name (`createEmptyMovieClip`) */
   public createEmpty(parent: Instance, name: string, depth: number): Instance {
     const instance = this.create(
       parent.movie,
@@ -480,6 +492,7 @@ export class Player implements StageHost {
     return this.place(parent, depth, instance);
   }
 
+  /** Takes a clip off its parent, running its unload handler; the root stays */
   public remove(clip: Instance): void {
     const parent = clip.parent;
 
@@ -553,7 +566,7 @@ export class Player implements StageHost {
     }
   }
 
-  /** The frame a label names on a timeline, without casing */
+  /** Finds the frame a label names on a timeline, ignoring casing */
   public labelFrame(timeline: Instance, label: string): number | undefined {
     const wanted = label.toLowerCase();
     const index = timeline.frames.findIndex((frame) =>
@@ -566,7 +579,7 @@ export class Player implements StageHost {
     return index < 0 ? undefined : index;
   }
 
-  /** Every frame label of a timeline, in frame order */
+  /** Lists every frame label of a timeline, in frame order */
   public labels(timeline: Instance): { label: string; frame: number }[] {
     return timeline.frames.flatMap((frame, index) =>
       frame.items.flatMap((item) =>
@@ -581,7 +594,7 @@ export class Player implements StageHost {
     this.syncButton(button);
   }
 
-  /** The pointer moved onto a button, or off every button */
+  /** Moves the pointer onto a button, or off every button, rolling out of the previous one */
   public hover(
     previous: Instance | undefined,
     next: Instance | undefined,
@@ -597,11 +610,12 @@ export class Player implements StageHost {
     }
   }
 
+  /** Presses the pointer on a button */
   public press(button: Instance): void {
     this.buttonEvent(button, CONDITION.press, DOWN);
   }
 
-  /** The pointer was let go: over the button pressed, or elsewhere */
+  /** Lets the pointer go: over the button pressed, or elsewhere */
   public release(button: Instance, over: boolean): void {
     this.buttonEvent(
       button,
@@ -610,7 +624,7 @@ export class Player implements StageHost {
     );
   }
 
-  /** Every instance, root first, depth first */
+  /** Lists every instance, root first, depth first */
   public all(): Instance[] {
     const out: Instance[] = [];
     const visit = (instance: Instance) => {
@@ -622,6 +636,7 @@ export class Player implements StageHost {
     return out;
   }
 
+  /** Finds the instance at a path of depths from the root */
   public find(path: string): Instance | undefined {
     return this.all().find((instance) => instance.path === path);
   }
@@ -680,7 +695,7 @@ export class Player implements StageHost {
       placed: id,
       placedItem: place.placedItem,
       matrixItem: place.matrixItem,
-      frames: found ? framesOf(found.movie, found.character) : [],
+      frames: found ? getFrames(found.movie, found.character) : [],
       frame: 0,
       playing: true,
       children: new Map(),
@@ -753,7 +768,7 @@ export class Player implements StageHost {
   private syncTimeline(timeline: Instance): void {
     const kept = new Map<string, Instance>();
 
-    for (const placement of displayList(timeline.frames, timeline.frame)) {
+    for (const placement of buildDisplayList(timeline.frames, timeline.frame)) {
       const key = String(placement.depth);
       const existing = timeline.children.get(key);
       if (
@@ -864,13 +879,13 @@ export class Player implements StageHost {
     for (const action of button.character.actions) {
       if (action.condition & condition) {
         if (vm) {
-          this.options.log?.(`${name} on ${describe(button)}`);
+          this.options.log?.(`${name} on ${describeInstance(button)}`);
           vm.runBlock(owner, action.block, button);
         } else {
           this.run(
             owner,
             button.movie.behaviours[action.block],
-            `${name} on ${describe(button)}`,
+            `${name} on ${describeInstance(button)}`,
           );
         }
       }
@@ -889,7 +904,7 @@ export class Player implements StageHost {
     }
   }
 
-  /** A text field's text: set by a script, else its bound variable's value */
+  /** Gets a text field's text: set by a script, else its bound variable's value */
   public textOf(instance: Instance): string | undefined {
     if (instance.text !== undefined) {
       return instance.text;
@@ -1008,7 +1023,8 @@ export class Player implements StageHost {
   }
 }
 
-export const describe = (instance: Instance): string =>
+/** Describes an instance for the log: its name, character id and path */
+export const describeInstance = (instance: Instance): string =>
   (instance.name ? `"${instance.name}" ` : "") +
   `#${instance.id}${instance.path ? " @" + instance.path : ""}`;
 

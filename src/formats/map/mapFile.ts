@@ -21,6 +21,7 @@ import { describeError } from '../../core/errors';
  * around the splice, so everything else stays as read.
  */
 
+/** One chunk of a map body and where it sits, so an edit can splice it */
 export interface MapChunk {
   name: string;
   version: number;
@@ -31,6 +32,7 @@ export interface MapChunk {
   children?: MapChunk[];
 }
 
+/** A map dictionary value, tagged by the type byte it is stored with */
 export type DictValue =
   | { type: 'bool'; value: boolean }
   | { type: 'int'; value: number }
@@ -38,6 +40,7 @@ export type DictValue =
   | { type: 'string'; value: string }
   | { type: 'wide'; value: string };
 
+/** One key and value of a map dictionary */
 export interface DictEntry {
   key: string;
   /** The name index the key is stored as */
@@ -52,6 +55,7 @@ export interface Dict {
   entries: DictEntry[];
 }
 
+/** One object placed on the map, from the `ObjectsList` chunk */
 export interface MapObject {
   /** Index among the objects, which an edit names */
   index: number;
@@ -67,12 +71,14 @@ export interface MapObject {
   properties: Dict;
 }
 
+/** One light of `GlobalLighting`, each colour and the direction as three floats */
 export interface MapLight {
   ambient: number[];
   color: number[];
   direction: number[];
 }
 
+/** The time of day and terrain suns a map's `GlobalLighting` chunk holds */
 export interface MapLighting {
   /** 1 morning, 2 afternoon, 3 evening, 4 night */
   timeOfDay: number;
@@ -82,6 +88,7 @@ export interface MapLighting {
   terrainSuns: MapLight[];
 }
 
+/** The terrain height map of the `HeightMapData` chunk */
 export interface MapHeights {
   width: number;
   height: number;
@@ -93,6 +100,7 @@ export interface MapHeights {
   sampleBytes: 1 | 2;
 }
 
+/** A parsed map: its decompressed body, chunks, and the parts the editors read */
 export interface MapFile {
   compression: 'ear' | 'none';
   body: Uint8Array;
@@ -140,6 +148,7 @@ export interface MapScriptCall {
   parameters: string[];
 }
 
+/** A node of a player's script tree: a script group, or a script with its conditions and actions */
 export type MapScriptNode =
   | {
       kind: 'group';
@@ -176,8 +185,6 @@ const CONTAINERS = new Set([
 /** Script chunks: fields first, then child chunks */
 const PREFIXED = new Set(['ScriptGroup', 'Script']);
 
-const latin1 = { decode: decodeWindows1252 };
-
 /** Reads a window of the body, failing with the map's own message when a read runs past it */
 const createMapReader = (
   bytes: Uint8Array,
@@ -192,7 +199,7 @@ const createMapReader = (
 
 /** Reads a string with a 16-bit byte length */
 const readString = (reader: ByteReader): string =>
-  latin1.decode(reader.bytes(reader.u16()));
+  decodeWindows1252(reader.bytes(reader.u16()));
 
 /** Reads a UTF-16 string with a 16-bit character count */
 const readWide = (reader: ByteReader): string => {
@@ -387,15 +394,19 @@ export const writeDict = (entries: DictEntry[]): Uint8Array => {
   return Uint8Array.from(out);
 };
 
+/** Finds the first chunk of a list with this name, not searching nested ones */
 export const findChunk = (chunks: MapChunk[], name: string) =>
   chunks.find((chunk) => chunk.name === name);
 
-/** Reads a map body (decompressed) */
+/**
+ * Reads a decompressed map body. A section that fails to read is recorded in
+ * `problems` instead of failing the whole map; a body without `CkMp` throws.
+ */
 export const parseMapBody = (
   body: Uint8Array,
   compression: MapFile['compression'],
 ): MapFile => {
-  if (latin1.decode(body.subarray(0, 4)) !== 'CkMp') {
+  if (decodeWindows1252(body.subarray(0, 4)) !== 'CkMp') {
     throw new Error('Not a map: the body does not start with CkMp');
   }
 
@@ -405,7 +416,7 @@ export const parseMapBody = (
   for (let count = reader.u32(); count > 0; count--) {
     const length = reader.u8();
 
-    const name = latin1.decode(reader.bytes(length));
+    const name = decodeWindows1252(reader.bytes(length));
 
     names.set(reader.u32(), name);
   }
@@ -751,13 +762,13 @@ export const parseMap = (bytes: Uint8Array): MapFile =>
     ? parseMapBody(decompressEar(bytes), 'ear')
     : parseMapBody(bytes, 'none');
 
-/** The file bytes of a map, compressed the way it was read */
+/** Serialises a map to file bytes, compressed the way it was read */
 export const writeMap = (map: MapFile): Uint8Array =>
   map.compression === 'ear' ? compressEar(map.body) : map.body;
 
-/** Every chunk, nested ones included */
-export const allChunks = (chunks: MapChunk[]): MapChunk[] =>
-  chunks.flatMap((chunk) => [chunk, ...allChunks(chunk.children ?? [])]);
+/** Lists every chunk, nested ones included, parents before children */
+export const listAllChunks = (chunks: MapChunk[]): MapChunk[] =>
+  chunks.flatMap((chunk) => [chunk, ...listAllChunks(chunk.children ?? [])]);
 
 /**
  * Replaces `[start, end)` of the body, growing or shrinking every chunk
@@ -783,7 +794,7 @@ export const spliceMap = (
   // Text added at the end of a chunk is inside it, which the span alone cannot say
   const holder = inside ?? { start, end };
 
-  for (const chunk of allChunks(map.chunks)) {
+  for (const chunk of listAllChunks(map.chunks)) {
     if (chunk.start <= holder.start && holder.end <= chunk.end) {
       const lengthAt = chunk.header + 6;
 

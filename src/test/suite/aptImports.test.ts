@@ -49,7 +49,7 @@ const movieFiles = (name: string, exports: string[]) => {
   ];
 };
 
-const archive = (files: { name: string; bytes: Uint8Array }[]): Buffer => {
+const buildArchive = (files: { name: string; bytes: Uint8Array }[]): Buffer => {
   const entries = new Map<string, BigFileEntry>();
 
   for (const { name, bytes } of files) {
@@ -129,7 +129,7 @@ suite('APT imports', () => {
     this.timeout(60_000);
 
     // zz_ holds LibA exporting Panel; aa_ sorts first and exports Other only
-    await add('zz_aptlib.big', archive(movieFiles('LibA', ['Panel'])));
+    await add('zz_aptlib.big', buildArchive(movieFiles('LibA', ['Panel'])));
     await vscode.commands.executeCommand('bigfs.refreshArchives');
     await vscode.commands.executeCommand(
       'vscode.openWith',
@@ -144,7 +144,7 @@ suite('APT imports', () => {
       assert.deepStrictEqual(shown.unresolved, ['liba.apt:Other']);
     });
 
-    await add('aa_aptlib.big', archive(movieFiles('LibA', ['Other'])));
+    await add('aa_aptlib.big', buildArchive(movieFiles('LibA', ['Other'])));
     await vscode.commands.executeCommand('bigfs.refreshArchives');
     await waitFor(async () => {
       const shown = await status();

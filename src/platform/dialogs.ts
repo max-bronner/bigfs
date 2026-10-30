@@ -1,5 +1,5 @@
-﻿import { window } from 'vscode';
-import type { ConflictChoice } from '../game/install/transferPlan';
+import { window } from 'vscode';
+import type { ConflictChoice } from '../core/transferPlan';
 
 const MAX_LISTED_NAMES = 5;
 
@@ -13,8 +13,8 @@ const SEPARATOR_PATTERN = /[\\/]/;
 type OverwriteChoice = 'replace' | 'skip' | 'cancel';
 
 /**
- * What an input box asks for: its title, the names the answer must not collide
- * with, and the name being changed when this is a rename
+ * Options of the name input box `askForName` shows: its title, the names the
+ * answer must not collide with, and the name being changed when this is a rename
  */
 export interface NamePrompt {
   title: string;
@@ -63,7 +63,7 @@ export const askForName = async (
 };
 
 /** Joins names for a dialog detail, counting off whatever does not fit */
-const getListedNames = (names: string[]): string => {
+const formatNameList = (names: string[]): string => {
   const listedNames = names.slice(0, MAX_LISTED_NAMES);
   const hiddenCount = names.length - listedNames.length;
 
@@ -84,7 +84,7 @@ const askForOverwrite = async (names: string[]): Promise<OverwriteChoice> => {
 
   const selectedOption = await window.showWarningMessage(
     `${names.length} ${subject} here.`,
-    { modal: true, detail: getListedNames(names) },
+    { modal: true, detail: formatNameList(names) },
     REPLACE_LABEL,
     SKIP_LABEL,
   );
@@ -112,7 +112,7 @@ export const askForTransferConflict = async (
 
   const selectedOption = await window.showWarningMessage(
     `${names.length} ${subject} in the target.`,
-    { modal: true, detail: getListedNames(names) },
+    { modal: true, detail: formatNameList(names) },
     REPLACE_LABEL,
     SKIP_LABEL,
     KEEP_BOTH_LABEL,
@@ -164,7 +164,7 @@ export const confirmDelete = async (names: string[]): Promise<boolean> => {
 
   const selectedOption = await window.showWarningMessage(
     `Permanently delete ${subject} from the archive?`,
-    { modal: true, detail: getListedNames(names) },
+    { modal: true, detail: formatNameList(names) },
     DELETE_LABEL,
   );
 

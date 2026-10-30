@@ -8,6 +8,7 @@
  * functions and constants below. `^` is a power and binds right.
  */
 
+/** Values an expression's variables take, by name as written */
 export type Variables = Record<string, number>;
 
 const FUNCTIONS: Record<string, (...args: number[]) => number> = {
@@ -35,12 +36,16 @@ const FUNCTIONS: Record<string, (...args: number[]) => number> = {
 
 const CONSTANTS: Record<string, number> = { pi: Math.PI, e: Math.E };
 
+/** Thrown when an expression does not parse or does not give a finite number; the message is for the user */
 export class ExpressionError extends Error {}
 
-type Node = (variables: Variables) => number;
+type CompiledExpression = (variables: Variables) => number;
 
-/** Turns an expression into a function of its variables, or explains where it fails */
-export const compileExpression = (source: string): Node => {
+/**
+ * Turns an expression into a function of its variables, or explains where it
+ * fails. Both the compile and the returned function throw `ExpressionError`.
+ */
+export const compileExpression = (source: string): CompiledExpression => {
   const tokens =
     source.match(
       /\d+\.?\d*(?:e[-+]?\d+)?|\.\d+|[A-Za-z_]\w*|[-+*/%^(),]|\S/gi,
@@ -61,7 +66,7 @@ export const compileExpression = (source: string): Node => {
     return token;
   };
 
-  const sum = (): Node => {
+  const sum = (): CompiledExpression => {
     let left = product();
 
     while (peek() === '+' || peek() === '-') {
@@ -74,7 +79,7 @@ export const compileExpression = (source: string): Node => {
     }
     return left;
   };
-  const product = (): Node => {
+  const product = (): CompiledExpression => {
     let left = unary();
 
     while (peek() === '*' || peek() === '/' || peek() === '%') {
@@ -91,7 +96,7 @@ export const compileExpression = (source: string): Node => {
     }
     return left;
   };
-  const unary = (): Node => {
+  const unary = (): CompiledExpression => {
     if (peek() === '-') {
       take();
       const inner = unary();
@@ -104,7 +109,7 @@ export const compileExpression = (source: string): Node => {
     }
     return power();
   };
-  const power = (): Node => {
+  const power = (): CompiledExpression => {
     const base = atom();
 
     if (peek() === '^') {
@@ -115,7 +120,7 @@ export const compileExpression = (source: string): Node => {
     }
     return base;
   };
-  const atom = (): Node => {
+  const atom = (): CompiledExpression => {
     const token = take();
 
     if (/^(\d|\.)/.test(token)) {
@@ -140,7 +145,7 @@ export const compileExpression = (source: string): Node => {
         }
         take('(');
 
-        const args: Node[] = [];
+        const args: CompiledExpression[] = [];
 
         if (peek() !== ')') {
           args.push(sum());

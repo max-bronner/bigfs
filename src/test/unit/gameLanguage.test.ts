@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import {
   chooseLanguage,
-  installedLanguages,
-  languageOfArchive,
+  listInstalledLanguages,
+  getArchiveLanguage,
 } from '../../game/text/gameLanguage';
 import {
   collectTextKeys,
@@ -12,15 +12,15 @@ import {
 
 suite('Game language', () => {
   test('a language is a lang/<Language>.big archive, never its speech archive', () => {
-    assert.strictEqual(languageOfArchive('lang/English.big'), 'english');
+    assert.strictEqual(getArchiveLanguage('lang/English.big'), 'english');
     assert.strictEqual(
-      languageOfArchive('C:\\Game\\Lang\\German.BIG'),
+      getArchiveLanguage('C:\\Game\\Lang\\German.BIG'),
       'german',
     );
-    assert.strictEqual(languageOfArchive('lang/EnglishAudio.big'), undefined);
-    assert.strictEqual(languageOfArchive('art/English.big'), undefined);
+    assert.strictEqual(getArchiveLanguage('lang/EnglishAudio.big'), undefined);
+    assert.strictEqual(getArchiveLanguage('art/English.big'), undefined);
     assert.deepStrictEqual(
-      installedLanguages([
+      listInstalledLanguages([
         'lang/English.big',
         'lang/EnglishAudio.big',
         'lang/French.big',

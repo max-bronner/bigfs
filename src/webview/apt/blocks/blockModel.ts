@@ -4,7 +4,7 @@ import type {
   FrameItem,
 } from '../../../formats/apt/aptMovie';
 import { PLACE_FLAGS } from '../../../formats/apt/aptMovie';
-import { CLIP_EVENTS, bitNames } from '../scriptSites';
+import { CLIP_EVENTS, formatBitNames } from '../scriptSites';
 
 /**
  * What the block editor knows without a DOM: how a record is named and
@@ -12,6 +12,7 @@ import { CLIP_EVENTS, bitNames } from '../scriptSites';
  * and the colour and ordering arithmetic its controls share.
  */
 
+/** Kind of record a block shows, which picks its icon */
 export type BlockKind =
   | 'movie'
   | 'shape'
@@ -69,6 +70,7 @@ export const BLOCK_ICONS: Record<BlockKind, string> = {
 /** Where a block can be added: the record kinds that fit there */
 export type AddSpot = 'movie' | 'frame' | 'button' | 'text';
 
+/** An entry of the add menu: a record kind that may be added at a spot */
 export interface AddChoice {
   /** A key the page maps to the edit that adds it */
   id: string;
@@ -103,10 +105,10 @@ const CHOICES: Record<AddSpot, AddChoice[]> = {
   text: [{ id: 'textRun', label: 'Text run', icon: BLOCK_ICONS.textRun }],
 };
 
-/** The kinds of block that may be added at a spot, in menu order */
+/** Lists the kinds of block that may be added at a spot, in menu order */
 export const addChoices = (spot: AddSpot): AddChoice[] => CHOICES[spot];
 
-/** The block kind of a character */
+/** Gets the block kind of a character */
 export const kindOfCharacter = (character: Character): BlockKind =>
   character.type === 'placeholder'
     ? 'import'
@@ -114,8 +116,8 @@ export const kindOfCharacter = (character: Character): BlockKind =>
       ? 'shape'
       : character.type;
 
-/** The title of a frame item's block */
-export const itemTitle = (item: FrameItem): string => {
+/** Gets the title of a frame item's block */
+export const getItemTitle = (item: FrameItem): string => {
   switch (item.type) {
     case 'placeObject':
       return `Place @${item.depth}`;
@@ -134,8 +136,8 @@ export const itemTitle = (item: FrameItem): string => {
   }
 };
 
-/** The block kind of a frame item */
-export const itemKind = (item: FrameItem): BlockKind => {
+/** Gets the block kind of a frame item */
+export const getItemKind = (item: FrameItem): BlockKind => {
   switch (item.type) {
     case 'placeObject':
       return 'placement';
@@ -154,8 +156,8 @@ export const itemKind = (item: FrameItem): BlockKind => {
   }
 };
 
-/** One line saying what a frame item does, for its collapsed header */
-export const itemSummary = (item: FrameItem): string => {
+/** Summarises in one line what a frame item does, for its collapsed header */
+export const summarizeItem = (item: FrameItem): string => {
   switch (item.type) {
     case 'placeObject': {
       const parts: string[] = [];
@@ -175,7 +177,7 @@ export const itemSummary = (item: FrameItem): string => {
       if (item.clipActions?.length) {
         parts.push(
           item.clipActions
-            .map((clip) => bitNames(clip.events, CLIP_EVENTS))
+            .map((clip) => formatBitNames(clip.events, CLIP_EVENTS))
             .join(', '),
         );
       }
@@ -192,8 +194,8 @@ export const itemSummary = (item: FrameItem): string => {
   }
 };
 
-/** One line for a button record's header */
-export const buttonRecordSummary = (record: ButtonRecord): string => {
+/** Summarises a button record in one line, for its header */
+export const summarizeButtonRecord = (record: ButtonRecord): string => {
   const states = (
     [
       ['up', 0x1],
@@ -208,11 +210,11 @@ export const buttonRecordSummary = (record: ButtonRecord): string => {
   return `#${record.character} @${record.depth} · ${states.join(' ') || 'no state'}`;
 };
 
-/** A new position for an item dragged or nudged from `from`, kept in `0..length-1` */
+/** Computes the new position of an item dragged or nudged from `from`, kept in `0..length-1` */
 export const moveTarget = (length: number, from: number, to: number): number =>
   Math.max(0, Math.min(length - 1, to));
 
-/** Floats `0..1` as bytes, rounded and clamped */
+/** Converts floats `0..1` to bytes, rounded and clamped */
 export const floatsToBytes = (
   color: readonly number[],
 ): [number, number, number, number] =>
@@ -223,7 +225,7 @@ export const floatsToBytes = (
     number,
   ];
 
-/** Bytes as floats `0..1` */
+/** Converts bytes to floats `0..1` */
 export const bytesToFloats = (
   bytes: readonly number[],
 ): [number, number, number, number] =>
@@ -234,15 +236,15 @@ export const bytesToFloats = (
     number,
   ];
 
-/** `rgba(...)` for a swatch; alpha is a byte */
+/** Formats a colour as `rgba(...)` for a swatch; alpha is a byte */
 export const cssColour = (r: number, g: number, b: number, a = 255): string =>
   `rgba(${r}, ${g}, ${b}, ${Math.round((a / 255) * 100) / 100})`;
 
-/** `#rrggbb` for a colour input */
+/** Formats a colour as `#rrggbb` for a colour input */
 export const hexColour = (r: number, g: number, b: number): string =>
   '#' + [r, g, b].map((each) => each.toString(16).padStart(2, '0')).join('');
 
-/** The bytes of `#rrggbb`, or undefined when it is not that */
+/** Parses the bytes of `#rrggbb`, or undefined when the text is not that */
 export const parseHexColour = (
   text: string,
 ): [number, number, number] | undefined => {

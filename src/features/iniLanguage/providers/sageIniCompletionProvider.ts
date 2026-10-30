@@ -21,8 +21,8 @@ import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
  * the engine has been seen to accept.
  */
 
-/** How far back a value's own prefix runs, so replacing it does not duplicate */
-const wordRangeAt = (
+/** Finds the word the cursor is in, so a completion replaces the typed prefix instead of duplicating it */
+const getWordRangeAt = (
   document: TextDocument,
   position: Position,
 ): Range | undefined => {
@@ -36,7 +36,7 @@ const wordRangeAt = (
  * statement, but a line being typed is usually not a statement yet, so the
  * context is taken from the nearest block that is still open above it.
  */
-const contextAt = (
+const findContextAt = (
   { blocks, fileContext }: SageDocument,
   line: number,
 ): { context: string; slot?: string } => {
@@ -79,6 +79,7 @@ const toItem = (
   return item;
 };
 
+/** Creates the completion provider over the shared parse and the cross-archive index */
 export const createSageIniCompletionProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -92,14 +93,14 @@ export const createSageIniCompletionProvider = (
     const line = document.lineAt(position.line).text;
     const before = stripComment(line).slice(0, position.character);
     const tokens = tokenize(before);
-    const range = wordRangeAt(document, position);
+    const range = getWordRangeAt(document, position);
 
     // Still on the first token, so the cursor is on the keyword itself
     const onKeyword =
       tokens.length === 0 ||
       (tokens.length === 1 && position.character <= tokens[0].end);
 
-    const { context } = contextAt(parsed, position.line);
+    const { context } = findContextAt(parsed, position.line);
 
     if (onKeyword) {
       const keywords = schema.getContextKeywords(context);
@@ -156,7 +157,7 @@ export const createSageIniCompletionProvider = (
           toItem(value, CompletionItemKind.EnumMember, keyword, range),
         ),
       ...index
-        .getMacroNames()
+        .getMacros()
         .map(({ name, value }) =>
           toItem(name, CompletionItemKind.Constant, `= ${value}`, range),
         ),
@@ -164,7 +165,7 @@ export const createSageIniCompletionProvider = (
   },
 });
 
-/** What to show beside a field name, which is its engine type when it has one */
+/** Describes a field for the completion detail: its engine type when it has one */
 const describeField = (
   schema: SageIniSchema,
   name: string,

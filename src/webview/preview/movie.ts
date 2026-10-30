@@ -11,12 +11,15 @@ interface Movie {
   show(index: number, pixels: Uint8Array): void;
 }
 
+/** Controls the preview page's message handler drives a movie through */
 export interface MovieControl {
+  /** Draws a decoded frame and, while playing, asks for the next one on time */
   show(index: number, pixels: Uint8Array): void;
-  /** A frame could not be decoded: the next one may be asked for */
-  failed(): void;
+  /** Reports that the asked-for frame could not be decoded, so the next one may be asked for */
+  reportFrameError(): void;
 }
 
+/** Shows a VP6 movie's player and asks for its first frame */
 export const showMovie = (
   main: HTMLElement,
   info: VideoMessage,
@@ -124,7 +127,7 @@ export const showMovie = (
 
   return {
     show: (index, pixels) => movie.show(index, pixels),
-    failed: () => {
+    reportFrameError: () => {
       movie.pending = false;
     },
   };

@@ -25,9 +25,11 @@ export type Operand =
   | { k: 'list'; v: number[] }
   | { k: 'label'; v: string };
 
+/** A keyword that pushes a fixed value */
 export type Keyword =
   'true' | 'false' | 'null' | 'undefined' | 'this' | '_global';
 
+/** An expression node of the script language, tagged by `k` */
 export type Expr =
   | { k: 'str'; v: string }
   | { k: 'num'; v: number; hex?: boolean }
@@ -50,6 +52,7 @@ export type Expr =
   | { k: 'setreg'; n: number; value: Expr }
   | { k: 'func'; def: FuncDef };
 
+/** A function definition: DefineFunction, or DefineFunction2 when `flags` is set */
 export interface FuncDef {
   name: string;
   params: { name: string; register: number }[];
@@ -58,6 +61,7 @@ export interface FuncDef {
   body: Stmt[];
 }
 
+/** A statement node of the script language, tagged by `k` */
 export type Stmt =
   | { k: 'expr'; e: Expr; isVoid: boolean }
   | { k: 'push'; e: Expr }
@@ -125,7 +129,7 @@ export const quoteText = (text: string, mark = '"'): string =>
 const printName = (name: string): string =>
   isPlainName(name) ? name : quoteText(name, '`');
 
-/** The shortest decimal that reads back as the same number */
+/** Prints a number as the shortest decimal that reads back the same, or as hex when asked */
 export const printNumber = (value: number, hex = false): string => {
   if (hex && Number.isInteger(value) && value >= 0) {
     return `0x${value.toString(16)}`;
@@ -146,7 +150,7 @@ export const printNumber = (value: number, hex = false): string => {
   return String(value);
 };
 
-/** Binding strength of each binary operator */
+/** Binding strength of each binary operator, shared by the printer and the parser */
 export const PRECEDENCE: Record<string, number> = {
   '*': 12,
   '/': 12,
@@ -279,7 +283,7 @@ const printStatement = (stmt: Stmt, indent: string): string => {
     }
     case 'setvar': {
       const text = printName(stmt.name);
-      const step = incrementOf(stmt.value, text);
+      const step = getIncrementSuffix(stmt.value, text);
 
       return step ? `${text}${step};` : `${text} = ${printExpr(stmt.value)};`;
     }
@@ -289,7 +293,7 @@ const printStatement = (stmt: Stmt, indent: string): string => {
           ? { k: 'member', obj: stmt.obj, name: stmt.name.v }
           : { k: 'index', obj: stmt.obj, key: stmt.name };
       const text = printExpr(target);
-      const step = incrementOf(stmt.value, text);
+      const step = getIncrementSuffix(stmt.value, text);
 
       return step ? `${text}${step};` : `${text} = ${printExpr(stmt.value)};`;
     }
@@ -326,7 +330,7 @@ const printStatement = (stmt: Stmt, indent: string): string => {
 };
 
 /** `x = #Increment(x)` prints as `x++`: the suffix, when the value is that */
-const incrementOf = (value: Expr, target: string): string | undefined =>
+const getIncrementSuffix = (value: Expr, target: string): string | undefined =>
   value.k === 'intr' &&
   (value.op === 'Increment' || value.op === 'Decrement') &&
   !value.operand &&
@@ -337,6 +341,7 @@ const incrementOf = (value: Expr, target: string): string | undefined =>
       : '--'
     : undefined;
 
+/** Prints statements one a line at `indent`, labels outdented a level */
 export const printStatements = (stmts: Stmt[], indent = ''): string =>
   stmts
     .map((stmt) =>

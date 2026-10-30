@@ -1,12 +1,12 @@
 import * as vscode from 'vscode';
-import { decodeIniText } from '../../core/windows1252';
-import type { EntryLocator } from '../../services/entryLocator';
-import { isRotated, parseMappedImage } from '../../formats/mappedImage/mappedImage';
-import type { MappedImage } from '../../formats/mappedImage/mappedImage';
-import { encodePng } from '../../node/png';
-import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
-import type { RgbaImage } from '../../formats/texture/textureTools';
-import type { SageDefinition } from '../../services/ini/sageIniIndex';
+import { decodeIniText } from '../core/windows1252';
+import type { EntryLocator } from './entryLocator';
+import { isRotated, parseMappedImage } from '../formats/mappedImage/mappedImage';
+import type { MappedImage } from '../formats/mappedImage/mappedImage';
+import { encodePng } from '../node/png';
+import { decodeDds, decodeTga } from '../formats/texture/textureTools';
+import type { RgbaImage } from '../formats/texture/textureTools';
+import type { SageDefinition } from './ini/sageIniIndex';
 
 /**
  * The picture a `MappedImage` names: its texture, cropped to `Coords`, as a
@@ -16,9 +16,10 @@ import type { SageDefinition } from '../../services/ini/sageIniIndex';
  * looks for a DDS beside a TGA name, so that is tried first.
  */
 
+/** Longest side of a preview, in pixels */
 const MAX_SIDE = 256;
 
-/** A definition's fields, read from the lines between its header and `End` */
+/** Reads a definition's fields from the lines between its header and `End` */
 export const readMappedImage = async (
   definition: SageDefinition,
 ): Promise<MappedImage> => {
@@ -32,7 +33,7 @@ export const readMappedImage = async (
   );
 };
 
-/** The texture a definition names, DDS before TGA, as the game looks */
+/** Loads the texture a definition names, DDS before TGA, as the game looks */
 export const loadMappedTexture = async (
   locator: EntryLocator,
   textureName: string,
@@ -51,8 +52,8 @@ export const loadMappedTexture = async (
 };
 
 /**
- * The rect `width` by `height` at `left`, `top` of `image`, scaled down to
- * fit. A `rotated` image is packed turned a quarter turn clockwise, so it
+ * Crops the rect `width` by `height` at `left`, `top` of `image`, scaled down
+ * to fit `MAX_SIDE`. A `rotated` image is packed turned a quarter turn clockwise, so it
  * comes out turned back: width and height swap, its left edge reading the
  * rect's top and its top edge the rect's right (`UiQuad::uv_rotated_cw`).
  */
@@ -89,6 +90,11 @@ export const crop = (
   return { width: outWidth, height: outHeight, pixels };
 };
 
+/**
+ * Creates the renderer of a `MappedImage` definition's hover: Markdown holding
+ * the cropped picture, or a note when its texture is missing. Each definition
+ * is rendered once per session.
+ */
 export const createMappedImagePreview = (locator: EntryLocator) => {
   const cache = new Map<string, Promise<string | undefined>>();
 

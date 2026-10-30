@@ -5,13 +5,13 @@ import {
   commands,
   window,
 } from 'vscode';
-import type { EntryLocator } from '../../services/entryLocator';
+import type { EntryLocator } from '../entryLocator';
 import { settings } from '../../platform/settings';
 import { decideAssetCheck } from '../../game/ini-tools/assetCheckPolicy';
-import { closestNames } from '../../formats/ini/sageIniFormat';
+import { findClosestNames } from '../../formats/ini/sageIniFormat';
 import {
   findAssetReferences,
-  missingAssetMessage,
+  formatMissingAssetMessage,
 } from '../../formats/ini/sageIniAssets';
 import type { AssetKind } from '../../formats/ini/sageIniAssets';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
@@ -25,6 +25,7 @@ import type { SageDocument } from '../../formats/ini/sageIniParser';
  * once (`assetCheckPolicy`).
  */
 
+/** File names each kind of asset can be, for suggesting a near miss */
 const EXTENSIONS: Record<AssetKind, RegExp> = {
   model: /\.w3d$/,
   animation: /\.w3d$/,
@@ -35,7 +36,7 @@ const EXTENSIONS: Record<AssetKind, RegExp> = {
 /** Per file-name set: the stems of each kind, for suggestions */
 const stemCache = new WeakMap<Set<string>, Map<AssetKind, string[]>>();
 
-const stemsOf = (names: Set<string>, kind: AssetKind): string[] => {
+const listStems = (names: Set<string>, kind: AssetKind): string[] => {
   let byKind = stemCache.get(names);
 
   if (!byKind) {
@@ -58,14 +59,14 @@ const stemsOf = (names: Set<string>, kind: AssetKind): string[] => {
   return stems;
 };
 
-let hinted = false;
+let hasHinted = false;
 
 /** Says once per session why the check is off for want of a base game folder */
 const hintNoBaseGame = () => {
-  if (hinted) {
+  if (hasHinted) {
     return;
   }
-  hinted = true;
+  hasHinted = true;
   void window
     .showInformationMessage(
       'bigFS: missing-asset checks are off because no base game folder is set, so every texture and model your mod borrows would be flagged. Set "bigfs.baseGameFolder" to turn them on.',
@@ -106,7 +107,7 @@ export const shouldCheckAssets = (names: Set<string>): boolean => {
   return decision === 'check';
 };
 
-/** A warning for every file reference no archive or folder satisfies */
+/** Builds a warning for every file reference no archive or folder satisfies */
 export const getAssetDiagnostics = (
   parsed: SageDocument,
   names: Set<string>,
@@ -125,9 +126,9 @@ export const getAssetDiagnostics = (
           : '';
       const asWritten = written.slice(prefix.length);
       const extension = /\.[^.]*$/.exec(asWritten)?.[0] ?? '';
-      const suggestions = closestNames(
+      const suggestions = findClosestNames(
         asWritten.slice(0, asWritten.length - extension.length).toLowerCase(),
-        stemsOf(names, reference.kind),
+        listStems(names, reference.kind),
       ).map((stem) => `${prefix}${stem}${extension}`);
       const diagnostic = new Diagnostic(
         new Range(
@@ -136,7 +137,7 @@ export const getAssetDiagnostics = (
           reference.line,
           reference.end,
         ),
-        missingAssetMessage(reference, suggestions),
+        formatMissingAssetMessage(reference, suggestions),
         DiagnosticSeverity.Warning,
       );
 
@@ -144,29 +145,29 @@ export const getAssetDiagnostics = (
       return diagnostic;
     });
 
-/** The names the locator knows, when references should be checked at all */
-export const assetNamesToCheck = async (
+/** Gets the file names the locator knows, or nothing when references should not be checked at all */
+export const getAssetNamesToCheck = async (
   locator: EntryLocator | undefined,
 ): Promise<Set<string> | undefined> => {
   if (!locator) {
     return undefined;
   }
 
-  const names = await locator.fileNames();
+  const names = await locator.getFileNames();
 
   return shouldCheckAssets(names) ? names : undefined;
 };
 
 /**
- * The asset warnings for one open document, looking on disk again before
+ * Builds the asset warnings for one open document, looking on disk again before
  * reporting a name missing, in case the locator never heard of the file
  */
-export const checkedAssetDiagnostics = async (
+export const getCheckedAssetDiagnostics = async (
   parsed: SageDocument,
   locator: EntryLocator | undefined,
   source: string,
 ): Promise<Diagnostic[]> => {
-  let names = await assetNamesToCheck(locator);
+  let names = await getAssetNamesToCheck(locator);
 
   if (!names) {
     return [];
@@ -182,7 +183,7 @@ export const checkedAssetDiagnostics = async (
     first.length &&
     (await locator!.recheck(first.flatMap((reference) => reference.candidates)))
   ) {
-    names = await locator!.fileNames();
+    names = await locator!.getFileNames();
   }
   return getAssetDiagnostics(parsed, names, source);
 };
