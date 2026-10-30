@@ -1,11 +1,8 @@
 # bigFS conventions
 
 Where code goes and what shape it takes. `architecture.md` explains how the
-extension works; this file says where a change belongs. The codebase is being
-moved into this layout wave by wave (`refactor-plan.md`), so older folders
-(`model/`, `language/`, `providers/`, `commands/`, `tools/`, `binary/`,
-`common/`, `actions/`, `ui/`) still exist. New code goes into the layout below,
-not into them.
+extension works; this file says where a change belongs. Every module sits in
+one of the layers below; `refactor-plan.md` records how the code got there.
 
 ## Style in one paragraph
 
@@ -66,10 +63,8 @@ Rows import from columns. `own` is the module's own folder.
 | webview/x | yes | yes | yes | | | | | own and `shared` | | |
 
 `eslint.config.mjs` enforces the matrix with `@typescript-eslint/no-restricted-imports`
-for the new folders. The rules warn until the last wave, when they become
-errors. While the older folders exist, `services/` and `features/` may import
-them; the pure layers may not. `npm run check:cycles` lists import cycles; a
-change may not add one.
+as errors, so `npm run lint` fails on an import the matrix does not allow.
+`npm run check:cycles` lists import cycles; a change may not add one.
 
 ## Module shape
 
