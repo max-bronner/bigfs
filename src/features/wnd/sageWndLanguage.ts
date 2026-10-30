@@ -7,7 +7,6 @@ import {
   isRotated,
   mappedUv,
 } from '../../formats/mappedImage/mappedImage';
-import type { UvRect } from '../../formats/mappedImage/mappedImage';
 import type { EntryLocator } from '../../services/entryLocator';
 import { encodePng } from '../../node/png';
 import {
@@ -16,7 +15,11 @@ import {
 } from '../preview/mappedImagePreview';
 import type { GameLanguage } from '../../services/ini/gameLanguage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
-import { WND_PREVIEW_SCRIPT } from './wndPreviewScript';
+import type {
+  FromWndPage,
+  PreviewImage,
+  ToWndPage,
+} from '../../webview/wnd/protocol';
 import { webviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { registerCommand } from '../../platform/commands';
@@ -35,15 +38,6 @@ export interface WndPreviewServices {
   /** Settles the language labels resolve in before the text is drawn */
   gameLanguage?: GameLanguage;
   locator: EntryLocator;
-}
-
-/** One image of a layout: where its texture is, and how it maps */
-interface PreviewImage {
-  texture: string;
-  uv: UvRect;
-  rotated: boolean;
-  /** Pixels it draws at, `Coords`' size swapped when rotated */
-  extent: [number, number];
 }
 
 interface ResolvedImage {
@@ -216,6 +210,7 @@ const foldsOf = (
 
 /** Creates the preview panel of one document, redrawn as it changes */
 const createWndPreview = (
+  extensionUri: vscode.Uri,
   document: vscode.TextDocument,
   services: WndPreviewServices | undefined,
   onClose: () => void,
@@ -226,19 +221,20 @@ const createWndPreview = (
   const sent = new Set<string>();
   let version = 0;
 
-  const panel = createSingletonPanel({
+  const scripts = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
+  const panel = createSingletonPanel<FromWndPage, ToWndPage>({
     viewType: 'bigfs.wndPreview',
     title: `Layout: ${document.uri.path.slice(document.uri.path.lastIndexOf('/') + 1)}`,
     column: { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-    options: { enableScripts: true, localResourceRoots: [] },
+    options: { enableScripts: true, localResourceRoots: [scripts] },
     render: ({ webview }) => {
-      webview.html = renderPreviewHtml();
+      webview.html = renderPreviewHtml(webview, scripts);
     },
-    onMessage: async (message: { kind?: string; offset?: unknown }) => {
-      if (message?.kind === 'ready') {
+    onMessage: async (message) => {
+      if (message.kind === 'ready') {
         void update();
-      } else if (message?.kind === 'reveal') {
-        const position = document.positionAt(Number(message.offset));
+      } else if (message.kind === 'reveal') {
+        const position = document.positionAt(message.offset);
         const editor = await vscode.window.showTextDocument(
           document,
           vscode.ViewColumn.One,
@@ -358,13 +354,16 @@ const openWndPreviews = new Map<string, ReturnType<typeof createWndPreview>>();
 
 /** Opens the layout preview of a document, or brings the open one forward */
 const showWndPreview = (
+  extensionUri: vscode.Uri,
   document: vscode.TextDocument,
   services?: WndPreviewServices,
 ): void => {
   const key = document.uri.toString();
   const preview =
     openWndPreviews.get(key) ??
-    createWndPreview(document, services, () => openWndPreviews.delete(key));
+    createWndPreview(extensionUri, document, services, () =>
+      openWndPreviews.delete(key),
+    );
 
   openWndPreviews.set(key, preview);
   preview.show();
@@ -376,7 +375,10 @@ const refreshWndPreview = (document: vscode.TextDocument): void => {
 };
 
 /** The preview page: the windows drawn at their creation resolution */
-export const renderPreviewHtml = (): string => {
+export const renderPreviewHtml = (
+  webview: vscode.Webview,
+  scripts: vscode.Uri,
+): string => {
   return webviewPage({
     style: `
   body { margin: 0; padding: 8px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
@@ -384,10 +386,12 @@ export const renderPreviewHtml = (): string => {
   canvas { background: #1b1c1f; max-width: 100%; cursor: pointer; }
   .muted { opacity: 0.7; }
 `,
-    allow: { img: 'data:' },
+    allow: { img: 'data:', script: webview.cspSource },
+    scriptFiles: [
+      webview.asWebviewUri(vscode.Uri.joinPath(scripts, 'wnd.js')).toString(),
+    ],
     body: `<div id="bar"><label>State <select id="state"><option value="enabled">Enabled</option><option value="hilite">Hilite</option><option value="disabled">Disabled</option></select></label><label><input type="checkbox" id="checked"> Checked</label><label><input type="checkbox" id="outlines" checked> Outlines</label><label><input type="checkbox" id="hidden"> Show hidden</label><span id="status" class="muted"></span></div>
 <canvas id="screen" width="800" height="600"></canvas>`,
-    script: WND_PREVIEW_SCRIPT,
   });
 };
 
@@ -497,21 +501,20 @@ export const registerSageWndLanguage = (
       '+',
       ' ',
     ),
-    registerCommand(
-      'bigfs.showWndPreview',
-      (uri?: vscode.Uri) => {
-        const document = uri
-          ? openDocument(uri)
-          : vscode.window.activeTextEditor?.document;
+    registerCommand('bigfs.showWndPreview', (uri?: vscode.Uri) => {
+      const document = uri
+        ? openDocument(uri)
+        : vscode.window.activeTextEditor?.document;
 
-        if (document) {
-          showWndPreview(document, services);
-        } else if (uri) {
-          void vscode.workspace
-            .openTextDocument(uri)
-            .then((opened) => showWndPreview(opened, services));
-        }
-      },
-    ),
+      if (document) {
+        showWndPreview(context.extensionUri, document, services);
+      } else if (uri) {
+        void vscode.workspace
+          .openTextDocument(uri)
+          .then((opened) =>
+            showWndPreview(context.extensionUri, opened, services),
+          );
+      }
+    }),
   );
 };

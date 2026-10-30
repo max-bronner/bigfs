@@ -1,6 +1,4 @@
 import * as assert from 'assert';
-import { WND_PREVIEW_SCRIPT } from '../../features/wnd/wndPreviewScript';
-import { BALANCE_SHEET_SCRIPT } from '../../features/balanceSheet/balanceSheetScript';
 import {
   describeBling,
   describeChecksum,
@@ -68,13 +66,6 @@ const script = (
 });
 
 suite('Page scripts', () => {
-  // These two pages are still template literals, where a stray escape breaks the page silently
-  test('every inlined webview script parses', () => {
-    for (const script of [BALANCE_SHEET_SCRIPT, WND_PREVIEW_SCRIPT]) {
-      assert.doesNotThrow(() => new Function(script));
-    }
-  });
-
   suite('map page', () => {
     test('a start position is a waypoint named for a player', () => {
       assert.strictEqual(isStart(waypoint(1, 'Player_2_Start')), true);

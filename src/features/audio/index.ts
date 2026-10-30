@@ -10,6 +10,7 @@ export const registerAudio = (
 ): void => {
   context.subscriptions.push(
     ...registerSoundPlayer(
+      context.extensionUri,
       { language: SAGE_INI_LANGUAGE },
       iniDocuments,
       iniIndex,

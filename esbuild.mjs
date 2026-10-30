@@ -51,7 +51,17 @@ const PAGES = [
   // The CommandSet editor's page
   { name: 'commandset', entry: 'src/webview/commandset/main.ts' },
   // The W3D viewer's model view
-  { name: 'model', entry: 'src/webview/model/main.ts' },
+  { name: 'model', entry: 'src/webview/preview/main.ts' },
+  // The WND layout preview's page
+  { name: 'wnd', entry: 'src/webview/wnd/main.ts' },
+  // The balance sheet's page
+  { name: 'balanceSheet', entry: 'src/webview/balanceSheet/main.ts' },
+  // The sound player panel's page
+  { name: 'sound', entry: 'src/webview/audio/main.ts' },
+  // The frame reader's page for videos FFmpeg is not there to read
+  { name: 'video', entry: 'src/webview/video/main.ts' },
+  // The mod report's page
+  { name: 'modDiff', entry: 'src/webview/mods/main.ts' },
   // The map editor's page
   { name: 'map', entry: 'src/webview/map/main.ts' },
   // The Create-a-Hero editor's page

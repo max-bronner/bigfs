@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { webviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
-import { BALANCE_SHEET_SCRIPT } from './balanceSheetScript';
+import type {
+  FromSheetPage,
+  SheetCell,
+  SheetRow,
+  ToSheetPage,
+} from '../../webview/balanceSheet/protocol';
 import {
   STAT_COLUMNS,
   readObjectStats,
@@ -35,33 +40,6 @@ const OBJECT_KEYWORDS = ['Object', 'ChildObject', 'ObjectReskin'];
 const WEAPON_COLUMNS = ['damage', 'range', 'delay'] as const;
 const MAX_PARENTS = 16;
 
-export interface SheetCell {
-  value: string;
-  /** Where the value is written; absent when nothing writes it */
-  uri?: string;
-  line?: number;
-  start?: number;
-  end?: number;
-  /** The template it is inherited from */
-  from?: string;
-  /** How many rows read this same weapon value */
-  shared?: number;
-  /** How a computed value is worked out; it is not written anywhere */
-  derived?: string;
-  /** What is written at the place, when the value is evaluated from it */
-  written?: string;
-}
-
-export interface SheetRow {
-  name: string;
-  keyword: string;
-  parent?: string;
-  uri: string;
-  line: number;
-  selectable: boolean;
-  cells: Partial<Record<StatColumn | 'dps', SheetCell>>;
-}
-
 const cellOf = (uri: string, value: StatValue, from?: string): SheetCell => ({
   value: value.value,
   written: value.written,
@@ -72,16 +50,8 @@ const cellOf = (uri: string, value: StatValue, from?: string): SheetCell => ({
   from,
 });
 
-/** What the page sends: a row and a column by name, never a place in a file */
-interface FromSheetPage {
-  kind?: string;
-  row?: string;
-  column?: string;
-  value?: string;
-  old?: string;
-}
-
 const createBalanceSheet = (
+  extensionUri: vscode.Uri,
   documents: SageIniDocuments,
   index: SageIniIndex,
 ) => {
@@ -89,18 +59,19 @@ const createBalanceSheet = (
   let rows: SheetRow[] = [];
   let loaded: Promise<void> | undefined;
 
-  const panel = createSingletonPanel<FromSheetPage>({
+  const scripts = vscode.Uri.joinPath(extensionUri, 'dist', 'webview');
+  const panel = createSingletonPanel<FromSheetPage, ToSheetPage>({
     viewType: 'bigfs.balanceSheet',
     title: 'Balance Sheet',
     column: vscode.ViewColumn.Active,
     options: {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [],
+      localResourceRoots: [scripts],
     },
     render: ({ webview }) => {
       parses.clear();
-      webview.html = renderHtml();
+      webview.html = renderHtml(webview, scripts);
       return [
         vscode.workspace.onDidChangeTextDocument(({ document }) =>
           parses.delete(document.uri),
@@ -160,7 +131,9 @@ const createBalanceSheet = (
     rows.find((row) => row.name === name);
 
   /** Writes one value where it is written, and saves a file that was clean */
-  const edit = async (change: FromSheetPage): Promise<void> => {
+  const edit = async (
+    change: Extract<FromSheetPage, { kind: 'edit' }>,
+  ): Promise<void> => {
     const value = String(change.value ?? '').trim();
     const cell = rowNamed(change.row)?.cells[change.column as StatColumn];
 
@@ -387,8 +360,14 @@ const createBalanceSheet = (
   };
 };
 
-const renderHtml = (): string => {
+const renderHtml = (webview: vscode.Webview, scripts: vscode.Uri): string => {
   return webviewPage({
+    allow: { script: webview.cspSource },
+    scriptFiles: [
+      webview
+        .asWebviewUri(vscode.Uri.joinPath(scripts, 'balanceSheet.js'))
+        .toString(),
+    ],
     style: `
   body { margin: 0; padding: 8px 12px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   #bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; position: sticky; top: 0; background: var(--vscode-editor-background); padding: 4px 0; z-index: 2; }
@@ -418,15 +397,15 @@ const renderHtml = (): string => {
 </div>
 <table><thead><tr id="head"></tr></thead><tbody id="rows"></tbody></table>
 <div id="more" class="muted"></div>`,
-    script: BALANCE_SHEET_SCRIPT,
   });
 };
 
 export const registerBalanceSheet = (
+  extensionUri: vscode.Uri,
   documents: SageIniDocuments,
   index: SageIniIndex,
 ): vscode.Disposable => {
-  const sheet = createBalanceSheet(documents, index);
+  const sheet = createBalanceSheet(extensionUri, documents, index);
 
   return registerCommand('bigfs.openBalanceSheet', () => {
     sheet.show();
