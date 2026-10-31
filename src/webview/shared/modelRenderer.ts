@@ -1,4 +1,10 @@
-import { buildBoneLines, poseAt, skin } from "../../formats/w3d/w3dPose";
+import {
+  buildBoneLines,
+  getMeshOpacity,
+  isMeshShown,
+  poseAt,
+  skin,
+} from "../../formats/w3d/w3dPose";
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import { getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { ModelScene } from "../../formats/w3d/w3dScene";
@@ -38,12 +44,17 @@ uniform vec3 lightDirection;
 uniform float alphaCutoff;
 uniform bool useSolid;
 uniform vec4 solid;
+uniform float opacity;
+uniform bool fadesColour;
 void main() {
   if (useSolid) { gl_FragColor = solid; return; }
   vec4 base = hasTexture ? texture2D(tex, vUv) : vec4(0.7, 0.7, 0.7, 1.0);
   if (base.a < alphaCutoff) discard;
   float light = hasNormals ? abs(dot(normalize(vNormal), lightDirection)) : 1.0;
-  gl_FragColor = vec4(base.rgb * (0.35 + 0.65 * light), base.a);
+  vec3 lit = base.rgb * (0.35 + 0.65 * light);
+  gl_FragColor = fadesColour
+    ? vec4(lit * opacity, base.a)
+    : vec4(lit, base.a * opacity);
 }`;
 
 const BONE_COLOUR = [1, 0.75, 0.2, 1];
@@ -361,18 +372,32 @@ export const createModelRenderer = (
     gl.depthMask(true);
     gl.disable(gl.BLEND);
 
-    // Opaque first, so what blends over it finds it in the depth buffer
+    const { meshes } = scene;
     const visible = getMeshVisibility(scene, { lod, showHidden });
+    const opacityOf = (each: Drawable) =>
+      pose ? getMeshOpacity(meshes[each.mesh], pose) : 1;
+    // WW3D's mesh alpha override, mint's `faded`: below 1 an opaque mesh draws
+    // blended, and a mesh that ignores its own alpha fades by its colour
+    const blendOf = (each: Drawable) =>
+      each.blend === "opaque" && opacityOf(each) < 1 ? "alpha" : each.blend;
     const shown = showMeshes
-      ? drawables.filter((each) => visible[each.mesh])
+      ? drawables.filter(
+          (each) =>
+            visible[each.mesh] && (!pose || isMeshShown(meshes[each.mesh], pose)),
+        )
       : [];
+    // Opaque first, so what blends over it finds it in the depth buffer
     const ordered = [
-      ...shown.filter((each) => each.blend === "opaque"),
-      ...shown.filter((each) => each.blend !== "opaque"),
+      ...shown.filter((each) => blendOf(each) === "opaque"),
+      ...shown.filter((each) => blendOf(each) !== "opaque"),
     ];
 
     for (const drawable of ordered) {
-      applyBlend(drawable.blend);
+      const blend = blendOf(drawable);
+
+      applyBlend(blend);
+      gl.uniform1f(uniform("opacity"), opacityOf(drawable));
+      gl.uniform1i(uniform("fadesColour"), blend === "alpha" ? 0 : 1);
       gl.uniform1f(
         uniform("alphaCutoff"),
         drawable.alphaTest ? ALPHA_CUTOFF : -1,

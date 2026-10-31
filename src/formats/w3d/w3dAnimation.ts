@@ -13,14 +13,21 @@
 
 import { createByteReader, type ByteReader } from '../../core/byteReader';
 
-/** What a channel animates: a translation axis, the rotation, or visibility */
-export type ChannelKind = 'x' | 'y' | 'z' | 'rotation' | 'visibility' | 'other';
+/** What a channel animates: a translation axis, the rotation, visibility, or opacity */
+export type ChannelKind =
+  | 'x'
+  | 'y'
+  | 'z'
+  | 'rotation'
+  | 'visibility'
+  | 'opacity'
+  | 'other';
 
 /** One bone's channel sampled at every frame; `present` marks the frames that have a value */
 export interface SampledChannel {
   pivot: number;
   kind: ChannelKind;
-  /** The channel type as stored (0-2 x y z, 6 a rotation), -1 for visibility */
+  /** The channel type as stored (0-2 x y z, 6 a rotation, 15 opacity), -1 for visibility */
   type: number;
   /** One value a frame, four for a rotation (x, y, z, w) */
   values: Float32Array;
@@ -61,7 +68,9 @@ const toChannelKind = (raw: number): ChannelKind =>
         ? 'z'
         : raw === 6
           ? 'rotation'
-          : 'other';
+          : raw === 15
+            ? 'opacity'
+            : 'other';
 
 const getChannelWidth = (kind: ChannelKind) => (kind === 'rotation' ? 4 : 1);
 

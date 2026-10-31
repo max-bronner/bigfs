@@ -22,12 +22,14 @@ export interface BoneTransform {
   q: Quat;
 }
 
-/** A skeleton posed at one frame: every bone's transform and visibility */
+/** A skeleton posed at one frame: every bone's transform, visibility and opacity */
 export interface Pose {
   /** Every bone in model space */
   world: BoneTransform[];
   /** Whether each bone is shown, from its visibility channel */
   visible: boolean[];
+  /** Each bone's opacity from 0 to 1, from its type 15 channel */
+  opacity: number[];
 }
 
 const multiply = (a: Quat, b: Quat): Quat => [
@@ -105,6 +107,10 @@ const sample = (
   return slerp(a, b, t);
 };
 
+/** Reads a type 15 sample, as mint's `type15_opacity`: below zero or not a number is clear */
+const toOpacity = (raw: number): number =>
+  Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
+
 /** Poses every bone in model space at `frame`, or in the bind pose without an animation */
 export const poseAt = (
   skeleton: SceneSkeleton,
@@ -125,10 +131,12 @@ export const poseAt = (
 
   const world: BoneTransform[] = [];
   const visible: boolean[] = [];
+  const opacity: number[] = [];
 
   for (let bone = 0; bone < count; bone++) {
     const delta: BoneTransform = { t: [0, 0, 0], q: [0, 0, 0, 1] };
     let shown = true;
+    let opaqueness = 1;
 
     for (const channel of byBone.get(bone) ?? []) {
       const value = sample(channel, frame, animation!.frameCount);
@@ -152,6 +160,9 @@ export const poseAt = (
         case 'visibility':
           shown = value[0] > 0.5;
           break;
+        case 'opacity':
+          opaqueness = toOpacity(value[0]);
+          break;
       }
     }
 
@@ -166,10 +177,23 @@ export const poseAt = (
       parent >= 0 && parent < bone ? compose(world[parent], local) : local,
     );
     visible.push(shown);
+    opacity.push(opaqueness);
   }
 
-  return { world, visible };
+  return { world, visible, opacity };
 };
+
+/**
+ * Whether a pose shows a mesh. Visibility and opacity belong to a bone and are
+ * not inherited, and in mint only a rigid mesh answers to them: a skin has no
+ * one bone, so it is always shown and whole.
+ */
+export const isMeshShown = (mesh: SceneMesh, pose: Pose): boolean =>
+  mesh.bone === undefined || (pose.visible[mesh.bone] ?? true);
+
+/** Gets a mesh's opacity in a pose; see `isMeshShown` for which meshes have one */
+export const getMeshOpacity = (mesh: SceneMesh, pose: Pose): number =>
+  mesh.bone === undefined ? 1 : (pose.opacity[mesh.bone] ?? 1);
 
 /**
  * Writes a mesh's vertices, and normals, as its bones now stand; a vertex

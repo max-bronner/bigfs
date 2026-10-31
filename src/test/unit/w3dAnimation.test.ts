@@ -39,6 +39,25 @@ const values = (
       : null,
   );
 
+suite('W3D opacity channels', () => {
+  test('channel type 15 reads as opacity, and a frame outside it as none', () => {
+    const [animation] = parseW3dAnimations(
+      buildChunk(
+        0x200,
+        concatBytes(
+          buildHeader(4, false),
+          buildChunk(0x202, concatBytes(u16(1, 2, 1, 15, 1, 0), encodeFloats(0.5, 0.25))),
+        ),
+        true,
+      ),
+    );
+    const [channel] = animation.channels;
+
+    assert.strictEqual(channel.kind, 'opacity');
+    assert.deepStrictEqual(Array.from(channel.present), [0, 1, 1, 0]);
+  });
+});
+
 suite('W3D animations', () => {
   test('dense, bit and motion channels sample at every frame', () => {
     const [animation] = parseW3dAnimations(

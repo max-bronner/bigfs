@@ -45,6 +45,8 @@ export interface SceneMesh {
    * follows a bone
    */
   local?: BoneSpaceMesh;
+  /** The bone a rigid mesh rides; a skin has none */
+  bone?: number;
 }
 
 /** A skeleton in its bind pose, for posing a model */
@@ -443,6 +445,7 @@ export const buildW3dScene = async (
       blend: mesh.blend,
       hidden: mesh.hidden,
       local,
+      bone: mesh.isSkin ? undefined : local?.bones[0],
     };
   });
 

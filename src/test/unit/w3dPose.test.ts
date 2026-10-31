@@ -1,6 +1,11 @@
 import * as assert from 'assert';
 import { slerp } from '../../formats/w3d/w3dAnimation';
-import { poseAt, skin } from '../../formats/w3d/w3dPose';
+import {
+  getMeshOpacity,
+  isMeshShown,
+  poseAt,
+  skin,
+} from '../../formats/w3d/w3dPose';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { SceneMesh, SceneSkeleton } from '../../formats/w3d/w3dScene';
 
@@ -102,6 +107,72 @@ suite('W3D pose', () => {
     const halfWay = slerp([0, 0, 0, 1], [0, 0, 0, -1], 0.5);
 
     assert.deepStrictEqual(round(halfWay), [0, 0, 0, 1]);
+  });
+
+  test('a pose reads visibility and opacity per bone, not through parents', () => {
+    const pose = poseAt(skeleton, {
+      name: 'Skl.Fade',
+      hierarchyName: 'Skl',
+      frameCount: 1,
+      frameRate: 30,
+      channels: [
+        {
+          pivot: 1,
+          kind: 'visibility',
+          type: -1,
+          values: new Float32Array([0]),
+          present: new Uint8Array([1]),
+        },
+        {
+          pivot: 2,
+          kind: 'opacity',
+          type: 15,
+          values: new Float32Array([0.25]),
+          present: new Uint8Array([1]),
+        },
+      ],
+    });
+
+    assert.deepStrictEqual(pose.visible, [true, false, true]);
+    assert.deepStrictEqual(pose.opacity, [1, 1, 0.25]);
+  });
+
+  test('opacity outside its range is clamped, and a broken sample is clear', () => {
+    const opacityOf = (value: number) =>
+      poseAt(skeleton, {
+        name: 'Skl.Fade',
+        hierarchyName: 'Skl',
+        frameCount: 1,
+        frameRate: 30,
+        channels: [
+          {
+            pivot: 1,
+            kind: 'opacity',
+            type: 15,
+            values: new Float32Array([value]),
+            present: new Uint8Array([1]),
+          },
+        ],
+      }).opacity[1];
+
+    assert.strictEqual(opacityOf(2), 1);
+    assert.strictEqual(opacityOf(-0.5), 0);
+    assert.strictEqual(opacityOf(NaN), 0);
+  });
+
+  test('only a rigid mesh answers to its bone', () => {
+    const pose = poseAt(skeleton);
+
+    pose.visible[1] = false;
+    pose.opacity[1] = 0.5;
+
+    const rigid = { bone: 1 } as SceneMesh;
+    const skinned = {} as SceneMesh;
+
+    assert.strictEqual(isMeshShown(rigid, pose), false);
+    assert.strictEqual(getMeshOpacity(rigid, pose), 0.5);
+    assert.strictEqual(isMeshShown(skinned, pose), true);
+    assert.strictEqual(getMeshOpacity(skinned, pose), 1);
   });
 
   test('a frame just outside a dense channel holds the bind pose', () => {

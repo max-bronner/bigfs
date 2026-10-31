@@ -461,6 +461,10 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   wireframe collision boxes in the bind pose, off by default.
 - [ ] **new** Animation list of the skeleton plays on the model: play, pause,
   frame slider.
+- [ ] **changed** A clip's visibility and fade channels work: a prop or rigid
+  part a clip hides disappears for those frames, and one it fades goes
+  see-through. Find one with a building's construction or a death clip. A skin
+  is never hidden this way, as in mint.
 - [ ] **changed** Skins bend on both of a vertex's bones: play a unit or hero
   (`mugothmog_skn`, `eulorwar_skn`) and look at the joints; a death or
   attack clip no longer tears a shoulder, shield or hip into long spikes. The
