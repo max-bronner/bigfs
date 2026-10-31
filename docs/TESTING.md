@@ -473,6 +473,9 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   part a clip hides disappears for those frames, and one it fades goes
   see-through. Find one with a building's construction or a death clip. A skin
   is never hidden this way, as in mint.
+- [ ] **changed** Motion between frames is even: scrub the frame slider of a
+  clip with a wide swing and the limb turns steadily, with no one-frame jump
+  where a bone's channel starts or ends.
 - [ ] **changed** Skins bend on both of a vertex's bones: play a unit or hero
   (`mugothmog_skn`, `eulorwar_skn`) and look at the joints; a death or
   attack clip no longer tears a shoulder, shield or hip into long spikes. The
