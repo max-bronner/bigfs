@@ -1,5 +1,5 @@
 import type { Matrix2, Rect } from '../../formats/apt/aptMovie';
-import { send } from './details';
+import { send } from './send';
 import type { Instance } from './instance';
 import {
   IDENTITY,

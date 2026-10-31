@@ -11,7 +11,7 @@ import type {
   PlacementField,
   TextRecordChange,
 } from '../../formats/apt/writer/aptEdit';
-import { send } from './details';
+import { send } from './send';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';
 

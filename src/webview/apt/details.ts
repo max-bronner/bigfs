@@ -2,6 +2,7 @@ import type { Character, Frame } from '../../formats/apt/aptMovie';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { byId } from './dom';
+import { send } from './send';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';
 import { BUTTON_CONDITIONS, CLIP_EVENTS, formatBitNames } from './scriptSites';
@@ -41,10 +42,6 @@ const vscode = getVsCodeApi<FromPage>();
 
 const details = byId('details');
 const frameInput = byId<HTMLInputElement>('frame');
-
-/** Sends an edit; the extension applies it and sends the movie back */
-export const send = (edit: AptEdit): void =>
-  vscode.postMessage({ kind: 'edit', edit });
 
 /** Name of the window event that asks the page to show a frame of the timeline on the stage */
 export const GO_TO_FRAME = 'apt-go-to-frame';

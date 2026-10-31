@@ -1,6 +1,6 @@
 import type { AptEdit } from '../../../formats/apt/writer/aptEdit';
 import type { FromPage, ToPage } from '../protocol';
-import { send } from '../details';
+import { send } from '../send';
 import { getVsCodeApi } from '../../shared/vscodeApi';
 import { state } from '../state';
 import { blockCard } from './blockCard';

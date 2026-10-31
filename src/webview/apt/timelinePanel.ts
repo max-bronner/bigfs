@@ -17,7 +17,8 @@ import {
   tweensAsScript,
 } from '../../formats/apt/motionScript';
 import { blockCard } from './blocks/blockCard';
-import { send, showDetails } from './details';
+import { showDetails } from './details';
+import { send } from './send';
 import { createButton, byId } from './dom';
 import { currentPlayer, goToFrame, render, showMode, view } from './stage';
 import { state } from './state';
