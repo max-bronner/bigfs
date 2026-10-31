@@ -508,6 +508,9 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
 - [ ] **changed** A skin with one vertex stream follows each vertex's first bone
   only, its weights ignored, as the game does. No shipped model is known to look
   different; a mod's skin with weights but no `VERTICES_2` may.
+- [ ] **changed** A skin with two vertex streams uses its stored weights raw, as
+  the game does: no shipped model is known to look different, and a mod's skin
+  whose two percentages do not sum to 100 draws nearer the origin.
 - [ ] **new** **Edit W3D Animation…** (`.w3d` menu): retime, reverse, ease,
   trim, change rate; written as a new file. Rate must be a whole number from 1
   to 1000 (`12.5`, `0.4`, `0` rejected; `24` works). Load one in the game.

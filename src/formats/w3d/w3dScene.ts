@@ -204,22 +204,12 @@ const findSubObject = (file: W3dFile, container: string, name: string) => {
 };
 
 /**
- * Resolves stored percentages to shares that sum to 1, so a vertex is not
- * pulled towards the origin when a file's two weights sum to 99. Both zero
- * means all of the first bone, as mint's `weights_percent` reads them.
+ * Scales stored percentages by 0.01, as the game builds its vertex buffer:
+ * weights that do not sum to 100 stay as they are and pull the vertex towards
+ * the origin, and two zeros put it there.
  */
-const resolveWeights = (percentages: Uint16Array): Float32Array => {
-  const shares = new Float32Array(percentages.length);
-
-  for (let at = 0; at < percentages.length; at += 2) {
-    const total = percentages[at] + percentages[at + 1];
-
-    shares[at] = total ? percentages[at] / total : 1;
-    shares[at + 1] = total ? percentages[at + 1] / total : 0;
-  }
-
-  return shares;
-};
+const scaleWeights = (percentages: Uint16Array): Float32Array =>
+  Float32Array.from(percentages, (percentage) => percentage * 0.01);
 
 /**
  * Describes how a mesh rides its skeleton: a skin by each vertex's influences,
@@ -239,7 +229,7 @@ const bindToBones = (
           positions,
           normals,
           bones: mesh.bones,
-          weights: resolveWeights(mesh.weights),
+          weights: scaleWeights(mesh.weights),
           secondPositions,
           secondNormals,
         }

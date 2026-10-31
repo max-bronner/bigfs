@@ -501,19 +501,16 @@ suite("W3D models", () => {
       );
     });
 
-    test("weights that do not sum to 100 still place a vertex whole", async () => {
+    test("weights are used raw, not renormalised, as the game uses them", async () => {
       const scene = await buildSkin(
-        buildChunk(0x00e, encodeInfluences(0, 1, 0, 0, 1, 0, 90, 9, 1, 0, 33, 0)),
+        buildChunk(0x00e, encodeInfluences(0, 1, 0, 0, 0, 1, 90, 9, 1, 0, 33, 0)),
+        buildChunk(0xc00, encodeFloats(1, 0, 0, 2, 0, 0, 3, 0, 0)),
       );
 
-      // Both zero is all of bone 0, and 33 alone is all of bone 1
       assert.deepStrictEqual(
-        placed(scene.meshes[0].positions).slice(0, 3),
-        [1, 0, 0],
-      );
-      assert.deepStrictEqual(
-        placed(scene.meshes[0].positions).slice(6),
-        [3, 0, 10],
+        placed(scene.meshes[0].positions),
+        // Both zero sits at the origin; 99 falls short; 33 alone is a third of bone 1
+        [0, 0, 0, 1.98, 0, 0.9, 0.99, 0, 3.3],
       );
     });
 

@@ -16,8 +16,9 @@ export interface BoneSpaceMesh {
   /** The two bones of each vertex, two a vertex */
   bones: Uint16Array;
   /**
-   * The share of each of those bones, two a vertex, summing to 1. A rigid
-   * mesh is a skin whose vertices all follow one bone with all their weight.
+   * The weight of each of those bones, two a vertex, as the file stores them:
+   * they need not sum to 1. A rigid mesh is a skin whose vertices all follow
+   * one bone with all their weight.
    */
   weights: Float32Array;
   /** `VERTICES_2`: each vertex in its second bone's space */
@@ -54,8 +55,10 @@ export const toBoneMatrix = (
  * Writes where the bones in `matrices` put a mesh's vertices and normals.
  * Without `VERTICES_2` the first bone alone moves a vertex, its weights
  * ignored, as the game does. A bone past the end of `matrices` is left out of
- * the blend and the other bone's weight stands alone; a vertex with neither
- * keeps what `positions` and `normals` already hold.
+ * the blend and the other bone's weight stands alone, as the game's result
+ * there is not known; a vertex with neither keeps what `positions` and
+ * `normals` already hold. Otherwise the weights are used raw: the game does not
+ * renormalise them, so weights short of 1 land a vertex nearer the origin.
  */
 export const skinVertices = (
   mesh: BoneSpaceMesh,
@@ -75,12 +78,17 @@ export const skinVertices = (
     let ny = 0;
     let nz = 0;
     let applied = 0;
+    let isBoneMissing = false;
 
     for (let slot = 0; slot < 2; slot++) {
       const weight = secondPositions ? weights[vertex * 2 + slot] : 1 - slot;
       const m = matrices[bones[vertex * 2 + slot]];
 
-      if (weight <= 0 || !m) {
+      if (!m) {
+        isBoneMissing = true;
+        continue;
+      }
+      if (weight <= 0) {
         continue;
       }
 
@@ -107,13 +115,15 @@ export const skinVertices = (
       applied += weight;
     }
 
-    if (applied <= 0) {
+    if (isBoneMissing && applied <= 0) {
       continue;
     }
 
-    positions[at] = px / applied;
-    positions[at + 1] = py / applied;
-    positions[at + 2] = pz / applied;
+    const scale = isBoneMissing ? 1 / applied : 1;
+
+    positions[at] = px * scale;
+    positions[at + 1] = py * scale;
+    positions[at + 2] = pz * scale;
 
     const length = Math.hypot(nx, ny, nz);
 
