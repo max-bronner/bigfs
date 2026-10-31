@@ -71,7 +71,8 @@ const bound = (vertices: number): SceneMesh => ({
   hidden: false,
   local: {
     positions: new Float32Array(vertices * 3),
-    bones: new Uint16Array(vertices),
+    bones: new Uint16Array(vertices * 2),
+    weights: new Float32Array(vertices * 2),
   },
 });
 

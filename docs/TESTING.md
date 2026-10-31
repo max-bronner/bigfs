@@ -461,6 +461,11 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   wireframe collision boxes in the bind pose, off by default.
 - [ ] **new** Animation list of the skeleton plays on the model: play, pause,
   frame slider.
+- [ ] **changed** Skins bend on both of a vertex's bones: play a unit or hero
+  (`mugothmog_skn`, `eulorwar_skn`) and look at the joints; a death or
+  attack clip no longer tears a shoulder, shield or hip into long spikes. The
+  bind pose changes too: a mod's skin whose bone number runs past its skeleton
+  keeps its place instead of dropping onto the root.
 - [ ] **new** **Edit W3D Animation…** (`.w3d` menu): retime, reverse, ease,
   trim, change rate; written as a new file. Rate must be a whole number from 1
   to 1000 (`12.5`, `0.4`, `0` rejected; `24` works). Load one in the game.

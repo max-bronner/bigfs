@@ -12,11 +12,13 @@ import type {
 } from "./w3dTools";
 import { parseW3dAnimations } from "./w3dAnimation";
 import type { W3dAnimation } from "./w3dAnimation";
+import { skinVertices, toBoneMatrix } from "./w3dSkin";
+import type { BoneSpaceMesh, Matrix } from "./w3dSkin";
 
 /**
  * Builds what a model preview draws from a W3D file: every mesh in model
  * space, placed on the bone its HLOD names (or, for a skin, each vertex on
- * its own bone), with its texture decoded.
+ * its own one or two bones), with its texture decoded.
  *
  * A model's skeleton and textures usually live in other entries, often in
  * other archives: the HLOD names `GUArcher_SKL`, found as `guarcher_skl.w3d`,
@@ -39,15 +41,10 @@ export interface SceneMesh {
   /** The mesh carries the HIDDEN attribute, so it is not drawn by default */
   hidden: boolean;
   /**
-   * The mesh as stored, in the space of the bones its vertices follow, so a
-   * player can pose it: absent when no vertex follows a bone
+   * The mesh as stored, so a player can pose it: absent when no vertex
+   * follows a bone
    */
-  local?: {
-    positions: Float32Array;
-    normals?: Float32Array;
-    /** Bone of each vertex */
-    bones: Uint16Array;
-  };
+  local?: BoneSpaceMesh;
 }
 
 /** A skeleton in its bind pose, for posing a model */
@@ -106,9 +103,6 @@ export interface ModelScene {
 /** Finds an entry by file name, matched without casing, wherever it lives */
 export type LoadFile = (fileName: string) => Promise<Uint8Array | undefined>;
 
-/** A 4x4 matrix, column major */
-type Matrix = Float64Array;
-
 const multiply = (a: Matrix, b: Matrix): Matrix => {
   const out = new Float64Array(16);
 
@@ -127,36 +121,12 @@ const multiply = (a: Matrix, b: Matrix): Matrix => {
   return out;
 };
 
-/** Builds a bone's matrix relative to its parent: rotate, then translate */
-const pivotMatrix = (
-  [tx, ty, tz]: [number, number, number],
-  [x, y, z, w]: [number, number, number, number],
-): Matrix =>
-  Float64Array.from([
-    1 - 2 * (y * y + z * z),
-    2 * (x * y + z * w),
-    2 * (x * z - y * w),
-    0,
-    2 * (x * y - z * w),
-    1 - 2 * (x * x + z * z),
-    2 * (y * z + x * w),
-    0,
-    2 * (x * z + y * w),
-    2 * (y * z - x * w),
-    1 - 2 * (x * x + y * y),
-    0,
-    tx,
-    ty,
-    tz,
-    1,
-  ]);
-
 /** Computes every bone's matrix in model space, parents before children */
 const computeBoneMatrices = (hierarchy: W3dHierarchy | undefined): Matrix[] => {
   const matrices: Matrix[] = [];
 
   hierarchy?.pivots.forEach((pivot, index) => {
-    const local = pivotMatrix(pivot.translation, pivot.rotation);
+    const local = toBoneMatrix(pivot.translation, pivot.rotation);
     const parent =
       pivot.parent >= 0 && pivot.parent < index
         ? matrices[pivot.parent]
@@ -166,33 +136,6 @@ const computeBoneMatrices = (hierarchy: W3dHierarchy | undefined): Matrix[] => {
   });
 
   return matrices;
-};
-
-/** Applies a matrix to each three-component vector, as a point or a direction */
-const transform = (
-  values: Float32Array,
-  matrixOf: (vertex: number) => Matrix | undefined,
-  isPoint: boolean,
-): Float32Array => {
-  const out = new Float32Array(values.length);
-
-  for (let vertex = 0; vertex < values.length / 3; vertex++) {
-    const m = matrixOf(vertex);
-    const [x, y, z] = values.subarray(vertex * 3, vertex * 3 + 3);
-
-    if (!m) {
-      out.set([x, y, z], vertex * 3);
-      continue;
-    }
-
-    const w = isPoint ? 1 : 0;
-
-    out[vertex * 3] = m[0] * x + m[4] * y + m[8] * z + m[12] * w;
-    out[vertex * 3 + 1] = m[1] * x + m[5] * y + m[9] * z + m[13] * w;
-    out[vertex * 3 + 2] = m[2] * x + m[6] * y + m[10] * z + m[14] * w;
-  }
-
-  return out;
 };
 
 /**
@@ -252,20 +195,65 @@ const findSubObject = (file: W3dFile, container: string, name: string) => {
   return undefined;
 };
 
-/** Resolves the bone each vertex of a mesh follows, or one bone for the whole mesh */
-const resolveVertexBones = (
-  mesh: W3dMesh,
-  file: W3dFile,
-): ((vertex: number) => number | undefined) => {
-  if (mesh.isSkin && mesh.bones) {
-    const bones = mesh.bones;
+/**
+ * Resolves stored percentages to shares that sum to 1, so a vertex is not
+ * pulled towards the origin when a file's two weights sum to 99. Both zero
+ * means all of the first bone, as mint's `weights_percent` reads them.
+ */
+const resolveWeights = (percentages: Uint16Array): Float32Array => {
+  const shares = new Float32Array(percentages.length);
 
-    return (vertex) => bones[vertex];
+  for (let at = 0; at < percentages.length; at += 2) {
+    const total = percentages[at] + percentages[at + 1];
+
+    shares[at] = total ? percentages[at] / total : 1;
+    shares[at + 1] = total ? percentages[at + 1] / total : 0;
   }
 
-  const subObject = findSubObject(file, mesh.container, mesh.name);
+  return shares;
+};
 
-  return () => subObject?.bone;
+/**
+ * Describes how a mesh rides its skeleton: a skin by each vertex's influences,
+ * any other mesh wholly on the bone its HLOD names, or not at all. A skin
+ * without one influence a vertex stays as stored, as mint leaves it.
+ */
+const bindToBones = (
+  mesh: W3dMesh,
+  file: W3dFile,
+  boneCount: number,
+): BoneSpaceMesh | undefined => {
+  const { positions, normals, secondPositions, secondNormals } = mesh;
+
+  if (mesh.isSkin) {
+    return mesh.bones && mesh.weights && boneCount
+      ? {
+          positions,
+          normals,
+          bones: mesh.bones,
+          weights: resolveWeights(mesh.weights),
+          secondPositions,
+          secondNormals,
+        }
+      : undefined;
+  }
+
+  const bone = findSubObject(file, mesh.container, mesh.name)?.bone;
+
+  if (bone === undefined || bone >= boneCount) {
+    return undefined;
+  }
+
+  const vertexCount = positions.length / 3;
+  const bones = new Uint16Array(vertexCount * 2);
+  const weights = new Float32Array(vertexCount * 2);
+
+  for (let vertex = 0; vertex < vertexCount; vertex++) {
+    bones[vertex * 2] = bone;
+    weights[vertex * 2] = 1;
+  }
+
+  return { positions, normals, bones, weights };
 };
 
 /** The corners of a box, each a sign on the three axes */
@@ -429,13 +417,13 @@ export const buildW3dScene = async (
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
 
   const meshes = file.meshes.map((mesh): SceneMesh => {
-    const boneOf = resolveVertexBones(mesh, file);
-    const matrixOf = (vertex: number) => {
-      const bone = boneOf(vertex);
+    const local = bindToBones(mesh, file, matrices.length);
+    const positions = mesh.positions.slice();
+    const normals = mesh.normals?.slice();
 
-      return bone === undefined ? undefined : matrices[bone];
-    };
-    const positions = transform(mesh.positions, matrixOf, true);
+    if (local) {
+      skinVertices(local, matrices, positions, normals);
+    }
 
     for (let at = 0; at < positions.length; at += 3) {
       for (let axis = 0; axis < 3; axis++) {
@@ -444,32 +432,17 @@ export const buildW3dScene = async (
       }
     }
 
-    const vertexCount = mesh.positions.length / 3;
-    const bones = new Uint16Array(vertexCount);
-    let isBound = false;
-
-    for (let vertex = 0; vertex < vertexCount; vertex++) {
-      const bone = boneOf(vertex);
-
-      if (bone !== undefined && bone < matrices.length) {
-        bones[vertex] = bone;
-        isBound = true;
-      }
-    }
-
     return {
       name: mesh.name,
       positions,
-      normals: mesh.normals && transform(mesh.normals, matrixOf, false),
+      normals,
       uvs: mesh.uvs && flipV(mesh.uvs),
       indices: mesh.indices,
       texture: mesh.texture ? textureIndex.get(mesh.texture) : undefined,
       alphaTest: mesh.alphaTest,
       blend: mesh.blend,
       hidden: mesh.hidden,
-      local: isBound
-        ? { positions: mesh.positions, normals: mesh.normals, bones }
-        : undefined,
+      local,
     };
   });
 

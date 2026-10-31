@@ -1,5 +1,6 @@
 import * as assert from "assert";
 import { parseW3d } from "../../formats/w3d/w3dTools";
+import { poseAt, skin } from "../../formats/w3d/w3dPose";
 import { buildW3dScene, getMeshVisibility } from "../../formats/w3d/w3dScene";
 import { createToolRegistry } from "../../core/toolRegistry";
 
@@ -209,7 +210,11 @@ suite("W3D models", () => {
 
     assert.deepStrictEqual(
       Array.from(scene.meshes[0].local?.bones ?? []),
-      [1, 1, 1],
+      [1, 0, 1, 0, 1, 0],
+    );
+    assert.deepStrictEqual(
+      Array.from(scene.meshes[0].local?.weights ?? []),
+      [1, 0, 1, 0, 1, 0],
     );
     assert.deepStrictEqual(
       Array.from(scene.meshes[0].local?.positions ?? []),
@@ -386,5 +391,157 @@ suite("W3D models", () => {
         ),
       /HLOD array header is 4 bytes/,
     );
+  });
+
+  suite("skins", () => {
+    /** Encodes influences, each two bones then two percentages */
+    const encodeInfluences = (...values: number[]) =>
+      new Uint8Array(Uint16Array.from(values).buffer);
+
+    /** A one-triangle skin of three vertices, with the chunks given */
+    const skinMesh = (...chunks: Uint8Array[]) =>
+      buildChunk(
+        0x000,
+        concatBytes(
+          buildChunk(0x01f, meshHeader("BODY", "UNIT", 0x00020000)),
+          buildChunk(0x002, encodeFloats(1, 0, 0, 2, 0, 0, 3, 0, 0)),
+          buildChunk(0x003, encodeFloats(0, 0, 1, 0, 0, 1, 0, 0, 1)),
+          buildChunk(0x020, triangle(0, 1, 2)),
+          ...chunks,
+        ),
+        true,
+      );
+
+    const buildSkin = (...chunks: Uint8Array[]) =>
+      buildW3dScene(
+        concatBytes(skinMesh(...chunks), hierarchy),
+        async () => undefined,
+        createToolRegistry(),
+      );
+
+    /** The bind positions rounded to thousandths */
+    const placed = (positions: Float32Array) =>
+      Array.from(positions, (value) => Math.round(value * 1000) / 1000);
+
+    test("a vertex at weight 0 on its first bone follows its second", async () => {
+      // ARM stands 10 up z from ROOTTRANSFORM
+      const scene = await buildSkin(
+        buildChunk(0x00e, encodeInfluences(0, 1, 100, 0, 0, 1, 0, 100, 0, 1, 50, 50)),
+        buildChunk(0xc00, encodeFloats(9, 9, 9, 7, 0, 0, 5, 0, 0)),
+        buildChunk(0xc01, encodeFloats(0, 0, 1, 0, 0, 1, 1, 0, 0)),
+      );
+
+      assert.deepStrictEqual(
+        placed(scene.meshes[0].positions),
+        // Bone 0's copy; bone 1's copy; the two copies half way
+        [1, 0, 0, 7, 0, 10, 4, 0, 5],
+      );
+      assert.deepStrictEqual(
+        placed(scene.meshes[0].normals!),
+        [0, 0, 1, 0, 0, 1, 0.707, 0, 0.707],
+      );
+    });
+
+    test("weights that do not sum to 100 still place a vertex whole", async () => {
+      const scene = await buildSkin(
+        buildChunk(0x00e, encodeInfluences(0, 1, 0, 0, 1, 0, 90, 9, 1, 0, 33, 0)),
+      );
+
+      // Both zero is all of bone 0, and 33 alone is all of bone 1
+      assert.deepStrictEqual(
+        placed(scene.meshes[0].positions).slice(0, 3),
+        [1, 0, 0],
+      );
+      assert.deepStrictEqual(
+        placed(scene.meshes[0].positions).slice(6),
+        [3, 0, 10],
+      );
+    });
+
+    test("a bone past the skeleton is left out of the blend, not read as bone 0", async () => {
+      const scene = await buildSkin(
+        buildChunk(0x00e, encodeInfluences(9, 1, 50, 50, 1, 9, 100, 0, 9, 9, 50, 50)),
+        buildChunk(0xc00, encodeFloats(4, 0, 0, 0, 0, 0, 0, 0, 0)),
+      );
+
+      assert.deepStrictEqual(
+        placed(scene.meshes[0].positions),
+        // Bone 1 alone; bone 1 alone; neither, so as stored
+        [4, 0, 10, 2, 0, 10, 3, 0, 0],
+      );
+    });
+
+    test("a pose moves both of a vertex's bones", async () => {
+      const scene = await buildSkin(
+        buildChunk(0x00e, encodeInfluences(0, 1, 50, 50, 0, 1, 50, 50, 0, 1, 50, 50)),
+        buildChunk(0xc00, encodeFloats(1, 0, 0, 2, 0, 0, 3, 0, 0)),
+      );
+      const out = new Float32Array(9);
+
+      skin(
+        scene.meshes[0],
+        poseAt(
+          scene.skeleton!,
+          {
+            name: "UNIT_SKL.LIFT",
+            hierarchyName: "UNIT_SKL",
+            frameCount: 1,
+            frameRate: 30,
+            channels: [
+              {
+                pivot: 1,
+                kind: "z",
+                type: 2,
+                values: new Float32Array([4]),
+                present: new Uint8Array([1]),
+              },
+            ],
+          },
+          0,
+        ),
+        out,
+      );
+
+      // ARM rises to 14, ROOTTRANSFORM holds, so half of it reaches the skin
+      assert.deepStrictEqual(placed(out), [1, 0, 7, 2, 0, 7, 3, 0, 7]);
+    });
+
+    test("a skin keeps its second copy only when it covers every vertex", async () => {
+      const short = await buildSkin(
+        buildChunk(0x00e, encodeInfluences(0, 1, 0, 100, 0, 1, 0, 100, 0, 1, 0, 100)),
+        buildChunk(0xc00, encodeFloats(9, 9, 9)),
+      );
+
+      // Without a whole `VERTICES_2` the second bone reuses the first's copy
+      assert.deepStrictEqual(
+        placed(short.meshes[0].positions),
+        [1, 0, 10, 2, 0, 10, 3, 0, 10],
+      );
+    });
+
+    test("influences short of the vertices leave the skin as stored", async () => {
+      const scene = await buildSkin(
+        buildChunk(0x00e, encodeInfluences(1, 0, 100, 0)),
+      );
+
+      assert.strictEqual(scene.meshes[0].local, undefined);
+      assert.deepStrictEqual(
+        placed(scene.meshes[0].positions),
+        [1, 0, 0, 2, 0, 0, 3, 0, 0],
+      );
+    });
+
+    test("a VERTICES_2 shorter than the vertices is not read past its bytes", async () => {
+      const file = parseW3d(
+        skinMesh(
+          buildChunk(0x00e, encodeInfluences(0, 1, 50, 50, 0, 1, 50, 50, 0, 1, 50, 50)),
+          buildChunk(0xc00, encodeFloats(1, 2)),
+          buildChunk(0xc01, encodeFloats(1)),
+        ),
+      );
+
+      assert.strictEqual(file.meshes[0].secondPositions, undefined);
+      assert.strictEqual(file.meshes[0].secondNormals, undefined);
+    });
   });
 });

@@ -1,12 +1,13 @@
 import { slerp } from './w3dAnimation';
 import type { SampledChannel, W3dAnimation } from './w3dAnimation';
 import type { SceneMesh, SceneSkeleton } from './w3dScene';
+import { skinVertices, toBoneMatrix } from './w3dSkin';
 
 /**
  * Poses a skeleton and skins a model on it: every bone's transform is the
  * bind pose composed with the animation's change for that frame (rotation
  * then translation in the bind rotation's frame, as mint's `pose.rs` has
- * it, the root's own channels ignored), and each vertex follows its bone.
+ * it, the root's own channels ignored), and each vertex follows its bones.
  * Pure, so the W3D viewer and the particle preview pose the same way.
  */
 
@@ -171,8 +172,8 @@ export const poseAt = (
 };
 
 /**
- * Writes a bound mesh's vertices, and normals, as its bones now stand;
- * a vertex whose bone the pose lacks keeps its bind place
+ * Writes a mesh's vertices, and normals, as its bones now stand; a vertex
+ * none of whose bones the pose has keeps its bind place
  */
 export const skin = (
   mesh: SceneMesh,
@@ -180,40 +181,17 @@ export const skin = (
   positions: Float32Array,
   normals?: Float32Array,
 ): void => {
-  const local = mesh.local;
-
-  if (!local) {
-    positions.set(mesh.positions);
-    return;
+  positions.set(mesh.positions);
+  if (normals && mesh.normals) {
+    normals.set(mesh.normals);
   }
-  for (let vertex = 0; vertex < local.bones.length; vertex++) {
-    const bone = pose.world[local.bones[vertex]];
-    const at = vertex * 3;
-
-    if (!bone) {
-      positions.set(mesh.positions.subarray(at, at + 3), at);
-      continue;
-    }
-
-    const p = rotate(bone.q, [
-      local.positions[at],
-      local.positions[at + 1],
-      local.positions[at + 2],
-    ]);
-
-    positions[at] = p[0] + bone.t[0];
-    positions[at + 1] = p[1] + bone.t[1];
-    positions[at + 2] = p[2] + bone.t[2];
-    if (normals && local.normals) {
-      normals.set(
-        rotate(bone.q, [
-          local.normals[at],
-          local.normals[at + 1],
-          local.normals[at + 2],
-        ]),
-        at,
-      );
-    }
+  if (mesh.local) {
+    skinVertices(
+      mesh.local,
+      pose.world.map((bone) => toBoneMatrix(bone.t, bone.q)),
+      positions,
+      normals,
+    );
   }
 };
 

@@ -28,8 +28,14 @@ export interface W3dMesh {
    */
   uvs?: Float32Array;
   indices: Uint32Array;
-  /** The bone each vertex follows, for a skin */
+  /** The two bones of each vertex, two a vertex, for a skin */
   bones?: Uint16Array;
+  /** The percentage each of those bones takes, two a vertex, as stored */
+  weights?: Uint16Array;
+  /** `VERTICES_2`: each vertex again, in its second bone's space */
+  secondPositions?: Float32Array;
+  /** `VERTEX_NORMALS_2`: each normal in its second bone's space; zero where the file ends early */
+  secondNormals?: Float32Array;
   /**
    * `W3D_MESH_FLAG_HIDDEN`: the mesh starts out hidden and is not drawn until
    * something turns it on, though its HLOD still lists it
@@ -118,6 +124,8 @@ const CHUNK = {
   VERTICES: 0x002,
   VERTEX_NORMALS: 0x003,
   VERTEX_INFLUENCES: 0x00e,
+  VERTICES_2: 0xc00,
+  VERTEX_NORMALS_2: 0xc01,
   MESH_HEADER3: 0x01f,
   TRIANGLES: 0x020,
   TEXTURES: 0x030,
@@ -327,12 +335,24 @@ const readFirstPass = (payload: Uint8Array) => {
   };
 };
 
+/** Copies the values into an array of `length`, cut short or zero filled */
+const padTo = (values: Float32Array | undefined, length: number) => {
+  const out = new Float32Array(length);
+
+  out.set(values?.subarray(0, length) ?? []);
+
+  return out;
+};
+
 const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   let header: Uint8Array | undefined;
   let positions: Float32Array | undefined;
   let normals: Float32Array | undefined;
   let indices: Uint32Array | undefined;
   let bones: Uint16Array | undefined;
+  let weights: Uint16Array | undefined;
+  let secondPositions: Float32Array | undefined;
+  let secondNormals: Float32Array | undefined;
   const textures: string[] = [];
   let pass: ReturnType<typeof readFirstPass> | undefined;
   let shaders: Uint8Array[] = [];
@@ -370,12 +390,21 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
       case CHUNK.VERTEX_INFLUENCES: {
         const count = Math.floor(chunk.payload.length / 8);
 
-        bones = new Uint16Array(count);
-        bones.forEach((_, index) => {
-          bones![index] = view.getUint16(index * 8, true);
-        });
+        bones = new Uint16Array(count * 2);
+        weights = new Uint16Array(count * 2);
+
+        for (let index = 0; index < count * 2; index++) {
+          bones[index] = view.getUint16(index * 2 + (index >> 1) * 4, true);
+          weights[index] = view.getUint16(index * 2 + 4 + (index >> 1) * 4, true);
+        }
         break;
       }
+      case CHUNK.VERTICES_2:
+        secondPositions = readFloats(chunk.payload);
+        break;
+      case CHUNK.VERTEX_NORMALS_2:
+        secondNormals = readFloats(chunk.payload);
+        break;
       case CHUNK.TEXTURES:
         for (const texture of readChunks(chunk.payload)) {
           const name = readChunks(texture.payload).find(
@@ -411,6 +440,10 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   }
 
   const vertexCount = positions.length / 3;
+  const hasInfluences = bones?.length === vertexCount * 2;
+  // A short or missing second copy drops the copy, as mint's `second_bone_space`
+  const hasSecondCopy =
+    hasInfluences && vertexCount > 0 && secondPositions?.length === positions.length;
   // Only the drawn pass's shaders: the table is shared by every pass
   const drawn = (pass?.shaderIds ?? []).flatMap((id) =>
     shaders[id] ? [shaders[id]] : [],
@@ -434,7 +467,12 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
     normals: normals?.length === positions.length ? normals : undefined,
     uvs: pass?.uvs?.length === vertexCount * 2 ? pass.uvs : undefined,
     indices,
-    bones: bones?.length === vertexCount ? bones : undefined,
+    bones: hasInfluences ? bones : undefined,
+    weights: hasInfluences ? weights : undefined,
+    secondPositions: hasSecondCopy ? secondPositions : undefined,
+    secondNormals: hasSecondCopy
+      ? padTo(secondNormals, positions.length)
+      : undefined,
     // The stage's own texture first, then a shader material's (mint's
     // `Mesh::texture_name`); the first texture of the table is not
     // necessarily the one the pass draws with

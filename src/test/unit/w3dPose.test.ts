@@ -49,7 +49,8 @@ suite('W3D pose', () => {
       positions: new Float32Array(3),
       local: {
         positions: new Float32Array([2, 0, 0]),
-        bones: new Uint16Array([2]),
+        bones: new Uint16Array([2, 0]),
+        weights: new Float32Array([1, 0]),
       },
     } as SceneMesh;
     const out = new Float32Array(3);
