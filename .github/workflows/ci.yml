@@ -19,6 +19,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # An import cycle fails the build, type-only imports included
+      - run: npm run check:cycles
       # Type check, lint, unit tests, then the integration suite, which starts
       # VS Code and so needs a display
       - run: xvfb-run -a npm test 2>&1 | tee test.log; exit ${PIPESTATUS[0]}

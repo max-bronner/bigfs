@@ -64,7 +64,8 @@ Rows import from columns. `own` is the module's own folder.
 
 `eslint.config.mjs` enforces the matrix with `@typescript-eslint/no-restricted-imports`
 as errors, so `npm run lint` fails on an import the matrix does not allow.
-`npm run check:cycles` lists import cycles; a change may not add one.
+`npm run check:cycles` lists import cycles, type-only imports included, and
+CI fails on any.
 
 ## Module shape
 
