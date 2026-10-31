@@ -274,11 +274,14 @@ export const createModelRenderer = (
 
   const setPose = (next: Pose | undefined) => {
     pose = next;
-    scene?.meshes.forEach((mesh, at) => {
-      const drawable = drawables[at];
+    if (!scene) {
+      return;
+    }
+    for (const drawable of drawables) {
+      const mesh = scene.meshes[drawable.mesh];
 
-      if (!drawable?.posed) {
-        return;
+      if (!drawable.posed) {
+        continue;
       }
       if (next) {
         skin(mesh, next, drawable.posed.positions, drawable.posed.normals);
@@ -297,7 +300,7 @@ export const createModelRenderer = (
           (next && drawable.posed.normals) || mesh.normals,
         );
       }
-    });
+    }
   };
 
   const bindAttribute = (
