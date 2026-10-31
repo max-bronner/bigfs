@@ -348,9 +348,10 @@ your mod's archives.
   one, and arrays past that count are skipped as the game skips them; the
   aggregate and proxy lists are shown; collision boxes can be drawn as
   wireframes. A **Parts** list turns each mesh on and off, and the object
-  preview hides what the object's INI and scripts hide in the shown state
-  (animation state scripts, `SubObjectsUpgrade` parts, `OnCreated` handlers in
-  `scripts.lua`), naming the source and listing what depends on the running
+  preview hides what the object's INI and scripts hide in the shown state, and
+  as the game does a write also reaches the parts on bones below the part it names
+  (animation state scripts, fired `SubObjectsUpgrade` modules, `TransitionDamageFX`
+  lists, `OnCreated` handlers in `scripts.lua`), naming the source and listing what depends on the running
   game. Scripts are read, not run.
 
 **Interface movies (APT)**

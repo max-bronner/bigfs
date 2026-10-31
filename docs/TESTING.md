@@ -476,11 +476,18 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   on `GoblinCaveTroll` (`cavetroll.ini`): no `TRUNK01` or `ROCK` on the troll,
   and the panel says "Hidden parts:" with what hid each (`OnTrollCreated in
   scripts.lua`, `IdleAnimationState script`). Pick `AnimationState = WEAPONSTATE_ONE`
-  and the trunk appears. A building with upgrades (`MordorTrollCage`) hides its `V2`
-  "until Upgrade_...". The **Hidden parts** checkbox draws them all. Scripts
+  and the trunk appears. The **Hidden parts** checkbox draws them all. Scripts
   are read, never run: a call under a condition or chance is listed as "Not
   applied, depends on the running game". This needs `scripts.lua` and
   `scriptevents.xml` in the game view; without them only the INI's part applies.
+- [ ] **changed** A `SubObjectsUpgrade` hides nothing before it fires, as in the
+  game: on a building with upgrades (`MordorTrollCage`) the `V2` parts now draw
+  unless a script or the HIDDEN flag hides them, and the panel names the
+  upgrade only when it starts active or `OnCreated` grants it. Hiding a part also
+  hides the parts on bones below it: pick a part that carries another on a child
+  bone and see both go. Plain script hides carry from the idle state into the
+  state you pick, and a permanent write always beats a plain one. A state naming
+  `DAMAGED`, `REALLYDAMAGED` or `RUBBLE` applies that `TransitionDamageFX` list.
 - [ ] **changed** HLOD: only the levels of detail the HLOD header counts are
   read, as the game reads them. Every retail model counts one, so the level
   dropdown is gone there and the line under the model says "1 level of detail";

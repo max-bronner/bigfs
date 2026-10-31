@@ -346,7 +346,7 @@ export interface VisibilityOptions {
   lod?: number;
   /** Draws what the HIDDEN attribute and `subObjectRules` hide */
   showHidden?: boolean;
-  /** Writes in the order the game makes them; the last one naming a mesh decides */
+  /** Writes in the order the game applies them; the last one reaching a mesh decides */
   subObjectRules?: readonly SubObjectRule[];
   /** The user's choice by mesh index, which wins over everything but the level of detail */
   partOverrides?: ReadonlyMap<number, boolean>;
@@ -372,27 +372,65 @@ export const isSubObjectNamed = (
 /** The reason a mesh with the HIDDEN attribute is not drawn, as the UI names it */
 const HIDDEN_ATTRIBUTE = "the W3D HIDDEN flag";
 
+/** Whether a bone sits somewhere below another; one that is not in `parents` is below nothing */
+const isBoneBelow = (
+  bone: number,
+  ancestor: number,
+  parents: readonly number[],
+): boolean => {
+  let at = bone;
+
+  for (let step = 0; at > 0 && at < parents.length && step < parents.length; step++) {
+    at = parents[at];
+    if (at === ancestor) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/** The meshes of `getMeshVisibility` and `findHidingSources` */
+type VisibleMesh = Pick<SceneMesh, "container" | "name" | "hidden" | "bone">;
+
 /**
- * Says, mesh by mesh, what hides it: the source of the last rule naming it, or
- * the HIDDEN attribute when no rule does. A mesh left visible has no reason.
+ * Says, mesh by mesh, what hides it: the source of the last rule reaching it,
+ * or the HIDDEN attribute when no rule does. A mesh left visible has no reason.
+ * As in the game, a write reaches the meshes it names and every mesh on a bone
+ * below theirs, unless the named mesh is on the root; a mesh on the same bone
+ * is not reached, nor is a skin, whose bone is the root.
+ * @param parents The skeleton's parent of each bone; without one nothing cascades
  */
 export const findHidingSources = (
-  meshes: readonly Pick<SceneMesh, "container" | "name" | "hidden">[],
+  meshes: readonly VisibleMesh[],
   rules: readonly SubObjectRule[] = [],
-): (string | undefined)[] =>
-  meshes.map((mesh) => {
-    const decides = [...rules]
-      .reverse()
-      .find((rule) => isSubObjectNamed(mesh, rule.pattern));
+  parents: readonly number[] = [],
+): (string | undefined)[] => {
+  const sources = meshes.map((mesh): string | undefined =>
+    mesh.hidden ? HIDDEN_ATTRIBUTE : undefined,
+  );
 
-    return decides
-      ? decides.hide
-        ? decides.source
-        : undefined
-      : mesh.hidden
-        ? HIDDEN_ATTRIBUTE
-        : undefined;
-  });
+  for (const rule of rules) {
+    const source = rule.hide ? rule.source : undefined;
+
+    meshes.forEach((mesh, at) => {
+      if (!isSubObjectNamed(mesh, rule.pattern)) {
+        return;
+      }
+      sources[at] = source;
+
+      const { bone = 0 } = mesh;
+
+      if (bone > 0) {
+        meshes.forEach((other, below) => {
+          if (isBoneBelow(other.bone ?? 0, bone, parents)) {
+            sources[below] = source;
+          }
+        });
+      }
+    });
+  }
+  return sources;
+};
 
 /**
  * Decides, mesh by mesh, which meshes to draw: one level of detail at a time,
@@ -401,7 +439,8 @@ export const findHidingSources = (
  */
 export const getMeshVisibility = (
   scene: Pick<ModelScene, "hlod"> & {
-    meshes: readonly Pick<SceneMesh, "container" | "name" | "hidden">[];
+    meshes: readonly VisibleMesh[];
+    skeleton?: Pick<SceneSkeleton, "parents">;
   },
   { lod, showHidden = false, subObjectRules, partOverrides }: VisibilityOptions = {},
 ): boolean[] => {
@@ -409,7 +448,11 @@ export const getMeshVisibility = (
   const chosen = levels[lod ?? levels.length - 1];
   const listed = new Set(levels.flatMap((level) => level.meshes));
   const inLevel = new Set(chosen?.meshes);
-  const hiding = findHidingSources(scene.meshes, subObjectRules);
+  const hiding = findHidingSources(
+    scene.meshes,
+    subObjectRules,
+    scene.skeleton?.parents,
+  );
 
   return scene.meshes.map(
     (_, at) =>

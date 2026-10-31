@@ -28,7 +28,11 @@ export interface SceneState {
   kind: StateKind;
   /** The state's keyword and conditions, as written */
   label: string;
+  /** `StateName`, what the next state's script reads as the previous state */
+  name?: string;
   model?: string;
+  /** `RetainSubObjects`: plain script writes survive the switch to this state's model */
+  retainsSubObjects?: boolean;
   /** As written: `SKELETON.CLIP`, or a bare clip */
   animations: string[];
   fx: string[];
@@ -37,13 +41,17 @@ export interface SceneState {
   subObjects: ScriptedSubObjects;
 }
 
-/** A `SubObjectsUpgrade` module: the parts it shows, and so hides until it fires */
+/** A `SubObjectsUpgrade` module, which writes nothing until it fires */
 export interface SceneUpgrade {
   /** Its `TriggeredBy` names */
   triggers: string[];
-  parts: string[];
+  shows: string[];
+  hides: string[];
   startsActive: boolean;
 }
+
+/** The damage states `TransitionDamageFX` writes sub-objects for */
+export type BodyDamageState = 'pristine' | 'damaged' | 'reallydamaged' | 'rubble';
 
 /** Everything an object shows, as the object preview draws it */
 export interface ObjectScene {
@@ -54,8 +62,8 @@ export interface ObjectScene {
   /** Sounds and announcer events the object names, by the field naming them */
   voices: { field: string; name: string }[];
   upgrades: SceneUpgrade[];
-  /** `TransitionDamageFX`'s writes for an undamaged object */
-  pristineSubObjects: SubObjectRule[];
+  /** `TransitionDamageFX`'s writes on entering each damage state */
+  damageSubObjects: Record<BodyDamageState, SubObjectRule[]>;
   /** The `AILuaEventsList` names, whose handlers `created` is read from */
   luaEventLists: string[];
   /** What the object's `OnCreated` handlers do; empty until the scripts are read */
@@ -76,6 +84,15 @@ const lower = (text: string) => text.toLowerCase();
 const MODEL_FIELDS = new Set(['model']);
 const ANIMATION_FIELDS = new Set(['animation', 'animationname']);
 const DEFAULT_STATE = /^default/i;
+const IDLE_STATE = /^idleanimationstate/i;
+const DAMAGE_FIELD = /^(pristine|damaged|reallydamaged|rubble)(hide|show)subobject$/;
+
+/** Finds the idle animation state of a draw module, the one a new object enters first */
+export const findIdleState = (
+  scene: ObjectScene,
+  draw: string,
+): SceneState | undefined =>
+  scene.states.find((state) => state.draw === draw && IDLE_STATE.test(state.label));
 
 /** Blocks holding a line, outermost first */
 const findBlockChain = (blocks: readonly SageBlock[], line: number): SageBlock[] => {
@@ -143,7 +160,7 @@ export const readObjectScene = (
     fx: [],
     voices: [],
     upgrades: [],
-    pristineSubObjects: [],
+    damageSubObjects: { pristine: [], damaged: [], reallydamaged: [], rubble: [] },
     luaEventLists: [],
     created: { rules: [], conditional: [], grantedUpgrades: [] },
   };
@@ -152,7 +169,7 @@ export const readObjectScene = (
     let upgrade = upgrades.get(block);
 
     if (!upgrade) {
-      upgrade = { triggers: [], parts: [], startsActive: false };
+      upgrade = { triggers: [], shows: [], hides: [], startsActive: false };
       upgrades.set(block, upgrade);
       scene.upgrades.push(upgrade);
     }
@@ -196,11 +213,14 @@ export const readObjectScene = (
       scene.luaEventLists.push(values[0]);
       continue;
     }
-    if (key === 'pristinehidesubobject' || key === 'pristineshowsubobject') {
-      scene.pristineSubObjects.push(
+
+    const damageField = DAMAGE_FIELD.exec(key);
+
+    if (damageField) {
+      scene.damageSubObjects[damageField[1] as BodyDamageState].push(
         ...values.map((pattern) => ({
           pattern,
-          hide: key === 'pristinehidesubobject',
+          hide: damageField[2] === 'hide',
           source: statement.keyword.text,
         })),
       );
@@ -212,7 +232,11 @@ export const readObjectScene = (
     );
 
     if (upgradeModule && key === 'showsubobjects') {
-      upgradeOf(upgradeModule).parts.push(...values);
+      upgradeOf(upgradeModule).shows.push(...values);
+      continue;
+    }
+    if (upgradeModule && key === 'hidesubobjects') {
+      upgradeOf(upgradeModule).hides.push(...values);
       continue;
     }
     if (upgradeModule && key === 'triggeredby') {
@@ -242,6 +266,10 @@ export const readObjectScene = (
 
     if (owner && MODEL_FIELDS.has(key)) {
       owner.model = values[0];
+    } else if (owner && key === 'statename') {
+      owner.name = values[0];
+    } else if (owner && key === 'retainsubobjects') {
+      owner.retainsSubObjects = /^yes$/i.test(values[0]);
     } else if (owner && ANIMATION_FIELDS.has(key) && values[0] !== 'NONE') {
       owner.animations.push(values[0]);
     } else if (owner && key === 'particlesysbone' && values.length > 1) {

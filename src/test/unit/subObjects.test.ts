@@ -242,7 +242,7 @@ suite('Sub-object scripts', () => {
       ],
     );
     assert.deepStrictEqual(conditional, ['MAYBE (OnBeastCreated in scripts.lua)']);
-    assert.deepStrictEqual(grantedUpgrades, ['Upgrade_Rock']);
+    assert.deepStrictEqual(grantedUpgrades, [{ name: 'Upgrade_Rock', at: 3 }]);
   });
 
   test('a list without the handler inherits it, a cycle ends, an unknown name binds nothing', () => {
@@ -301,6 +301,7 @@ suite('Sub-objects of an object', () => {
     '  End',
     '  Behavior = SubObjectsUpgrade ModuleTag_Rock',
     '    TriggeredBy = Upgrade_Rock',
+    '    HideSubObjects = CLUB BLADE',
     '    ShowSubObjects = BOULDER',
     '  End',
     '  Behavior = SubObjectsUpgrade ModuleTag_Always',
@@ -318,11 +319,12 @@ suite('Sub-objects of an object', () => {
     const scene = read();
 
     assert.deepStrictEqual(scene.luaEventLists, ['BeastFunctions']);
-    assert.deepStrictEqual(scene.upgrades.map((each) => each.parts), [
+    assert.deepStrictEqual(scene.upgrades.map((each) => each.shows), [
       ['BANNER'],
       ['BOULDER'],
       ['ALWAYS'],
     ]);
+    assert.deepStrictEqual(scene.upgrades[1].hides, ['CLUB', 'BLADE']);
     assert.deepStrictEqual(
       scene.states.find((each) => each.label === 'AnimationState = MOVING')
         ?.subObjects.conditional,
@@ -330,7 +332,7 @@ suite('Sub-objects of an object', () => {
     );
   });
 
-  test('a model state shows its idle state script; an upgrade waits for its trigger', () => {
+  test('a model state shows its idle state script; an upgrade writes nothing until it fires', () => {
     const scene = read();
     const model = scene.states.find((each) => each.kind === 'model');
 
@@ -338,13 +340,136 @@ suite('Sub-objects of an object', () => {
       listSubObjectRules(scene, model).map(({ pattern, hide }) => [pattern, hide]),
       [
         ['ARROW', true],
-        ['BANNER', true],
-        ['BOULDER', true],
+        ['ALWAYS', false],
       ],
     );
   });
 
-  test('upgrades and creation write over a state, permanent calls over those', () => {
+  test('plain writes of a previous state last, and come before every permanent write', () => {
+    const scene = read();
+    const moving = scene.states.find((each) => each.label === 'AnimationState = MOVING');
+
+    assert.deepStrictEqual(
+      listSubObjectRules(scene, moving).map(({ pattern, hide }) => [pattern, hide]),
+      [
+        ['ARROW', true],
+        ['CLUB', false],
+        ['BANNER', false],
+        ['ALWAYS', false],
+        ['ROCK', false],
+      ],
+    );
+  });
+
+  test('a later write of a name takes the turn of the first', () => {
+    const scene = read();
+    const moving = scene.states.find((each) => each.label === 'AnimationState = MOVING')!;
+
+    moving.subObjects.rules = [
+      { pattern: 'ARROW', hide: false, isPermanent: false, source: 'MOVING' },
+      { pattern: 'BANNER', hide: true, isPermanent: false, source: 'MOVING' },
+      { pattern: 'arrow', hide: true, isPermanent: false, source: 'MOVING again' },
+    ];
+    assert.deepStrictEqual(
+      listSubObjectRules(scene, moving)
+        .slice(0, 2)
+        .map(({ pattern, source }) => [pattern, source]),
+      [
+        ['arrow', 'MOVING again'],
+        ['BANNER', 'MOVING'],
+      ],
+    );
+  });
+
+  test('a state with another model drops creation plain writes unless it retains them', () => {
+    const scene = read();
+    const model = scene.states.find((each) => each.kind === 'model')!;
+    const plain = { pattern: 'PLAIN', hide: true, isPermanent: false, source: 'OnCreated' };
+    const other = { ...model, model: 'OTHER_SKN' };
+
+    scene.created.rules = [plain];
+    assert.ok(listSubObjectRules(scene, model).some((each) => each.pattern === 'PLAIN'));
+    assert.ok(!listSubObjectRules(scene, other).some((each) => each.pattern === 'PLAIN'));
+    assert.ok(
+      listSubObjectRules(scene, { ...other, retainsSubObjects: true }).some(
+        (each) => each.pattern === 'PLAIN',
+      ),
+    );
+  });
+
+  test('a damaged state writes its damage lists over the pristine ones, hides first', () => {
+    const scene = read();
+    const model = scene.states.find((each) => each.kind === 'model')!;
+    const write = (pattern: string, hide: boolean) => ({ pattern, hide, source: 'test' });
+
+    scene.damageSubObjects.pristine = [write('ROOF', false), write('RUIN', true)];
+    scene.damageSubObjects.damaged = [write('RUIN', false), write('ROOF', true)];
+    scene.damageSubObjects.rubble = [write('STUMP', false)];
+
+    const permanent = (label: string) =>
+      listSubObjectRules(scene, { ...model, label })
+        .slice(1)
+        .map(({ pattern, hide }) => [pattern, hide]);
+
+    assert.deepStrictEqual(permanent('ModelConditionState = None').slice(0, 2), [
+      ['RUIN', true],
+      ['ROOF', false],
+    ]);
+    assert.deepStrictEqual(permanent('ModelConditionState = DAMAGED').slice(0, 2), [
+      ['RUIN', false],
+      ['ROOF', true],
+    ]);
+    assert.ok(
+      permanent('ModelConditionState = REALLYDAMAGED').some(
+        ([pattern, hide]) => pattern === 'ROOF' && hide === false,
+      ),
+    );
+    assert.ok(permanent('ModelConditionState = RUBBLE').some(([name]) => name === 'STUMP'));
+  });
+
+  test('a write reaches the parts on bones below its own, not those beside or on the root', () => {
+    const parents = [0, 0, 1, 2, 0];
+    const parts = [
+      { ...mesh('ROOT'), bone: 0 },
+      { ...mesh('ARM'), bone: 1 },
+      { ...mesh('WRIST'), bone: 2 },
+      { ...mesh('CLUB'), bone: 3 },
+      { ...mesh('BESIDE'), bone: 1 },
+      { ...mesh('LEG'), bone: 4 },
+      mesh('SKIN'),
+    ];
+
+    assert.deepStrictEqual(findHidingSources(parts, [rule('ARM')], parents), [
+      undefined,
+      'test',
+      'test',
+      'test',
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    assert.deepStrictEqual(
+      findHidingSources(parts, [rule('ARM'), rule('WRIST', false)], parents).slice(1, 4),
+      ['test', undefined, undefined],
+    );
+    assert.deepStrictEqual(
+      findHidingSources(parts, [rule('ROOT')], parents).filter(Boolean),
+      ['test'],
+    );
+    assert.deepStrictEqual(
+      findHidingSources(parts, [rule('ARM')]).filter(Boolean),
+      ['test'],
+    );
+  });
+
+  test('a skeleton whose parents loop ends', () => {
+    assert.deepStrictEqual(
+      findHidingSources([{ ...mesh('A'), bone: 1 }, { ...mesh('B'), bone: 2 }], [rule('A')], [0, 2, 3, 2]),
+      ['test', undefined],
+    );
+  });
+
+  test('upgrades fire at their grant, over creation, and permanent calls over those', () => {
     const scene = read();
     const moving = scene.states.find((each) => each.label === 'AnimationState = MOVING');
 
@@ -354,14 +479,14 @@ suite('Sub-objects of an object', () => {
         { pattern: 'ROCK', hide: true, isPermanent: true, source: 'OnBeastCreated' },
       ],
       conditional: ['WHO (OnBeastCreated)'],
-      grantedUpgrades: ['upgrade_rock'],
+      grantedUpgrades: [{ name: 'upgrade_rock', at: 1 }],
     };
 
     const parts = [mesh('CLUB'), mesh('BANNER'), mesh('ROCK'), mesh('BOULDER')];
 
     assert.deepStrictEqual(
       findHidingSources(parts, listSubObjectRules(scene, moving)),
-      ['OnBeastCreated', 'until Upgrade_Banner', undefined, undefined],
+      ['upgrade Upgrade_Rock', undefined, undefined, undefined],
     );
     assert.deepStrictEqual(listConditionalSubObjects(scene, moving), [
       'MAYBE (AnimationState = MOVING script)',

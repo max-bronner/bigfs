@@ -11,7 +11,7 @@ import type { SubObjectRule } from '../../formats/w3d/w3dScene';
  * `conditional` and never guessed at.
  */
 
-/** A rule read from a script; a permanent one outlasts the state that wrote it */
+/** A rule read from a script; the game applies a permanent one after every plain one */
 export interface ScriptedRule extends SubObjectRule {
   isPermanent: boolean;
 }
@@ -23,10 +23,16 @@ export interface ScriptedSubObjects {
   conditional: string[];
 }
 
+/** An upgrade a handler always grants, which fires on the spot */
+export interface GrantedUpgrade {
+  name: string;
+  /** How many of the handlers' `rules` come before the grant */
+  at: number;
+}
+
 /** What the `OnCreated` handlers of an object do to it */
 export interface CreatedSubObjects extends ScriptedSubObjects {
-  /** Upgrades the handlers always grant */
-  grantedUpgrades: string[];
+  grantedUpgrades: GrantedUpgrade[];
 }
 
 /** Where a call's arguments sit: `nameAt` the sub-object, `flagAt` a boolean that may reverse `hide` */
@@ -48,10 +54,11 @@ const DRAWABLE_CALLS = new Map<string, SubObjectCall>([
 /**
  * Calls an event handler makes on its object. `ObjectShowSubObjectPermanently`
  * is absent as the game never registers it; handlers pass `false` instead.
+ * `ObjectHideSubObject` makes a plain write, as `CurDrawableHideSubObject` does.
  */
 const OBJECT_CALLS = new Map<string, SubObjectCall>([
   ['ObjectHideSubObjectPermanently', { hide: true, isPermanent: true, nameAt: 1, flagAt: 2 }],
-  ['ObjectHideSubObject', { hide: true, isPermanent: true, nameAt: 1, flagAt: 2 }],
+  ['ObjectHideSubObject', { hide: true, isPermanent: false, nameAt: 1, flagAt: 2 }],
 ]);
 
 /** How deep a handler is followed into the functions it calls, as mint's `MAX_WALK_DEPTH` */
@@ -114,7 +121,10 @@ const readCall = (
     const upgrade = readText(args[1]);
 
     if (upgrade !== undefined) {
-      scan.found.grantedUpgrades.push(upgrade);
+      scan.found.grantedUpgrades.push({
+        name: upgrade,
+        at: scan.found.rules.length,
+      });
     }
     return;
   }

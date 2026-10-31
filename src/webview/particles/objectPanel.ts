@@ -141,8 +141,8 @@ const bindLoadedAnimation = () => {
 
 /** Says which parts of the shown model are not drawn and why, and what could not be decided */
 const renderHiddenParts = () => {
-  const { scene, state, meshes, subObjectRules } = objectView;
-  const hiding = findHidingSources(meshes, subObjectRules);
+  const { scene, state, meshes, skeleton, subObjectRules } = objectView;
+  const hiding = findHidingSources(meshes, subObjectRules, skeleton?.parents);
   const hidden = meshes.flatMap((mesh, at) =>
     hiding[at] ? [`${mesh.name} (${hiding[at]})`] : [],
   );
