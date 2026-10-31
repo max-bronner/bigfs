@@ -1,4 +1,4 @@
-import { slerp } from './w3dAnimation';
+import { sampleChannel } from './w3dAnimation';
 import type { SampledChannel, W3dAnimation } from './w3dAnimation';
 import type { SceneMesh, SceneSkeleton } from './w3dScene';
 import { skinVertices, toBoneMatrix } from './w3dSkin';
@@ -68,45 +68,6 @@ const compose = (outer: BoneTransform, inner: BoneTransform): BoneTransform => {
   };
 };
 
-/**
- * Samples one channel at a fractional frame, blending its neighbours. A frame
- * outside a dense channel's range is the bind pose, not the nearest value, as
- * mint's `sample_dense` has it from EA's `MotionChannelClass`.
- */
-const sample = (
-  channel: SampledChannel,
-  frame: number,
-  frameCount: number,
-): number[] | undefined => {
-  const width = channel.kind === 'rotation' ? 4 : 1;
-  const first = Math.max(0, Math.min(frameCount - 1, Math.floor(frame)));
-  const second = Math.min(frameCount - 1, first + 1);
-  const t = frame - Math.floor(frame);
-  const at = (index: number) =>
-    Array.from(channel.values.subarray(index * width, index * width + width));
-
-  if (!channel.present[first]) {
-    return undefined;
-  }
-
-  const a = at(first);
-
-  if (t === 0 || channel.kind === 'visibility') {
-    return a;
-  }
-  if (!channel.present[second]) {
-    return undefined;
-  }
-
-  const b = at(second);
-
-  if (width === 1) {
-    return [a[0] + (b[0] - a[0]) * t];
-  }
-
-  return slerp(a, b, t);
-};
-
 /** The bones of a skeleton, as two skeletons are compared by */
 export type SkeletonBones = Pick<SceneSkeleton, 'names' | 'parents'>;
 
@@ -174,7 +135,7 @@ export const poseAt = (
     let opaqueness = 1;
 
     for (const channel of byBone.get(bone) ?? []) {
-      const value = sample(channel, frame, animation!.frameCount);
+      const value = sampleChannel(channel, frame, animation!);
 
       if (!value) {
         continue;

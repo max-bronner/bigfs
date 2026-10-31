@@ -33,6 +33,8 @@ export interface SampledChannel {
   values: Float32Array;
   /** Frames with a value; others leave the bind pose alone */
   present: Uint8Array;
+  /** Frames holding their value up to the next one: a held key follows them */
+  steps?: Uint8Array;
 }
 
 /** One animation of a W3D file, every channel sampled at whole frames */
@@ -42,6 +44,11 @@ export interface W3dAnimation {
   frameCount: number;
   frameRate: number;
   channels: SampledChannel[];
+  /**
+   * An uncompressed animation, which the game plays on the nearest whole frame,
+   * past the last of them on frame 0, and never between frames
+   */
+  playsWholeFrames?: boolean;
 }
 
 const CHUNK = {
@@ -177,6 +184,61 @@ export const slerp = (from: number[], to: number[], t: number): number[] => {
 const blend = (a: number[], b: number[], t: number): number[] =>
   a.length === 1 ? [a[0] + (b[0] - a[0]) * t] : slerp(a, b, t);
 
+/** Gets what a frame with no value stands for between frames: no change, and fully opaque */
+const getRestValue = (kind: ChannelKind): number[] =>
+  kind === 'rotation' ? [0, 0, 0, 1] : kind === 'opacity' ? [1] : [0];
+
+/** Rounds as the x87 unit does: to the nearest whole number, ties to the even one */
+const roundTiesToEven = (value: number): number => {
+  const whole = Math.floor(value);
+  const rest = value - whole;
+
+  return rest > 0.5 || (rest === 0.5 && whole % 2 === 1) ? whole + 1 : whole;
+};
+
+/**
+ * Samples a channel at a fractional frame as the game does: an uncompressed
+ * animation by `playsWholeFrames`, any other blending its neighbours. There a
+ * frame with no value blends as the rest value, a frame before a held key keeps
+ * its value, and visibility never blends. Undefined where the channel says nothing.
+ */
+export const sampleChannel = (
+  channel: SampledChannel,
+  frame: number,
+  { frameCount, playsWholeFrames }: Pick<W3dAnimation, 'frameCount' | 'playsWholeFrames'>,
+): number[] | undefined => {
+  const width = channel.kind === 'rotation' ? 4 : 1;
+  const read = (index: number) =>
+    channel.present[index]
+      ? Array.from(channel.values.subarray(index * width, index * width + width))
+      : undefined;
+
+  if (playsWholeFrames) {
+    const nearest = roundTiesToEven(frame);
+
+    return read(nearest < frameCount ? nearest : 0);
+  }
+
+  const first = Math.max(0, Math.min(frameCount - 1, Math.floor(frame)));
+  const next = Math.min(frameCount - 1, first + 1);
+  const t = frame - Math.floor(frame);
+  const value = read(first);
+
+  if (t === 0 || channel.kind === 'visibility' || channel.steps?.[first]) {
+    return value;
+  }
+
+  const following = read(next);
+
+  if (!value && !following) {
+    return undefined;
+  }
+
+  const rest = getRestValue(channel.kind);
+
+  return blend(value ?? rest, following ?? rest, t);
+};
+
 /** Samples time-coded keys at every frame: held keys step, others blend */
 const sampleKeys = (
   target: SampledChannel,
@@ -188,6 +250,9 @@ const sampleKeys = (
 
   keys.sort((a, b) => a.frame - b.frame);
 
+  const steps = new Uint8Array(target.present.length);
+
+  target.steps = steps;
   for (let frame = 0; frame < target.present.length; frame++) {
     let split = 0;
 
@@ -204,6 +269,7 @@ const sampleKeys = (
       const later = keys[split];
       const span = later.frame - earlier.frame;
 
+      steps[frame] = later.hold ? 1 : 0;
       setFrameValue(
         target,
         frame,
@@ -486,6 +552,7 @@ export const parseW3dAnimations = (bytes: Uint8Array): W3dAnimation[] =>
           frameCount,
           frameRate: frameRate || 30,
           channels,
+          playsWholeFrames: !isCompressed,
         },
       ];
     });

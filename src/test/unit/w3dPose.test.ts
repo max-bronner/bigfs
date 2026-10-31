@@ -65,6 +65,66 @@ suite('W3D pose', () => {
     assert.deepStrictEqual(round(out), [5, 0, 5]);
   });
 
+  suite('between frames', () => {
+    /** A one-channel animation of four frames */
+    const clip = (
+      kind: 'x' | 'opacity',
+      values: number[],
+      present: number[],
+      extra: Partial<W3dAnimation> = {},
+    ): W3dAnimation => ({
+      name: 'Skl.Clip',
+      hierarchyName: 'Skl',
+      frameCount: values.length,
+      frameRate: 30,
+      channels: [
+        {
+          pivot: 1,
+          kind,
+          type: kind === 'x' ? 0 : 15,
+          values: new Float32Array(values),
+          present: new Uint8Array(present),
+        },
+      ],
+      ...extra,
+    });
+
+    test('a compressed channel blends, a frame with no value as fully opaque', () => {
+      const pose = poseAt(skeleton, clip('opacity', [0, 0.5, 0, 0], [0, 1, 0, 0]), 0.5);
+
+      assert.strictEqual(pose.opacity[1], 0.75);
+    });
+
+    test('an uncompressed clip plays the nearest whole frame, ties to the even one', () => {
+      const opacity = (frame: number) =>
+        poseAt(
+          skeleton,
+          clip('opacity', [0.1, 0.2, 0.3, 0.4], [1, 1, 1, 1], { playsWholeFrames: true }),
+          frame,
+        ).opacity[1];
+
+      assert.strictEqual(Math.fround(opacity(0.4)), Math.fround(0.1));
+      assert.strictEqual(Math.fround(opacity(0.5)), Math.fround(0.1));
+      assert.strictEqual(Math.fround(opacity(1.5)), Math.fround(0.3));
+      assert.strictEqual(Math.fround(opacity(2.5)), Math.fround(0.3));
+    });
+
+    test('a frame before a held key keeps its value', () => {
+      const animation = clip('opacity', [1, 0.2], [1, 1]);
+
+      animation.channels[0].steps = new Uint8Array([1, 0]);
+      assert.strictEqual(poseAt(skeleton, animation, 0.75).opacity[1], 1);
+    });
+
+    test('past its last frame an uncompressed clip is on frame 0', () => {
+      const opacity = (extra: Partial<W3dAnimation>) =>
+        poseAt(skeleton, clip('opacity', [1, 0], [1, 1], extra), 1.6).opacity[1];
+
+      assert.strictEqual(opacity({ playsWholeFrames: true }), 1);
+      assert.strictEqual(opacity({}), 0);
+    });
+  });
+
   test('a large turn between two frames moves at an even rate', () => {
     // A 150° turn about z, wider than a normalised blend keeps even
     const turn = (75 * Math.PI) / 180;
@@ -175,7 +235,7 @@ suite('W3D pose', () => {
     assert.strictEqual(getMeshOpacity(skinned, pose), 1);
   });
 
-  test('a frame just outside a dense channel holds the bind pose', () => {
+  test('an uncompressed channel is the bind pose on a frame outside its range', () => {
     const rise = (frame: number) =>
       round(
         poseAt(
@@ -185,6 +245,7 @@ suite('W3D pose', () => {
             hierarchyName: 'Skl',
             frameCount: 4,
             frameRate: 30,
+            playsWholeFrames: true,
             channels: [
               {
                 pivot: 2,
@@ -202,6 +263,6 @@ suite('W3D pose', () => {
     // In the bind pose the hand is at [1, 2, 5]; +x along the arm is +y here
     assert.deepStrictEqual(rise(1.5), [1, 5, 5]);
     assert.deepStrictEqual(rise(0.5), [1, 2, 5]);
-    assert.deepStrictEqual(rise(2.5), [1, 2, 5]);
+    assert.deepStrictEqual(rise(2.6), [1, 2, 5]);
   });
 });

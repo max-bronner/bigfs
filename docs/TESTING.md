@@ -510,7 +510,7 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   see-through. Find one with a building's construction or a death clip. A skin
   is never hidden this way, as in mint.
 - [ ] **changed** Motion between frames is even: scrub the frame slider of a
-  clip with a wide swing and the limb turns steadily, with no one-frame jump
+  compressed clip with a wide swing and the limb turns steadily, with no one-frame jump
   where a bone's channel starts or ends.
 - [ ] **changed** Skins bend on both of a vertex's bones: play a unit or hero
   (`mugothmog_skn`, `eulorwar_skn`) and look at the joints; a death or
@@ -520,6 +520,10 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
 - [ ] **changed** A skin with one vertex stream follows each vertex's first bone
   only, its weights ignored, as the game does. No shipped model is known to look
   different; a mod's skin with weights but no `VERTICES_2` may.
+- [ ] **changed** Between frames a channel follows the game's rule: an uncompressed
+  clip snaps to the nearest whole frame and never blends, and in a compressed clip
+  a key marked as held steps instead of easing, type 15 opacity included. Scrub the
+  frame slider slowly on an uncompressed clip: it should move in steps.
 - [ ] **changed** A skin with two vertex streams uses its stored weights raw, as
   the game does: no shipped model is known to look different, and a mod's skin
   whose two percentages do not sum to 100 draws nearer the origin.
