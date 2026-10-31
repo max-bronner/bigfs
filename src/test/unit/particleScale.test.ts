@@ -1,5 +1,6 @@
 import * as assert from 'assert';
-import { findParticleDefinitions, findNumericFields } from '../../formats/particles/particleIni';
+import { findParticleDefinitions } from '../../formats/particles/particleDefinitions';
+import { findNumericFields } from '../../formats/particles/particleValueEdits';
 import { scaleEffect } from '../../formats/particles/particleScale';
 
 const TEXT = `FXParticleSystem Test

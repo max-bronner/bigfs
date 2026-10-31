@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { findParticleDefinitions } from '../../formats/particles/particleIni';
+import { findParticleDefinitions } from '../../formats/particles/particleDefinitions';
 import {
   PARTICLE_TEMPLATES,
   createTemplateSnippet,

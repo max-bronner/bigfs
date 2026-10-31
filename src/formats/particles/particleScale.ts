@@ -1,4 +1,4 @@
-import type { NumericField } from './particleIni';
+import type { NumericField } from './particleValueEdits';
 
 /**
  * Scaling of a whole effect: making it bigger, or longer, in one step,

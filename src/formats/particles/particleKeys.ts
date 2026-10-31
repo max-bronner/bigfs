@@ -1,4 +1,4 @@
-import type { IniDefinition } from './particleIni';
+import type { IniDefinition } from './particleDefinitions';
 
 /**
  * Writing a particle system's colour and alpha keys as a whole: the curve

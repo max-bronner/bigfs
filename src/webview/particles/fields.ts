@@ -1,4 +1,4 @@
-import type { NumericField } from '../../formats/particles/particleIni';
+import type { NumericField } from '../../formats/particles/particleValueEdits';
 import { $, post } from './page';
 import type { SceneMessage } from './protocol';
 

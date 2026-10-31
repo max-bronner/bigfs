@@ -1,4 +1,4 @@
-import type { NumericField } from '../../formats/particles/particleIni';
+import type { NumericField } from '../../formats/particles/particleValueEdits';
 import type { ParticleDef, Vec3 } from '../../formats/particles/particleDef';
 import { computeCameraBasis, computeViewProjection } from './camera';
 import { canvas } from './graphics';

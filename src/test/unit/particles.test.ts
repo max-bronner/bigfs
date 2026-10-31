@@ -1,5 +1,7 @@
 import * as assert from 'assert';
-import { applyValueEdits, findParticleDefinitions, findNumericFields, readFxList, readParticleDef, computeValueEdits } from '../../formats/particles/particleIni';
+import { applyValueEdits, findNumericFields, computeValueEdits } from '../../formats/particles/particleValueEdits';
+import { findParticleDefinitions } from '../../formats/particles/particleDefinitions';
+import { readFxList, readParticleDef } from '../../formats/particles/particleIni';
 import type { ParticleDef } from '../../formats/particles/particleDef';
 import { getEffectStateAt } from '../../formats/particles/fxEffects';
 import { ParticleWorld } from '../../formats/particles/particleSimulation';

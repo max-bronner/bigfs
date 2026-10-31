@@ -1,8 +1,11 @@
 import * as vscode from 'vscode';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { EntryLocator } from '../../services/entryLocator';
-import { applyValueEdits, findParticleDefinitions, findNumericFields, readFxList, readParticleDef, computeValueEdits } from '../../formats/particles/particleIni';
-import type { FxListDef, IniDefinition } from '../../formats/particles/particleIni';
+import { applyValueEdits, findNumericFields, computeValueEdits } from '../../formats/particles/particleValueEdits';
+import { findParticleDefinitions } from '../../formats/particles/particleDefinitions';
+import { readFxList, readParticleDef } from '../../formats/particles/particleIni';
+import type { FxListDef } from '../../formats/particles/particleIni';
+import type { IniDefinition } from '../../formats/particles/particleDefinitions';
 import type { ParticleDef } from '../../formats/particles/particleDef';
 import { computeKeyEdits } from '../../formats/particles/particleKeys';
 import type { ModelScene } from '../../formats/w3d/w3dScene';

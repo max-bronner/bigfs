@@ -1,4 +1,4 @@
-import type { NumericField } from '../../formats/particles/particleIni';
+import type { NumericField } from '../../formats/particles/particleValueEdits';
 import { MAX_KEYS } from '../../formats/particles/particleKeys';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 import { $, library, post, state } from './page';
