@@ -332,6 +332,22 @@ suite("W3D models", () => {
     assert.deepStrictEqual(getMeshVisibility(scene), [true, true]);
   });
 
+  test("a file whose hierarchy has another name does not answer for its file name", async () => {
+    const renamed = hierarchy.slice();
+
+    // Past the two chunk headers and the version
+    renamed.set(encodeName("OTHER_SKL", 16), 20);
+
+    const scene = await buildW3dScene(
+      concatBytes(mesh("BODY"), hlod),
+      async (fileName) => (fileName === "UNIT_SKL.w3d" ? renamed : undefined),
+      createToolRegistry(),
+    );
+
+    assert.strictEqual(scene.hierarchy, undefined);
+    assert.strictEqual(scene.skeleton, undefined);
+  });
+
   test("one level of detail is drawn at a time, the finest by default", async () => {
     const level = (size: number, sub: string) =>
       buildChunk(

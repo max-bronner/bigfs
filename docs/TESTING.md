@@ -459,6 +459,10 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   model even across rigs, with the same line under the model.
 - [ ] **changed** In the object preview an INI-named clip of another skeleton
   plays on the INI's model, with the same words as the notice.
+- [ ] **changed** A skeleton is found by the name inside its file, as the game
+  looks it up: `rupsnt_2_skn` names `RUPSNT_2_SKL`, whose file holds a hierarchy
+  called `RUPSNT_1_SKL`, so the info line shows no skeleton and no Bones toggle
+  or animations, instead of the other rig.
 - [ ] **new** Bones are off when meshes exist; **B** toggles them.
 - [ ] **new** "Used in" under the model lists INI lines naming the file, each
   a link to the line.

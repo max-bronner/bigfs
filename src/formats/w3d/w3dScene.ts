@@ -428,17 +428,22 @@ export const getMeshVisibility = (
   );
 };
 
-/** Finds and reads the hierarchy of a name, in its own file or the `_SKL` of that stem */
+/**
+ * Finds and reads the hierarchy of a name, in its own file or the `_SKL` of
+ * that stem. The game looks hierarchies up by the name inside the file, so a
+ * file holding a hierarchy named otherwise does not answer for its file name.
+ */
 const loadHierarchy = async (
   name: string,
   loadFile: LoadFile,
   tools: ToolBox,
 ): Promise<W3dHierarchy | undefined> => {
-  for (const candidate of [`${name}.w3d`, `${name}_skl.w3d`]) {
-    const bytes = await loadFile(candidate);
+  for (const stem of [name, `${name}_skl`]) {
+    const bytes = await loadFile(`${stem}.w3d`);
+    const hierarchy = bytes && (await tools.use(parseW3dTool)(bytes)).hierarchy;
 
-    if (bytes) {
-      return (await tools.use(parseW3dTool)(bytes)).hierarchy;
+    if (hierarchy?.name.toLowerCase() === stem.toLowerCase()) {
+      return hierarchy;
     }
   }
 
