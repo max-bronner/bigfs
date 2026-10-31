@@ -50,8 +50,4 @@ bundle names. Every wave passed the gate, added no import cycle
 ## State at W13
 
 - **Layer warnings:** none; the rules are errors.
-- **Import cycles:** 12, down from 22. What is left sits inside one folder
-  each: the APT player with its AVM (`webview/apt/player`, `avm/vm`,
-  `avm/natives`, `avm/value`, `scene`), `webview/apt/details` with
-  `recordFields` and `blocks/scriptBlock`, `formats/particles/particleIni` with
-  `fxEffects`, and `services/archives/archive` with `virtualNode`.
+- **Import cycles:** none, down from 22, and CI fails on a new one.
