@@ -571,10 +571,10 @@ suite("W3D models", () => {
         buildChunk(0xc00, encodeFloats(9, 9, 9)),
       );
 
-      // Without a whole `VERTICES_2` the second bone reuses the first's copy
+      // Without a whole `VERTICES_2` the first bone alone moves it, whatever the weights
       assert.deepStrictEqual(
         placed(short.meshes[0].positions),
-        [1, 0, 10, 2, 0, 10, 3, 0, 10],
+        [1, 0, 0, 2, 0, 0, 3, 0, 0],
       );
     });
 

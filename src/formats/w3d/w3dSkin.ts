@@ -51,10 +51,11 @@ export const toBoneMatrix = (
   ]);
 
 /**
- * Writes where the bones in `matrices` put a mesh's vertices and normals. A
- * bone past the end of `matrices` is left out of the blend and the other
- * bone's weight stands alone; a vertex with neither keeps what `positions`
- * and `normals` already hold.
+ * Writes where the bones in `matrices` put a mesh's vertices and normals.
+ * Without `VERTICES_2` the first bone alone moves a vertex, its weights
+ * ignored, as the game does. A bone past the end of `matrices` is left out of
+ * the blend and the other bone's weight stands alone; a vertex with neither
+ * keeps what `positions` and `normals` already hold.
  */
 export const skinVertices = (
   mesh: BoneSpaceMesh,
@@ -76,14 +77,13 @@ export const skinVertices = (
     let applied = 0;
 
     for (let slot = 0; slot < 2; slot++) {
-      const weight = weights[vertex * 2 + slot];
+      const weight = secondPositions ? weights[vertex * 2 + slot] : 1 - slot;
       const m = matrices[bones[vertex * 2 + slot]];
 
       if (weight <= 0 || !m) {
         continue;
       }
 
-      // Without `VERTICES_2` the second bone reuses the first bone's copy
       const source = (slot && secondPositions) || mesh.positions;
       const x = source[at];
       const y = source[at + 1];
