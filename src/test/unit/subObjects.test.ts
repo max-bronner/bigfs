@@ -170,6 +170,67 @@ suite('Sub-object scripts', () => {
     ]);
   });
 
+  test('a condition on the previous state is decided when that state is known', () => {
+    const script = [
+      'Prev = CurDrawablePrevAnimationState()',
+      'if Prev == "Fire" or Prev == "Reload" then',
+      '  CurDrawableHideSubObject("A")',
+      'elseif Prev ~= "Idle" then',
+      '  CurDrawableHideSubObject("B")',
+      'else',
+      '  CurDrawableHideSubObject("C")',
+      'end',
+      'if CurDrawableAllowToContinue() and Prev == "Fire" then',
+      '  CurDrawableHideSubObject("D")',
+      'end',
+      'if CurDrawableAllowToContinue() and Prev == "Idle" then',
+      '  CurDrawableHideSubObject("E")',
+      'end',
+    ].join('\n');
+    const named = (previous?: string | null) => {
+      const { rules, conditional } = readStateScript(script, 'S', previous);
+
+      return [rules.map((each) => each.pattern), conditional];
+    };
+
+    assert.deepStrictEqual(named('Fire'), [['A'], ['D (S)']]);
+    assert.deepStrictEqual(named('Idle'), [['C'], ['E (S)']]);
+    assert.deepStrictEqual(named(null), [['B'], []]);
+    assert.deepStrictEqual(named()[1], ['A (S)', 'B (S)', 'C (S)', 'D (S)', 'E (S)']);
+  });
+
+  test('an or with one side undecided stays undecided unless the other is true', () => {
+    const script = (test: string) =>
+      `Prev = CurDrawablePrevAnimationState()
+if ${test} then
+  CurDrawableHideSubObject("A")
+end`;
+    const unknown = 'CurDrawableAllowToContinue()';
+
+    assert.deepStrictEqual(
+      readStateScript(script(`${unknown} or Prev == "Idle"`), 'S', 'Fire').conditional,
+      ['A (S)'],
+    );
+    assert.deepStrictEqual(
+      readStateScript(script(`${unknown} or Prev == "Fire"`), 'S', 'Fire').rules.length,
+      1,
+    );
+  });
+
+  test('a variable set under a condition is no longer known', () => {
+    const script = [
+      'local Prev = CurDrawablePrevAnimationState()',
+      'if CurDrawableAllowToContinue() then',
+      '  Prev = "Fire"',
+      'end',
+      'if Prev == "Fire" then',
+      '  CurDrawableHideSubObject("A")',
+      'end',
+    ].join('\n');
+
+    assert.deepStrictEqual(readStateScript(script, 'S', 'Fire').conditional, ['A (S)']);
+  });
+
   test('the INI comments a script is written with are not read as Lua', () => {
     const { rules, conditional } = readStateScript(
       [
@@ -492,6 +553,54 @@ suite('Sub-objects of an object', () => {
       'MAYBE (AnimationState = MOVING script)',
       'WHO (OnBeastCreated)',
     ]);
+  });
+
+  test('a state reads the previous state as its idle, idle as none', () => {
+    const lines = [
+      'Object TestBeast',
+      '  Draw = W3DScriptedModelDraw ModuleTag_Draw',
+      '    DefaultModelConditionState',
+      '      Model = TB_SKN',
+      '    End',
+      '    IdleAnimationState',
+      '      StateName = STATE_Rest',
+      '      BeginScript',
+      '        Prev = CurDrawablePrevAnimationState()',
+      '        if Prev == "STATE_Rest" then',
+      '          CurDrawableHideSubObject("NEVER")',
+      '        end',
+      '      EndScript',
+      '    End',
+      '    AnimationState = MOVING',
+      '      Animation = Run',
+      '        AnimationName = TB_SKL.TB_RUNA',
+      '      End',
+      '      BeginScript',
+      '        Prev = CurDrawablePrevAnimationState()',
+      '        if Prev == "STATE_Rest" then',
+      '          CurDrawableHideSubObject("BLADE")',
+      '        end',
+      '      EndScript',
+      '    End',
+      '  End',
+      'End',
+    ];
+    const scene = readObjectScene(
+      parseSageIni(lines, schema),
+      schema,
+      () => false,
+      () => false,
+      lines,
+    )!;
+
+    assert.deepStrictEqual(
+      scene.states.flatMap((each) => each.subObjects.rules.map((rule) => rule.pattern)),
+      ['BLADE'],
+    );
+    assert.deepStrictEqual(
+      scene.states.flatMap((each) => each.subObjects.conditional),
+      [],
+    );
   });
 
   test('without the text the scripts are left unread', () => {

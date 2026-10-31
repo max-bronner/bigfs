@@ -292,9 +292,13 @@ export const readObjectScene = (
 
     if (draw && state && startLine > object.startLine && endLine < object.endLine) {
       const owner = stateOf(draw, state);
+      const idle = findIdleState(scene, owner.draw);
+      // The preview enters a state from idle, and idle from nothing; the game
+      // gives a script the previous state's `StateName`, nil when it has none
       const { rules, conditional } = readStateScript(
         lines.slice(startLine + 1, endLine).join('\n'),
         `${owner.label} script`,
+        idle ? (owner === idle ? null : (idle.name ?? null)) : undefined,
       );
 
       owner.subObjects.rules.push(...rules);

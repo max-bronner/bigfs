@@ -488,6 +488,11 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   bone and see both go. Plain script hides carry from the idle state into the
   state you pick, and a permanent write always beats a plain one. A state naming
   `DAMAGED`, `REALLYDAMAGED` or `RUBBLE` applies that `TransitionDamageFX` list.
+- [ ] **changed** A script's test of `CurDrawablePrevAnimationState()` is decided
+  for the object preview, which enters a state from idle: the block runs when it
+  names the idle state's `StateName`. Pick a state with such a test (search the
+  INI for `Prev ==`): its calls leave "Not applied, depends on the running game",
+  and a call under chance or `CurDrawableAllowToContinue` stays listed there.
 - [ ] **changed** HLOD: only the levels of detail the HLOD header counts are
   read, as the game reads them. Every retail model counts one, so the level
   dropdown is gone there and the line under the model says "1 level of detail";

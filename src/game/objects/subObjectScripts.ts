@@ -1,14 +1,23 @@
 import { parse } from 'luaparse';
-import type { Chunk, Expression, FunctionDeclaration, Statement } from 'luaparse';
+import type {
+  AssignmentStatement,
+  Chunk,
+  Expression,
+  FunctionDeclaration,
+  IfStatement,
+  LocalStatement,
+  Statement,
+} from 'luaparse';
 import type { SubObjectRule } from '../../formats/w3d/w3dScene';
 
 /**
  * Static reader of the Lua that shows and hides an object's sub-objects: the
  * `BeginScript` of an animation state and the `OnCreated` handler
  * `scriptevents.xml` binds to its `AILuaEventsList`. Nothing is run. A call
- * that always happens, with literal arguments, becomes a rule; one under a
- * condition, past a possible `return` or with a computed name is listed as
- * `conditional` and never guessed at.
+ * that always happens, with literal arguments, becomes a rule. A condition on
+ * the previous animation state, the one thing a script asks that is known
+ * ahead of time, is decided; a call under any other condition, past a possible
+ * `return` or with a computed name is listed as `conditional`, never guessed at.
  */
 
 /** A rule read from a script; the game applies a permanent one after every plain one */
@@ -67,17 +76,90 @@ const MAX_CALL_DEPTH = 8;
 /** Longest `Inherit` chain followed, as mint's `MAX_INHERIT`, so a cycle ends */
 const MAX_INHERIT = 16;
 
+/** A Lua value known ahead of time: `null` is `nil`, `undefined` not known */
+type KnownValue = string | null | undefined;
+
 /** One script being read: what to look for and where to collect it */
 interface ScriptScan {
   calls: ReadonlyMap<string, SubObjectCall>;
   functions: ReadonlyMap<string, FunctionDeclaration>;
   source: string;
   found: CreatedSubObjects;
+  /** What `CurDrawablePrevAnimationState` answers */
+  previousState: KnownValue;
+  /** The variables holding a known value */
+  variables: Map<string, string | null>;
 }
 
 // luaparse leaves `value` empty in its default encoding mode, so the text is read from `raw`
 const readText = (expression: Expression | undefined): string | undefined =>
   expression?.type === 'StringLiteral' ? expression.raw.slice(1, -1) : undefined;
+
+const readKnownValue = (
+  expression: Expression | undefined,
+  scan: ScriptScan,
+): KnownValue => {
+  switch (expression?.type) {
+    case 'StringLiteral':
+      return readText(expression);
+    case 'NilLiteral':
+      return null;
+    case 'Identifier':
+      return scan.variables.get(expression.name);
+    case 'CallExpression':
+      return expression.base.type === 'Identifier' &&
+        expression.base.name === 'CurDrawablePrevAnimationState'
+        ? scan.previousState
+        : undefined;
+    default:
+      return undefined;
+  }
+};
+
+/** Decides a condition, or says nothing when any part of it needs the running game */
+const resolveCondition = (
+  expression: Expression,
+  scan: ScriptScan,
+): boolean | undefined => {
+  switch (expression.type) {
+    case 'BooleanLiteral':
+      return expression.value;
+    case 'BinaryExpression': {
+      const left = readKnownValue(expression.left, scan);
+      const right = readKnownValue(expression.right, scan);
+
+      if (
+        left === undefined ||
+        right === undefined ||
+        (expression.operator !== '==' && expression.operator !== '~=')
+      ) {
+        return undefined;
+      }
+      return (left === right) === (expression.operator === '==');
+    }
+    case 'LogicalExpression': {
+      const left = resolveCondition(expression.left, scan);
+      const right = resolveCondition(expression.right, scan);
+
+      if (expression.operator === 'and') {
+        return left === false || right === false ? false : left && right;
+      }
+      if (left === true || right === true) {
+        return true;
+      }
+      return left === undefined || right === undefined ? undefined : false;
+    }
+    case 'UnaryExpression': {
+      const operand = resolveCondition(expression.argument, scan);
+
+      return expression.operator === 'not' && operand !== undefined
+        ? !operand
+        : undefined;
+    }
+    default:
+      return undefined;
+  }
+};
 
 const readFlag = (expression: Expression | undefined): boolean | undefined =>
   expression === undefined
@@ -96,12 +178,13 @@ const readCall = (
     return;
   }
 
-  const { name } = expression.base;
+  const { name: callee } = expression.base;
   const { arguments: args } = expression;
-  const call = scan.calls.get(name);
+  const call = scan.calls.get(callee);
 
   if (call) {
-    const pattern = readText(args[call.nameAt]);
+    const name = readKnownValue(args[call.nameAt], scan);
+    const pattern = typeof name === 'string' ? name : undefined;
     const flag = call.flagAt === undefined ? true : readFlag(args[call.flagAt]);
 
     if (isCertain && pattern !== undefined && flag !== undefined) {
@@ -117,7 +200,7 @@ const readCall = (
     return;
   }
 
-  if (name === 'ObjectGrantUpgrade' && isCertain) {
+  if (callee === 'ObjectGrantUpgrade' && isCertain) {
     const upgrade = readText(args[1]);
 
     if (upgrade !== undefined) {
@@ -129,18 +212,16 @@ const readCall = (
     return;
   }
 
-  const helper = scan.functions.get(name);
+  const helper = scan.functions.get(callee);
 
   if (helper && depth < MAX_CALL_DEPTH) {
     walkStatements(helper.body, scan, isCertain, depth + 1);
   }
 };
 
-/** Lists the blocks of a statement that may or may not run */
-const listConditionalBodies = (statement: Statement): Statement[][] => {
+/** Lists the blocks of a loop, which may or may not run */
+const listLoopBodies = (statement: Statement): Statement[][] => {
   switch (statement.type) {
-    case 'IfStatement':
-      return statement.clauses.map((clause) => clause.body);
     case 'WhileStatement':
     case 'RepeatStatement':
     case 'ForNumericStatement':
@@ -149,6 +230,52 @@ const listConditionalBodies = (statement: Statement): Statement[][] => {
     default:
       return [];
   }
+};
+
+/** Remembers what a local or assignment leaves in its variables */
+const trackVariables = (
+  statement: LocalStatement | AssignmentStatement,
+  scan: ScriptScan,
+  isReached: boolean,
+) => {
+  statement.variables.forEach((variable, at) => {
+    if (variable.type === 'Identifier') {
+      const value = readKnownValue(statement.init[at], scan);
+
+      if (isReached && value !== undefined) {
+        scan.variables.set(variable.name, value);
+      } else {
+        scan.variables.delete(variable.name);
+      }
+    }
+  });
+};
+
+/** Collects the calls of an `if`: a clause decided false is skipped, one decided true ends it */
+const walkIfStatement = (
+  statement: IfStatement,
+  scan: ScriptScan,
+  isCertain: boolean,
+  depth: number,
+): boolean => {
+  let isDecided = isCertain;
+  let mayReturn = false;
+
+  for (const clause of statement.clauses) {
+    const taken =
+      clause.type === 'ElseClause' ? true : resolveCondition(clause.condition, scan);
+
+    if (taken === false) {
+      continue;
+    }
+    mayReturn =
+      walkStatements(clause.body, scan, isDecided && taken === true, depth) || mayReturn;
+    if (taken === true) {
+      break;
+    }
+    isDecided = false;
+  }
+  return mayReturn;
 };
 
 /** Collects the calls of a block; true when it may return before its end */
@@ -169,8 +296,15 @@ const walkStatements = (
       readCall(statement.expression, scan, isReached, depth);
     } else if (statement.type === 'DoStatement') {
       mayReturn = walkStatements(statement.body, scan, isReached, depth) || mayReturn;
+    } else if (statement.type === 'IfStatement') {
+      mayReturn = walkIfStatement(statement, scan, isReached, depth) || mayReturn;
+    } else if (
+      statement.type === 'LocalStatement' ||
+      statement.type === 'AssignmentStatement'
+    ) {
+      trackVariables(statement, scan, isReached);
     } else {
-      for (const body of listConditionalBodies(statement)) {
+      for (const body of listLoopBodies(statement)) {
         mayReturn = walkStatements(body, scan, false, depth) || mayReturn;
       }
     }
@@ -207,10 +341,13 @@ const createFound = (): CreatedSubObjects => ({
 /**
  * Reads the sub-object calls of an animation state's `BeginScript` body
  * @param source How the UI names the script
+ * @param previousState The `StateName` the state is entered from, `null` for
+ * none; left out, a condition on it stays undecided
  */
 export const readStateScript = (
   body: string,
   source: string,
+  previousState?: string | null,
 ): ScriptedSubObjects => {
   const found = createFound();
 
@@ -223,7 +360,14 @@ export const readStateScript = (
   if (chunk) {
     walkStatements(
       chunk.body,
-      { calls: DRAWABLE_CALLS, functions: new Map(), source, found },
+      {
+        calls: DRAWABLE_CALLS,
+        functions: new Map(),
+        source,
+        found,
+        previousState,
+        variables: new Map(),
+      },
       true,
       0,
     );
@@ -305,7 +449,14 @@ export const readCreatedSubObjects = (
       if (handler) {
         walkStatements(
           functions.get(handler)?.body ?? [],
-          { calls: OBJECT_CALLS, functions, source: `${handler} in scripts.lua`, found },
+          {
+            calls: OBJECT_CALLS,
+            functions,
+            source: `${handler} in scripts.lua`,
+            found,
+            previousState: undefined,
+            variables: new Map(),
+          },
           true,
           0,
         );
