@@ -52,19 +52,17 @@ export const rotate = ([x, y, z, w]: Quat, v: Vec3): Vec3 => {
   ];
 };
 
-const normalise = <T extends number[]>(q: T): T => {
-  const length = Math.hypot(...q) || 1;
-
-  return q.map((value) => value / length) as T;
-};
-
-/** Composes two transforms, `outer` applied after `inner` */
+/**
+ * Composes two transforms, `outer` applied after `inner`. The game normalises
+ * nothing here, so a stored rotation that is not of unit length scales what it
+ * turns and every bone below it.
+ */
 const compose = (outer: BoneTransform, inner: BoneTransform): BoneTransform => {
   const r = rotate(outer.q, inner.t);
 
   return {
     t: [r[0] + outer.t[0], r[1] + outer.t[1], r[2] + outer.t[2]],
-    q: normalise(multiply(outer.q, inner.q)),
+    q: multiply(outer.q, inner.q),
   };
 };
 
@@ -166,12 +164,11 @@ export const poseAt = (
       t: skeleton.translations.slice(bone * 3, bone * 3 + 3) as Vec3,
       q: skeleton.rotations.slice(bone * 4, bone * 4 + 4) as Quat,
     };
-    const local = compose(bind, delta);
     const parent = skeleton.parents[bone];
+    const placed =
+      parent >= 0 && parent < bone ? compose(world[parent], bind) : bind;
 
-    world.push(
-      parent >= 0 && parent < bone ? compose(world[parent], local) : local,
-    );
+    world.push(compose(placed, delta));
     visible.push(shown);
     opacity.push(opaqueness);
   }

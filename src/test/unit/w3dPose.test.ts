@@ -235,6 +235,55 @@ suite('W3D pose', () => {
     assert.strictEqual(getMeshOpacity(skinned, pose), 1);
   });
 
+  test('a stored rotation is used as it stands, not normalised', () => {
+    const pose = poseAt(
+      skeleton,
+      {
+        name: 'Skl.Long',
+        hierarchyName: 'Skl',
+        frameCount: 1,
+        frameRate: 30,
+        channels: [
+          {
+            pivot: 2,
+            kind: 'rotation',
+            type: 6,
+            values: new Float32Array([0, 0, 0, 2]),
+            present: new Uint8Array([1]),
+          },
+        ],
+      },
+      0,
+    );
+
+    // The hand takes the arm's unit turn, doubled in length by its own
+    assert.ok(Math.abs(Math.hypot(...pose.world[2].q) - 2) < 1e-6);
+  });
+
+  test('a bone turns its channel translation by its whole bind, then adds the rotation', () => {
+    const pose = poseAt(
+      skeleton,
+      {
+        name: 'Skl.Order',
+        hierarchyName: 'Skl',
+        frameCount: 1,
+        frameRate: 30,
+        channels: [
+          {
+            pivot: 1,
+            kind: 'x',
+            type: 0,
+            values: new Float32Array([1]),
+            present: new Uint8Array([1]),
+          },
+        ],
+      },
+      0,
+    );
+
+    assert.deepStrictEqual(round(pose.world[1].t), [1, 1, 5]);
+  });
+
   test('an uncompressed channel is the bind pose on a frame outside its range', () => {
     const rise = (frame: number) =>
       round(

@@ -524,6 +524,10 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   clip snaps to the nearest whole frame and never blends, and in a compressed clip
   a key marked as held steps instead of easing, type 15 opacity included. Scrub the
   frame slider slowly on an uncompressed clip: it should move in steps.
+- [ ] **changed** A clip's rotations are used as stored, not normalised, as the
+  game does: a bone with a rotation that is not of unit length scales what hangs
+  from it. Play `mucavtroll_skn` with its clips: limbs may sit up to about 0.3
+  units from before, and should match the game.
 - [ ] **changed** A skin with two vertex streams uses its stored weights raw, as
   the game does: no shipped model is known to look different, and a mod's skin
   whose two percentages do not sum to 100 draws nearer the origin.
