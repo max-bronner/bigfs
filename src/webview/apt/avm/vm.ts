@@ -3,7 +3,7 @@ import type {
   AptInstruction,
 } from '../../../formats/apt/aptBytecode';
 import type { PageMovie } from '../protocol';
-import type { Instance } from '../player';
+import type { Instance } from '../instance';
 import { isWindowTarget, parseLevel } from './movieLoad';
 import { installNatives } from './natives';
 import {
@@ -16,6 +16,7 @@ import {
   toNumber,
 } from './value';
 import type {
+  BuiltinProtos,
   BytecodeFunction,
   NativeFunction,
   NativeHost,
@@ -166,18 +167,7 @@ export class Vm implements NativeHost {
   /** The `_global` object */
   public readonly global: AsObject;
   /** Prototypes of the built-in classes, each inheriting from `object` */
-  public readonly protos: Record<
-    | 'object'
-    | 'function'
-    | 'array'
-    | 'string'
-    | 'number'
-    | 'boolean'
-    | 'movieClip'
-    | 'button'
-    | 'textField',
-    AsObject
-  >;
+  public readonly protos: BuiltinProtos;
   /** The `extern` object, whose members the engine answers */
   public readonly externObject: AsObject;
   private readonly clips = new WeakMap<Instance, AsObject>();

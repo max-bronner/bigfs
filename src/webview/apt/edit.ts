@@ -1,6 +1,6 @@
 import type { Matrix2, Rect } from '../../formats/apt/aptMovie';
 import { send } from './details';
-import type { Instance } from './player';
+import type { Instance } from './instance';
 import {
   IDENTITY,
   apply,

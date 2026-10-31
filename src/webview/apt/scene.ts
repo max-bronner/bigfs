@@ -1,5 +1,5 @@
 import type { Character, Rect } from '../../formats/apt/aptMovie';
-import type { Instance, Player } from './player';
+import type { Instance } from './instance';
 import type { PageMovie } from './protocol';
 import { resolve } from './resolve';
 import { state } from './state';
@@ -113,9 +113,15 @@ export const getPlacedColor = (child: Instance): ColorTransform => {
   return { mult: [mult[0], mult[1], mult[2], child.alpha], add };
 };
 
+/** View of a player that `collect` reads its display tree through */
+export interface DisplayTree {
+  readonly root: Instance;
+  textOf(instance: Instance): string | undefined;
+}
+
 /** Collects what a player shows right now, flattened in paint order, with button hit areas */
 export const collect = (
-  player: Player,
+  player: DisplayTree,
 ): { leaves: Leaf[]; hits: HitArea[] } => {
   const leaves: Leaf[] = [];
   const hits: HitArea[] = [];

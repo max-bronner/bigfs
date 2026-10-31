@@ -4,7 +4,7 @@ import type { Rect } from "../../formats/apt/aptMovie";
 import { byId } from "./dom";
 import { buildMaskArea, paintLeaf } from "./paint";
 import { Player } from "./player";
-import type { Instance } from "./player";
+import type { Instance } from "./instance";
 import { resolve } from "./resolve";
 import { getLeafBounds, collect, getLocalBounds, transformRect, union } from "./scene";
 import type { Affine, HitArea, Leaf } from "./scene";

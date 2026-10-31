@@ -1,5 +1,5 @@
 import type { AptFunction } from '../../../formats/apt/aptBytecode';
-import type { Instance } from '../player';
+import type { Instance } from '../instance';
 import type { PageMovie } from '../protocol';
 
 /**
@@ -32,8 +32,26 @@ export type NativeFunction = (
   args: Value[],
 ) => Value;
 
+/** Prototypes of the built-in classes */
+export type BuiltinProtos = Record<
+  | 'object'
+  | 'function'
+  | 'array'
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'movieClip'
+  | 'button'
+  | 'textField',
+  AsObject
+>;
+
 /** View of the VM handed to natives, kept narrow so they stay small */
 export interface NativeHost {
+  /** The `_global` object */
+  readonly global: AsObject;
+  /** Prototypes of the built-in classes, each inheriting from `object` */
+  readonly protos: BuiltinProtos;
   string(value: Value): string;
   member(object: Value, name: string): Value;
   setMember(object: Value, name: string, value: Value): void;
@@ -49,6 +67,14 @@ export interface NativeHost {
   now(): number;
   interval(callee: Value, self: Value, ms: number, args: Value[]): number;
   clearInterval(id: number): void;
+  /** Joins an array's items as `Array.join` does */
+  join(array: AsObject, separator: string): string;
+  /** Creates the function object of a native, named `name` */
+  native(name: string, call: NativeFunction): AsObject;
+  /** Goes to a frame of a clip by number or label, as `gotoAndPlay` and friends do */
+  goto(clip: Instance, target: Value, stop: boolean): void;
+  /** Loads the movie a URL names into a clip or level; an empty URL unloads */
+  loadMovie(into: Instance | number, url: string): void;
 }
 
 /** Operations the VM asks of the player that draws the clips */

@@ -1,4 +1,4 @@
-import type { Instance } from '../player';
+import type { Instance } from '../instance';
 import {
   apply,
   invert,
@@ -16,8 +16,7 @@ import {
   toInt32,
   toNumber,
 } from './value';
-import type { NativeFunction, Value } from './value';
-import type { Vm } from './vm';
+import type { NativeFunction, NativeHost, Value } from './value';
 
 /**
  * The built-in objects and functions a movie finds: `Object`, `Array`,
@@ -28,7 +27,7 @@ import type { Vm } from './vm';
 
 const arg = (args: Value[], at: number): Value => args[at];
 
-const chars = (vm: Vm, self: Value) => [...vm.string(self)];
+const chars = (vm: NativeHost, self: Value) => [...vm.string(self)];
 
 /** An index argument clamped into a string or array, negatives from the end */
 const relative = (value: Value, length: number, fallback: number) => {
@@ -41,7 +40,7 @@ const relative = (value: Value, length: number, fallback: number) => {
   return n < 0 ? Math.max(0, length + n) : Math.min(n, length);
 };
 
-const valuesOf = (vm: Vm, array: Value): Value[] => {
+const valuesOf = (vm: NativeHost, array: Value): Value[] => {
   if (!(array instanceof AsObject)) {
     return [];
   }
@@ -118,7 +117,7 @@ const repath = (clip: Instance, path: string) => {
 };
 
 /** Installs the built-in objects and functions on a machine's globals and prototypes */
-export const installNatives = (vm: Vm): void => {
+export const installNatives = (vm: NativeHost): void => {
   const { protos, global } = vm;
   const method = (on: AsObject, name: string, call: NativeFunction) =>
     on.define(name, vm.native(name, call));

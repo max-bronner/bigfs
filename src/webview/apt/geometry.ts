@@ -3,7 +3,7 @@ import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';
 
 import { absoluteOf } from './edit';
-import type { Instance } from './player';
+import type { Instance } from './instance';
 import { apply, invert, multiply } from './scene';
 import type { Affine } from './scene';
 import {

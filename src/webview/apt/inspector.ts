@@ -19,7 +19,7 @@ import {
 } from './blocks/controls';
 import { commit, isEditable } from './edit';
 import { DOWN, OVER, UP, describeInstance } from './player';
-import type { Instance } from './player';
+import type { Instance } from './instance';
 import { currentPlayer, getInspectedInstance, render } from './stage';
 import { state } from './state';
 

@@ -5,7 +5,8 @@ import type { Engine } from './avm/engine';
 import { parseTyped } from './avm/engine';
 import type { Value } from './avm/value';
 import { AsObject } from './avm/value';
-import type { Instance, Player } from './player';
+import type { Instance } from './instance';
+import type { Player } from './player';
 
 /**
  * The gadgets a running movie holds, and the variables they are bound to.
