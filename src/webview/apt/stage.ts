@@ -7,6 +7,7 @@ import { Player } from "./player";
 import type { Instance } from "./instance";
 import { resolve } from "./resolve";
 import { getLeafBounds, collect, getLocalBounds, transformRect, union } from "./scene";
+import { growExtent } from "./stageExtent";
 import type { Affine, HitArea, Leaf } from "./scene";
 import { movie, state } from "./state";
 
@@ -350,9 +351,10 @@ export const render = (): void => {
   const frameBox = getLeafBounds(scene.leaves, view.masks);
 
   extent ??= measure();
-  if (frameBox) {
-    extent = union([extent, frameBox])!;
-  }
+  extent = growExtent(extent, frameBox, {
+    isScreen: resolve(movie(), state.selected)?.character.type === "movie",
+    isAnimating: view.playing || view.interact,
+  });
 
   const [left, top, right, bottom] = extent;
   const width = Math.max(1, right - left);
