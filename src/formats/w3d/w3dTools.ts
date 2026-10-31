@@ -91,8 +91,14 @@ export interface W3dHlod {
   hierarchyName: string;
   /** The most detailed level of detail only */
   subObjects: W3dSubObject[];
-  /** Every level of detail, coarsest first as written; the last is finest */
+  /**
+   * The levels of detail the game reads, coarsest first as written: exactly
+   * the header's count of arrays, in file order, so the last of these is the
+   * finest. A retail file counts one, however many arrays it holds.
+   */
   lods: W3dHlodArray[];
+  /** LOD arrays stored past the header's count, which the game never reads */
+  skippedLodCount: number;
   /** Other models the game attaches to bones */
   aggregates?: W3dHlodArray;
   /** Named bone transforms game logic places objects at */
@@ -552,7 +558,7 @@ const readHlodArray = (payload: Uint8Array): W3dHlodArray => {
 
 const readHlod = (payload: Uint8Array): W3dHlod | undefined => {
   let header: Uint8Array | undefined;
-  const lods: W3dHlodArray[] = [];
+  const arrays: W3dHlodArray[] = [];
   let aggregates: W3dHlodArray | undefined;
   let proxies: W3dHlodArray | undefined;
 
@@ -560,7 +566,7 @@ const readHlod = (payload: Uint8Array): W3dHlod | undefined => {
     if (chunk.type === CHUNK.HLOD_HEADER) {
       header = chunk.payload;
     } else if (chunk.type === CHUNK.HLOD_LOD_ARRAY) {
-      lods.push(readHlodArray(chunk.payload));
+      arrays.push(readHlodArray(chunk.payload));
     } else if (chunk.type === CHUNK.HLOD_AGGREGATE_ARRAY) {
       aggregates = readHlodArray(chunk.payload);
     } else if (chunk.type === CHUNK.HLOD_PROXY_ARRAY) {
@@ -572,12 +578,15 @@ const readHlod = (payload: Uint8Array): W3dHlod | undefined => {
     return undefined;
   }
 
+  const lodCount = createView(header).getUint32(4, true);
+  const lods = arrays.slice(0, lodCount);
+
   return {
     name: readName(header, 8, 16),
     hierarchyName: readName(header, 24, 16),
-    // The last level of detail is the most detailed one
     subObjects: lods.at(-1)?.subObjects ?? [],
     lods,
+    skippedLodCount: arrays.length - lods.length,
     aggregates,
     proxies,
   };

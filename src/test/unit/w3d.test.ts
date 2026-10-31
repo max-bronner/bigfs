@@ -289,6 +289,49 @@ suite("W3D models", () => {
     );
   });
 
+  test("the arrays past the header's LOD count are skipped, as the game skips them", async () => {
+    const level = (sub: string) =>
+      buildChunk(
+        0x702,
+        concatBytes(
+          buildChunk(0x703, concatBytes(encodeUints(1), encodeFloats(3.4e38))),
+          buildChunk(0x704, concatBytes(encodeUints(0), encodeName(sub, 32))),
+        ),
+        true,
+      );
+    const model = concatBytes(
+      mesh("BODY"),
+      mesh("LEG"),
+      buildChunk(
+        0x700,
+        concatBytes(
+          buildChunk(0x701, concatBytes(encodeUints(0, 1), encodeName("UNIT", 16), encodeName("", 16))),
+          buildChunk(
+            0x702,
+            concatBytes(
+              buildChunk(0x703, concatBytes(encodeUints(2), encodeFloats(3.4e38))),
+              buildChunk(0x704, concatBytes(encodeUints(0), encodeName("UNIT.BODY", 32))),
+              buildChunk(0x704, concatBytes(encodeUints(0), encodeName("UNIT.LEG", 32))),
+            ),
+            true,
+          ),
+          level("UNIT.BOUNDINGBOX"),
+        ),
+        true,
+      ),
+    );
+    const file = parseW3d(model);
+    const scene = await buildW3dScene(model, async () => undefined, createToolRegistry());
+
+    assert.deepStrictEqual(
+      file.hlod?.subObjects.map((sub) => sub.name),
+      ["UNIT.BODY", "UNIT.LEG"],
+    );
+    assert.strictEqual(file.hlod?.skippedLodCount, 1);
+    assert.strictEqual(scene.hlod?.lods.length, 1);
+    assert.deepStrictEqual(getMeshVisibility(scene), [true, true]);
+  });
+
   test("one level of detail is drawn at a time, the finest by default", async () => {
     const level = (size: number, sub: string) =>
       buildChunk(

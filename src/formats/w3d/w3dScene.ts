@@ -7,7 +7,7 @@ import type {
   W3dBox,
   W3dFile,
   W3dHierarchy,
-  W3dHlodArray,
+  W3dHlod,
   W3dMesh,
 } from "./w3dTools";
 import { parseW3dAnimations } from "./w3dAnimation";
@@ -78,8 +78,10 @@ export interface SceneLod {
 /** The HLOD as the picker shows it */
 export interface SceneHlod {
   name: string;
-  /** Coarsest first, as stored; the last is the finest */
+  /** The levels the game reads, coarsest first; the last is the finest. Nearly always one */
   lods: SceneLod[];
+  /** LOD arrays the file holds past the header's count, unread by the game */
+  skippedLodCount: number;
   /** Sub-object names of the aggregate list */
   aggregates: string[];
   /** Sub-object names of the proxy list */
@@ -314,16 +316,11 @@ const isEdgeAligned = (a: number, b: number) => {
 };
 
 const buildSceneHlod = (
-  name: string,
-  lods: W3dHlodArray[],
-  context: {
-    aggregates?: W3dHlodArray;
-    proxies?: W3dHlodArray;
-    meshes: W3dMesh[];
-  },
+  { name, lods, skippedLodCount, aggregates, proxies }: W3dHlod,
+  meshes: W3dMesh[],
 ): SceneHlod => {
   const byName = new Map(
-    context.meshes.map((mesh, at) => [formatSubObjectName(mesh.container, mesh.name), at]),
+    meshes.map((mesh, at) => [formatSubObjectName(mesh.container, mesh.name), at]),
   );
 
   return {
@@ -336,8 +333,9 @@ const buildSceneHlod = (
         return found === undefined ? [] : [found];
       }),
     })),
-    aggregates: context.aggregates?.subObjects.map((sub) => sub.name) ?? [],
-    proxies: context.proxies?.subObjects.map((sub) => sub.name) ?? [],
+    skippedLodCount,
+    aggregates: aggregates?.subObjects.map((sub) => sub.name) ?? [],
+    proxies: proxies?.subObjects.map((sub) => sub.name) ?? [],
   };
 };
 
@@ -487,13 +485,7 @@ export const buildW3dScene = async (
     };
   });
 
-  const sceneHlod =
-    file.hlod &&
-    buildSceneHlod(file.hlod.name, file.hlod.lods, {
-      aggregates: file.hlod.aggregates,
-      proxies: file.hlod.proxies,
-      meshes: file.meshes,
-    });
+  const sceneHlod = file.hlod && buildSceneHlod(file.hlod, file.meshes);
   const boxes = file.boxes.map((box) => {
     const bone = file.hlod?.lods
       .flatMap((lod) => lod.subObjects)

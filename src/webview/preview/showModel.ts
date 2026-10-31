@@ -108,7 +108,7 @@ export const showModel = (
     showBones: !meshes.length,
     showHidden: false,
     showBoxes: false,
-    // The finest level, which the HLOD stores last
+    // The last level the header counts, the finest
     lod: undefined as number | undefined,
     pose: undefined as Pose | undefined,
     last: 0,
@@ -170,21 +170,28 @@ export const showModel = (
   }
 
   if (hlod && hlod.lods.length) {
-    hlod.lods.forEach((lod, at) => {
-      levels.append(
-        new Option(
-          `LOD ${at}: ${lod.meshes.length} meshes, ${
-            lod.maxScreenSize === undefined
-              ? "finest"
-              : `max screen size ${lod.maxScreenSize}`
-          }`,
-          String(at),
-        ),
-      );
-    });
-    levels.value = String(hlod.lods.length - 1);
-    controls.append(levels);
+    // One level, as in every retail model, leaves nothing to pick
+    if (hlod.lods.length > 1) {
+      hlod.lods.forEach((lod, at) => {
+        levels.append(
+          new Option(
+            `LOD ${at}: ${lod.meshes.length} meshes, ${
+              lod.maxScreenSize === undefined
+                ? "finest"
+                : `max screen size ${lod.maxScreenSize}`
+            }`,
+            String(at),
+          ),
+        );
+      });
+      levels.value = String(hlod.lods.length - 1);
+      controls.append(levels);
+    }
     lists.textContent = [
+      `${hlod.lods.length} level${hlod.lods.length === 1 ? "" : "s"} of detail`,
+      ...(hlod.skippedLodCount
+        ? [`${hlod.skippedLodCount} more LOD array${hlod.skippedLodCount === 1 ? "" : "s"} in the file past the header's count, which the game does not read`]
+        : []),
       `aggregates: ${hlod.aggregates.join(", ") || "none"}`,
       `proxies: ${hlod.proxies.join(", ") || "none"}`,
     ].join(" · ");

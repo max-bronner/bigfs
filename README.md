@@ -342,9 +342,11 @@ your mod's archives.
   Animations of the skeleton are listed and play on the model (dense,
   time-coded, adaptive-delta and motion channels); a skeleton or an
   animation file on its own shows its bones. Meshes marked hidden are not
-  drawn (a toggle shows them); the HLOD's levels of detail are picked from a
-  dropdown with their max screen size, one drawn at a time, and its aggregate
-  and proxy lists are shown; collision boxes can be drawn as wireframes.
+  drawn (a toggle shows them); the levels of detail the HLOD header counts are
+  picked from a dropdown with their max screen size when there is more than
+  one, and arrays past that count are skipped as the game skips them; the
+  aggregate and proxy lists are shown; collision boxes can be drawn as
+  wireframes.
 
 **Interface movies (APT)**
 

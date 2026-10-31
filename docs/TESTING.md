@@ -30,8 +30,8 @@ tables, `.cah`) deserves one load in the game as well.
     `particlesystem.ini`, `commandset.ini`, `commandbutton.ini`,
     `weapon.ini`, `armor.ini`), a few `.str` / `.csf` tables, a `.wnd`;
   - `.apt` movies with their `.const` and `.dat` (MainMenu, Palantir, Options,
-    LoadScreen), a few `.w3d` models and animations (a hero such as Aragorn,
-    plus a building with several levels of detail), `.tga` / `.dds`, `.wav` /
+    LoadScreen), a few `.w3d` models and animations (a hero such as Aragorn),
+    `.tga` / `.dds`, `.wav` /
     `.mp3`, `.vp6`;
   - maps (`.map`, `.bse`, a `.scb`) and one `MyHero_*.cah`.
 - **A second mod folder** and, optionally, a second install, to check load
@@ -462,9 +462,14 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   a link to the line.
 - [ ] **new** Meshes with the HIDDEN attribute are not drawn; **Show hidden**
   (offered only if the model has one) draws them.
-- [ ] **new** HLOD: one level of detail at a time, finest first; the dropdown
-  lists each with mesh count and max screen size; the aggregate and proxy lists
-  are named under the model.
+- [ ] **changed** HLOD: only the levels of detail the HLOD header counts are
+  read, as the game reads them. Every retail model counts one, so the level
+  dropdown is gone there and the line under the model says "1 level of detail";
+  a file with more counted levels still gets the dropdown, each with mesh count
+  and max screen size, drawn one at a time. `mugrond_diea` draws its 42 meshes
+  (43 HLOD sub-objects, one a box), and the line says 1 more LOD array is in the
+  file, which the game does not read. The aggregate and proxy lists are named
+  under the model.
 - [ ] **new** **Show boxes** (offered only with `BOX` chunks): green
   wireframe collision boxes in the bind pose, off by default.
 - [ ] **new** Animation list of the skeleton plays on the model: play, pause,
