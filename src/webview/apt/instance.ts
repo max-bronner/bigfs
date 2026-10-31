@@ -55,3 +55,7 @@ export interface Instance {
   /** The tick it was created in; it starts playing on the next */
   created: number;
 }
+
+/** Whether an instance has a timeline of its own */
+export const isTimeline = (instance: Instance): boolean =>
+  instance.character?.type === 'sprite' || instance.character?.type === 'movie';

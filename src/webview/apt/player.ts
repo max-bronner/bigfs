@@ -2,16 +2,17 @@ import { Vm } from "./avm/vm";
 import type { EngineHooks } from "./avm/vmState";
 import type { StageHost } from "./avm/value";
 import type {
-  Behaviour,
-  TimelineCommand,
-} from "../../formats/apt/aptBehaviour";
-import type {
   ButtonRecord,
   Character,
 } from "../../formats/apt/aptMovie";
+import { isTimeline } from "./instance";
 import type { Instance } from "./instance";
 import type { PageMovie } from "./protocol";
 import { getMovieName } from "./avm/movieLoad";
+import { CONDITION, DOWN, HIT, OVER, UP } from "./buttonState";
+import { createBehaviourRunner } from "./createBehaviourRunner";
+import type { BehaviourRunner } from "./createBehaviourRunner";
+import { describeInstance } from "./describeInstance";
 import { buildDisplayList, getFrames } from "./timeline";
 
 /**
@@ -26,25 +27,6 @@ import { buildDisplayList, getFrames } from "./timeline";
  * shown.
  */
 
-/** Button up state, as record flags and event dispatch use it */
-export const UP = 1;
-/** Button over state: the pointer is on it */
-export const OVER = 2;
-/** Button down state: the pointer is pressed on it */
-export const DOWN = 4;
-const HIT = 8;
-
-/** SWF button conditions, bit by bit (mint's apt-format research) */
-export const CONDITION = {
-  rollOver: 0x1,
-  rollOut: 0x2,
-  press: 0x4,
-  release: 0x8,
-  releaseOutside: 0x40,
-};
-
-/** Gotos that run frame scripts that goto again stop here */
-const MAX_CHAIN = 16;
 const MAX_DEPTH = 12;
 /** Scripts one frame, event or call may start between them */
 const MAX_ACTIONS = 1000;
@@ -101,9 +83,6 @@ const HANDLERS: Record<number, string> = {
   [CONDITION.releaseOutside]: "onReleaseOutside",
 };
 
-const isTimeline = (instance: Instance) =>
-  instance.character?.type === "sprite" || instance.character?.type === "movie";
-
 /** Player of one character's timelines and buttons, and the stage the AVM drives */
 export class Player implements StageHost {
   /** The instance of the character played, the top of the display tree */
@@ -112,7 +91,7 @@ export class Player implements StageHost {
   public ticks = 0;
   /** The ActionScript machine, when an engine answers for the game */
   public readonly vm?: Vm;
-  private chain = 0;
+  private readonly runBehaviour: BehaviourRunner;
   /** Scripts waiting for the one running to finish */
   private readonly waiting: (() => void)[] = [];
   private draining = false;
@@ -122,6 +101,9 @@ export class Player implements StageHost {
     id: number,
     private readonly options: PlayerOptions,
   ) {
+    this.runBehaviour = createBehaviourRunner(this, (line) =>
+      options.log?.(line),
+    );
     if (options.engine) {
       this.vm = new Vm(this, options.engine);
     }
@@ -703,7 +685,7 @@ export class Player implements StageHost {
     }
     for (const item of items) {
       if (item.type === "action") {
-        this.run(timeline, timeline.movie.behaviours[item.block], "frame");
+        this.runBehaviour(timeline, timeline.movie.behaviours[item.block], "frame");
       }
     }
   }
@@ -826,7 +808,7 @@ export class Player implements StageHost {
           this.options.log?.(`${name} on ${describeInstance(button)}`);
           vm.runBlock(owner, action.block, button);
         } else {
-          this.run(
+          this.runBehaviour(
             owner,
             button.movie.behaviours[action.block],
             `${name} on ${describeInstance(button)}`,
@@ -869,120 +851,4 @@ export class Player implements StageHost {
 
     return value === undefined ? undefined : this.vm.string(value);
   }
-
-  /** Runs what a block does to timelines, from the timeline it runs on */
-  private run(
-    self: Instance,
-    behaviour: Behaviour | undefined,
-    why: string,
-  ): void {
-    if (!behaviour || this.chain >= MAX_CHAIN) {
-      return;
-    }
-
-    this.chain++;
-    try {
-      const done: string[] = [];
-
-      for (const command of behaviour.commands) {
-        const target = this.target(self, command.target);
-
-        if (target) {
-          this.apply(target, command);
-          done.push(describeCommand(command));
-        } else {
-          done.push(
-            `${describeCommand(command)} (no ${command.target.join(".")})`,
-          );
-        }
-      }
-      // Frame scripts run every time a frame is entered; only events are worth a line
-      if (why !== "frame") {
-        this.options.log?.(
-          `${why}: ${done.join(", ") || "nothing to run"}` +
-            (behaviour.skipped
-              ? ` · ${behaviour.skipped} statement${behaviour.skipped === 1 ? "" : "s"} not run${behaviour.conditional ? " (conditional)" : ""}`
-              : ""),
-        );
-      }
-    } finally {
-      this.chain--;
-    }
-  }
-
-  private apply(target: Instance, command: TimelineCommand): void {
-    switch (command.op) {
-      case "goto": {
-        const frame =
-          command.label !== undefined
-            ? this.labelFrame(target, command.label)
-            : command.frame;
-
-        if (frame !== undefined) {
-          this.goTo(target, frame, command.play);
-        }
-        break;
-      }
-      case "play":
-        target.playing = true;
-        break;
-      case "stop":
-        target.playing = false;
-        break;
-      case "next":
-      case "prev":
-        this.goTo(
-          target,
-          target.frame + (command.op === "next" ? 1 : -1),
-          false,
-        );
-        break;
-    }
-  }
-
-  /** The timeline a command path names, from the one the block runs on */
-  private target(self: Instance, path: string[]): Instance | undefined {
-    let at: Instance | undefined = self;
-
-    for (const part of path) {
-      const lower = part.toLowerCase();
-
-      if (lower === "_parent") {
-        at = at?.parent;
-        // A button is not a timeline; its parent's parent is
-        while (at && !isTimeline(at)) {
-          at = at.parent;
-        }
-      } else if (lower === "_root") {
-        at = this.root;
-      } else if (lower !== "this") {
-        at =
-          at &&
-          [...at.children.values()].find(
-            (child) => child.name?.toLowerCase() === lower,
-          );
-      }
-    }
-    return at && isTimeline(at) ? at : undefined;
-  }
 }
-
-/** Describes an instance for the log: its name, character id and path */
-export const describeInstance = (instance: Instance): string =>
-  (instance.name ? `"${instance.name}" ` : "") +
-  `#${instance.id}${instance.path ? " @" + instance.path : ""}`;
-
-const describeCommand = (command: TimelineCommand): string => {
-  const on = command.target.length ? ` on ${command.target.join(".")}` : "";
-
-  if (command.op !== "goto") {
-    return command.op + on;
-  }
-
-  const where =
-    command.label !== undefined
-      ? `"${command.label}"`
-      : `frame ${command.frame}`;
-
-  return `${command.play ? "gotoAndPlay" : "gotoAndStop"} ${where}${on}`;
-};
