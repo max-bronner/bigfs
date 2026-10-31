@@ -130,19 +130,43 @@ const setFrameValue = (target: SampledChannel, frame: number, value: number[]) =
   }
 };
 
-/** Normalised linear blend; close to a slerp over one frame's step */
-const blend = (a: number[], b: number[], t: number): number[] => {
-  if (a.length === 1) {
-    return [a[0] + (b[0] - a[0]) * t];
+const normaliseQuaternion = (q: number[]): number[] => {
+  const length = Math.hypot(...q) || 1;
+
+  return q.map((value) => value / length);
+};
+
+/**
+ * Interpolates two rotations along the shorter arc, ported from mint's
+ * `quat_slerp`. Rotations from key to key need not share a hemisphere; close
+ * together, where `sin(theta)` nears zero, a normalised blend agrees with it.
+ */
+export const slerp = (from: number[], to: number[], t: number): number[] => {
+  const a = normaliseQuaternion(from);
+  let b = normaliseQuaternion(to);
+  let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+
+  if (dot < 0) {
+    b = b.map((value) => -value);
+    dot = -dot;
+  }
+  dot = Math.min(dot, 1);
+  if (dot > 0.9995) {
+    return normaliseQuaternion(a.map((value, at) => value * (1 - t) + b[at] * t));
   }
 
-  const sign =
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
-  const mixed = a.map((value, index) => value + (b[index] * sign - value) * t);
-  const length = Math.hypot(...mixed) || 1;
+  const arc = Math.acos(dot);
+  const sinTurned = Math.sin(arc * t);
+  const sinArc = Math.sin(arc);
+  const fromShare = Math.cos(arc * t) - (dot * sinTurned) / sinArc;
+  const toShare = sinTurned / sinArc;
 
-  return mixed.map((value) => value / length);
+  return a.map((value, at) => value * fromShare + b[at] * toShare);
 };
+
+/** Blends two values: a straight line for a scalar, an arc for a rotation */
+const blend = (a: number[], b: number[], t: number): number[] =>
+  a.length === 1 ? [a[0] + (b[0] - a[0]) * t] : slerp(a, b, t);
 
 /** Samples time-coded keys at every frame: held keys step, others blend */
 const sampleKeys = (

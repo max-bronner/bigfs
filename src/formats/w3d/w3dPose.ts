@@ -1,3 +1,4 @@
+import { slerp } from './w3dAnimation';
 import type { SampledChannel, W3dAnimation } from './w3dAnimation';
 import type { SceneMesh, SceneSkeleton } from './w3dScene';
 
@@ -100,13 +101,7 @@ const sample = (
     return [a[0] + (b[0] - a[0]) * t];
   }
 
-  // The shorter way round
-  const sign =
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
-
-  return normalise(
-    a.map((value, index) => value + (b[index] * sign - value) * t),
-  );
+  return slerp(a, b, t);
 };
 
 /** Poses every bone in model space at `frame`, or in the bind pose without an animation */

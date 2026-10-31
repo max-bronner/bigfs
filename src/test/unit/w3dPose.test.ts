@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import { slerp } from '../../formats/w3d/w3dAnimation';
 import { poseAt, skin } from '../../formats/w3d/w3dPose';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { SceneMesh, SceneSkeleton } from '../../formats/w3d/w3dScene';
@@ -56,6 +57,50 @@ suite('W3D pose', () => {
     skin(mesh, poseAt(skeleton, animation, 1), out);
     // Bind turn and channel cancel: the hand points along x again
     assert.deepStrictEqual(round(out), [5, 0, 5]);
+  });
+
+  test('a large turn between two frames moves at an even rate', () => {
+    // A 150° turn about z, wider than a normalised blend keeps even
+    const turn = (75 * Math.PI) / 180;
+    const pose = poseAt(
+      skeleton,
+      {
+        name: 'Skl.Swing',
+        hierarchyName: 'Skl',
+        frameCount: 2,
+        frameRate: 30,
+        channels: [
+          {
+            pivot: 2,
+            kind: 'rotation',
+            type: 6,
+            values: new Float32Array([
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              Math.sin(turn),
+              Math.cos(turn),
+            ]),
+            present: new Uint8Array([1, 1]),
+          },
+        ],
+      },
+      0.25,
+    );
+    const hand = pose.world[2].q;
+    const expected = (90 + 150 * 0.25) * (Math.PI / 360);
+
+    assert.ok(Math.abs(hand[2] - Math.sin(expected)) < 1e-5);
+    assert.ok(Math.abs(hand[3] - Math.cos(expected)) < 1e-5);
+  });
+
+  test('a rotation takes the short way across the double cover', () => {
+    const halfWay = slerp([0, 0, 0, 1], [0, 0, 0, -1], 0.5);
+
+    assert.deepStrictEqual(round(halfWay), [0, 0, 0, 1]);
   });
 
   test('a frame just outside a dense channel holds the bind pose', () => {
