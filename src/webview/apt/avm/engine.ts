@@ -3,7 +3,7 @@ import type { EngineValues, PageMovie } from '../protocol';
 import { getSoundEvent } from './movieLoad';
 import { AsObject } from './value';
 import type { Value } from './value';
-import type { EngineHooks, Vm } from './vm';
+import type { EngineHooks, EngineVm } from './vmState';
 
 /**
  * The game's side of a movie, played by hand: everything the movie asks
@@ -253,7 +253,7 @@ export class Engine implements EngineHooks {
   private parsed = new Map<string, Value>();
   private written = new Map<string, Value>();
   private parsedExterns = new Map<string, Value>();
-  private vm?: Vm;
+  private vm?: EngineVm;
   private uses = new Map<string, number>();
   private pending = false;
 
@@ -264,7 +264,7 @@ export class Engine implements EngineHooks {
   ) {}
 
   /** Binds the machine of the run being watched */
-  public bind(vm: Vm): void {
+  public bind(vm: EngineVm): void {
     this.vm = vm;
   }
 

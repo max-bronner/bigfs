@@ -1,5 +1,5 @@
 import { Vm } from "./avm/vm";
-import type { EngineHooks } from "./avm/vm";
+import type { EngineHooks } from "./avm/vmState";
 import type { StageHost } from "./avm/value";
 import type {
   Behaviour,
