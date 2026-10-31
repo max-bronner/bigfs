@@ -159,6 +159,8 @@ const draw = () => {
     light: basis.forward.map((value) => -value) as Vec3,
     showBones: !!objectView.scene && objectView.showBones,
     showMeshes: !objectView.scene || objectView.showModel,
+    showHidden: objectView.showHiddenParts,
+    subObjectRules: objectView.subObjectRules,
   });
   drawSystems(
     matrix,
@@ -404,7 +406,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     attachment.hasModel = !!shown;
     $('pickModel').textContent = shown ? shown.name : 'On a model…';
     if (objectView.scene) {
-      setShownModel(skeleton);
+      setShownModel(shown?.scene);
       return;
     }
     start();

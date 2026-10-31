@@ -5,12 +5,22 @@ import {
 } from '../../formats/w3d/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
-import type { SceneSkeleton } from '../../formats/w3d/w3dScene';
+import { findHidingSources } from '../../formats/w3d/w3dScene';
+import type {
+  ModelScene,
+  SceneMesh,
+  SceneSkeleton,
+  SubObjectRule,
+} from '../../formats/w3d/w3dScene';
 import type {
   ObjectScene,
   SceneFocus,
   SceneState,
 } from '../../game/objects/objectScene';
+import {
+  listConditionalSubObjects,
+  listSubObjectRules,
+} from '../../game/objects/subObjectRules';
 import { $, post } from './page';
 
 /**
@@ -19,6 +29,8 @@ import { $, post } from './page';
  * FX the state starts and the particle systems it keeps on bones - each
  * with a toggle. What the preview was asked from is on; the rest of the
  * level it sits on is shown too, and the object's other FX are listed off.
+ * The parts the object's INI and scripts hide in the state are not drawn,
+ * and the panel names them with what hides them.
  */
 
 /** One effect an object preview can start: an FX list or a particle system */
@@ -40,8 +52,11 @@ export const objectView = {
   state: undefined as SceneState | undefined,
   showModel: true,
   showBones: false,
+  showHiddenParts: false,
+  subObjectRules: [] as SubObjectRule[],
   elements: [] as Element[],
   skeleton: undefined as SceneSkeleton | undefined,
+  meshes: [] as SceneMesh[],
   animation: undefined as W3dAnimation | undefined,
   frame: 0,
   pose: undefined as Pose | undefined,
@@ -124,10 +139,29 @@ const bindLoadedAnimation = () => {
   setPose();
 };
 
-/** Takes the skeleton of the model the page now shows, or none, then restarts the effects */
-export const setShownModel = (skeleton: SceneSkeleton | undefined): void => {
-  objectView.skeleton = skeleton;
+/** Says which parts of the shown model are not drawn and why, and what could not be decided */
+const renderHiddenParts = () => {
+  const { scene, state, meshes, subObjectRules } = objectView;
+  const hiding = findHidingSources(meshes, subObjectRules);
+  const hidden = meshes.flatMap((mesh, at) =>
+    hiding[at] ? [`${mesh.name} (${hiding[at]})`] : [],
+  );
+  const conditional = scene ? listConditionalSubObjects(scene, state) : [];
+
+  $('objectParts').textContent = [
+    ...(hidden.length ? [`Hidden parts: ${hidden.join(', ')}`] : []),
+    ...(conditional.length
+      ? [`Not applied, depends on the running game: ${conditional.join(', ')}`]
+      : []),
+  ].join('. ');
+};
+
+/** Takes the model the page now shows, or none, then restarts the effects */
+export const setShownModel = (model: ModelScene | undefined): void => {
+  objectView.skeleton = model?.skeleton;
+  objectView.meshes = model?.meshes ?? [];
   bindLoadedAnimation();
+  renderHiddenParts();
   restart();
 };
 
@@ -217,6 +251,11 @@ const renderElements = () => {
   list.replaceChildren(
     toggle('Model', objectView.showModel, (on) => (objectView.showModel = on)),
     toggle('Bones', objectView.showBones, (on) => (objectView.showBones = on)),
+    toggle(
+      'Hidden parts',
+      objectView.showHiddenParts,
+      (on) => (objectView.showHiddenParts = on),
+    ),
     ...objectView.elements.map((each) =>
       toggle(each.label, each.on, (on) => {
         each.on = on;
@@ -270,6 +309,7 @@ const pickState = (focus: SceneFocus) => {
       : scene.states.find((each) => /idle/i.test(each.label))?.animations[0]);
 
   objectView.state = shown;
+  objectView.subObjectRules = listSubObjectRules(scene, shown);
   objectView.elements = listElements(scene, state ?? shown, focus);
   animations.replaceChildren(
     new Option('Bind pose', ''),
@@ -281,6 +321,7 @@ const pickState = (focus: SceneFocus) => {
   }
   playAnimation(first);
   renderElements();
+  renderHiddenParts();
 };
 
 /** Opens the panel on an object, focused on what the preview came from */

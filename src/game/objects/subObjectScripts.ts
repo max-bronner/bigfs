@@ -1,0 +1,308 @@
+import { parse } from 'luaparse';
+import type { Chunk, Expression, FunctionDeclaration, Statement } from 'luaparse';
+import type { SubObjectRule } from '../../formats/w3d/w3dScene';
+
+/**
+ * Static reader of the Lua that shows and hides an object's sub-objects: the
+ * `BeginScript` of an animation state and the `OnCreated` handler
+ * `scriptevents.xml` binds to its `AILuaEventsList`. Nothing is run. A call
+ * that always happens, with literal arguments, becomes a rule; one under a
+ * condition, past a possible `return` or with a computed name is listed as
+ * `conditional` and never guessed at.
+ */
+
+/** A rule read from a script; a permanent one outlasts the state that wrote it */
+export interface ScriptedRule extends SubObjectRule {
+  isPermanent: boolean;
+}
+
+/** The sub-object calls found in a script */
+export interface ScriptedSubObjects {
+  rules: ScriptedRule[];
+  /** Calls whose effect depends on the running game, as `NAME (source)` */
+  conditional: string[];
+}
+
+/** What the `OnCreated` handlers of an object do to it */
+export interface CreatedSubObjects extends ScriptedSubObjects {
+  /** Upgrades the handlers always grant */
+  grantedUpgrades: string[];
+}
+
+/** Where a call's arguments sit: `nameAt` the sub-object, `flagAt` a boolean that may reverse `hide` */
+interface SubObjectCall {
+  hide: boolean;
+  isPermanent: boolean;
+  nameAt: number;
+  flagAt?: number;
+}
+
+/** Calls an animation state's script makes on its own drawable */
+const DRAWABLE_CALLS = new Map<string, SubObjectCall>([
+  ['CurDrawableHideSubObject', { hide: true, isPermanent: false, nameAt: 0 }],
+  ['CurDrawableShowSubObject', { hide: false, isPermanent: false, nameAt: 0 }],
+  ['CurDrawableHideSubObjectPermanently', { hide: true, isPermanent: true, nameAt: 0 }],
+  ['CurDrawableShowSubObjectPermanently', { hide: false, isPermanent: true, nameAt: 0 }],
+]);
+
+/**
+ * Calls an event handler makes on its object. `ObjectShowSubObjectPermanently`
+ * is absent as the game never registers it; handlers pass `false` instead.
+ */
+const OBJECT_CALLS = new Map<string, SubObjectCall>([
+  ['ObjectHideSubObjectPermanently', { hide: true, isPermanent: true, nameAt: 1, flagAt: 2 }],
+  ['ObjectHideSubObject', { hide: true, isPermanent: true, nameAt: 1, flagAt: 2 }],
+]);
+
+/** How deep a handler is followed into the functions it calls, as mint's `MAX_WALK_DEPTH` */
+const MAX_CALL_DEPTH = 8;
+
+/** Longest `Inherit` chain followed, as mint's `MAX_INHERIT`, so a cycle ends */
+const MAX_INHERIT = 16;
+
+/** One script being read: what to look for and where to collect it */
+interface ScriptScan {
+  calls: ReadonlyMap<string, SubObjectCall>;
+  functions: ReadonlyMap<string, FunctionDeclaration>;
+  source: string;
+  found: CreatedSubObjects;
+}
+
+// luaparse leaves `value` empty in its default encoding mode, so the text is read from `raw`
+const readText = (expression: Expression | undefined): string | undefined =>
+  expression?.type === 'StringLiteral' ? expression.raw.slice(1, -1) : undefined;
+
+const readFlag = (expression: Expression | undefined): boolean | undefined =>
+  expression === undefined
+    ? true
+    : expression.type === 'BooleanLiteral'
+      ? expression.value
+      : undefined;
+
+const readCall = (
+  expression: Expression,
+  scan: ScriptScan,
+  isCertain: boolean,
+  depth: number,
+): void => {
+  if (expression.type !== 'CallExpression' || expression.base.type !== 'Identifier') {
+    return;
+  }
+
+  const { name } = expression.base;
+  const { arguments: args } = expression;
+  const call = scan.calls.get(name);
+
+  if (call) {
+    const pattern = readText(args[call.nameAt]);
+    const flag = call.flagAt === undefined ? true : readFlag(args[call.flagAt]);
+
+    if (isCertain && pattern !== undefined && flag !== undefined) {
+      scan.found.rules.push({
+        pattern,
+        hide: call.hide === flag,
+        isPermanent: call.isPermanent,
+        source: scan.source,
+      });
+    } else {
+      scan.found.conditional.push(`${pattern ?? 'a computed name'} (${scan.source})`);
+    }
+    return;
+  }
+
+  if (name === 'ObjectGrantUpgrade' && isCertain) {
+    const upgrade = readText(args[1]);
+
+    if (upgrade !== undefined) {
+      scan.found.grantedUpgrades.push(upgrade);
+    }
+    return;
+  }
+
+  const helper = scan.functions.get(name);
+
+  if (helper && depth < MAX_CALL_DEPTH) {
+    walkStatements(helper.body, scan, isCertain, depth + 1);
+  }
+};
+
+/** Lists the blocks of a statement that may or may not run */
+const listConditionalBodies = (statement: Statement): Statement[][] => {
+  switch (statement.type) {
+    case 'IfStatement':
+      return statement.clauses.map((clause) => clause.body);
+    case 'WhileStatement':
+    case 'RepeatStatement':
+    case 'ForNumericStatement':
+    case 'ForGenericStatement':
+      return [statement.body];
+    default:
+      return [];
+  }
+};
+
+/** Collects the calls of a block; true when it may return before its end */
+const walkStatements = (
+  statements: readonly Statement[],
+  scan: ScriptScan,
+  isCertain: boolean,
+  depth: number,
+): boolean => {
+  let isReached = isCertain;
+  let mayReturn = false;
+
+  for (const statement of statements) {
+    if (statement.type === 'ReturnStatement') {
+      return true;
+    }
+    if (statement.type === 'CallStatement') {
+      readCall(statement.expression, scan, isReached, depth);
+    } else if (statement.type === 'DoStatement') {
+      mayReturn = walkStatements(statement.body, scan, isReached, depth) || mayReturn;
+    } else {
+      for (const body of listConditionalBodies(statement)) {
+        mayReturn = walkStatements(body, scan, false, depth) || mayReturn;
+      }
+    }
+    isReached &&= !mayReturn;
+  }
+  return mayReturn;
+};
+
+/** Parses Lua 5.1; nothing when it does not parse or nests too deeply */
+const parseLua = (text: string): Chunk | undefined => {
+  try {
+    return parse(text, { luaVersion: '5.1', comments: false, locations: false });
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Drops the INI comments a script is written with, `;` or `//` to the end of
+ * the line, which Lua would read as code. Text in quotes is kept.
+ */
+const stripIniComments = (body: string): string =>
+  body.replace(
+    /("[^"\n]*"|'[^'\n]*')|;.*|\/\/.*/g,
+    (match, quoted?: string) => quoted ?? '',
+  );
+
+const createFound = (): CreatedSubObjects => ({
+  rules: [],
+  conditional: [],
+  grantedUpgrades: [],
+});
+
+/**
+ * Reads the sub-object calls of an animation state's `BeginScript` body
+ * @param source How the UI names the script
+ */
+export const readStateScript = (
+  body: string,
+  source: string,
+): ScriptedSubObjects => {
+  const found = createFound();
+
+  if (!/SubObject/.test(body)) {
+    return found;
+  }
+
+  const chunk = parseLua(stripIniComments(body));
+
+  if (chunk) {
+    walkStatements(
+      chunk.body,
+      { calls: DRAWABLE_CALLS, functions: new Map(), source, found },
+      true,
+      0,
+    );
+  } else {
+    found.conditional.push(`${source}, whose Lua could not be read`);
+  }
+  return found;
+};
+
+const readAttributes = (tag: string) =>
+  new Map(
+    [...tag.matchAll(/(\w+)\s*=\s*"([^"]*)"/g)].map(([, name, value]) => [name, value]),
+  );
+
+/** Reads the `EventList`s of `scriptevents.xml`, each with its parent and handlers */
+const readEventLists = (xml: string) => {
+  const lists = new Map<string, { inherit?: string; handlers: Map<string, string> }>();
+  const text = xml.replace(/<!--[\s\S]*?-->/g, '');
+
+  for (const [, tag, body] of text.matchAll(
+    /<EventList\b([^>]*)>([\s\S]*?)<\/EventList>/g,
+  )) {
+    const attributes = readAttributes(tag);
+    const handlers = new Map<string, string>();
+
+    for (const [, handler] of body.matchAll(/<EventHandler\b([^>]*)>/g)) {
+      const fields = readAttributes(handler);
+      const event = fields.get('EventName');
+      const script = fields.get('ScriptFunctionName');
+
+      if (event && script && !handlers.has(event)) {
+        handlers.set(event, script);
+      }
+    }
+    lists.set(attributes.get('Name') ?? '', {
+      inherit: attributes.get('Inherit'),
+      handlers,
+    });
+  }
+  return lists;
+};
+
+/**
+ * Reads what the `OnCreated` handlers of an object's `AILuaEventsList` names do
+ * to its sub-objects, following `Inherit` as the game does: a list's own
+ * handler wins over its parent's.
+ * @param eventsXml The text of `data/scripts/scriptevents.xml`
+ * @param scriptsLua The text of `data/scripts/scripts.lua`
+ */
+export const readCreatedSubObjects = (
+  listNames: readonly string[],
+  eventsXml: string,
+  scriptsLua: string,
+): CreatedSubObjects => {
+  const found = createFound();
+  const lists = readEventLists(eventsXml);
+  const chunk = parseLua(scriptsLua);
+
+  if (!chunk) {
+    found.conditional.push('scripts.lua, whose Lua could not be read');
+    return found;
+  }
+
+  const functions = new Map(
+    chunk.body.flatMap((statement) =>
+      statement.type === 'FunctionDeclaration' &&
+      statement.identifier?.type === 'Identifier'
+        ? [[statement.identifier.name, statement] as const]
+        : [],
+    ),
+  );
+
+  for (const name of listNames) {
+    let list = lists.get(name);
+
+    for (let step = 0; list && step < MAX_INHERIT; step++) {
+      const handler = list.handlers.get('OnCreated');
+
+      if (handler) {
+        walkStatements(
+          functions.get(handler)?.body ?? [],
+          { calls: OBJECT_CALLS, functions, source: `${handler} in scripts.lua`, found },
+          true,
+          0,
+        );
+        break;
+      }
+      list = list.inherit === undefined ? undefined : lists.get(list.inherit);
+    }
+  }
+  return found;
+};

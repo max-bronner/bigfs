@@ -29,6 +29,8 @@ import type { BoneSpaceMesh, Matrix } from "./w3dSkin";
 /** One mesh ready to draw: positions and normals in model space */
 export interface SceneMesh {
   name: string;
+  /** The model the file says the mesh belongs to, the part before the `.` of its full name */
+  container: string;
   positions: Float32Array;
   normals?: Float32Array;
   uvs?: Float32Array;
@@ -339,30 +341,90 @@ const buildSceneHlod = (
   };
 };
 
-/** Options for `getMeshVisibility`: the level of detail and whether hidden meshes show */
+/** One write to a model's sub-objects, as the game's INI and scripts make them */
+export interface SubObjectRule {
+  /** A mesh name, with or without its `CONTAINER.`; a final `*` matches every name it prefixes */
+  pattern: string;
+  hide: boolean;
+  /** Where the write comes from, as the UI names it */
+  source: string;
+}
+
+/** Options for `getMeshVisibility`: the level of detail and what hides or shows a mesh */
 export interface VisibilityOptions {
   /** Index into `ModelScene.hlod.lods`; the finest when absent */
   lod?: number;
+  /** Draws what the HIDDEN attribute and `subObjectRules` hide */
   showHidden?: boolean;
+  /** Writes in the order the game makes them; the last one naming a mesh decides */
+  subObjectRules?: readonly SubObjectRule[];
+  /** The user's choice by mesh index, which wins over everything but the level of detail */
+  partOverrides?: ReadonlyMap<number, boolean>;
 }
 
 /**
- * Decides, mesh by mesh, which meshes to draw: one level of detail at a time, and not the hidden
- * ones unless asked. A mesh no level lists is always a candidate, as a file
- * without an HLOD has no levels at all.
+ * Whether a rule's pattern names a mesh. As the game's lookup, it is compared
+ * without casing to the mesh's full name and to the part after the `.`.
+ */
+export const isSubObjectNamed = (
+  mesh: Pick<SceneMesh, "container" | "name">,
+  pattern: string,
+): boolean => {
+  const full = formatSubObjectName(mesh.container, mesh.name);
+  const names = [full, full.slice(full.lastIndexOf(".") + 1)];
+  const wanted = pattern.toLowerCase();
+
+  return wanted.endsWith("*")
+    ? names.some((name) => name.startsWith(wanted.slice(0, -1)))
+    : names.includes(wanted);
+};
+
+/** The reason a mesh with the HIDDEN attribute is not drawn, as the UI names it */
+const HIDDEN_ATTRIBUTE = "the W3D HIDDEN flag";
+
+/**
+ * Says, mesh by mesh, what hides it: the source of the last rule naming it, or
+ * the HIDDEN attribute when no rule does. A mesh left visible has no reason.
+ */
+export const findHidingSources = (
+  meshes: readonly Pick<SceneMesh, "container" | "name" | "hidden">[],
+  rules: readonly SubObjectRule[] = [],
+): (string | undefined)[] =>
+  meshes.map((mesh) => {
+    const decides = [...rules]
+      .reverse()
+      .find((rule) => isSubObjectNamed(mesh, rule.pattern));
+
+    return decides
+      ? decides.hide
+        ? decides.source
+        : undefined
+      : mesh.hidden
+        ? HIDDEN_ATTRIBUTE
+        : undefined;
+  });
+
+/**
+ * Decides, mesh by mesh, which meshes to draw: one level of detail at a time,
+ * and not the hidden ones unless asked. A mesh no level lists is always a
+ * candidate, as a file without an HLOD has no levels at all.
  */
 export const getMeshVisibility = (
-  scene: Pick<ModelScene, "meshes" | "hlod">,
-  { lod, showHidden = false }: VisibilityOptions = {},
+  scene: Pick<ModelScene, "hlod"> & {
+    meshes: readonly Pick<SceneMesh, "container" | "name" | "hidden">[];
+  },
+  { lod, showHidden = false, subObjectRules, partOverrides }: VisibilityOptions = {},
 ): boolean[] => {
   const levels = scene.hlod?.lods ?? [];
   const chosen = levels[lod ?? levels.length - 1];
   const listed = new Set(levels.flatMap((level) => level.meshes));
   const inLevel = new Set(chosen?.meshes);
+  const hiding = findHidingSources(scene.meshes, subObjectRules);
 
   return scene.meshes.map(
-    (mesh, at) =>
-      (showHidden || !mesh.hidden) && (!listed.has(at) || inLevel.has(at)),
+    (_, at) =>
+      (partOverrides?.get(at) ?? (showHidden || !hiding[at])) &&
+      (!listed.has(at) || inLevel.has(at)),
   );
 };
 
@@ -472,6 +534,7 @@ export const buildW3dScene = async (
 
     return {
       name: mesh.name,
+      container: mesh.container,
       positions,
       normals,
       uvs: mesh.uvs && flipV(mesh.uvs),

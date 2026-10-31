@@ -536,6 +536,7 @@ kbd { font-size: 10px; opacity: 0.7; }
     <div id="objectElements"></div>
     <div id="objectVoices" hidden></div>
     <div id="objectNotice" class="muted"></div>
+    <div id="objectParts" class="muted"></div>
   </div>
   <div class="row">
     <button id="play" title="Space">Pause</button>

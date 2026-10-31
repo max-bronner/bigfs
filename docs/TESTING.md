@@ -464,6 +464,19 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   a link to the line.
 - [ ] **new** Meshes with the HIDDEN attribute are not drawn; **Show hidden**
   (offered only if the model has one) draws them.
+- [ ] **changed** Under the model, **Parts** opens a list of its meshes with a
+  checkbox each. The heading counts what is drawn and says how many the W3D
+  HIDDEN flag turns off. A file alone has no INI, so everything else starts on;
+  the list says so. Untick a part and it goes; tick a hidden one and it shows.
+- [ ] **changed** Object preview hides parts as the game does. **Preview object**
+  on `GoblinCaveTroll` (`cavetroll.ini`): no `TRUNK01` or `ROCK` on the troll,
+  and the panel says "Hidden parts:" with what hid each (`OnTrollCreated in
+  scripts.lua`, `IdleAnimationState script`). Pick `AnimationState = WEAPONSTATE_ONE`
+  and the trunk appears. A building with upgrades (`MordorTrollCage`) hides its `V2`
+  "until Upgrade_...". The **Hidden parts** checkbox draws them all. Scripts
+  are read, never run: a call under a condition or chance is listed as "Not
+  applied, depends on the running game". This needs `scripts.lua` and
+  `scriptevents.xml` in the game view; without them only the INI's part applies.
 - [ ] **changed** HLOD: only the levels of detail the HLOD header counts are
   read, as the game reads them. Every retail model counts one, so the level
   dropdown is gone there and the line under the model says "1 level of detail";

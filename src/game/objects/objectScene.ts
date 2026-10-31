@@ -1,6 +1,9 @@
 import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/sageIniParser';
 import { getAudioReferenceKind } from '../../formats/ini/sageAudioFields';
 import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
+import type { SubObjectRule } from '../../formats/w3d/w3dScene';
+import { readStateScript } from './subObjectScripts';
+import type { CreatedSubObjects, ScriptedSubObjects } from './subObjectScripts';
 
 /**
  * What an object shows: the models its draw modules switch between, the
@@ -30,6 +33,16 @@ export interface SceneState {
   animations: string[];
   fx: string[];
   particles: { bone: string; system: string }[];
+  /** What the state's `BeginScript` shows and hides */
+  subObjects: ScriptedSubObjects;
+}
+
+/** A `SubObjectsUpgrade` module: the parts it shows, and so hides until it fires */
+export interface SceneUpgrade {
+  /** Its `TriggeredBy` names */
+  triggers: string[];
+  parts: string[];
+  startsActive: boolean;
 }
 
 /** Everything an object shows, as the object preview draws it */
@@ -40,6 +53,13 @@ export interface ObjectScene {
   fx: { field: string; name: string }[];
   /** Sounds and announcer events the object names, by the field naming them */
   voices: { field: string; name: string }[];
+  upgrades: SceneUpgrade[];
+  /** `TransitionDamageFX`'s writes for an undamaged object */
+  pristineSubObjects: SubObjectRule[];
+  /** The `AILuaEventsList` names, whose handlers `created` is read from */
+  luaEventLists: string[];
+  /** What the object's `OnCreated` handlers do; empty until the scripts are read */
+  created: CreatedSubObjects;
 }
 
 /** The part of a scene a preview opens on: the state and the name the source line points at */
@@ -98,12 +118,15 @@ const findDrawPlace = (blocks: readonly SageBlock[], line: number) => {
  * Reads the object's scene from its composed definition. `isFx` and
  * `isSystem` say whether a name is a defined FX list or particle system,
  * since a field's values mix names with numbers and flags.
+ * @param lines The text `parsed` was parsed from, for the scripts the parse skips; without it
+ * no script is read
  */
 export const readObjectScene = (
   parsed: SageDocument,
   schema: SageIniSchema,
   isFx: (name: string) => boolean,
   isSystem: (name: string) => boolean,
+  lines: readonly string[] = [],
 ): ObjectScene | undefined => {
   const object = parsed.blocks.find((block) =>
     /^(object|childobject|objectreskin)$/i.test(block.keyword),
@@ -119,6 +142,21 @@ export const readObjectScene = (
     states: [],
     fx: [],
     voices: [],
+    upgrades: [],
+    pristineSubObjects: [],
+    luaEventLists: [],
+    created: { rules: [], conditional: [], grantedUpgrades: [] },
+  };
+  const upgrades = new Map<SageBlock, SceneUpgrade>();
+  const upgradeOf = (block: SageBlock) => {
+    let upgrade = upgrades.get(block);
+
+    if (!upgrade) {
+      upgrade = { triggers: [], parts: [], startsActive: false };
+      upgrades.set(block, upgrade);
+      scene.upgrades.push(upgrade);
+    }
+    return upgrade;
   };
   const stateOf = (draw: SageBlock, block: SageBlock) => {
     let state = states.get(block);
@@ -131,6 +169,7 @@ export const readObjectScene = (
         animations: [],
         fx: [],
         particles: [],
+        subObjects: { rules: [], conditional: [] },
       };
       states.set(block, state);
       scene.states.push(state);
@@ -152,6 +191,38 @@ export const readObjectScene = (
     const values = statement.values.map((value) => value.text);
     const { draw, state } = findDrawPlace(parsed.blocks, statement.line);
     const owner = draw && state ? stateOf(draw, state) : undefined;
+
+    if (key === 'ailuaeventslist') {
+      scene.luaEventLists.push(values[0]);
+      continue;
+    }
+    if (key === 'pristinehidesubobject' || key === 'pristineshowsubobject') {
+      scene.pristineSubObjects.push(
+        ...values.map((pattern) => ({
+          pattern,
+          hide: key === 'pristinehidesubobject',
+          source: statement.keyword.text,
+        })),
+      );
+      continue;
+    }
+
+    const upgradeModule = findBlockChain(parsed.blocks, statement.line).find(
+      (block) => lower(block.moduleType ?? '') === 'subobjectsupgrade',
+    );
+
+    if (upgradeModule && key === 'showsubobjects') {
+      upgradeOf(upgradeModule).parts.push(...values);
+      continue;
+    }
+    if (upgradeModule && key === 'triggeredby') {
+      upgradeOf(upgradeModule).triggers.push(...values);
+      continue;
+    }
+    if (upgradeModule && key === 'startsactive') {
+      upgradeOf(upgradeModule).startsActive = /^yes$/i.test(values[0]);
+      continue;
+    }
 
     // Every field the audio tables call a sound, inherited ones included
     // since the object is read as composed; `NONE` is the engine's "no sound"
@@ -185,6 +256,21 @@ export const readObjectScene = (
           scene.fx.push({ field: statement.keyword.text, name });
         }
       }
+    }
+  }
+
+  for (const { startLine, endLine } of lines.length ? parsed.scripts : []) {
+    const { draw, state } = findDrawPlace(parsed.blocks, startLine);
+
+    if (draw && state && startLine > object.startLine && endLine < object.endLine) {
+      const owner = stateOf(draw, state);
+      const { rules, conditional } = readStateScript(
+        lines.slice(startLine + 1, endLine).join('\n'),
+        `${owner.label} script`,
+      );
+
+      owner.subObjects.rules.push(...rules);
+      owner.subObjects.conditional.push(...conditional);
     }
   }
 

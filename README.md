@@ -347,7 +347,11 @@ your mod's archives.
   picked from a dropdown with their max screen size when there is more than
   one, and arrays past that count are skipped as the game skips them; the
   aggregate and proxy lists are shown; collision boxes can be drawn as
-  wireframes.
+  wireframes. A **Parts** list turns each mesh on and off, and the object
+  preview hides what the object's INI and scripts hide in the shown state
+  (animation state scripts, `SubObjectsUpgrade` parts, `OnCreated` handlers in
+  `scripts.lua`), naming the source and listing what depends on the running
+  game. Scripts are read, not run.
 
 **Interface movies (APT)**
 

@@ -7,6 +7,7 @@ import {
 } from "../../formats/w3d/w3dPose";
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import { getMeshVisibility } from "../../formats/w3d/w3dScene";
+import type { VisibilityOptions } from "../../formats/w3d/w3dScene";
 import type { ModelScene } from "../../formats/w3d/w3dScene";
 import type { W3dBlend } from "../../formats/w3d/w3dTools";
 
@@ -71,8 +72,10 @@ export interface DrawOptions {
   showMeshes?: boolean;
   /** HLOD level to draw, an index into `hlod.lods`; the finest when absent */
   lod?: number;
-  /** Draws the meshes marked HIDDEN too */
+  /** Draws the meshes marked HIDDEN or hidden by `subObjectRules` too */
   showHidden?: boolean;
+  subObjectRules?: VisibilityOptions["subObjectRules"];
+  partOverrides?: VisibilityOptions["partOverrides"];
   /** Draws the collision boxes as wireframes */
   showBoxes?: boolean;
 }
@@ -357,6 +360,8 @@ export const createModelRenderer = (
       showMeshes = true,
       lod,
       showHidden,
+      subObjectRules,
+      partOverrides,
       showBoxes,
     }: DrawOptions,
   ) => {
@@ -373,7 +378,12 @@ export const createModelRenderer = (
     gl.disable(gl.BLEND);
 
     const { meshes } = scene;
-    const visible = getMeshVisibility(scene, { lod, showHidden });
+    const visible = getMeshVisibility(scene, {
+      lod,
+      showHidden,
+      subObjectRules,
+      partOverrides,
+    });
     const opacityOf = (each: Drawable) =>
       pose ? getMeshOpacity(meshes[each.mesh], pose) : 1;
     // WW3D's mesh alpha override, mint's `faded`: below 1 an opaque mesh draws

@@ -6,6 +6,7 @@ import {
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import type { W3dAnimation } from "../../formats/w3d/w3dAnimation";
 import type { ForeignClip } from "../../formats/w3d/w3dModelFinder";
+import { findHidingSources, getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { SceneSkeleton } from "../../formats/w3d/w3dScene";
 import { createModelRenderer } from "../shared/modelRenderer";
 import { createOrbit } from "../shared/orbit";
@@ -107,6 +108,7 @@ export const showModel = (
     playing: false,
     showBones: !meshes.length,
     showHidden: false,
+    partOverrides: new Map<number, boolean>(),
     showBoxes: false,
     // The last level the header counts, the finest
     lod: undefined as number | undefined,
@@ -131,6 +133,7 @@ export const showModel = (
       showBones: player.showBones,
       lod: player.lod,
       showHidden: player.showHidden,
+      partOverrides: player.partOverrides,
       showBoxes: player.showBoxes,
     });
   };
@@ -163,6 +166,58 @@ export const showModel = (
   });
   const lists = element("p");
   const hiddenCount = meshes.filter((mesh) => mesh.hidden).length;
+  const parts = element("details");
+  const partsSummary = element("summary");
+  const partRows = element("div");
+  const hiding = findHidingSources(meshes);
+
+  const renderParts = () => {
+    const drawn = getMeshVisibility(message, {
+      lod: player.lod,
+      showHidden: player.showHidden,
+      partOverrides: player.partOverrides,
+    }).filter(Boolean).length;
+
+    partsSummary.textContent = [
+      `Parts: ${drawn} of ${meshes.length} drawn`,
+      ...(hiddenCount && !player.showHidden
+        ? [`${hiddenCount} off by the W3D HIDDEN flag`]
+        : []),
+    ].join(" · ");
+    partRows.replaceChildren(
+      ...meshes.map((mesh, at) => {
+        const box = element("input", {
+          type: "checkbox",
+          checked:
+            player.partOverrides.get(at) ?? (player.showHidden || !hiding[at]),
+        });
+        const row = element("label");
+        const line = element("div");
+
+        box.onchange = () => {
+          player.partOverrides.set(at, box.checked);
+          renderParts();
+          draw();
+        };
+        row.append(box, ` ${mesh.name}${hiding[at] ? ` (off by ${hiding[at]})` : ""}`);
+        line.append(row);
+        return line;
+      }),
+    );
+  };
+
+  if (meshes.length) {
+    parts.append(
+      partsSummary,
+      element("p", {
+        textContent:
+          "A .w3d alone knows only its own HIDDEN flags. The game hides more from the object's INI and scripts: use Preview object on its INI to see those.",
+      }),
+      partRows,
+    );
+    main.append(parts);
+    renderParts();
+  }
 
   select.append(new Option(skeleton ? "Bind pose" : "No skeleton", ""));
   if (skeleton) {
@@ -255,12 +310,14 @@ export const showModel = (
   levels.onchange = () => {
     player.lod = Number(levels.value);
     label.textContent = `LOD ${player.lod}`;
+    renderParts();
     draw();
   };
   hiddenToggle.onclick = () => {
     player.showHidden = !player.showHidden;
     hiddenToggle.setAttribute("aria-pressed", String(player.showHidden));
     label.textContent = `hidden meshes ${player.showHidden ? "shown" : "not drawn"} (${hiddenCount})`;
+    renderParts();
     draw();
   };
   boxesToggle.onclick = () => {

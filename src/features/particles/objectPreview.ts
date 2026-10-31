@@ -11,6 +11,7 @@ import { createToolRegistry } from '../../core/toolRegistry';
 import { EffectLibrary } from '../../services/effectLibrary';
 import { composeEffectiveObject } from '../../services/ini/effectiveObject';
 import { findSceneFocus, readObjectScene } from '../../game/objects/objectScene';
+import { readCreatedSubObjects } from '../../game/objects/subObjectScripts';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
 import { renderParticlePage } from './particlePreview';
@@ -163,10 +164,29 @@ const createObjectPreview = (
       schema,
       isDefined(['FXList']),
       isDefined(['FXParticleSystem', 'ParticleSystem']),
+      composed.split('\n'),
     );
 
     if (!scene) {
       return;
+    }
+
+    if (scene.luaEventLists.length) {
+      const [events, scripts] = await Promise.all(
+        ['data/scripts/scriptevents.xml', 'data/scripts/scripts.lua'].map(
+          (file) => locator?.read(file, uri),
+        ),
+      );
+
+      if (events && scripts) {
+        const latin1 = new TextDecoder('latin1');
+
+        scene.created = readCreatedSubObjects(
+          scene.luaEventLists,
+          latin1.decode(events),
+          latin1.decode(scripts),
+        );
+      }
     }
 
     const effects = await library.collect(

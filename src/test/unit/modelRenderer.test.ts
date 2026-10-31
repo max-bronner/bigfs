@@ -68,6 +68,7 @@ const createRecordingContext = (wideIndices: boolean) => {
 
 const bound = (vertices: number): SceneMesh => ({
   name: `M${vertices}`,
+  container: 'UNIT',
   positions: new Float32Array(vertices * 3),
   indices: new Uint32Array(3),
   alphaTest: false,
