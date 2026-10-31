@@ -1,7 +1,11 @@
-import { findBindRefusal, poseAt } from "../../formats/w3d/w3dPose";
+import {
+  describeForeignClip,
+  isOwnClip,
+  poseAt,
+} from "../../formats/w3d/w3dPose";
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import type { W3dAnimation } from "../../formats/w3d/w3dAnimation";
-import type { RefusedClip } from "../../formats/w3d/w3dModelFinder";
+import type { ForeignClip } from "../../formats/w3d/w3dModelFinder";
 import type { SceneSkeleton } from "../../formats/w3d/w3dScene";
 import { createModelRenderer } from "../shared/modelRenderer";
 import { createOrbit } from "../shared/orbit";
@@ -27,9 +31,9 @@ interface Host {
 
 /** Controls the preview page's message handler drives the model view through */
 export interface ModelControl {
-  /** Adds the animation files that fit the skeleton to the list, and says what was left out */
-  setAnimations(names: string[], refused: RefusedClip[]): void;
-  /** Plays an animation on the skeleton, or says why it does not fit */
+  /** Adds the skeleton's own animation files to the list, then a group of other skeletons' */
+  setAnimations(own: string[], foreign: ForeignClip[]): void;
+  /** Plays an animation on the skeleton, saying so when it was made for another */
   play(message: {
     file: string;
     animation: W3dAnimation;
@@ -59,8 +63,7 @@ export const showModel = (
   const canvas = element("canvas", { className: "model" });
   const info = element("p");
   const usedIn = element("p");
-  const refusal = element("p", { className: "error" });
-  const leftOut = element("p");
+  const clipNotice = element("p");
   const controls = element("div", { className: "controls" });
   const triangles = meshes.reduce(
     (total, mesh) => total + mesh.indices.length / 3,
@@ -71,9 +74,6 @@ export const showModel = (
     ...(message.shownOn
       ? [`shown on ${message.shownOn}, the model drawn on its skeleton`]
       : []),
-    ...(message.refusedModel
-      ? [`not shown on ${message.refusedModel}, the INI's model: its skeleton does not take this animation`]
-      : []),
     `${meshes.length} meshes`,
     `${triangles} triangles`,
     ...(hierarchy && skeleton
@@ -82,7 +82,7 @@ export const showModel = (
     ...(missing.length ? [`textures not found: ${missing.join(", ")}`] : []),
     "drag to orbit, scroll to zoom, double-click to reset, B for bones",
   ].join(" · ");
-  main.replaceChildren(controls, canvas, refusal, info, usedIn, leftOut);
+  main.replaceChildren(controls, canvas, clipNotice, info, usedIn);
 
   const gl = canvas.getContext("webgl", { antialias: true });
 
@@ -279,6 +279,7 @@ export const showModel = (
   select.onchange = () => {
     if (!select.value) {
       player.animation = undefined;
+      clipNotice.textContent = "";
       setPlaying(false);
       play.disabled = slider.disabled = true;
       player.frame = 0;
@@ -311,32 +312,30 @@ export const showModel = (
   window.addEventListener("resize", draw);
 
   const control: ModelControl = {
-    setAnimations: (names, refused) => {
+    setAnimations: (own, foreign) => {
       select.append(
-        ...names.map((name) => new Option(name.replace(/\.w3d$/i, ""), name)),
+        ...own.map((name) => new Option(name.replace(/\.w3d$/i, ""), name)),
       );
-      leftOut.textContent = refused.length
-        ? `Not listed, made for another skeleton: ${refused
-            .map(
-              ({ file, hierarchyName }) =>
-                `${file.replace(/\.w3d$/i, "")} (${hierarchyName})`,
-            )
-            .join(", ")}`
-        : "";
+      if (foreign.length) {
+        const others = element("optgroup", { label: "Made for other skeletons" });
+
+        others.append(
+          ...foreign.map(
+            ({ file, hierarchyName }) =>
+              new Option(`${file.replace(/\.w3d$/i, "")} (${hierarchyName})`, file),
+          ),
+        );
+        select.append(others);
+      }
     },
     play: ({ file, animation, skeleton: clipSkeleton }) => {
       if (!skeleton) {
         return;
       }
 
-      const refused = findBindRefusal(skeleton, animation, clipSkeleton);
-
-      refusal.textContent = refused ?? "";
-      if (refused) {
-        label.textContent = "";
-        select.value = player.animation ? select.value : "";
-        return;
-      }
+      clipNotice.textContent = isOwnClip(skeleton, animation, clipSkeleton)
+        ? ""
+        : describeForeignClip(animation);
       player.animation = animation;
       player.frame = 0;
       select.value = file;

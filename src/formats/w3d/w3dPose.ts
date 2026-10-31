@@ -120,21 +120,27 @@ const isSameSkeleton = (a: SkeletonBones, b: SkeletonBones): boolean =>
   );
 
 /**
- * Says why an animation cannot play on a skeleton, or nothing when it can. A
- * channel moves a bone by its number, so a clip of another rig would move the
- * wrong bones; a renamed copy of the same rig is fine. Ported from mint's
- * `ModelAnimation::bind`.
+ * Whether an animation was made for a skeleton: it names it, or names a
+ * renamed copy of the same rig.
  * @param clipSkeleton The skeleton the animation names, when it was found
  */
-export const findBindRefusal = (
+export const isOwnClip = (
   skeleton: SceneSkeleton,
-  animation: Pick<W3dAnimation, 'name' | 'hierarchyName'>,
+  animation: Pick<W3dAnimation, 'hierarchyName'>,
   clipSkeleton: SkeletonBones | undefined,
-): string | undefined =>
+): boolean =>
   animation.hierarchyName.toLowerCase() === skeleton.name.toLowerCase() ||
-  (clipSkeleton && isSameSkeleton(skeleton, clipSkeleton))
-    ? undefined
-    : `${animation.name} is not played: it is made for ${animation.hierarchyName}${clipSkeleton ? `, a different skeleton from ${skeleton.name}` : `, which was not found, not ${skeleton.name}`}`;
+  (!!clipSkeleton && isSameSkeleton(skeleton, clipSkeleton));
+
+/**
+ * Creates the notice shown while a clip of another skeleton plays. The game
+ * applies any clip to any model, channel by bone number, without looking at
+ * the skeleton it names, so the clip plays and the notice explains the result.
+ */
+export const describeForeignClip = (
+  animation: Pick<W3dAnimation, 'name' | 'hierarchyName'>,
+): string =>
+  `${animation.name} is made for ${animation.hierarchyName}; retail would apply it by bone number`;
 
 /** Reads a type 15 sample, as mint's `type15_opacity`: below zero or not a number is clear */
 const toOpacity = (raw: number): number =>

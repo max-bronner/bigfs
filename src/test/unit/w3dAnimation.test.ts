@@ -4,7 +4,7 @@ import {
   listModelCandidates,
   sortClipsBySkeleton,
 } from '../../formats/w3d/w3dModelFinder';
-import { findBindRefusal } from '../../formats/w3d/w3dPose';
+import { describeForeignClip, isOwnClip, poseAt } from '../../formats/w3d/w3dPose';
 import { findAnimation, parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
@@ -104,40 +104,60 @@ suite('W3D animations on a skeleton', () => {
     rotations: [],
   };
 
-  test('a clip of the same name, or a renamed copy of the rig, binds', () => {
-    const clip = { name: 'CLIP', hierarchyName: 'unit_skl' };
+  test("a clip of the same name, or a renamed copy of the rig, is the skeleton's own", () => {
+    const clip = { hierarchyName: 'unit_skl' };
 
-    assert.strictEqual(findBindRefusal(skeleton, clip, undefined), undefined);
+    assert.strictEqual(isOwnClip(skeleton, clip, undefined), true);
     assert.strictEqual(
-      findBindRefusal(
+      isOwnClip(
         skeleton,
-        { ...clip, hierarchyName: 'COPY_SKL' },
+        { hierarchyName: 'COPY_SKL' },
         { names: ['root', 'arm'], parents: [-1, 0] },
       ),
-      undefined,
+      true,
     );
   });
 
-  test('another rig is refused, by bone name, by parent, or by count', () => {
+  test('another rig is foreign, by bone name, by parent, or by count, and the notice names it', () => {
     const clip = { name: 'CLIP', hierarchyName: 'OTHER_SKL' };
 
     for (const other of [
       { names: ['ROOT', 'LEG'], parents: [-1, 0] },
       { names: ['ROOT', 'ARM'], parents: [-1, -1] },
       { names: ['ROOT'], parents: [-1] },
+      undefined,
     ]) {
-      assert.match(
-        findBindRefusal(skeleton, clip, other) ?? '',
-        /made for OTHER_SKL, a different skeleton from UNIT_SKL/,
-      );
+      assert.strictEqual(isOwnClip(skeleton, clip, other), false);
     }
     assert.match(
-      findBindRefusal(skeleton, clip, undefined) ?? '',
-      /which was not found/,
+      describeForeignClip(clip),
+      /CLIP is made for OTHER_SKL; retail would apply it by bone number/,
     );
   });
 
-  test('the list keeps the clips that bind and says why the others do not', async () => {
+  test('a clip of another rig still poses by bone number, and channels past the skeleton are dropped', () => {
+    const [animation] = parseW3dAnimations(
+      buildChunk(
+        0x200,
+        concatBytes(
+          buildHeader(1, false),
+          buildChunk(0x202, concatBytes(u16(0, 0, 1, 0, 1, 0), encodeFloats(5))),
+          buildChunk(0x202, concatBytes(u16(0, 0, 1, 0, 9, 0), encodeFloats(5))),
+        ),
+        true,
+      ),
+    );
+    const pose = poseAt(
+      { ...skeleton, translations: [0, 0, 0, 0, 0, 0], rotations: [0, 0, 0, 1, 0, 0, 0, 1] },
+      { ...animation, hierarchyName: 'OTHER_SKL' },
+      0,
+    );
+
+    assert.strictEqual(pose.world.length, 2);
+    assert.strictEqual(pose.world[1].t[0], 5);
+  });
+
+  test("the list puts the skeleton's own clips first and groups the rest", async () => {
     const clips = await sortClipsBySkeleton(
       skeleton,
       [
@@ -152,14 +172,14 @@ suite('W3D animations on a skeleton', () => {
       createToolRegistry(),
     );
 
-    assert.deepStrictEqual(clips.playable, ['unit_run.w3d', 'unit_copy.w3d']);
-    assert.deepStrictEqual(clips.refused, [
+    assert.deepStrictEqual(clips.own, ['unit_run.w3d', 'unit_copy.w3d']);
+    assert.deepStrictEqual(clips.foreign, [
       { file: 'unit_other.w3d', hierarchyName: 'OTHER_SKL' },
       { file: 'unit_lost.w3d', hierarchyName: 'LOST_SKL' },
     ]);
   });
 
-  test('the INI model carries a clip only if its skeleton takes it', async () => {
+  test('the INI model carries a clip whatever its skeleton', async () => {
     const modelOn = (hierarchyName: string) =>
       buildChunk(
         0x700,
@@ -181,23 +201,10 @@ suite('W3D animations on a skeleton', () => {
     const load = async (fileName: string) =>
       withModels.get(fileName.toLowerCase());
     const tools = createToolRegistry();
-    const clip = await buildW3dScene(files.get('unit_run.w3d')!, load, tools);
     const carry = (iniModel: string) =>
-      findAnimationCarrier(
-        {
-          animation: { name: 'CLIP', hierarchyName: 'UNIT_SKL' },
-          skeleton: clip.skeleton!,
-        },
-        iniModel,
-        async () => [],
-        load,
-        tools,
-      );
+      findAnimationCarrier('UNIT_SKL', iniModel, async () => [], load, tools);
 
-    assert.deepStrictEqual(
-      { ...(await carry('other_skn.w3d')), scene: undefined },
-      { name: undefined, scene: undefined, refused: 'other_skn.w3d' },
-    );
+    assert.strictEqual((await carry('other_skn.w3d')).name, 'other_skn.w3d');
     assert.strictEqual((await carry('copy_skn.w3d')).name, 'copy_skn.w3d');
   });
 });

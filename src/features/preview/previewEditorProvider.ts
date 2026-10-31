@@ -107,7 +107,7 @@ const buildMessage = async (
               () => undefined,
             );
           const carrier = await findAnimationCarrier(
-            { animation: scene.animation, skeleton: scene.skeleton },
+            scene.skeleton.name,
             fromIni && `${fromIni.replace(/\.w3d$/i, '')}.w3d`,
             () =>
               locator.findNames(
@@ -124,7 +124,6 @@ const buildMessage = async (
             animation: scene.animation,
             animationSkeleton: scene.skeleton,
             shownOn: carrier.scene && carrier.name,
-            refusedModel: carrier.refused,
           };
         }
         return { kind: 'model', ...scene };

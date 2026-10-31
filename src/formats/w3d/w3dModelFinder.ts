@@ -1,7 +1,6 @@
 import type { ToolBox } from '../../core/toolRegistry';
 import { readAnimationHierarchyName } from './w3dAnimation';
-import type { W3dAnimation } from './w3dAnimation';
-import { findBindRefusal } from './w3dPose';
+import { isOwnClip } from './w3dPose';
 import type { SkeletonBones } from './w3dPose';
 import { buildW3dScene, loadSkeleton } from './w3dScene';
 import type { LoadFile, ModelScene, SceneSkeleton } from './w3dScene';
@@ -15,7 +14,7 @@ import { parseW3dTool } from './w3dTools';
  * model, `GUArcher_ATKA` an animation), so the names sharing the skeleton's
  * stem are tried, the skinned one first, and the first whose HLOD names
  * that skeleton is the one. The same names can belong to another rig, so the
- * clips listed for a skeleton are sorted by the skeleton they name.
+ * clips listed for a skeleton are grouped by the skeleton they name.
  */
 
 /** Files tried at most, so a stem shared by many animations stays quick */
@@ -49,22 +48,22 @@ export const listModelCandidates = (
 };
 
 /** A file named after a skeleton that animates another one */
-export interface RefusedClip {
+export interface ForeignClip {
   file: string;
-  /** The skeleton it animates */
+  /** The skeleton it was made for */
   hierarchyName: string;
 }
 
-/** The files a preview offers for a skeleton: what plays on it, and what does not */
+/** The files a preview offers for a skeleton: its own clips, then those of other rigs */
 export interface SkeletonClips {
-  playable: string[];
-  refused: RefusedClip[];
+  own: string[];
+  foreign: ForeignClip[];
 }
 
 /**
- * Sorts files by whether their animation plays on a skeleton, reading each one
- * in turn. A file that holds no animation, like the skinned model beside the
- * clips, or does not parse, is neither.
+ * Sorts files by whether their animation was made for a skeleton, reading each
+ * one in turn. A file that holds no animation, like the skinned model beside
+ * the clips, or does not parse, is neither.
  */
 export const sortClipsBySkeleton = async (
   skeleton: SceneSkeleton,
@@ -73,7 +72,7 @@ export const sortClipsBySkeleton = async (
   tools: ToolBox,
 ): Promise<SkeletonClips> => {
   const clipSkeletons = new Map<string, SkeletonBones | undefined>();
-  const clips: SkeletonClips = { playable: [], refused: [] };
+  const clips: SkeletonClips = { own: [], foreign: [] };
 
   for (const file of names) {
     const bytes = await loadFile(file);
@@ -97,10 +96,10 @@ export const sortClipsBySkeleton = async (
       );
     }
 
-    if (findBindRefusal(skeleton, { name: file, hierarchyName }, clipSkeletons.get(key))) {
-      clips.refused.push({ file, hierarchyName });
+    if (isOwnClip(skeleton, { hierarchyName }, clipSkeletons.get(key))) {
+      clips.own.push(file);
     } else {
-      clips.playable.push(file);
+      clips.foreign.push({ file, hierarchyName });
     }
   }
 
@@ -109,25 +108,21 @@ export const sortClipsBySkeleton = async (
 
 /** The model chosen to show an animation file on */
 export interface AnimationCarrier {
-  /** File name of the model, when one fits */
+  /** File name of the model, when one was found */
   name?: string;
   scene?: ModelScene;
-  /** The INI's model, when its skeleton does not take the animation */
-  refused?: string;
 }
 
 /**
  * Chooses the model to show an animation file on: the one an object's INI plays
- * it on when its skeleton takes the animation, else the model of its skeleton.
- * @param clip The scene of the animation file, its skeleton the animation's
+ * it on, whatever its skeleton, as the game does, else the model of the
+ * animation's own skeleton.
+ * @param skeletonName The skeleton the animation names
  * @param iniModel File name of the model the INI names, when it names one
  * @param listNames Lists every W3D file name, asked only when the INI's model does not do
  */
 export const findAnimationCarrier = async (
-  clip: {
-    animation: Pick<W3dAnimation, 'name' | 'hierarchyName'>;
-    skeleton: SceneSkeleton;
-  },
+  skeletonName: string,
   iniModel: string | undefined,
   listNames: () => Promise<readonly string[]>,
   loadFile: LoadFile,
@@ -137,16 +132,12 @@ export const findAnimationCarrier = async (
   const iniScene =
     iniBytes && (await buildW3dScene(iniBytes, loadFile, tools));
 
-  if (
-    iniScene?.skeleton &&
-    !findBindRefusal(iniScene.skeleton, clip.animation, clip.skeleton)
-  ) {
+  if (iniScene?.skeleton) {
     return { name: iniModel, scene: iniScene };
   }
 
-  const refused = iniScene ? iniModel : undefined;
   const name = await findModelForSkeleton(
-    clip.skeleton.name,
+    skeletonName,
     await listNames(),
     loadFile,
     tools,
@@ -156,7 +147,6 @@ export const findAnimationCarrier = async (
   return {
     name,
     scene: bytes && (await buildW3dScene(bytes, loadFile, tools)),
-    refused,
   };
 };
 

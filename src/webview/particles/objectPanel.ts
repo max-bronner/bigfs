@@ -1,4 +1,8 @@
-import { findBindRefusal, poseAt } from '../../formats/w3d/w3dPose';
+import {
+  describeForeignClip,
+  isOwnClip,
+  poseAt,
+} from '../../formats/w3d/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { SceneSkeleton } from '../../formats/w3d/w3dScene';
@@ -43,7 +47,7 @@ export const objectView = {
   pose: undefined as Pose | undefined,
 };
 
-/** The animation last loaded, kept so it can be judged again when the model changes */
+/** The animation last loaded, kept so its notice can follow the model */
 let loaded:
   | { name: string; animation?: W3dAnimation; skeleton?: SceneSkeleton }
   | undefined;
@@ -104,21 +108,19 @@ export const advanceAnimation = (seconds: number): void => {
   setPose();
 };
 
-/** Plays the loaded animation if the shown model's skeleton takes it, or says why not */
+/** Plays the loaded animation on the shown model, saying so when it was made for another skeleton */
 const bindLoadedAnimation = () => {
   const { skeleton } = objectView;
   const animation = loaded?.animation;
-  const refusal =
-    animation && skeleton
-      ? findBindRefusal(skeleton, animation, loaded?.skeleton)
-      : undefined;
+  const isForeign =
+    animation && skeleton && !isOwnClip(skeleton, animation, loaded?.skeleton);
 
-  objectView.animation = refusal ? undefined : animation;
-  $('objectNotice').textContent =
-    refusal ??
-    (loaded && !animation
+  objectView.animation = animation;
+  $('objectNotice').textContent = isForeign
+    ? describeForeignClip(animation)
+    : loaded && !animation
       ? `The animation ${loaded.name} was not found or holds no animation`
-      : '');
+      : '';
   setPose();
 };
 

@@ -449,14 +449,16 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.
-- [ ] **changed** A clip plays only on its own skeleton or a renamed copy of it,
-  as in the game. The animation list of `dugloin_skl` holds only its clips, and
-  under the model "Not listed" names the files that share the stem but animate
-  another rig. If an object's INI names a model of another skeleton, the info
-  line says it was passed over.
-- [ ] **changed** In the object preview a clip of another skeleton is not played:
-  the model stays in the bind pose and the notice says which skeleton the clip
-  is made for (it used to play on the wrong bones with a warning).
+- [ ] **changed** The animation list holds a skeleton's own clips first, then a
+  group "Made for other skeletons" with the files that share the stem but
+  animate another rig, each with that rig's name (open `dugloin_skl`). Files
+  with no animation are not listed. Picking one plays it, as the game applies
+  any clip by bone number, and the line under the model says
+  "… is made for X; retail would apply it by bone number".
+- [ ] **changed** An animation file whose object INI names a model plays on that
+  model even across rigs, with the same line under the model.
+- [ ] **changed** In the object preview an INI-named clip of another skeleton
+  plays on the INI's model, with the same words as the notice.
 - [ ] **new** Bones are off when meshes exist; **B** toggles them.
 - [ ] **new** "Used in" under the model lists INI lines naming the file, each
   a link to the line.
