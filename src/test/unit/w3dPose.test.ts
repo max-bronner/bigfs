@@ -57,4 +57,34 @@ suite('W3D pose', () => {
     // Bind turn and channel cancel: the hand points along x again
     assert.deepStrictEqual(round(out), [5, 0, 5]);
   });
+
+  test('a frame just outside a dense channel holds the bind pose', () => {
+    const rise = (frame: number) =>
+      round(
+        poseAt(
+          skeleton,
+          {
+            name: 'Skl.Rise',
+            hierarchyName: 'Skl',
+            frameCount: 4,
+            frameRate: 30,
+            channels: [
+              {
+                pivot: 2,
+                kind: 'x',
+                type: 0,
+                values: new Float32Array([0, 3, 3, 0]),
+                present: new Uint8Array([0, 1, 1, 0]),
+              },
+            ],
+          },
+          frame,
+        ).world[2].t,
+      );
+
+    // In the bind pose the hand is at [1, 2, 5]; +x along the arm is +y here
+    assert.deepStrictEqual(rise(1.5), [1, 5, 5]);
+    assert.deepStrictEqual(rise(0.5), [1, 2, 5]);
+    assert.deepStrictEqual(rise(2.5), [1, 2, 5]);
+  });
 });

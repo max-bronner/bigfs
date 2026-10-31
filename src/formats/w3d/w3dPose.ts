@@ -64,7 +64,11 @@ const compose = (outer: BoneTransform, inner: BoneTransform): BoneTransform => {
   };
 };
 
-/** Samples one channel at a fractional frame, blending its neighbours */
+/**
+ * Samples one channel at a fractional frame, blending its neighbours. A frame
+ * outside a dense channel's range is the bind pose, not the nearest value, as
+ * mint's `sample_dense` has it from EA's `MotionChannelClass`.
+ */
 const sample = (
   channel: SampledChannel,
   frame: number,
@@ -78,13 +82,16 @@ const sample = (
     Array.from(channel.values.subarray(index * width, index * width + width));
 
   if (!channel.present[first]) {
-    return channel.present[second] ? at(second) : undefined;
+    return undefined;
   }
 
   const a = at(first);
 
-  if (!channel.present[second] || t === 0 || channel.kind === 'visibility') {
+  if (t === 0 || channel.kind === 'visibility') {
     return a;
+  }
+  if (!channel.present[second]) {
+    return undefined;
   }
 
   const b = at(second);
