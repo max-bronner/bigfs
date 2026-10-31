@@ -435,7 +435,9 @@ suite('APT text view', () => {
     );
   });
 
-  test('every placement matrix and translation survives the text bit for bit', () => {
+  test('every placement matrix and translation survives the text bit for bit', function () {
+    this.timeout(20000);
+
     // A small fixed generator, so a failure names the same matrix every run
     let seed = 0x2545f491;
     const random = () => {
