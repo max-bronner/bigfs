@@ -1,5 +1,7 @@
 import { EASINGS, compileExpression } from '../../core/expression';
-import type { DetectedTween, Pose, TimelineOperation } from './aptTimeline';
+import type { DetectedTween } from './aptTweenDetection';
+import type { Pose } from './aptPose';
+import type { TimelineOperation } from './aptTimelineEdits';
 
 /**
  * A few lines in place of many frames: a motion script describes what a

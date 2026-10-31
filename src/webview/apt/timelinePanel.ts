@@ -1,16 +1,11 @@
 import { EASINGS, compileExpression } from '../../core/expression';
-import {
-  decodeTimeline,
-  detectTweens,
-  readMotion,
-  getPose,
-} from '../../formats/apt/aptTimeline';
-import type {
-  DetectedTween,
-  Motion,
-  Pose,
-  TimelineOperation,
-} from '../../formats/apt/aptTimeline';
+import { decodeTimeline } from '../../formats/apt/aptTimeline';
+import { detectTweens } from '../../formats/apt/aptTweenDetection';
+import { readMotion } from '../../formats/apt/aptTimelineEdits';
+import { getPose } from '../../formats/apt/aptPose';
+import type { DetectedTween } from '../../formats/apt/aptTweenDetection';
+import type { Motion, TimelineOperation } from '../../formats/apt/aptTimelineEdits';
+import type { Pose } from '../../formats/apt/aptPose';
 import {
   MotionScriptError,
   parseMotionScript,

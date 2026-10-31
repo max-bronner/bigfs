@@ -1,21 +1,10 @@
 import * as assert from 'assert';
 import { compileExpression, ExpressionError } from '../../core/expression';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
-import {
-  animate,
-  applyMotion,
-  applyOperation,
-  decodeTimeline,
-  deleteFrames,
-  detectTweens,
-  encodeTimeline,
-  hide,
-  readMotion,
-  getPose,
-  retimeFrames,
-  reverseFrames,
-  tween,
-} from '../../formats/apt/aptTimeline';
+import { animate, applyMotion, applyOperation, deleteFrames, hide, readMotion, retimeFrames, reverseFrames, tween } from '../../formats/apt/aptTimelineEdits';
+import { decodeTimeline, encodeTimeline } from '../../formats/apt/aptTimeline';
+import { detectTweens } from '../../formats/apt/aptTweenDetection';
+import { getPose } from '../../formats/apt/aptPose';
 import type { FrameState } from '../../formats/apt/aptTimeline';
 import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
 import { AptImage } from '../../formats/apt/writer/aptImage';

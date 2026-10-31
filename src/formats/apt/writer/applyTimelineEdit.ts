@@ -1,6 +1,7 @@
 import { AptReader, parseFrames } from '../aptMovie';
 import type { AptMovie } from '../aptMovie';
-import { applyOperation, decodeTimeline, encodeTimeline } from '../aptTimeline';
+import { applyOperation } from '../aptTimelineEdits';
+import { decodeTimeline, encodeTimeline } from '../aptTimeline';
 import type { FrameSpec } from '../aptTimeline';
 import type { AptEdit, EditResult } from './aptEdit';
 import { AptImage } from './aptImage';

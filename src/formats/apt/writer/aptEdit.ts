@@ -1,5 +1,6 @@
 import type { Matrix2, Rect } from '../aptMovie';
-import type { FrameSpec, TimelineOperation } from '../aptTimeline';
+import type { FrameSpec } from '../aptTimeline';
+import type { TimelineOperation } from '../aptTimelineEdits';
 
 /** A change to one character's own fields */
 export type CharacterChange =
