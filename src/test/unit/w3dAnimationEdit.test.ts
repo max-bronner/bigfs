@@ -86,6 +86,38 @@ suite('W3D animation editing', () => {
     assert.ok(Math.abs(Math.hypot(...turned.subarray(4, 8)) - 1) < 1e-5);
   });
 
+  test('an edit reads a channel as playback does', () => {
+    const source: W3dAnimation = {
+      ...animation(),
+      frameCount: 2,
+      channels: [
+        {
+          pivot: 1,
+          kind: 'opacity',
+          type: 15,
+          values: new Float32Array([1, 0]),
+          present: new Uint8Array([1, 1]),
+          steps: new Uint8Array([1, 0]),
+        },
+        {
+          pivot: 2,
+          kind: 'x',
+          type: 0,
+          values: new Float32Array([8, 0]),
+          present: new Uint8Array([1, 0]),
+        },
+      ],
+    };
+    const [held, eased] = retimeAnimation(source, 3).channels;
+
+    // The held key keeps its value up to the frame it lands on
+    assert.deepStrictEqual(Array.from(held.values), [1, 1, 0]);
+    assert.strictEqual(held.steps, undefined);
+    // A frame with no value eases to no change, and stays absent when whole
+    assert.deepStrictEqual(Array.from(eased.values), [8, 4, 0]);
+    assert.deepStrictEqual(Array.from(eased.present), [1, 1, 0]);
+  });
+
   test('written as an uncompressed animation, it reads back the same', () => {
     const [back] = parseW3dAnimations(
       writeW3dAnimation(retimeAnimation(animation(), 7)),

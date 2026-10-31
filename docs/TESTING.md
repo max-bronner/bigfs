@@ -527,6 +527,9 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
 - [ ] **changed** A skin with two vertex streams uses its stored weights raw, as
   the game does: no shipped model is known to look different, and a mod's skin
   whose two percentages do not sum to 100 draws nearer the origin.
+- [ ] **changed** **Edit W3D Animation…** reads channels as playback does: a held
+  key stays held when a clip is retimed instead of easing, and a channel eases to
+  no change past its range. Retime a clip and compare it with the original.
 - [ ] **new** **Edit W3D Animation…** (`.w3d` menu): retime, reverse, ease,
   trim, change rate; written as a new file. Rate must be a whole number from 1
   to 1000 (`12.5`, `0.4`, `0` rejected; `24` works). Load one in the game.

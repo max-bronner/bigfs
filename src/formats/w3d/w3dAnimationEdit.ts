@@ -1,4 +1,5 @@
 import { EASINGS } from '../../core/expression';
+import { sampleChannel } from './w3dAnimation';
 import type { SampledChannel, W3dAnimation } from './w3dAnimation';
 
 /**
@@ -38,52 +39,6 @@ export const setAnimationFrameRate = (
 /** Where frame `j` of the result reads the source, as a fractional frame */
 type TimeMap = (frame: number) => number;
 
-const normalise = (q: number[]) => {
-  const length = Math.hypot(...q) || 1;
-
-  return q.map((value) => value / length);
-};
-
-/** Samples one channel at a fractional source frame */
-const sample = (
-  channel: SampledChannel,
-  at: number,
-): { value: number[]; present: boolean } => {
-  const width = channel.kind === 'rotation' ? 4 : 1;
-  const frames = channel.present.length;
-  const low = Math.max(0, Math.min(frames - 1, Math.floor(at)));
-  const high = Math.min(frames - 1, low + 1);
-  const t = Math.max(0, Math.min(1, at - low));
-  const a = Array.from(
-    channel.values.subarray(low * width, low * width + width),
-  );
-  const b = Array.from(
-    channel.values.subarray(high * width, high * width + width),
-  );
-  const present = !!channel.present[t < 0.5 ? low : high];
-
-  if (
-    channel.kind === 'visibility' ||
-    !channel.present[low] ||
-    !channel.present[high]
-  ) {
-    return { value: t < 0.5 ? a : b, present };
-  }
-  if (width === 4) {
-    // The nearer of the two covers of b, then a normalised blend
-    const sign =
-      a.reduce((sum, value, axis) => sum + value * b[axis], 0) < 0 ? -1 : 1;
-
-    return {
-      value: normalise(
-        a.map((value, axis) => value + (sign * b[axis] - value) * t),
-      ),
-      present,
-    };
-  }
-  return { value: [a[0] + (b[0] - a[0]) * t], present };
-};
-
 const remap = (
   animation: W3dAnimation,
   frameCount: number,
@@ -91,18 +46,24 @@ const remap = (
 ): W3dAnimation => ({
   ...animation,
   frameCount,
+  playsWholeFrames: true,
   channels: animation.channels.map((channel) => {
     const width = channel.kind === 'rotation' ? 4 : 1;
     const values = new Float32Array(frameCount * width);
     const present = new Uint8Array(frameCount);
+    const { frameCount: sourceFrames } = animation;
 
     for (let frame = 0; frame < frameCount; frame++) {
-      const sampled = sample(channel, map(frame));
+      // Blended even for a clip the game plays on whole frames: a retime needs the
+      // frames between, and the result plays on its own whole frames
+      const value = sampleChannel(channel, map(frame), { frameCount: sourceFrames });
 
-      values.set(sampled.value, frame * width);
-      present[frame] = sampled.present ? 1 : 0;
+      if (value) {
+        values.set(value, frame * width);
+        present[frame] = 1;
+      }
     }
-    return { ...channel, values, present };
+    return { pivot: channel.pivot, kind: channel.kind, type: channel.type, values, present };
   }),
 });
 
