@@ -4,7 +4,7 @@ import { findParticleDefinitions } from '../../formats/particles/particleDefinit
 import { readFxList, readParticleDef } from '../../formats/particles/particleIni';
 import type { ParticleDef } from '../../formats/particles/particleDef';
 import { getEffectStateAt } from '../../formats/particles/fxEffects';
-import { ParticleWorld } from '../../formats/particles/particleSimulation';
+import { computeAngleAwayFrom, ParticleWorld } from '../../formats/particles/particleSimulation';
 
 // Synthetic definitions: field names are the games' grammar, values invented
 const BLOCK = `
@@ -321,6 +321,15 @@ suite('Particle simulation', () => {
   const [sparksText, slaveText] = definitionsOf(BLOCK);
   const sparks = readParticleDef(sparksText);
   const slave = readParticleDef(slaveText);
+
+  test('an offset within FLT_EPSILON of the emitter counts as level with it', () => {
+    const emitter = [0, 0, 0] as const;
+    const near = 2 ** -24;
+
+    assert.strictEqual(computeAngleAwayFrom([5, near, 0], [...emitter]), Math.PI * 2);
+    assert.strictEqual(computeAngleAwayFrom([-5, -near, 0], [...emitter]), Math.PI);
+    assert.ok(computeAngleAwayFrom([5, 2 ** -22, 0], [...emitter]) < Math.PI * 2);
+  });
 
   test('a cylinder keeps a running radius, floored after its first emission', () => {
     const cylinder = (radius: number, radiusRate: number): ParticleDef => {

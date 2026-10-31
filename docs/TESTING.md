@@ -569,6 +569,8 @@ Sound is opt-in: opening a view never plays anything.
 
 - **changed** A cylinder emission volume keeps its own running radius, as the game does. Preview `FireFlies02` (a mallorn tree's fireflies): it should be a cloud of dots with `IsParticleUpTowardsEmitter` on, and thin columns with it off.
 
+- **changed** A particle with `IsParticleUpTowardsEmitter` level with its emitter uses the game's `FLT_EPSILON` band, as the game does. This is an offset far below what the eye can see: a preview with the flag on should look as it did.
+
 - [ ] **new** **Particle preview** (Preview lens on `FXParticleSystem`,
   `ParticleSystem`, `FXList`; command **Preview Particle System**): orbit, pan,
   zoom; play, pause, step, restart, speed 0.1× to 4×; moving emitter; hotkeys

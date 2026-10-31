@@ -33,6 +33,8 @@ const MAX_SIZE_BONUS = 50;
 const MIN_WIND_ANGLE_CHANGE = 0.005;
 const WIND_ANGLE_CHANGE_DEFAULT = 0.15;
 const TWO_PI = Math.PI * 2;
+/** `FLT_EPSILON`, the single-precision constant the game compares against */
+const FLT_EPSILON = 2 ** -23;
 
 /** Readings of unsettled game behaviour the preview lets the user choose between */
 export interface SimulationOptions {
@@ -318,12 +320,16 @@ const reachedKey = (frames: number[], current: number, age: number) => {
     : current + 1;
 };
 
-/** Computes the angle that points a sprite away from its emitter, as EA computes it */
+/**
+ * Computes the angle that points a sprite away from its emitter, as EA
+ * computes it. An offset within `FLT_EPSILON` of the emitter's Y counts as
+ * level with it, the game's band rather than exact zero.
+ */
 export const computeAngleAwayFrom = (position: Vec3, emitter: Vec3): number => {
   const x = position[0] - emitter[0];
   const y = position[1] - emitter[1];
 
-  if (y === 0) {
+  if (Math.abs(y) < FLT_EPSILON) {
     return x > 0 ? TWO_PI : Math.PI;
   }
 
