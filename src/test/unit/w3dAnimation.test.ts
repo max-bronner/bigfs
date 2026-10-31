@@ -1,5 +1,10 @@
 import * as assert from 'assert';
-import { listModelCandidates } from '../../formats/w3d/w3dModelFinder';
+import {
+  findAnimationCarrier,
+  listModelCandidates,
+  sortClipsBySkeleton,
+} from '../../formats/w3d/w3dModelFinder';
+import { findBindRefusal } from '../../formats/w3d/w3dPose';
 import { findAnimation, parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
@@ -38,6 +43,164 @@ const values = (
       ? Math.round(value * 1000) / 1000
       : null,
   );
+
+suite('W3D animations on a skeleton', () => {
+  const named = (file: string) => (bytes: Uint8Array) => [file, bytes] as const;
+  const skeletonFile = (name: string, ...pivots: string[]) =>
+    buildChunk(
+      0x100,
+      concatBytes(
+        buildChunk(
+          0x101,
+          concatBytes(
+            new Uint8Array(4),
+            encodeName(name, 16),
+            new Uint8Array(Uint32Array.of(pivots.length).buffer),
+            encodeFloats(0, 0, 0),
+          ),
+        ),
+        buildChunk(
+          0x102,
+          concatBytes(
+            ...pivots.map((pivot, at) =>
+              concatBytes(
+                encodeName(pivot, 16),
+                new Uint8Array(Uint32Array.of(at ? at - 1 : 0xffffffff).buffer),
+                encodeFloats(0, 0, 0, 0, 0, 0, 0, 0, 0, 1),
+              ),
+            ),
+          ),
+        ),
+      ),
+      true,
+    );
+  /** An animation of no channels naming a skeleton */
+  const clipOf = (hierarchyName: string) => {
+    const bytes = new Uint8Array(44);
+
+    bytes.set(encodeName('CLIP', 16), 4);
+    bytes.set(encodeName(hierarchyName, 16), 20);
+    new DataView(bytes.buffer).setUint32(36, 1, true);
+
+    return buildChunk(0x200, buildChunk(0x201, bytes), true);
+  };
+  const files = new Map([
+    named('unit_skl.w3d')(skeletonFile('UNIT_SKL', 'ROOT', 'ARM')),
+    named('copy_skl.w3d')(skeletonFile('COPY_SKL', 'root', 'arm')),
+    named('other_skl.w3d')(skeletonFile('OTHER_SKL', 'ROOT', 'LEG')),
+    named('unit_run.w3d')(clipOf('UNIT_SKL')),
+    named('unit_copy.w3d')(clipOf('COPY_SKL')),
+    named('unit_other.w3d')(clipOf('OTHER_SKL')),
+    named('unit_lost.w3d')(clipOf('LOST_SKL')),
+    named('unit_broken.w3d')(new Uint8Array([1, 0, 0, 0, 255, 255, 0, 0])),
+  ]);
+  const loadFile = async (fileName: string) =>
+    files.get(fileName.toLowerCase());
+  const skeleton = {
+    name: 'UNIT_SKL',
+    names: ['ROOT', 'ARM'],
+    parents: [-1, 0],
+    translations: [],
+    rotations: [],
+  };
+
+  test('a clip of the same name, or a renamed copy of the rig, binds', () => {
+    const clip = { name: 'CLIP', hierarchyName: 'unit_skl' };
+
+    assert.strictEqual(findBindRefusal(skeleton, clip, undefined), undefined);
+    assert.strictEqual(
+      findBindRefusal(
+        skeleton,
+        { ...clip, hierarchyName: 'COPY_SKL' },
+        { names: ['root', 'arm'], parents: [-1, 0] },
+      ),
+      undefined,
+    );
+  });
+
+  test('another rig is refused, by bone name, by parent, or by count', () => {
+    const clip = { name: 'CLIP', hierarchyName: 'OTHER_SKL' };
+
+    for (const other of [
+      { names: ['ROOT', 'LEG'], parents: [-1, 0] },
+      { names: ['ROOT', 'ARM'], parents: [-1, -1] },
+      { names: ['ROOT'], parents: [-1] },
+    ]) {
+      assert.match(
+        findBindRefusal(skeleton, clip, other) ?? '',
+        /made for OTHER_SKL, a different skeleton from UNIT_SKL/,
+      );
+    }
+    assert.match(
+      findBindRefusal(skeleton, clip, undefined) ?? '',
+      /which was not found/,
+    );
+  });
+
+  test('the list keeps the clips that bind and says why the others do not', async () => {
+    const clips = await sortClipsBySkeleton(
+      skeleton,
+      [
+        'unit_skl.w3d',
+        'unit_run.w3d',
+        'unit_copy.w3d',
+        'unit_other.w3d',
+        'unit_lost.w3d',
+        'unit_broken.w3d',
+      ],
+      loadFile,
+      createToolRegistry(),
+    );
+
+    assert.deepStrictEqual(clips.playable, ['unit_run.w3d', 'unit_copy.w3d']);
+    assert.deepStrictEqual(clips.refused, [
+      { file: 'unit_other.w3d', hierarchyName: 'OTHER_SKL' },
+      { file: 'unit_lost.w3d', hierarchyName: 'LOST_SKL' },
+    ]);
+  });
+
+  test('the INI model carries a clip only if its skeleton takes it', async () => {
+    const modelOn = (hierarchyName: string) =>
+      buildChunk(
+        0x700,
+        buildChunk(
+          0x701,
+          concatBytes(
+            new Uint8Array(8),
+            encodeName('M', 16),
+            encodeName(hierarchyName, 16),
+          ),
+        ),
+        true,
+      );
+    const withModels = new Map([
+      ...files,
+      named('other_skn.w3d')(modelOn('OTHER_SKL')),
+      named('copy_skn.w3d')(modelOn('COPY_SKL')),
+    ]);
+    const load = async (fileName: string) =>
+      withModels.get(fileName.toLowerCase());
+    const tools = createToolRegistry();
+    const clip = await buildW3dScene(files.get('unit_run.w3d')!, load, tools);
+    const carry = (iniModel: string) =>
+      findAnimationCarrier(
+        {
+          animation: { name: 'CLIP', hierarchyName: 'UNIT_SKL' },
+          skeleton: clip.skeleton!,
+        },
+        iniModel,
+        async () => [],
+        load,
+        tools,
+      );
+
+    assert.deepStrictEqual(
+      { ...(await carry('other_skn.w3d')), scene: undefined },
+      { name: undefined, scene: undefined, refused: 'other_skn.w3d' },
+    );
+    assert.strictEqual((await carry('copy_skn.w3d')).name, 'copy_skn.w3d');
+  });
+});
 
 suite('W3D opacity channels', () => {
   test('channel type 15 reads as opacity, and a frame outside it as none', () => {

@@ -99,6 +99,8 @@ export interface ModelScene {
   skeleton?: SceneSkeleton;
   /** An animation the file itself holds, which plays at once */
   animation?: W3dAnimation;
+  /** The skeleton `animation` names, when it is not `skeleton` and was found */
+  animationSkeleton?: SceneSkeleton;
   bounds: { min: [number, number, number]; max: [number, number, number] };
 }
 
@@ -366,6 +368,44 @@ export const getMeshVisibility = (
   );
 };
 
+/** Finds and reads the hierarchy of a name, in its own file or the `_SKL` of that stem */
+const loadHierarchy = async (
+  name: string,
+  loadFile: LoadFile,
+  tools: ToolBox,
+): Promise<W3dHierarchy | undefined> => {
+  for (const candidate of [`${name}.w3d`, `${name}_skl.w3d`]) {
+    const bytes = await loadFile(candidate);
+
+    if (bytes) {
+      return (await tools.use(parseW3dTool)(bytes)).hierarchy;
+    }
+  }
+
+  return undefined;
+};
+
+const toSceneSkeleton = (hierarchy: W3dHierarchy): SceneSkeleton => ({
+  name: hierarchy.name,
+  names: hierarchy.pivots.map((pivot) => pivot.name),
+  parents: hierarchy.pivots.map((pivot) => pivot.parent),
+  translations: hierarchy.pivots.flatMap((pivot) => pivot.translation),
+  rotations: hierarchy.pivots.flatMap((pivot) => pivot.rotation),
+});
+
+/** Finds a skeleton by the name an animation or HLOD gives it; a file that does not parse has none */
+export const loadSkeleton = async (
+  name: string,
+  loadFile: LoadFile,
+  tools: ToolBox,
+): Promise<SceneSkeleton | undefined> => {
+  const hierarchy = await loadHierarchy(name, loadFile, tools).catch(
+    () => undefined,
+  );
+
+  return hierarchy && toSceneSkeleton(hierarchy);
+};
+
 /** Builds the scene for a W3D file, loading its skeleton and textures */
 export const buildW3dScene = async (
   bytes: Uint8Array,
@@ -381,9 +421,7 @@ export const buildW3dScene = async (
   const hierarchyName = file.hlod?.hierarchyName ?? animation?.hierarchyName;
 
   if (!hierarchy && hierarchyName) {
-    const skeleton = await loadFile(`${hierarchyName}.w3d`);
-
-    hierarchy = skeleton ? (await parse(skeleton)).hierarchy : undefined;
+    hierarchy = await loadHierarchy(hierarchyName, loadFile, tools);
   }
 
   if (!file.meshes.length && !hierarchy) {
@@ -484,14 +522,14 @@ export const buildW3dScene = async (
     textures,
     missing: textureNames.filter((name) => !textureIndex.has(name)),
     hierarchy: hierarchy?.name,
-    skeleton: hierarchy && {
-      name: hierarchy.name,
-      names: hierarchy.pivots.map((pivot) => pivot.name),
-      parents: hierarchy.pivots.map((pivot) => pivot.parent),
-      translations: hierarchy.pivots.flatMap((pivot) => pivot.translation),
-      rotations: hierarchy.pivots.flatMap((pivot) => pivot.rotation),
-    },
+    skeleton: hierarchy && toSceneSkeleton(hierarchy),
     animation,
+    animationSkeleton:
+      animation &&
+      hierarchy &&
+      animation.hierarchyName.toLowerCase() !== hierarchy.name.toLowerCase()
+        ? await loadSkeleton(animation.hierarchyName, loadFile, tools)
+        : undefined,
     bounds: { min, max },
   };
 };

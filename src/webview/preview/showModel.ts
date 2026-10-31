@@ -1,6 +1,8 @@
-import { poseAt } from "../../formats/w3d/w3dPose";
+import { findBindRefusal, poseAt } from "../../formats/w3d/w3dPose";
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import type { W3dAnimation } from "../../formats/w3d/w3dAnimation";
+import type { RefusedClip } from "../../formats/w3d/w3dModelFinder";
+import type { SceneSkeleton } from "../../formats/w3d/w3dScene";
 import { createModelRenderer } from "../shared/modelRenderer";
 import { createOrbit } from "../shared/orbit";
 import type { FileUse, ModelMessage } from "./protocol";
@@ -25,10 +27,14 @@ interface Host {
 
 /** Controls the preview page's message handler drives the model view through */
 export interface ModelControl {
-  /** Adds the animation files that fit the skeleton to the animation list */
-  setAnimations(names: string[]): void;
-  /** Plays an animation on the skeleton, warning when it was made for another one */
-  play(message: { file: string; animation: W3dAnimation }): void;
+  /** Adds the animation files that fit the skeleton to the list, and says what was left out */
+  setAnimations(names: string[], refused: RefusedClip[]): void;
+  /** Plays an animation on the skeleton, or says why it does not fit */
+  play(message: {
+    file: string;
+    animation: W3dAnimation;
+    skeleton?: SceneSkeleton;
+  }): void;
   /** Shows a short message in the status line */
   showNotice(text: string): void;
   /** Where the INI files use the file, each a link to the line */
@@ -53,6 +59,8 @@ export const showModel = (
   const canvas = element("canvas", { className: "model" });
   const info = element("p");
   const usedIn = element("p");
+  const refusal = element("p", { className: "error" });
+  const leftOut = element("p");
   const controls = element("div", { className: "controls" });
   const triangles = meshes.reduce(
     (total, mesh) => total + mesh.indices.length / 3,
@@ -63,6 +71,9 @@ export const showModel = (
     ...(message.shownOn
       ? [`shown on ${message.shownOn}, the model drawn on its skeleton`]
       : []),
+    ...(message.refusedModel
+      ? [`not shown on ${message.refusedModel}, the INI's model: its skeleton does not take this animation`]
+      : []),
     `${meshes.length} meshes`,
     `${triangles} triangles`,
     ...(hierarchy && skeleton
@@ -71,7 +82,7 @@ export const showModel = (
     ...(missing.length ? [`textures not found: ${missing.join(", ")}`] : []),
     "drag to orbit, scroll to zoom, double-click to reset, B for bones",
   ].join(" · ");
-  main.replaceChildren(controls, canvas, info, usedIn);
+  main.replaceChildren(controls, canvas, refusal, info, usedIn, leftOut);
 
   const gl = canvas.getContext("webgl", { antialias: true });
 
@@ -266,7 +277,11 @@ export const showModel = (
       player.frame = 0;
       showFrame();
     } else if (select.value === OWN && message.animation) {
-      control.play({ file: OWN, animation: message.animation });
+      control.play({
+        file: OWN,
+        animation: message.animation,
+        skeleton: message.animationSkeleton,
+      });
     } else {
       label.textContent = `Loading ${select.value}…`;
       post({ kind: "animation", file: select.value });
@@ -289,18 +304,31 @@ export const showModel = (
   window.addEventListener("resize", draw);
 
   const control: ModelControl = {
-    setAnimations: (names) =>
+    setAnimations: (names, refused) => {
       select.append(
         ...names.map((name) => new Option(name.replace(/\.w3d$/i, ""), name)),
-      ),
-    play: ({ file, animation }) => {
+      );
+      leftOut.textContent = refused.length
+        ? `Not listed, made for another skeleton: ${refused
+            .map(
+              ({ file, hierarchyName }) =>
+                `${file.replace(/\.w3d$/i, "")} (${hierarchyName})`,
+            )
+            .join(", ")}`
+        : "";
+    },
+    play: ({ file, animation, skeleton: clipSkeleton }) => {
       if (!skeleton) {
         return;
       }
-      if (
-        animation.hierarchyName.toLowerCase() !== skeleton.name.toLowerCase()
-      ) {
-        info.textContent = `${animation.name} is made for ${animation.hierarchyName}, not ${skeleton.name}; it may look wrong.`;
+
+      const refused = findBindRefusal(skeleton, animation, clipSkeleton);
+
+      refusal.textContent = refused ?? "";
+      if (refused) {
+        label.textContent = "";
+        select.value = player.animation ? select.value : "";
+        return;
       }
       player.animation = animation;
       player.frame = 0;
@@ -336,7 +364,12 @@ export const showModel = (
 
   if (message.animation && skeleton) {
     select.append(new Option(`${message.animation.name} (this file)`, OWN));
-    control.play({ file: OWN, animation: message.animation });
+    showFrame();
+    control.play({
+      file: OWN,
+      animation: message.animation,
+      skeleton: message.animationSkeleton,
+    });
   } else {
     showFrame();
   }

@@ -6,7 +6,7 @@ import {
   findAnimation,
   parseW3dAnimations,
 } from '../../formats/w3d/w3dAnimation';
-import { buildW3dScene } from '../../formats/w3d/w3dScene';
+import { buildW3dScene, loadSkeleton } from '../../formats/w3d/w3dScene';
 import { createToolRegistry } from '../../core/toolRegistry';
 import { EffectLibrary } from '../../services/effectLibrary';
 import { composeEffectiveObject } from '../../services/ini/effectiveObject';
@@ -226,12 +226,22 @@ const createObjectPreview = (
   const sendAnimation = async (clipName: string): Promise<void> => {
     const clip = clipName.slice(clipName.lastIndexOf('.') + 1);
     const bytes = await locator?.read(`${clip}.w3d`, uri);
-    const animations = bytes ? parseW3dAnimations(bytes) : [];
+    const animation = findAnimation(
+      bytes ? parseW3dAnimations(bytes) : [],
+      clipName,
+    );
 
     await panel.post({
       kind: 'animation',
       name: clipName,
-      animation: findAnimation(animations, clipName),
+      animation,
+      skeleton:
+        animation &&
+        (await loadSkeleton(
+          animation.hierarchyName,
+          (fileName) => locator!.read(fileName, uri),
+          tools,
+        )),
     });
   };
 

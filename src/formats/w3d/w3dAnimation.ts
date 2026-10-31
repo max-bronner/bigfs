@@ -491,6 +491,32 @@ export const parseW3dAnimations = (bytes: Uint8Array): W3dAnimation[] =>
     });
 
 /**
+ * Reads the skeleton a file's first animation names, from its header alone, so
+ * many files can be sorted without decoding a channel.
+ * @throws Error when a chunk runs past its parent
+ */
+export const readAnimationHierarchyName = (
+  bytes: Uint8Array,
+): string | undefined => {
+  const animation = readChunks(bytes).find(
+    (chunk) =>
+      chunk.type === CHUNK.ANIMATION ||
+      chunk.type === CHUNK.COMPRESSED_ANIMATION,
+  );
+  const header = animation
+    ? readChunks(animation.payload).find(
+        (child) =>
+          child.type === CHUNK.ANIMATION_HEADER ||
+          child.type === CHUNK.COMPRESSED_ANIMATION_HEADER,
+      )
+    : undefined;
+
+  return header && header.payload.length >= 44
+    ? readName(header.payload, 20)
+    : undefined;
+};
+
+/**
  * Finds the animation an INI line names, `SKELETON.CLIP`: the one whose skeleton
  * and name are those, else the one named `CLIP`, else the file's first
  */

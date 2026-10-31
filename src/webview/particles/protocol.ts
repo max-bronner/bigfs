@@ -2,7 +2,7 @@ import type { FxListDef } from '../../formats/particles/particleIni';
 import type { NumericField } from '../../formats/particles/particleValueEdits';
 import type { ParticleDef } from '../../formats/particles/particleDef';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
-import type { ModelScene } from '../../formats/w3d/w3dScene';
+import type { ModelScene, SceneSkeleton } from '../../formats/w3d/w3dScene';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { ObjectScene, SceneFocus } from '../../game/objects/objectScene';
 
@@ -38,7 +38,13 @@ export type ToPage =
   | { kind: 'model'; model?: { name: string; scene: ModelScene } }
   /** An object to preview, opened on what the preview was asked from */
   | { kind: 'object'; object: ObjectScene; focus: SceneFocus }
-  | { kind: 'animation'; name: string; animation?: W3dAnimation };
+  | {
+      kind: 'animation';
+      name: string;
+      animation?: W3dAnimation;
+      /** The skeleton the animation names, when it was found */
+      skeleton?: SceneSkeleton;
+    };
 
 /** Messages the particle page sends the preview: status, slider values and requests */
 export type FromPage =

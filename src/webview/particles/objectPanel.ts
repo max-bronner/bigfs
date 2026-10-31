@@ -1,4 +1,4 @@
-import { poseAt } from '../../formats/w3d/w3dPose';
+import { findBindRefusal, poseAt } from '../../formats/w3d/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { SceneSkeleton } from '../../formats/w3d/w3dScene';
@@ -42,6 +42,11 @@ export const objectView = {
   frame: 0,
   pose: undefined as Pose | undefined,
 };
+
+/** The animation last loaded, kept so it can be judged again when the model changes */
+let loaded:
+  | { name: string; animation?: W3dAnimation; skeleton?: SceneSkeleton }
+  | undefined;
 
 /** Restarts the effects, and poses the model; set by the page */
 let restart = () => {};
@@ -99,41 +104,49 @@ export const advanceAnimation = (seconds: number): void => {
   setPose();
 };
 
+/** Plays the loaded animation if the shown model's skeleton takes it, or says why not */
+const bindLoadedAnimation = () => {
+  const { skeleton } = objectView;
+  const animation = loaded?.animation;
+  const refusal =
+    animation && skeleton
+      ? findBindRefusal(skeleton, animation, loaded?.skeleton)
+      : undefined;
+
+  objectView.animation = refusal ? undefined : animation;
+  $('objectNotice').textContent =
+    refusal ??
+    (loaded && !animation
+      ? `The animation ${loaded.name} was not found or holds no animation`
+      : '');
+  setPose();
+};
+
 /** Takes the skeleton of the model the page now shows, or none, then restarts the effects */
 export const setShownModel = (skeleton: SceneSkeleton | undefined): void => {
   objectView.skeleton = skeleton;
-  setPose();
+  bindLoadedAnimation();
   restart();
 };
 
-/** Takes a loaded animation, or none when it was not found, warning when it was made for another skeleton */
+/** Takes a loaded animation with the skeleton it names, or none when it was not found */
 export const setLoadedAnimation = (
   name: string,
   animation: W3dAnimation | undefined,
+  skeleton?: SceneSkeleton,
 ): void => {
-  const notice = $('objectNotice');
-
-  objectView.animation = animation;
+  loaded = { name, animation, skeleton };
   objectView.frame = 0;
-  notice.textContent = animation
-    ? ''
-    : `The animation ${name} was not found or holds no animation`;
-  if (
-    animation &&
-    objectView.skeleton &&
-    !isSameName(animation.hierarchyName, objectView.skeleton.name)
-  ) {
-    notice.textContent = `${name} is made for ${animation.hierarchyName}, not ${objectView.skeleton.name}; it may look wrong`;
-  }
-  setPose();
+  bindLoadedAnimation();
 };
 
 const playAnimation = (name: string | undefined) => {
   if (name) {
     post({ kind: 'loadAnimation', name });
   } else {
-    setLoadedAnimation('', undefined);
-    $('objectNotice').textContent = '';
+    loaded = undefined;
+    objectView.frame = 0;
+    bindLoadedAnimation();
   }
 };
 

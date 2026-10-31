@@ -1,10 +1,13 @@
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
-import type { ModelScene } from '../../formats/w3d/w3dScene';
+import type { RefusedClip } from '../../formats/w3d/w3dModelFinder';
+import type { ModelScene, SceneSkeleton } from '../../formats/w3d/w3dScene';
 
 /** Message carrying a W3D model, or the model an animation file is shown on */
 export interface ModelMessage extends ModelScene {
   /** The model an animation file is shown on, found by its skeleton */
   shownOn?: string;
+  /** The model the INI plays the animation on, passed over for its other skeleton */
+  refusedModel?: string;
 }
 
 /** A line of an INI file that names the shown file */
@@ -62,9 +65,15 @@ export type ToPreviewPage =
   | VideoMessage
   | ({ kind: 'model' } & ModelMessage)
   | { kind: 'error'; message: string }
-  | { kind: 'animations'; names: string[] }
+  | { kind: 'animations'; playable: string[]; refused: RefusedClip[] }
   | { kind: 'uses'; uses: FileUse[] }
-  | { kind: 'animation'; file: string; animation: W3dAnimation }
+  | {
+      kind: 'animation';
+      file: string;
+      animation: W3dAnimation;
+      /** The skeleton the animation names, when it was found */
+      skeleton?: SceneSkeleton;
+    }
   | { kind: 'animationError'; message: string }
   | { kind: 'videoFrame'; index: number; pixels: Uint8Array }
   | { kind: 'videoError'; message: string };

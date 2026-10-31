@@ -107,6 +107,35 @@ const sample = (
   return slerp(a, b, t);
 };
 
+/** The bones of a skeleton, as two skeletons are compared by */
+export type SkeletonBones = Pick<SceneSkeleton, 'names' | 'parents'>;
+
+/** Whether two hierarchies are one skeleton under two names: the same bones, by name and parent, in order */
+const isSameSkeleton = (a: SkeletonBones, b: SkeletonBones): boolean =>
+  a.names.length === b.names.length &&
+  a.names.every(
+    (name, at) =>
+      a.parents[at] === b.parents[at] &&
+      name.toLowerCase() === b.names[at].toLowerCase(),
+  );
+
+/**
+ * Says why an animation cannot play on a skeleton, or nothing when it can. A
+ * channel moves a bone by its number, so a clip of another rig would move the
+ * wrong bones; a renamed copy of the same rig is fine. Ported from mint's
+ * `ModelAnimation::bind`.
+ * @param clipSkeleton The skeleton the animation names, when it was found
+ */
+export const findBindRefusal = (
+  skeleton: SceneSkeleton,
+  animation: Pick<W3dAnimation, 'name' | 'hierarchyName'>,
+  clipSkeleton: SkeletonBones | undefined,
+): string | undefined =>
+  animation.hierarchyName.toLowerCase() === skeleton.name.toLowerCase() ||
+  (clipSkeleton && isSameSkeleton(skeleton, clipSkeleton))
+    ? undefined
+    : `${animation.name} is not played: it is made for ${animation.hierarchyName}${clipSkeleton ? `, a different skeleton from ${skeleton.name}` : `, which was not found, not ${skeleton.name}`}`;
+
 /** Reads a type 15 sample, as mint's `type15_opacity`: below zero or not a number is clear */
 const toOpacity = (raw: number): number =>
   Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;

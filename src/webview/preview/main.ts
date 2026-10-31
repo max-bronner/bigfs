@@ -49,7 +49,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
       modelControl?.setUses(data.uses);
       break;
     case 'animations':
-      modelControl?.setAnimations(data.names);
+      modelControl?.setAnimations(data.playable, data.refused);
       break;
     case 'animation':
       modelControl?.play(data);

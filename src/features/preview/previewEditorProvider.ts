@@ -6,9 +6,14 @@ import {
   decodeTgaTool,
 } from '../../formats/texture/textureTools';
 import { playableAudioTool } from '../../formats/audio/audioTools';
-import { buildW3dScene } from '../../formats/w3d/w3dScene';
+import { buildW3dScene, loadSkeleton } from '../../formats/w3d/w3dScene';
 import { parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
-import { findModelForSkeleton } from '../../formats/w3d/w3dModelFinder';
+import {
+  findAnimationCarrier,
+  sortClipsBySkeleton,
+} from '../../formats/w3d/w3dModelFinder';
+import type { SkeletonClips } from '../../formats/w3d/w3dModelFinder';
+import type { SceneSkeleton } from '../../formats/w3d/w3dScene';
 import { decompressEar, isEarWrapped } from '../../formats/refpack/refpack';
 import { Vp6Movie } from '../../formats/vp6/container';
 import type { EntryLocator } from '../../services/entryLocator';
@@ -101,27 +106,26 @@ const buildMessage = async (
               (found) => found,
               () => undefined,
             );
-          const model =
-            (fromIni && `${fromIni.replace(/\.w3d$/i, '')}.w3d`) ??
-            (await findModelForSkeleton(
-              scene.skeleton.name,
-              await locator.findNames(
+          const carrier = await findAnimationCarrier(
+            { animation: scene.animation, skeleton: scene.skeleton },
+            fromIni && `${fromIni.replace(/\.w3d$/i, '')}.w3d`,
+            () =>
+              locator.findNames(
                 (name) => name.endsWith('.w3d'),
                 '**/*.{w3d,W3D}',
               ),
-              loadFile,
-              tools,
-            ));
-          const bytesOfModel = model && (await loadFile(model));
+            loadFile,
+            tools,
+          );
 
-          if (bytesOfModel) {
-            return {
-              kind: 'model',
-              ...(await buildW3dScene(bytesOfModel, loadFile, tools)),
-              animation: scene.animation,
-              shownOn: model,
-            };
-          }
+          return {
+            kind: 'model',
+            ...(carrier.scene ?? scene),
+            animation: scene.animation,
+            animationSkeleton: scene.skeleton,
+            shownOn: carrier.scene && carrier.name,
+            refusedModel: carrier.refused,
+          };
         }
         return { kind: 'model', ...scene };
       }
@@ -217,17 +221,28 @@ export class PreviewEditorProvider
   }
 
   /**
-   * Finds the files that look like animations of a skeleton: for `GUArcher_SKL`, every
-   * `guarcher_*.w3d` but the skeleton itself
+   * Finds the animations of a skeleton: for `GUArcher_SKL`, every
+   * `guarcher_*.w3d` but the skeleton itself, sorted by the skeleton each names
    */
-  private findAnimations(skeleton: string): Promise<string[]> {
-    const prefix = `${skeleton.toLowerCase().replace(/_skl$/, '')}_`;
-    const own = `${skeleton.toLowerCase()}.w3d`;
-
-    return this.locator.findNames(
-      (name) =>
-        name.startsWith(prefix) && name.endsWith('.w3d') && name !== own,
+  private async findAnimations(
+    skeleton: SceneSkeleton,
+    uri: vscode.Uri,
+  ): Promise<SkeletonClips> {
+    const name = skeleton.name.toLowerCase();
+    const prefix = `${name.replace(/_skl$/, '')}_`;
+    const names = await this.locator.findNames(
+      (each) =>
+        each.startsWith(prefix) &&
+        each.endsWith('.w3d') &&
+        each !== `${name}.w3d`,
       '**/*.{w3d,W3D}',
+    );
+
+    return sortClipsBySkeleton(
+      skeleton,
+      names,
+      (fileName) => this.locator.read(fileName, uri),
+      this.tools,
     );
   }
 
@@ -273,7 +288,7 @@ export class PreviewEditorProvider
           if (built.kind === 'model' && built.skeleton) {
             await panel.webview.postMessage({
               kind: 'animations',
-              names: await this.findAnimations(built.skeleton.name),
+              ...(await this.findAnimations(built.skeleton, document.uri)),
             });
           }
           if (built.kind === 'model') {
@@ -321,7 +336,16 @@ export class PreviewEditorProvider
             const [animation] = bytes ? parseW3dAnimations(bytes) : [];
 
             reply = animation
-              ? { kind: 'animation', file: name, animation }
+              ? {
+                  kind: 'animation',
+                  file: name,
+                  animation,
+                  skeleton: await loadSkeleton(
+                    animation.hierarchyName,
+                    (fileName) => this.locator.read(fileName, document.uri),
+                    this.tools,
+                  ),
+                }
               : {
                   kind: 'animationError',
                   message: `${name} holds no animation`,

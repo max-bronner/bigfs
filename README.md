@@ -337,6 +337,8 @@ your mod's archives.
   with motion search, and each frame sends the probabilities it needs. Any video FFmpeg reads works
   when FFmpeg is installed (`bigfs.ffmpegPath`); without it, WebM and Ogg.
 - Models: W3D in 3D, with their skeleton and textures found in any archive.
+  An animation plays only on its own skeleton or a renamed copy of it; the
+  viewer lists the rest and says why.
   Animations of the skeleton are listed and play on the model (dense,
   time-coded, adaptive-delta and motion channels); a skeleton or an
   animation file on its own shows its bones. Meshes marked hidden are not

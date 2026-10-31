@@ -384,7 +384,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     return;
   }
   if (data.kind === 'animation') {
-    setLoadedAnimation(data.name, data.animation);
+    setLoadedAnimation(data.name, data.animation, data.skeleton);
     return;
   }
   if (data.kind === 'model') {
