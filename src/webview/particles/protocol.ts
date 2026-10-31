@@ -1,8 +1,5 @@
-import type {
-  FxListDef,
-  NumericField,
-  ParticleDef,
-} from '../../formats/particles/particleIni';
+import type { FxListDef, NumericField } from '../../formats/particles/particleIni';
+import type { ParticleDef } from '../../formats/particles/particleDef';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';

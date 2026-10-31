@@ -1,19 +1,9 @@
 import * as vscode from 'vscode';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { EntryLocator } from '../../services/entryLocator';
-import {
-  applyValueEdits,
-  findParticleDefinitions,
-  findNumericFields,
-  readFxList,
-  readParticleDef,
-  computeValueEdits,
-} from '../../formats/particles/particleIni';
-import type {
-  FxListDef,
-  IniDefinition,
-  ParticleDef,
-} from '../../formats/particles/particleIni';
+import { applyValueEdits, findParticleDefinitions, findNumericFields, readFxList, readParticleDef, computeValueEdits } from '../../formats/particles/particleIni';
+import type { FxListDef, IniDefinition } from '../../formats/particles/particleIni';
+import type { ParticleDef } from '../../formats/particles/particleDef';
 import { computeKeyEdits } from '../../formats/particles/particleKeys';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';

@@ -1,9 +1,5 @@
 import * as assert from 'assert';
-import {
-  findParticleDefinitions,
-  findNumericFields,
-  readParticleDef,
-} from '../../formats/particles/particleIni';
+import { findParticleDefinitions, findNumericFields, readParticleDef } from '../../formats/particles/particleIni';
 import {
   PARTICLE_TEMPLATES,
   createTemplateSnippet,

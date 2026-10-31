@@ -1,10 +1,5 @@
-import type {
-  FxListDef,
-  ParticleDef,
-  Range,
-  Vec3,
-  Volume,
-} from './particleIni';
+import type { FxListDef } from './particleIni';
+import type { ParticleDef, Range, Vec3, Volume } from './particleDef';
 
 /**
  * The particle simulation the preview runs, at the games' fixed 30 Hz step.

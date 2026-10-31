@@ -1,5 +1,5 @@
 import { createModelRenderer } from '../shared/modelRenderer';
-import type { ParticleDef } from '../../formats/particles/particleIni';
+import type { ParticleDef } from '../../formats/particles/particleDef';
 import type { Particle } from '../../formats/particles/particleSimulation';
 import type { Basis } from './camera';
 import { dot } from './camera';

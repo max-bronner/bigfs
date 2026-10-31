@@ -1,8 +1,5 @@
-import type {
-  NumericField,
-  ParticleDef,
-  Vec3,
-} from '../../formats/particles/particleIni';
+import type { NumericField } from '../../formats/particles/particleIni';
+import type { ParticleDef, Vec3 } from '../../formats/particles/particleDef';
 import { computeCameraBasis, computeViewProjection } from './camera';
 import { canvas } from './graphics';
 import { $, library, post, state, world } from './page';

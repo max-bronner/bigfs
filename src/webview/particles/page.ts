@@ -1,9 +1,6 @@
 import { ParticleWorld } from '../../formats/particles/particleSimulation';
-import type {
-  FxListDef,
-  ParticleDef,
-  Vec3,
-} from '../../formats/particles/particleIni';
+import type { FxListDef } from '../../formats/particles/particleIni';
+import type { ParticleDef, Vec3 } from '../../formats/particles/particleDef';
 import type { FromPage, SceneMessage } from './protocol';
 import { getVsCodeApi } from '../shared/vscodeApi';
 

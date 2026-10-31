@@ -1,4 +1,4 @@
-import type { Vec3 } from '../../formats/particles/particleIni';
+import type { Vec3 } from '../../formats/particles/particleDef';
 import { $, state } from './page';
 
 /** The orbit camera: yaw and pitch around a target, at a distance */

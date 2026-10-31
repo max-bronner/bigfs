@@ -1,5 +1,5 @@
 import type { SageToken } from '../ini/sageIniParser';
-import type { Range, Vec3 } from './particleIni';
+import type { Range, Vec3 } from './particleDef';
 
 /**
  * Preview of the FX list nuggets other than `ParticleSystem` and `Sound`. mint fires

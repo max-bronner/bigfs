@@ -1,8 +1,5 @@
 import * as assert from 'assert';
-import {
-  findParticleDefinitions,
-  readParticleDef,
-} from '../../formats/particles/particleIni';
+import { findParticleDefinitions, readParticleDef } from '../../formats/particles/particleIni';
 import { applyLineEdits, computeKeyEdits } from '../../formats/particles/particleKeys';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
 

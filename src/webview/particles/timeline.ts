@@ -1,7 +1,4 @@
-import type {
-  FxListDef,
-  NumericField,
-} from '../../formats/particles/particleIni';
+import type { FxListDef, NumericField } from '../../formats/particles/particleIni';
 import type { FxEffect } from '../../formats/particles/fxEffects';
 import { getEffectLength } from '../../formats/particles/fxEffects';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';

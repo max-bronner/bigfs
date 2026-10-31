@@ -1,4 +1,4 @@
-import type { ParticleDef, Vec3 } from '../../formats/particles/particleIni';
+import type { ParticleDef, Vec3 } from '../../formats/particles/particleDef';
 
 /** Lines for the ground grid and emitter volumes: xyz rgba per vertex */
 
