@@ -2,7 +2,7 @@ import { FileType, ProgressLocation, Uri, window, workspace } from "vscode";
 import type { Disposable, LogOutputChannel, TextDocument } from "vscode";
 import type { ArchiveModel } from "../archives/archiveModel";
 import type { VirtualNode } from "../archives/virtualNode";
-import { getFileNodes } from "../archives/virtualNode";
+import { getFileNodes } from "../archives/virtualTree";
 import { getNodeUri } from "../archives/nodeAddress";
 import type { SageIniSchema } from "../../formats/ini/sageIniSchema";
 import { getArchiveLanguage } from "../../game/text/gameLanguage";

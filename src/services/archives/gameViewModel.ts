@@ -2,7 +2,7 @@ import { EventEmitter, FileType, Uri } from 'vscode';
 import type { Disposable } from 'vscode';
 import { createDebouncer } from '../../core/debounce';
 import type { ArchiveModel } from './archiveModel';
-import { getFileNodes } from './virtualNode';
+import { getFileNodes } from './virtualTree';
 import type { VirtualNode } from './virtualNode';
 import { buildGameTree, indexByName, orderInstallFiles } from '../../game/install/gameView';
 import type { GameNode, InstallFiles } from '../../game/install/gameView';

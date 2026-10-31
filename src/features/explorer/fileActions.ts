@@ -7,12 +7,7 @@ import {
   resolveConflicts,
 } from '../../platform/dialogs';
 import { findConflicts, planTransfer } from '../../core/transferPlan';
-import {
-  findChild,
-  getTopLevelNodes,
-  isArchiveRoot,
-  isBelow,
-} from '../../services/archives/virtualNode';
+import { findChild, getTopLevelNodes, isArchiveRoot, isBelow } from '../../services/archives/virtualTree';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../../services/archives/archiveModel';
 import type { ConflictChoice } from '../../core/transferPlan';

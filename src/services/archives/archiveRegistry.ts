@@ -5,12 +5,7 @@ import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { delay } from '../../core/delay';
 import type { Archive } from './archive';
 import type { ArchiveSource } from './archiveSource';
-import {
-  findChild,
-  getFileNodes,
-  getRelativeEntryPath,
-  isArchiveRoot,
-} from './virtualNode';
+import { findChild, getFileNodes, getRelativeEntryPath, isArchiveRoot } from './virtualTree';
 import { getNodePath, parseNodeUri } from './nodeAddress';
 import type { ResolvedUri } from './nodeAddress';
 import type { VirtualNode } from './virtualNode';

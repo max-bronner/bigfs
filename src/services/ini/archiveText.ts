@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { decodeIniText, encodeWindows1252 } from '../../core/windows1252';
 import type { ArchiveModel } from '../archives/archiveModel';
-import { getFileNodes } from '../archives/virtualNode';
+import { getFileNodes } from '../archives/virtualTree';
 import { getNodeUri } from '../archives/nodeAddress';
 import { SCHEME } from '../../constants';
 

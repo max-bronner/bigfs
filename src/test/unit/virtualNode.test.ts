@@ -14,11 +14,11 @@ internals._load = (request, ...rest) =>
     ? { FileType: { File: 1, Directory: 2 } }
     : original.call(Module, request, ...rest);
 
-let nodes: typeof import('../../services/archives/virtualNode');
+let nodes: typeof import('../../services/archives/virtualTree');
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  nodes = require('../../services/archives/virtualNode');
+  nodes = require('../../services/archives/virtualTree');
 } finally {
   internals._load = original;
 }

@@ -9,12 +9,7 @@ import type { ConflictChoice, TransferItem } from '../../core/transferPlan';
 import type { Archive, EntryChange, EntrySource } from './archive';
 import type { ArchivePolicy } from './archivePolicy';
 import type { ArchiveRegistry } from './archiveRegistry';
-import {
-  findBlockingFile,
-  getFileNodes,
-  getRelativeEntryPath,
-  isArchiveRoot,
-} from './virtualNode';
+import { findBlockingFile, getFileNodes, getRelativeEntryPath, isArchiveRoot } from './virtualTree';
 import { getNodePath } from './nodeAddress';
 import type { VirtualNode } from './virtualNode';
 

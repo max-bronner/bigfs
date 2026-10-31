@@ -12,7 +12,7 @@ import path from 'path';
 import { writeArchiveFile } from '../../node/archiveFile';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
-import { getFileNodes } from '../../services/archives/virtualNode';
+import { getFileNodes } from '../../services/archives/virtualTree';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import { getNodeUri } from '../../services/archives/nodeAddress';
 import { isSkippedFromPackage } from '../../node/modPackage';

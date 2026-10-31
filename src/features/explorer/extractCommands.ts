@@ -11,12 +11,7 @@ import type { CancellationToken, Progress } from 'vscode';
 import path from 'path';
 import { isContainedPath, splitPath } from '../../core/paths';
 import { resolveConflicts } from '../../platform/dialogs';
-import {
-  getFileNodes,
-  getRelativeEntryPath,
-  getTopLevelNodes,
-  isArchiveRoot,
-} from '../../services/archives/virtualNode';
+import { getFileNodes, getRelativeEntryPath, getTopLevelNodes, isArchiveRoot } from '../../services/archives/virtualTree';
 import { getNodeUri } from '../../services/archives/nodeAddress';
 import type { RegisterNodeCommand } from '../../services/archives/nodeCommands';
 import type { VirtualNode } from '../../services/archives/virtualNode';

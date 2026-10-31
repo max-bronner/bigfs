@@ -9,7 +9,7 @@ import {
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { ArchiveModel } from '../../services/archives/archiveModel';
 import { BigTreeDataProvider } from '../../features/explorer/treeDataProvider';
-import { findChild, getFileNodes } from '../../services/archives/virtualNode';
+import { findChild, getFileNodes } from '../../services/archives/virtualTree';
 import { getExtractedFiles } from '../../features/explorer/extractCommands';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import { isVirtualNode } from '../../services/archives/explorerRow';

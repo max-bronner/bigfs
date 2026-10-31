@@ -9,7 +9,7 @@ import {
   FileType,
 } from 'vscode';
 import { formatCount } from '../../core/messages';
-import { countFileNodes, isArchiveRoot } from '../../services/archives/virtualNode';
+import { countFileNodes, isArchiveRoot } from '../../services/archives/virtualTree';
 import { getNodePath, getNodeUri } from '../../services/archives/nodeAddress';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import type { VirtualNode } from '../../services/archives/virtualNode';

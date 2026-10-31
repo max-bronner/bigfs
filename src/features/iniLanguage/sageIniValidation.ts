@@ -7,7 +7,7 @@ import {
 } from 'vscode';
 import type { Diagnostic, Disposable, Uri } from 'vscode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
-import { getFileNodes } from '../../services/archives/virtualNode';
+import { getFileNodes } from '../../services/archives/virtualTree';
 import { getNodeUri } from '../../services/archives/nodeAddress';
 import { formatCount } from '../../core/messages';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';

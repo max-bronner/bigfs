@@ -10,17 +10,11 @@ import {
 } from '../../node/archiveFile';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { movePath } from '../../core/paths';
-import {
-  buildVirtualTree,
-  copyNode,
-  getFileNodes,
-  insertDirectory,
-  insertFile,
-  moveNode,
-  removeNode,
-  syncFiles,
-} from './virtualNode';
-import type { VirtualNode } from './virtualNode';
+import { buildVirtualTree, copyNode, getFileNodes, insertDirectory, insertFile, moveNode, removeNode, syncFiles } from './virtualTree';
+import type { TreeNode } from './virtualTree';
+
+/** A node of an archive's own tree; `virtualNode.ts` names it for everyone above this file */
+type ArchiveNode = TreeNode<Archive>;
 
 /** Where the content of a written entry comes from */
 export type EntrySource =
@@ -117,7 +111,7 @@ const changeEntries = (
 };
 
 /** Applies the same change to the tree, which owns the directories */
-const changeTree = (rootNode: VirtualNode, change: EntryChange): void => {
+const changeTree = (rootNode: ArchiveNode, change: EntryChange): void => {
   switch (change.kind) {
     case 'put':
       insertFile(rootNode, change.path);
@@ -160,7 +154,7 @@ export class Archive {
   public readonly pathInSource: string;
 
   /** Kept for the life of the archive: the tree view holds on to it */
-  public readonly root: VirtualNode;
+  public readonly root: ArchiveNode;
 
   /** The tag the file opens with, kept so a rewrite stays the format it was */
   private magic = '';
@@ -517,7 +511,7 @@ export class Archive {
    * Reads several file nodes with the archive open only once, queued behind
    * every earlier access so nothing writes underneath the reader
    */
-  public async readFileNodes<T extends { node: VirtualNode }>(
+  public async readFileNodes<T extends { node: ArchiveNode }>(
     items: readonly T[],
     onFile: (item: T, content: Uint8Array) => Promise<void>,
   ): Promise<void> {
@@ -545,7 +539,7 @@ export class Archive {
   }
 
   /** Gets the entry paths of all files at or below a node */
-  public getFileEntryPaths(node: VirtualNode): string[] {
+  public getFileEntryPaths(node: ArchiveNode): string[] {
     return getFileNodes(node).map((fileNode) => fileNode.entryPath);
   }
 }
