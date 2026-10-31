@@ -540,6 +540,8 @@ Sound is opt-in: opening a view never plays anything.
 
 ## FX, particles & objects
 
+- **changed** A cylinder emission volume keeps its own running radius, as the game does. Preview `FireFlies02` (a mallorn tree's fireflies): it should be a cloud of dots with `IsParticleUpTowardsEmitter` on, and thin columns with it off.
+
 - [ ] **new** **Particle preview** (Preview lens on `FXParticleSystem`,
   `ParticleSystem`, `FXList`; command **Preview Particle System**): orbit, pan,
   zoom; play, pause, step, restart, speed 0.1× to 4×; moving emitter; hotkeys

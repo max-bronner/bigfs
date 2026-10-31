@@ -22,6 +22,13 @@ export const BATCH_LIMIT = 512;
 export const WORLD_LIMIT = 30_000;
 /** Deepest chain of systems starting systems the world follows */
 export const MAX_DEPTH = 4;
+/**
+ * The floor of a cylinder volume's running radius, from the game's update of
+ * it: a volume written with no radius still spreads after the first emission,
+ * which is what makes `IsParticleUpTowardsEmitter` a cloud rather than columns.
+ */
+const MIN_CYLINDER_RADIUS = 0.1;
+
 const MAX_SIZE_BONUS = 50;
 const MIN_WIND_ANGLE_CHANGE = 0.005;
 const WIND_ANGLE_CHANGE_DEFAULT = 0.15;
@@ -92,6 +99,8 @@ export interface LiveSystem {
   slave?: number;
   depth: number;
   sizeBonus: number;
+  /** A cylinder volume's running radius, which each system keeps for itself */
+  cylinderRadius: number;
   wind: {
     angle: number;
     change: number;
@@ -417,6 +426,7 @@ export class ParticleWorld {
       driven,
       depth,
       sizeBonus: 0,
+      cylinderRadius: def.volume.type === 'cylinder' ? def.volume.radius : 0,
       wind,
       particles: [],
       dropped: 0,
@@ -557,6 +567,13 @@ export class ParticleWorld {
       }
     }
 
+    if (def.volume.type === 'cylinder') {
+      system.cylinderRadius = Math.max(
+        system.cylinderRadius + def.volume.radiusRate,
+        MIN_CYLINDER_RADIUS,
+      );
+    }
+
     const wind = this.windPush(system, def);
     const integrateAlpha = def.shader !== 'ADDITIVE';
     const colorFrames = def.colors.map((key) => key.frame);
@@ -625,7 +642,13 @@ export class ParticleWorld {
       return undefined;
     }
 
-    const particle = this.birth(def, origin, moved, behind);
+    const particle = this.birth(
+      def,
+      origin,
+      moved,
+      behind,
+      system.cylinderRadius,
+    );
 
     if (def.startSizeRate.low !== 0 || def.startSizeRate.high !== 0) {
       particle.size += system.sizeBonus;
@@ -654,9 +677,16 @@ export class ParticleWorld {
     origin: Vec3,
     moved: Vec3,
     behind: number,
+    cylinderRadius: number,
   ): Particle {
     const random = this.random;
-    const local = rollVolumeOffset(def.volume, random, this.options.hollowBox);
+    const local = rollVolumeOffset(
+      def.volume.type === 'cylinder'
+        ? { ...def.volume, radius: cylinderRadius }
+        : def.volume,
+      random,
+      this.options.hollowBox,
+    );
     const velocity = rollBirthVelocity(def, local, random);
     const lifetime = Math.max(0, Math.round(random.rollRange(def.lifetime)));
     const alphaValues = def.alphas.map((key) => random.rollRange(key.value));

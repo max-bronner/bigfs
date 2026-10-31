@@ -33,6 +33,7 @@ const RULES: Record<string, Rule> = {
   vollineend: { space: 1, time: 0 },
   // Lengths per frame
   sizerate: { space: 1, time: -1 },
+  radiusrate: { space: 1, time: -1 },
   startsizerate: { space: 1, time: -1 },
   x: { space: 1, time: -1 },
   y: { space: 1, time: -1 },

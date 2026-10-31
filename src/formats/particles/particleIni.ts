@@ -148,6 +148,7 @@ const flatVolume = (fields: Map<string, SageToken[]>): Volume => {
       return {
         type: 'cylinder',
         radius: numberOf(get('VolCylinderRadius'), 0),
+        radiusRate: 0,
         length: numberOf(get('VolCylinderLength'), 0),
         offset: [0, 0, 0],
         hollow,
@@ -213,6 +214,7 @@ const moduleVolume = (
       return {
         type: 'cylinder',
         radius: numberOf(get('Radius'), 0),
+        radiusRate: numberOf(get('RadiusRate'), 0),
         length: numberOf(get('Length'), 0),
         offset: coordOf(get('Offset')),
         hollow,

@@ -16,6 +16,8 @@ export type Volume =
   | {
       type: 'cylinder';
       radius: number;
+      /** Added to the radius each frame after a system's first emission */
+      radiusRate: number;
       length: number;
       offset: Vec3;
       hollow: boolean;

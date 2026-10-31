@@ -108,6 +108,7 @@ suite('Particle systems', () => {
     assert.deepStrictEqual(def.volume, {
       type: 'cylinder',
       radius: 4,
+      radiusRate: 0,
       length: 2,
       offset: [0, 0, 0],
       hollow: true,
@@ -320,6 +321,39 @@ suite('Particle simulation', () => {
   const [sparksText, slaveText] = definitionsOf(BLOCK);
   const sparks = readParticleDef(sparksText);
   const slave = readParticleDef(slaveText);
+
+  test('a cylinder keeps a running radius, floored after its first emission', () => {
+    const cylinder = (radius: number, radiusRate: number): ParticleDef => {
+      const def = sparks;
+
+      return {
+        ...def,
+        name: `Cylinder${radius}${radiusRate}`,
+        volume: {
+          type: 'cylinder',
+          radius,
+          radiusRate,
+          length: 0,
+          offset: [0, 0, 0],
+          hollow: false,
+        },
+      };
+    };
+    const radiusAfter = (def: ParticleDef, steps: number) => {
+      const world = worldOf(def);
+      const id = world.spawn(def.name, [0, 0, 0])!;
+
+      for (let step = 0; step < steps; step++) {
+        world.step();
+      }
+      return world.find(id)!.cylinderRadius;
+    };
+
+    assert.strictEqual(radiusAfter(cylinder(0, 0), 0), 0);
+    assert.strictEqual(radiusAfter(cylinder(0, 0), 1), 0.1);
+    assert.strictEqual(radiusAfter(cylinder(4, 0.5), 2), 5);
+    assert.strictEqual(radiusAfter(cylinder(1, -1), 3), 0.1);
+  });
 
   test('bursts on its delay, keys alpha by snapping and dies on time', () => {
     const world = worldOf(sparks, slave);
