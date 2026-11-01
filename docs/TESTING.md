@@ -462,7 +462,7 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   texture and coordinates, holes from alpha, glows not drawn solid.
 - [ ] **new** A mesh draws every material pass and every texture or shader its
   triangles name: `eugaldrl_skn` shows its second, additive pass over the first,
-  and `aicamp_skn` or `armyantsm_gm01` show each face with its own texture
+  and `armyantsm_gm01` shows each face with its own texture
   instead of one texture over the whole mesh.
 - [ ] **changed** Back faces are culled unless a mesh is marked two-sided, and
   each shader's blend pair and depth test are honoured: look through a one-sided
@@ -474,8 +474,7 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   an alpha material fades by its opacity, and skies and other meshes that switch
   the lights off show their texture as stored, whatever the angle.
 - [ ] **new** A second texture stage shows, combined as the shader says: lightmaps
-  and detail textures darken or colour the first (`gbmintmnt_a`, `armyantsglow`,
-  building windows), textures marked clamped no longer repeat past their edge
+  and detail textures darken or colour the first (`aubomcat`, `armyantsglow`), textures marked clamped no longer repeat past their edge
   (`ch_staff04`), and bump water (`ebfcmoat`) ripples what is under it instead of
   showing the height map as a colour.
 - [ ] **new** Texture animation runs: torch and fire flipbooks step through their
@@ -493,7 +492,7 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
 - [ ] **new** Normal-mapped meshes show their relief and highlight: stone joints
   and carved trim on buildings and heroes (`gbfortress`, `gbfarm_a`) stand out
   and catch the light as you orbit, and a posed or animated model keeps them.
-  The texture list reports a normal map no archive holds.
+  The info line's "textures not found" names a normal map no archive holds.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.

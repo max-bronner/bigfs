@@ -4,6 +4,7 @@ import * as vm from 'vm';
 import { buildSync } from 'esbuild';
 import type { ModelScene, SceneMesh } from '../../formats/w3d/w3dScene';
 import type { Pose } from '../../formats/w3d/w3dPose';
+import { DEFAULT_SURFACE } from '../../formats/w3d/w3dMaterial';
 
 /** The surface of `modelRenderer.ts` these tests drive */
 interface RendererModule {
@@ -133,6 +134,33 @@ suite('Model renderer', () => {
     renderer.draw([], DRAW_OPTIONS);
 
     assert.deepStrictEqual(draws, [skinned.indices.length]);
+  });
+
+  test('each draw of a mesh draws once, blended ones last and by sort level', () => {
+    const { gl, draws } = createRecordingContext(true);
+    const renderer = createModelRenderer(gl);
+    const drawOf = (count: number, surface: Partial<typeof DEFAULT_SURFACE>) => ({
+      pass: 0,
+      indices: new Uint32Array(count),
+      surface: { ...DEFAULT_SURFACE, ...surface },
+      textured: false,
+    });
+
+    renderer.setModel(
+      buildScene([
+        {
+          ...unbound(3),
+          draws: [
+            drawOf(3, { blend: 'additive', sortLevel: 2 }),
+            drawOf(6, { blend: 'alpha', sortLevel: 1 }),
+            drawOf(9, {}),
+          ],
+        },
+      ]),
+    );
+    renderer.draw([], DRAW_OPTIONS);
+
+    assert.deepStrictEqual(draws, [9, 6, 3]);
   });
 
   test('a faded rigid mesh draws at its opacity after the opaque ones', () => {
