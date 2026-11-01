@@ -6,14 +6,14 @@ import {
   readMappedImageBlock,
 } from '../../formats/mappedImage/mappedImageEdit';
 import { getMappedCoords } from '../../formats/mappedImage/mappedRegion';
+import { applyRegionEdit } from './applyRegionEdit';
 import type { MappedImageSource } from './mappedImageRegionId';
 
 /**
  * Writes a rect, in pixels of the decoded texture, into the `Coords` of the
- * `MappedImage` block as one text edit on its document, so the editor's undo
- * takes it back. The document is left unsaved and shown beside the preview if
- * no editor shows it. A block in a read-only archive entry is not touched; the
- * user is offered an override in a folder instead.
+ * `MappedImage` block as one text edit on its document. A block in a
+ * read-only archive entry is not touched; the user is offered an override in
+ * a folder instead.
  *
  * @returns whether the document was changed
  */
@@ -71,20 +71,5 @@ export const writeMappedImageRegion = async (
     );
   }
 
-  const applied = await vscode.workspace.applyEdit(change);
-
-  if (
-    applied &&
-    !vscode.window.visibleTextEditors.some(
-      (editor) => editor.document === document,
-    )
-  ) {
-    await vscode.window.showTextDocument(document, {
-      viewColumn: vscode.ViewColumn.Beside,
-      preserveFocus: true,
-      preview: false,
-      selection: new vscode.Range(edit.line, 0, edit.line, 0),
-    });
-  }
-  return applied;
+  return applyRegionEdit(document, change, edit.line);
 };

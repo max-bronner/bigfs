@@ -1,5 +1,5 @@
-import { fitRunTo, getRunBounds } from '../../formats/apt/aptGeometry';
-import type { RuRun } from '../../formats/apt/aptGeometry';
+import { fitRunTo, getRunTextureBox } from '../../formats/apt/aptGeometry';
+import type { RuRun, TextureBox } from '../../formats/apt/aptGeometry';
 import type { Character } from '../../formats/apt/aptMovie';
 import { HANDLE_RADIUS, drawBoxHandles } from '../shared/drawBoxHandles';
 import { getResizeScale } from '../shared/getResizeScale';
@@ -179,24 +179,8 @@ const draw = (shape: Target) => {
 };
 
 /** Where a run's points land on its texture, as a box */
-const mappedBox = (run: RuRun): [number, number, number, number] => {
-  const m = (run.style as Extract<RuRun['style'], { kind: 'texture' }>)
-    .transform;
-  const [l, t, r, b] = getRunBounds([run]) ?? [0, 0, 0, 0];
-  const points = [
-    apply(m, [l, t]),
-    apply(m, [r, t]),
-    apply(m, [r, b]),
-    apply(m, [l, b]),
-  ];
-
-  return [
-    Math.min(...points.map((p) => p[0])),
-    Math.min(...points.map((p) => p[1])),
-    Math.max(...points.map((p) => p[0])),
-    Math.max(...points.map((p) => p[1])),
-  ];
-};
+const mappedBox = (run: RuRun): TextureBox =>
+  getRunTextureBox(run) ?? [0, 0, 0, 0];
 
 const pointOn = (event: MouseEvent): [number, number] => [
   event.offsetX / scale,

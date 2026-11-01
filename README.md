@@ -98,6 +98,9 @@ your mod's archives.
   texture with the block's rectangle drawn on it. Drag or resize the box, or
   type its edges, and the `Coords` line is rewritten as an undoable edit of
   the INI document.
+- In a shape's `.ru` geometry file, a lens over each `s tc:` texture style
+  names the image and box it samples and opens the texture with that box
+  selected; dragging it rewrites only that style line.
 - Lua in `BeginScript` regions is checked for syntax errors.
 - **Duplicate Definition…** (refactor menu, editor context menu) copies the
   definition at the cursor under a new name, renaming the game-text labels

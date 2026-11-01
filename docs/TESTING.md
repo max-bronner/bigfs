@@ -691,6 +691,18 @@ Sound is opt-in: opening a view never plays anything.
   `TextureWidth`/`TextureHeight` still writes `Coords` in the stated size. A
   block in a base game archive shows its box but cannot be dragged; the
   warning offers **Override in Folder**.
+- [ ] **new** `.ru` geometry texture regions: open a shape's
+  `<movie>_geometry/<n>.ru` from the explorer (it opens as plain text, as
+  before). Each `s tc:` line has a lens saying which image it samples and the
+  box on that image, for example "Samples image #3, 12,40 to 88,120
+  (76×80)". Click it (or run **BIG: Show APT Geometry Texture Region** with the
+  cursor in the style): the movie's texture opens beside it with that box
+  selected. The texture is found through the movie beside the geometry folder
+  (its Image character and `.dat`); with no movie there you get a message
+  saying so. Drag or resize the box: only that `s tc:` line is rewritten, as
+  an undoable edit, a turned mapping keeps its turn, and the triangles are
+  untouched. Close the movie in the APT editor first, which holds its own copy
+  of the `.ru`. In a base game archive the box is shown but locked.
 - [ ] **new** TGA and DDS previews (DXT1/3/5, uncompressed) with zoom,
   channels, mip levels. EAR-compressed textures open (no "TGA image type 82").
 - [ ] **new** **Export as PNG**, **Replace with PNG…** (written back in the
@@ -825,6 +837,7 @@ Previews and editors:
 - [ ] `bigfs.convertPngToCursor` Convert to Cursor…
 - [ ] `bigfs.buildAnimatedCursor` Build Animated Cursor…
 - [ ] `bigfs.editMappedImageRegion` Edit MappedImage Region in Texture
+- [ ] `bigfs.showRuRegion` Show APT Geometry Texture Region
 - [ ] `bigfs.convertToVp6` Convert to VP6 Movie…
 - [ ] `bigfs.editW3dAnimation` Edit W3D Animation…
 - [ ] `bigfs.newAptMovie` New APT Movie…

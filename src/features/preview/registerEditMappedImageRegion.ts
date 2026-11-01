@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
-import { PREVIEW_VIEW_TYPE } from '../../constants';
 import { readMappedImageBlock } from '../../formats/mappedImage/mappedImageEdit';
 import { registerCommand } from '../../platform/commands';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { isEditable, offerOverride } from '../../services/ini/archiveText';
 import type { EntryLocator } from '../../services/entryLocator';
 import type { TextureRegions } from './createTextureRegions';
+import { getMappedImageRegionId } from './mappedImageRegionId';
+import { openTextureRegion } from './openTextureRegion';
 
 const HEADER = /^\s*MappedImage\s/i;
 
@@ -81,12 +82,6 @@ export const registerEditMappedImageRegion = (
           `${block.image.name} is in a read-only archive; its box is shown but cannot be changed. Override the file in a folder to edit it.`,
         );
       }
-      regions.focus(found, source);
-      await vscode.commands.executeCommand(
-        'vscode.openWith',
-        found,
-        PREVIEW_VIEW_TYPE,
-        vscode.ViewColumn.Beside,
-      );
+      await openTextureRegion(regions, found, getMappedImageRegionId(source));
     },
   );

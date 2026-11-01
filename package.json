@@ -237,6 +237,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.showRuRegion",
+        "title": "Show APT Geometry Texture Region",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.newObject",
         "title": "New Unit, Hero or Building…",
         "category": "BIG"

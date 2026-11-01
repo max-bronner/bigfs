@@ -159,22 +159,25 @@ export const getTexturePath = (
 const formatNumber = (value: number): string =>
   Number.isInteger(value) ? String(value) : String(Number(value.toFixed(6)));
 
+/** Formats a style as its `s` line in a `.ru` file */
+export const formatRuStyle = (style: RuStyle): string => {
+  const join = (values: number[]) => values.map(formatNumber).join(':');
+
+  return style.kind === 'solid'
+    ? `s s:${join(style.color)}`
+    : style.kind === 'line'
+      ? `s l:${join([style.width, ...style.color])}`
+      : `s tc:${join([...style.color, style.character, ...style.transform])}`;
+};
+
 /** Writes styled runs back as a `.ru` file, one entry per run */
 export const writeRu = (runs: RuRun[]): string => {
   const lines: string[] = [];
   const join = (values: number[]) => values.map(formatNumber).join(':');
 
   for (const run of runs) {
-    const { style } = run;
-
     lines.push('c');
-    lines.push(
-      style.kind === 'solid'
-        ? `s s:${join(style.color)}`
-        : style.kind === 'line'
-          ? `s l:${join([style.width, ...style.color])}`
-          : `s tc:${join([...style.color, style.character, ...style.transform])}`,
-    );
+    lines.push(formatRuStyle(run.style));
     for (let i = 0; i < run.triangles.length; i += 6) {
       lines.push(`t ${join(run.triangles.slice(i, i + 6))}`);
     }
@@ -279,3 +282,70 @@ export const fitRunTo = (
     transform: fitTexture(getRunBounds([run]) ?? [0, 0, 1, 1], box),
   },
 });
+
+/** Gets the line of each style in a `.ru` file, in file order, which is the order `parseRu` makes runs in */
+export const findRuStyleLines = (text: string): number[] =>
+  text
+    .split(/\r?\n/)
+    .flatMap((line, index) => (/^\s*s\s/.test(line) ? [index] : []));
+
+/** A box as `[left, top, right, bottom]` */
+export type TextureBox = [number, number, number, number];
+
+/**
+ * Computes the box a texture run samples in the image's pixels: where the box
+ * around its points lands under the style's transform. Nothing for a run
+ * with another style or no points.
+ */
+export const getRunTextureBox = (run: RuRun): TextureBox | undefined => {
+  const bounds = getRunBounds([run]);
+
+  if (run.style.kind !== 'texture' || !bounds) {
+    return undefined;
+  }
+
+  const [a, b, c, d, e, f] = run.style.transform;
+  const [left, top, right, bottom] = bounds;
+  const corners = [
+    [left, top],
+    [right, top],
+    [right, bottom],
+    [left, bottom],
+  ].map(([x, y]) => [a * x + c * y + e, b * x + d * y + f]);
+  const us = corners.map(([u]) => u);
+  const vs = corners.map(([, v]) => v);
+
+  return [Math.min(...us), Math.min(...vs), Math.max(...us), Math.max(...vs)];
+};
+
+/**
+ * Moves and scales the box a texture run samples to `box`, keeping any
+ * rotation or skew its transform has: the edit the atlas makes by dragging.
+ * A run that samples nothing is returned as it was.
+ */
+export const setRunTextureBox = (run: RuRun, box: TextureBox): RuRun => {
+  const current = getRunTextureBox(run);
+
+  if (run.style.kind !== 'texture' || !current) {
+    return run;
+  }
+
+  const scaleU = (box[2] - box[0]) / (current[2] - current[0] || 1);
+  const scaleV = (box[3] - box[1]) / (current[3] - current[1] || 1);
+  const [a, b, c, d, e, f] = run.style.transform;
+
+  return {
+    ...run,
+    style: {
+      ...run.style,
+      transform: [
+        scaleU * a,
+        scaleV * b,
+        scaleU * c,
+        scaleV * d,
+        scaleU * (e - current[0]) + box[0],
+        scaleV * (f - current[1]) + box[1],
+      ],
+    },
+  };
+};

@@ -1,13 +1,6 @@
 import * as vscode from 'vscode';
-import type { ArchiveModel } from '../../services/archives/archiveModel';
 import type { RegionsMessage } from '../../webview/preview/protocol';
-import {
-  getMappedImageRegionId,
-  parseMappedImageRegionId,
-} from './mappedImageRegionId';
-import type { MappedImageSource } from './mappedImageRegionId';
-import { readMappedImageRegion } from './readMappedImageRegion';
-import { writeMappedImageRegion } from './writeMappedImageRegion';
+import type { RegionKind } from './regionKind';
 
 /** One open preview of a texture, which regions are sent to */
 interface RegionView {
@@ -29,14 +22,14 @@ export interface TextureRegions extends vscode.Disposable {
     id: string,
     rect: readonly [number, number, number, number],
   ): Promise<void>;
-  /** Puts a `MappedImage` block among the regions of a texture and selects it in every preview of it */
-  focus(texture: vscode.Uri, source: MappedImageSource): void;
+  /** Puts a region among those of a texture and selects it in every preview of it */
+  focus(texture: vscode.Uri, id: string): void;
 }
 
 /** What is known about one texture's regions */
 interface TextureState {
   views: Set<RegionView>;
-  sources: Map<string, MappedImageSource>;
+  ids: Set<string>;
   selected?: string;
 }
 
@@ -45,15 +38,18 @@ interface TextureState {
  * from the document that defines it, so every preview of the texture
  * follows an edit made in the text editor, by undo included.
  */
-export const createTextureRegions = (archives: ArchiveModel): TextureRegions => {
+export const createTextureRegions = (
+  kinds: readonly RegionKind[],
+): TextureRegions => {
   const textures = new Map<string, TextureState>();
+  const kindOf = (id: string) => kinds.find((each) => each.owns(id));
 
   const stateOf = (texture: vscode.Uri): TextureState => {
     const key = texture.toString();
     let state = textures.get(key);
 
     if (!state) {
-      state = { views: new Set(), sources: new Map() };
+      state = { views: new Set(), ids: new Set() };
       textures.set(key, state);
     }
     return state;
@@ -61,10 +57,10 @@ export const createTextureRegions = (archives: ArchiveModel): TextureRegions => 
 
   const send = async (state: TextureState, view: RegionView) => {
     const found = await Promise.all(
-      [...state.sources.values()].map((source) =>
-        readMappedImageRegion(archives, source, view.decoded).catch(
-          () => undefined,
-        ),
+      [...state.ids].map((id) =>
+        kindOf(id)
+          ?.read(id, view.decoded)
+          .catch(() => undefined),
       ),
     );
 
@@ -82,7 +78,9 @@ export const createTextureRegions = (archives: ArchiveModel): TextureRegions => 
     const changed = event.document.uri.toString();
 
     for (const state of textures.values()) {
-      if ([...state.sources.values()].some((each) => each.uri.toString() === changed)) {
+      if (
+        [...state.ids].some((id) => kindOf(id)?.documentOf(id)?.toString() === changed)
+      ) {
         void sendAll(state);
       }
     }
@@ -100,25 +98,24 @@ export const createTextureRegions = (archives: ArchiveModel): TextureRegions => 
     },
     async edit(texture, id, rect) {
       const state = stateOf(texture);
-      const source = parseMappedImageRegionId(id);
+      const kind = kindOf(id);
       const view = [...state.views][0];
 
-      if (!source || !view || !state.sources.has(id)) {
+      if (!kind || !view || !state.ids.has(id)) {
         return;
       }
       state.selected = id;
 
       // A changed document refreshes the views by its own event; a refusal
       // leaves the box where the page dragged it, so it is drawn back
-      if (!(await writeMappedImageRegion(archives, source, view.decoded, rect))) {
+      if (!(await kind.write(id, view.decoded, rect))) {
         await sendAll(state);
       }
     },
-    focus(texture, source) {
+    focus(texture, id) {
       const state = stateOf(texture);
-      const id = getMappedImageRegionId(source);
 
-      state.sources.set(id, source);
+      state.ids.add(id);
       state.selected = id;
       void sendAll(state);
     },
