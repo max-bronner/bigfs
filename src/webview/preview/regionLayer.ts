@@ -2,6 +2,8 @@ import { drawBoxHandles, HANDLE_RADIUS } from '../shared/drawBoxHandles';
 import { getResizeScale } from '../shared/getResizeScale';
 import { pickBox } from '../shared/pickBox';
 import type { Box, BoxGrab } from '../shared/pickBox';
+import { getOverlayWindow } from './getOverlayWindow';
+import type { OverlayWindow, VisibleBox } from './getOverlayWindow';
 import type { TextureRegion } from './protocol';
 
 /**
@@ -9,7 +11,8 @@ import type { TextureRegion } from './protocol';
  * box. The selected region, when it can be edited, is moved by dragging
  * inside it and resized by its corners; a press on another box selects it.
  * Boxes are in pixels of the finest level and are drawn at the texture's
- * on-screen scale.
+ * on-screen scale. The canvas covers only the part of the texture on screen,
+ * so zooming in does not make its bitmap grow.
  */
 
 interface Drag {
@@ -30,8 +33,17 @@ export interface RegionLayer {
   element: HTMLCanvasElement;
   /** Replaces the regions drawn and which one is selected */
   setRegions(regions: readonly TextureRegion[], selected?: string): void;
-  /** Resizes the layer to the texture's on-screen size, `pixelWidth` being the finest level's width */
-  fit(cssWidth: number, cssHeight: number, pixelWidth: number): void;
+  /**
+   * Places the layer over `visible`, the part of the texture on screen. The
+   * texture is `cssWidth` by `cssHeight` on screen and its finest level is
+   * `pixelWidth` wide.
+   */
+  fit(
+    cssWidth: number,
+    cssHeight: number,
+    pixelWidth: number,
+    visible: VisibleBox,
+  ): void;
 }
 
 const SELECTED_COLOR = 'rgba(30, 140, 255, 1)';
@@ -49,6 +61,11 @@ export const createRegionLayer = (events: RegionLayerEvents): RegionLayer => {
   let regions: readonly TextureRegion[] = [];
   let selected: string | undefined;
   let scale = 1;
+  let placed: OverlayWindow = getOverlayWindow(
+    { width: 1, height: 1 },
+    { left: 0, top: 0, width: 1, height: 1 },
+    1,
+  );
   let drag: Drag | undefined;
   let dragged: Box | undefined;
 
@@ -58,9 +75,18 @@ export const createRegionLayer = (events: RegionLayerEvents): RegionLayer => {
     region.id === selected && dragged ? dragged : toBox(region.rect);
 
   const draw = () => {
+    const { pixelRatio, left, top } = placed;
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, element.width, element.height);
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.setTransform(
+      scale * pixelRatio,
+      0,
+      0,
+      scale * pixelRatio,
+      -left * pixelRatio,
+      -top * pixelRatio,
+    );
 
     // The selected box last, so it lies over the others
     const ordered = [...regions].sort(
@@ -88,8 +114,8 @@ export const createRegionLayer = (events: RegionLayerEvents): RegionLayer => {
   };
 
   const pointOn = (event: MouseEvent): [number, number] => [
-    event.offsetX / scale,
-    event.offsetY / scale,
+    (event.offsetX + placed.left) / scale,
+    (event.offsetY + placed.top) / scale,
   ];
 
   const selectedRegion = () => regions.find((each) => each.id === selected);
@@ -204,11 +230,24 @@ export const createRegionLayer = (events: RegionLayerEvents): RegionLayer => {
       dragged = undefined;
       draw();
     },
-    fit(cssWidth, cssHeight, pixelWidth) {
-      element.width = Math.max(1, Math.round(cssWidth));
-      element.height = Math.max(1, Math.round(cssHeight));
-      element.style.width = `${cssWidth}px`;
-      element.style.height = `${cssHeight}px`;
+    fit(cssWidth, cssHeight, pixelWidth, visible) {
+      placed = getOverlayWindow(
+        { width: cssWidth, height: cssHeight },
+        visible,
+        window.devicePixelRatio || 1,
+      );
+      // Assigning a canvas's size clears it, so it is only done when it changes
+      if (
+        element.width !== placed.bitmapWidth ||
+        element.height !== placed.bitmapHeight
+      ) {
+        element.width = placed.bitmapWidth;
+        element.height = placed.bitmapHeight;
+      }
+      element.style.left = `${placed.left}px`;
+      element.style.top = `${placed.top}px`;
+      element.style.width = `${placed.bitmapWidth / placed.pixelRatio}px`;
+      element.style.height = `${placed.bitmapHeight / placed.pixelRatio}px`;
       scale = cssWidth / pixelWidth;
       draw();
     },

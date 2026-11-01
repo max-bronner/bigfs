@@ -165,7 +165,14 @@ export const renderHtml = (
   .content { display: flex; align-items: flex-start; }
   main { flex: 1; min-width: 0; padding: 12px; }
   aside { flex: none; width: 260px; box-sizing: border-box; padding: 12px; max-height: calc(100vh - 44px); overflow-y: auto; position: sticky; top: 44px; border-left: 1px solid var(--vscode-panel-border); }
-  aside[hidden] { display: none; }
+  aside[hidden], .splitter[hidden] { display: none; }
+  body.texture-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  body.texture-page header { flex: none; position: static; }
+  body.texture-page .content { flex: 1; min-height: 0; align-items: stretch; }
+  body.texture-page main { overflow: auto; }
+  body.texture-page aside { max-height: none; position: static; border-left: none; }
+  .splitter { flex: none; width: 4px; cursor: col-resize; background: var(--vscode-panel-border); touch-action: none; }
+  .splitter:hover { background-color: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder)); }
   aside h3, aside h4 { margin: 0 0 6px; }
   aside h4 { margin-top: 10px; opacity: 0.8; }
   aside .detail { margin-bottom: 8px; }
@@ -204,6 +211,7 @@ export const renderHtml = (
     <option value="white">White</option>
   </select>
   <select id="level" title="Mip level"></select>
+  <button id="popout" title="Open this editor in its own window, with more room for the texture and its references">Pop out</button>
   <span class="status" id="status"></span>
 </header>
 <div class="content">
@@ -303,6 +311,9 @@ export class PreviewEditorProvider
 
           await panel.webview.postMessage(built);
 
+          // A page VS Code rebuilds, as when the editor moves to another
+          // window, asks again; the old page no longer listens
+          attached?.dispose();
           if (built.kind === 'texture' && built.levels[0]) {
             attached = this.regions.attach(
               document.uri,
@@ -329,6 +340,14 @@ export class PreviewEditorProvider
                 ),
             });
           }
+        } else if (received.kind === 'popOut') {
+          // The command moves the active editor, which the press made this one
+          if (!panel.active) {
+            panel.reveal();
+          }
+          await vscode.commands.executeCommand(
+            'workbench.action.moveEditorToNewWindow',
+          );
         } else if (received.kind === 'editRegion') {
           await this.regions.edit(document.uri, received.id, received.rect);
         } else if (received.kind === 'reveal') {

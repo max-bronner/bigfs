@@ -111,9 +111,10 @@ export type ToPreviewPage =
   | { kind: 'videoFrame'; index: number; pixels: Uint8Array }
   | { kind: 'videoError'; message: string };
 
-/** Messages the preview page sends: ready, a link followed, a region edited, an animation or a movie frame asked for */
+/** Messages the preview page sends: ready, a link followed, a region edited, the editor popped out, an animation or a movie frame asked for */
 export type FromPreviewPage =
   | { kind: 'ready' }
+  | { kind: 'popOut' }
   | {
       kind: 'editRegion';
       id: string;

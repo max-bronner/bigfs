@@ -20,7 +20,9 @@ const main = document.getElementById('main')!;
 const regions = createRegionEditor(document.getElementById('regions')!, (message) =>
   vscode.postMessage(message),
 );
-const showTexture = createTexturePage(main, regions);
+const showTexture = createTexturePage(main, regions, {
+  onPopOut: () => vscode.postMessage({ kind: 'popOut' }),
+});
 let modelControl: ModelControl | undefined;
 let movie: MovieControl | undefined;
 

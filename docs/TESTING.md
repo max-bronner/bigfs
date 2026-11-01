@@ -794,6 +794,24 @@ Sound is opt-in: opening a view never plays anything.
   list appears after the preview, never before it; closing the preview stops
   the search. With no game or no INI loaded the panel simply does not show;
   a texture nothing uses shows no panel.
+- [ ] **changed** Texture editor layout and scale. Open a UI atlas such as
+  `aptcomponents_001` or `apt_cahpowers_1` with its References panel showing.
+  **Fit** must leave the whole image visible left of the panel, never under
+  it, and keep doing so when the panel appears after the search finds
+  references, when you drag the bar between image and panel (the panel
+  resizes, Fit follows) and when you resize the window. Press **+** until 800%
+  or more: the image scrolls inside its own area, the References list stays
+  put, and every box stays exactly on its image while you scroll, at any
+  zoom, on a screen with display scaling (125%, 150%) too; box edges stay
+  sharp and boxes do not disappear at the highest zoom. Select a reference
+  and zoom to a small icon: the box frames the icon's tile.
+- [ ] **new** **Pop out** (toolbar of a texture). Click it: the editor moves
+  to its own window (the same as **Move Editor into New Window**), where the
+  image and the References list fill the window side by side. The zoom you set
+  and the width you gave the panel are kept; check that the references list
+  returns, a reference you select again can still be dragged and an edit still shows in
+  the INI or `.ru` file's editor. Drag the editor back into the main window
+  and check again. Needs VS Code 1.85 or later.
 - [ ] **new** `.ru` geometry texture regions: open a shape's
   `<movie>_geometry/<n>.ru` from the explorer (it opens as plain text, as
   before). Each `s tc:` line has a lens saying which image it samples and the

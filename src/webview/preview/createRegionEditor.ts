@@ -1,4 +1,7 @@
 import type { Box } from '../shared/pickBox';
+import { createPanelSplitter } from './createPanelSplitter';
+import type { VisibleBox } from './getOverlayWindow';
+import { readPageState, savePageState } from './pageState';
 import { createRegionLayer } from './regionLayer';
 import { createRegionPanel } from './regionPanel';
 import type { FromPreviewPage, RegionsMessage } from './protocol';
@@ -9,8 +12,13 @@ export interface RegionEditor {
   mount(stage: HTMLElement): void;
   /** Shows the regions the extension found */
   show(message: RegionsMessage): void;
-  /** Fits the layer to the texture's on-screen size after a zoom */
-  fit(cssWidth: number, cssHeight: number, pixelWidth: number): void;
+  /** Fits the layer to the part of the texture on screen after a zoom, a scroll or a resize */
+  fit(
+    cssWidth: number,
+    cssHeight: number,
+    pixelWidth: number,
+    visible: VisibleBox,
+  ): void;
 }
 
 /**
@@ -45,6 +53,15 @@ export const createRegionEditor = (
     onEdit: edit,
     onReveal: ({ uri, line }) => post({ kind: 'reveal', uri, line }),
   });
+
+  const setPanelWidth = createPanelSplitter(panelRoot, {
+    onResize: (width) => savePageState({ panelWidth: width }),
+  });
+  const saved = readPageState().panelWidth;
+
+  if (saved) {
+    setPanelWidth(saved);
+  }
 
   function render() {
     layer.setRegions(content.regions, content.selected);
