@@ -497,11 +497,6 @@ export class Engine implements EngineHooks {
     }
   }
 
-  /** Plays a listed sound once, because the user pressed its button */
-  public playSound(event: string): void {
-    this.onSound(event);
-  }
-
   /** Takes an `FSCommand:` as a call into the engine */
   public command(command: string, args: string): void {
     this.call(`FSCommand:${command}`, args ? [args] : []);

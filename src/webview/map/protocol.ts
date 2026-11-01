@@ -1,3 +1,4 @@
+import type { PlaySoundRequest, SoundReply } from '../../core/soundClip';
 import type { MapEdit } from '../../formats/map/mapEdit';
 import type {
   DictValue,
@@ -73,13 +74,13 @@ export interface MapNotice {
 }
 
 /** Messages the editor sends to the map page */
-export type MapToPage = MapMessage | MapNotice;
+export type MapToPage = MapMessage | MapNotice | SoundReply;
 
 /** Messages the map page sends to its editor */
 export type FromMapPage =
   | { kind: 'ready' }
   | { kind: 'edit'; edit: MapEdit }
-  | { kind: 'playSound'; name: string };
+  | PlaySoundRequest;
 
 /** Owner of the dictionary an edit changes: the world, a player, a team or an object */
 export type DictOwner = Extract<MapEdit, { kind: 'dict' }>['owner'];

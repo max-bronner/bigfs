@@ -35,11 +35,11 @@ export const describeSound = async (
   );
   const text = new vscode.MarkdownString();
 
-  text.isTrusted = { enabledCommands: ['bigfs.playSound'] };
+  text.isTrusted = { enabledCommands: ['bigfs.playSound', 'bigfs.openSound'] };
 
   if (reference) {
     text.appendMarkdown(
-      `${toCodeSpan(reference.name)} — sound\n\n${toCommandLink('▶ Play', 'bigfs.playSound', [reference.name, documentUri.toString()])}`,
+      `${toCodeSpan(reference.name)} — sound\n\n${toCommandLink('▶ Play', 'bigfs.playSound', [reference.name, documentUri.toString()])} · ${toCommandLink('Open file', 'bigfs.openSound', [reference.name, documentUri.toString()])}`,
     );
     return text;
   }
@@ -57,7 +57,7 @@ export const describeSound = async (
       shown
         .map(
           (variant) =>
-            `${variants.length > 1 ? `${escapeMarkdown(variant.label)}: ` : ''}${toCommandLink(`▶ ${variant.file}`, 'bigfs.playSound', [variant.file, documentUri.toString()])}`,
+            `${variants.length > 1 ? `${escapeMarkdown(variant.label)}: ` : ''}${toCommandLink(`▶ ${variant.file}`, 'bigfs.playSound', [variant.file, documentUri.toString()])} (${toCommandLink('open', 'bigfs.openSound', [variant.file, documentUri.toString()])})`,
         )
         .join(variants.length > 1 ? '\n\n' : ' · ') +
       (variants.length > shown.length

@@ -474,7 +474,8 @@ Movie**.
 - [ ] **new** Movie sounds: *Sounds the movie asks for* lists each
   `FSCommand:PlaySound` event with count and **▶ Play**; the log says "not
   played, Play movie sounds is off". Tick **Play movie sounds** and hover the
-  menu's buttons: sounds play. The box is off every time and not remembered.
+  menu's buttons: sounds play in the page, no tab opens. The box is off every time
+  and not remembered.
 - [ ] **new** Gadgets and MappedImage surfaces: in a menu with sliders, check
   boxes, list / combo boxes, text entries, scroll bars or progress bars, turn
   on **Interact** and use the controls over the stage (bound to `_value`,
@@ -698,10 +699,22 @@ Sound is opt-in: opening a view never plays anything.
   and plays from its controls only.
 - [ ] **new** **▶ Play** lens on audio event blocks (AudioEvent, Multisound,
   EVA headers; not `AudioEvent = X` fields), and play links on hover of a
-  sound or event name. One click plays one file; several variants (role,
-  subsound or side) ask which; an attack is never chained to its body. A name
-  with several variants in a map script or voice asks which. **Play Audio
-  Event** is the command behind them.
+  sound or event name. One click plays one file at once, in the **Sound**
+  panel (it opens beside the editor; if the panel says to press ▶, press its
+  button once and later sounds play by themselves). An event plays its
+  `Sounds` entry, never its attack chained to its body; the hover lists the
+  other variants. The **Open file** lens and the hover's open link open the
+  sound file instead. **Play Audio Event** is the command behind them.
+- [ ] **new** Play buttons in pages play in place and open no tab: the Preview
+  object **Voices** ▶, the FX **Timeline** sound row ▶, the ▶ after a sound
+  parameter in map and `.scb` script trees, and the APT Engine panel ▶. The
+  button shows ■ while its sound plays; pressing it again stops it; pressing
+  another sound replaces it. Ctrl+click (Cmd on macOS) opens the sound file
+  instead and plays nothing; the tooltip says so. A sound with no file in any
+  archive gives one warning and the tooltip says why.
+- [ ] **new** APT **Play movie sounds**: ticked, a `PlaySound` plays in the
+  page the moment the script runs it; unticked, nothing plays and the log says
+  so. Ticking the box is the click that lets the browser start audio.
 - [ ] **new** Resolution: Multisound subsounds to a depth of four (no loop on a
   cycle), EVA events one per side, DialogEvent / MusicTrack / AmbientStream /
   StreamedSound to their `Filename`, Video to `<stem>_Music` and `<stem>`.

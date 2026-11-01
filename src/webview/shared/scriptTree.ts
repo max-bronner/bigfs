@@ -1,3 +1,5 @@
+import type { PlaySoundRequest } from '../../core/soundClip';
+import { createSoundButton } from './createSoundButton';
 import { element } from './element';
 import { countScripts, describePlayerList, describeScript } from './scriptTreeText';
 import type { ScriptTreeNode, SideEntry, SoundCall } from './scriptTreeText';
@@ -5,7 +7,7 @@ import type { ScriptTreeNode, SideEntry, SoundCall } from './scriptTreeText';
 /** Callbacks and mode of a script tree: what a click does, and whether its active boxes can change a script */
 export interface ScriptTreeOptions {
   editable: boolean;
-  onPlaySound(name: string): void;
+  postSound(request: PlaySoundRequest): void;
   onSetActive(at: number, active: boolean): void;
 }
 
@@ -21,11 +23,7 @@ const renderCall = (call: SoundCall, options: ScriptTreeOptions): Node[] => {
     }
     nodes.push(document.createTextNode(parameter));
     if ((call.sounds ?? []).includes(at)) {
-      const play = element('button', '▶', 'play');
-
-      play.title = `Play ${parameter}`;
-      play.onclick = () => options.onPlaySound(parameter);
-      nodes.push(play);
+      nodes.push(createSoundButton(parameter, options.postSound, 'play'));
     }
   });
   if (call.parameters.length) {

@@ -156,7 +156,7 @@ export const showInfo = (actions: MapActions): void => {
     info.append(
       createScriptTree(map.scripts, map.sides, {
         editable: !state.readOnly,
-        onPlaySound: (name) => vscode.postMessage({ kind: 'playSound', name }),
+        postSound: (request) => vscode.postMessage(request),
         onSetActive: (at, active) =>
           sendEdit({ kind: 'scriptActive', at, active }),
       }),

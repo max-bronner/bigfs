@@ -120,8 +120,11 @@ your mod's archives.
   are marked. Slots whose buttons share a hotkey are reported as problems,
   unless they are never on the command bar together: a purchase button and
   the ability it unlocks (`NEED_UPGRADE` on an upgrade or science it buys).
-- Audio events get a **▶ Play** lens that plays one of their sounds, as the
-  game picks one; hovering a sound or an event name gives play links.
+- Audio events get a **▶ Play** lens that plays one of their sounds and an
+  **Open file** lens; hovering a sound or an event name gives play and open
+  links. Every play button in a preview (voices, FX timeline, script
+  parameters, the APT Engine panel) plays in place; Ctrl+click (Cmd on macOS)
+  opens the sound file instead, and a second press stops it.
 - **new** The object preview lists every `Voice*` and `Sound*` field of the
   object, inherited ones included, each with its own **▶** button; the
   preview stays muted otherwise.

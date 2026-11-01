@@ -1,3 +1,4 @@
+import { answerSoundRequest } from '../../platform/webview/answerSoundRequest';
 import * as vscode from 'vscode';
 import { MapFile, parseMap } from '../../formats/map/mapFile';
 import { markSounds } from '../../formats/map/mapScriptSounds';
@@ -89,15 +90,9 @@ export class ScriptFileEditorProvider implements vscode.CustomReadonlyEditorProv
         };
 
         void panel.webview.postMessage(scripts);
-      } else if (
-        message?.kind === 'playSound' &&
-        typeof message.name === 'string' &&
-        message.name
-      ) {
-        void vscode.commands.executeCommand(
-          'bigfs.playAudioEvent',
-          message.name,
-          document.uri.toString(),
+      } else if (message?.kind === 'playSound') {
+        void answerSoundRequest(message, document.uri, (reply) =>
+          panel.webview.postMessage(reply),
         );
       }
     });

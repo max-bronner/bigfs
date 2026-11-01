@@ -1,3 +1,4 @@
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
 import { onEngineRestart, showEngine } from './enginePanel';
 import { keepAnswers } from './engineState';
 import { setGameText } from './gameText';
@@ -346,6 +347,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       scriptSaved(data.previous, data.block);
       break;
     }
+    case 'sound':
+      void pageSoundPlayer.receive(data);
+      break;
     case 'notice': {
       const notice = byId('notice');
 

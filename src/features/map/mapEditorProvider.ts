@@ -1,3 +1,4 @@
+import { answerSoundRequest } from '../../platform/webview/answerSoundRequest';
 import * as vscode from 'vscode';
 import { Dict, MapFile, parseMap, writeMap } from '../../formats/map/mapFile';
 import { MapEdit, applyMapEdit } from '../../formats/map/mapEdit';
@@ -277,14 +278,10 @@ export class MapEditorProvider implements vscode.CustomEditorProvider<MapDocumen
         } else if (message?.kind === 'edit') {
           this.edit(document, message.edit);
         } else if (message?.kind === 'playSound') {
-          // Only a click on a play button gets here; one name, one play
-          if (typeof message.name === 'string' && message.name) {
-            void vscode.commands.executeCommand(
-              'bigfs.playAudioEvent',
-              message.name,
-              document.uri.toString(),
-            );
-          }
+          // Only a click on a play button gets here; the page plays the reply
+          void answerSoundRequest(message, document.uri, (reply) =>
+            panel.webview.postMessage(reply),
+          );
         }
       } catch (error) {
         void panel.webview.postMessage({

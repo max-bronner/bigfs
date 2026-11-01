@@ -132,7 +132,7 @@ modules it registers. From there:
 | WND layouts | `features/wnd/` | `webview/wnd/`, `formats/wnd/` |
 | CommandSet editor and hover | `features/commandSet/` | `services/ini/commandSetPreview.ts`, `webview/commandset/` |
 | balance sheet, armor table, bulk edit | `features/balanceSheet/`, `features/armorTable/`, `features/bulkEdit/` | `game/objects/`, `game/ini-tools/bulkEdit.ts` |
-| sound playback | `features/audio/` | `services/ini/audioLookup.ts`, `game/audio/sageAudioResolve.ts`, `webview/audio/` |
+| sound playback | `features/audio/` | `services/ini/audioLookup.ts`, `game/audio/sageAudioResolve.ts`, `game/audio/findSoundFile.ts`, `platform/webview/answerSoundRequest.ts`, `webview/audio/`, `webview/shared/createSoundPlayer.ts` |
 | videos | `features/video/` | `formats/vp6/`, `node/ffmpeg.ts`, `webview/video/` |
 | textures and W3D animation commands | `features/textures/`, `features/w3d/` | `formats/texture/`, `formats/w3d/` |
 | installs and launching | `features/installs/` | `node/installDiscovery.ts`, `node/launchPlan.ts`, `game/install/installLayers.ts` |

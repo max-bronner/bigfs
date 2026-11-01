@@ -11,6 +11,7 @@ import {
   listConditionalSubObjects,
   listSubObjectRules,
 } from '../../game/objects/subObjectRules';
+import { createSoundButton } from '../shared/createSoundButton';
 import { $, post, viewer } from './page';
 
 /**
@@ -199,13 +200,9 @@ const renderVoices = (scene: ObjectScene) => {
       ? [element('div', { className: 'muted', textContent: 'Voices' })]
       : []),
     ...scene.voices.map((voice) => {
-      const play = element('button', {
-        textContent: '▶',
-        title: `Play ${voice.name}`,
-      });
+      const play = createSoundButton(voice.name, post);
       const line = element('div', { className: 'row' });
 
-      play.onclick = () => post({ kind: 'playSound', name: voice.name });
       line.append(play, ` ${voice.field} = ${voice.name}`);
       return line;
     }),

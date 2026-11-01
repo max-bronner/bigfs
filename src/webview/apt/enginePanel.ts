@@ -8,7 +8,9 @@ import type { FunctionEntry, ReadValue, Seen } from './avm/engine';
 import { AsObject } from './avm/value';
 import type { Value } from './avm/value';
 import { createButton, byId, createHeading, createInput, createRow } from './dom';
-import { engine, onEngineChange, saveAnswers } from './engineState';
+import { createSoundButton } from '../shared/createSoundButton';
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
+import { engine, onEngineChange, postSoundRequest, saveAnswers } from './engineState';
 import { currentGadgets } from './gadgets';
 import { listBindings, writeBinding } from './gadgetModel';
 import { getImageKey } from './imageSurface';
@@ -234,6 +236,9 @@ const soundRows = () => {
   toggle.checked = engine.playMovieSounds;
   toggle.onchange = () => {
     engine.playMovieSounds = toggle.checked;
+    if (toggle.checked) {
+      pageSoundPlayer.unlock();
+    }
   };
 
   const label = document.createElement('label');
@@ -246,7 +251,7 @@ const soundRows = () => {
       ? [...engine.sounds.values()].map((each) =>
           createRow(
             each.event,
-            createButton('▶ Play', () => engine.playSound(each.event)),
+            createSoundButton(each.event, postSoundRequest),
             text(`${each.count}×`, 'muted'),
           ),
         )

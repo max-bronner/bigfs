@@ -1,3 +1,4 @@
+import type { PlaySoundRequest, SoundReply } from '../../core/soundClip';
 import type { FxListDef } from '../../formats/particles/particleIni';
 import type { NumericField } from '../../formats/particles/particleValueEdits';
 import type { ParticleDef } from '../../formats/particles/particleDef';
@@ -32,6 +33,7 @@ export interface SceneMessage {
 
 /** Messages the particle preview sends its page */
 export type ToPage =
+  | SoundReply
   | SceneMessage
   | { kind: 'notice'; message: string }
   /** A model to show the effect on, or none */
@@ -65,4 +67,4 @@ export type FromPage =
   | { kind: 'keys'; keyKind: KeyKind; keys: KeyValue[] }
   | { kind: 'reveal'; line: number }
   /** An FX list's `Sound` nugget played from a click; by audio event name */
-  | { kind: 'playSound'; name: string };
+  | PlaySoundRequest;

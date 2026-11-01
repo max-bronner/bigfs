@@ -1,3 +1,4 @@
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
 import { getEffectStateAt } from '../../formats/particles/fxEffects';
 import { scaleEffect } from '../../formats/particles/particleScale';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
@@ -345,6 +346,10 @@ bones.onchange = () => {
 $('pickModel').onclick = () => post({ kind: 'pickModel' });
 
 window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
+  if (data.kind === 'sound') {
+    void pageSoundPlayer.receive(data);
+    return;
+  }
   if (data.kind === 'notice') {
     $('notice').textContent = data.message;
     return;

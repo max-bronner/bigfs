@@ -1,3 +1,4 @@
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
 import { showNotice } from '../shared/noticeBar';
 import type { MapActions } from './actions';
 import { listenToCanvas } from './canvasInput';
@@ -121,6 +122,10 @@ const listOwnerNames = (): string[] =>
   ].sort();
 
 window.addEventListener('message', ({ data }: MessageEvent<MapToPage>) => {
+  if (data.kind === 'sound') {
+    void pageSoundPlayer.receive(data);
+    return;
+  }
   if (data.kind === 'map') {
     state.map = data.map;
     state.readOnly = Boolean(data.readOnly);

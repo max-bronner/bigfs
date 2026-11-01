@@ -1,3 +1,4 @@
+import { answerSoundRequest } from '../../platform/webview/answerSoundRequest';
 import * as vscode from 'vscode';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { EntryLocator } from '../../services/entryLocator';
@@ -164,14 +165,8 @@ const createParticlePreview = (
         }
         break;
       case 'playSound':
-        // Only a click or the page's opt-in checkbox gets here; one name, one play
-        if (message.name) {
-          await vscode.commands.executeCommand(
-            'bigfs.playAudioEvent',
-            String(message.name),
-            uri.toString(),
-          );
-        }
+        // Only a click or the page's opt-in checkbox gets here; the page plays the reply
+        await answerSoundRequest(message, uri, panel.post);
         break;
       case 'reveal': {
         const editor = await vscode.window.showTextDocument(uri, {

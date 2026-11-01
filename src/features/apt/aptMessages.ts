@@ -1,3 +1,4 @@
+import { answerSoundRequest } from '../../platform/webview/answerSoundRequest';
 import * as vscode from 'vscode';
 import { decompileBlock } from '../../formats/apt/aptScript';
 import { areRunsWellFormed, fitRunTo } from '../../formats/apt/aptGeometry';
@@ -209,15 +210,9 @@ const HANDLERS: {
     });
   },
 
-  async playSound(message, { document }) {
+  async playSound(message, { document, post }) {
     // Only a click on a play button, or the checkbox that was ticked
-    if (typeof message.name === 'string' && message.name) {
-      void vscode.commands.executeCommand(
-        'bigfs.playAudioEvent',
-        message.name,
-        document.uri.toString(),
-      );
-    }
+    await answerSoundRequest(message, document.uri, post);
   },
 
   async openMovie(message, { library }) {

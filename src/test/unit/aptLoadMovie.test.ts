@@ -253,11 +253,8 @@ suite('APT loading movies and playing movie sounds', () => {
     assert.strictEqual(engine.save().overrides !== undefined, true);
     assert.ok(!('playMovieSounds' in engine.save()), 'never persisted');
 
-    engine.playSound('Gui_Click');
-    assert.deepStrictEqual(played, ['Gui_Click'], 'the button plays once');
-
     engine.playMovieSounds = true;
     engine.call('FSCommand:PlaySound', ['Gui_Other']);
-    assert.deepStrictEqual(played, ['Gui_Click', 'Gui_Other']);
+    assert.deepStrictEqual(played, ['Gui_Other']);
   });
 });

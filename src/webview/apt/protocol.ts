@@ -1,3 +1,4 @@
+import type { PlaySoundRequest, SoundReply } from '../../core/soundClip';
 import type { AptMovie, Frame } from '../../formats/apt/aptMovie';
 import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
 import type {
@@ -69,6 +70,7 @@ export interface TexturePixels {
 
 /** Message the APT editor sends its page, told apart by `kind` */
 export type ToPage =
+  | SoundReply
   | {
       kind: 'movie';
       summary: string;
@@ -144,7 +146,7 @@ export type FromPage =
   /** A script loaded a movie into a clip or level: find it like an import */
   | { kind: 'loadMovie'; name: string }
   /** The Engine panel's play button, or a movie sound with the box ticked */
-  | { kind: 'playSound'; name: string }
+  | PlaySoundRequest
   | { kind: 'edit'; edit: AptEdit }
   | { kind: 'scriptEdit'; block: number; text: string }
   | { kind: 'openGeometry'; geometry: number }

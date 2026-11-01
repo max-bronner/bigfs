@@ -3,6 +3,7 @@ import type { NumericField } from '../../formats/particles/particleValueEdits';
 import type { FxEffect } from '../../formats/particles/fxEffects';
 import { getEffectLength } from '../../formats/particles/fxEffects';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
 import { $, library, post, state, world } from './page';
 
 /**
@@ -292,7 +293,7 @@ const playDueSounds = (list: FxListDef): void => {
     const due = delayFrames(sound.initialDelay.low);
 
     if (due > soundFrame && due <= world.frame) {
-      post({ kind: 'playSound', name: sound.name });
+      pageSoundPlayer.request(sound.name, post);
     }
   }
   soundFrame = world.frame;
@@ -345,6 +346,11 @@ export const renderTimeline = (restart: () => void): void => {
 
   sounds.type = 'checkbox';
   sounds.checked = false;
+  sounds.onchange = () => {
+    if (sounds.checked) {
+      pageSoundPlayer.unlock();
+    }
+  };
   soundsLabel.title =
     'Play each Sound nugget at its delay while the effect runs; off by default';
   soundsLabel.append(sounds, ' Play sounds');
@@ -358,7 +364,7 @@ export const renderTimeline = (restart: () => void): void => {
     if (sound !== undefined) {
       // A click on the button plays one sound; nothing else on the row acts
       if (event.clientX - box.left < LABEL) {
-        post({ kind: 'playSound', name: original!.sounds[sound].name });
+        pageSoundPlayer.press(original!.sounds[sound].name, event, post);
       }
       return;
     }
