@@ -642,14 +642,23 @@ export class Player implements StageHost {
     const kept = new Map<string, Instance>();
     const items = timeline.frames[timeline.frame]?.items ?? [];
     const placements = buildDisplayList(timeline.frames, timeline.frame);
+    const placementByDepth = new Map(
+      placements.map((placement) => [placement.depth, placement]),
+    );
+    // A move places nothing: what it moves came in with the skipped frames
     const placedHere = new Set(
-      items.flatMap((item) => (item.type === "placeObject" ? [item.depth] : [])),
+      items.flatMap((item) =>
+        item.type === "placeObject" && item.character !== undefined
+          ? [item.depth]
+          : [],
+      ),
     );
     const syncDepth = (depth: number) => {
-      const placement = placements.find((each) => each.depth === depth);
+      const placement = placementByDepth.get(depth);
+      const key = String(depth);
 
-      if (placement) {
-        kept.set(String(depth), this.syncPlacement(timeline, placement));
+      if (placement && !kept.has(key)) {
+        kept.set(key, this.syncPlacement(timeline, placement));
       }
     };
 

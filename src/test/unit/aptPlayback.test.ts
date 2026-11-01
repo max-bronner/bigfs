@@ -45,6 +45,8 @@ interface Source {
   nextFrame?: FrameItem[];
   /** A clip `late` placed on the root's second frame, ahead of its script, with these event scripts */
   lateEvents?: Record<number, string>;
+  /** Items on the root's third frame */
+  lastFrame?: FrameItem[];
   /** Whether the button's hit record is the clip rather than a shape */
   hitRecordIsClip?: boolean;
 }
@@ -64,6 +66,7 @@ const start = ({
   nextFrame = [],
   hitRecordIsClip = false,
   lateEvents,
+  lastFrame = [],
 }: Source) => {
   const image = new AptImage(new Uint8Array(64));
   const code: PageMovie['code'] = {};
@@ -132,6 +135,7 @@ const start = ({
             ]
           : []),
         ...(index === 1 ? nextFrame : []),
+        ...(index === 2 ? lastFrame : []),
       ],
     })),
     spriteFrames: {
@@ -368,6 +372,31 @@ suite('APT playback', () => {
     const { player, read } = start({
       root: ['stop(); gotoAndStop(3);', '', '_root.ready = 1;'],
       lateEvents: { [1 << 0]: '_root.seen = _root.ready;' },
+    });
+
+    player.tick();
+    assert.strictEqual(read('ready'), 1);
+    assert.strictEqual(read('seen'), undefined);
+  });
+
+  test('a depth placed twice in a frame makes one clip', () => {
+    const { player } = start({
+      root: ['stop();'],
+      placed: [place(1, 1, { name: 'kid' })],
+    });
+
+    assert.strictEqual(
+      player.all().filter(({ name }) => name === 'kid').length,
+      1,
+    );
+    assert.strictEqual(player.root.children.size, 2);
+  });
+
+  test('a goto loads what a skipped frame places though the frame moves it', () => {
+    const { player, read } = start({
+      root: ['stop(); gotoAndStop(3);', '', '_root.ready = 1;'],
+      lateEvents: { [1 << 0]: '_root.seen = _root.ready;' },
+      lastFrame: [place(5, 1, { flags: 1, character: undefined })],
     });
 
     player.tick();
