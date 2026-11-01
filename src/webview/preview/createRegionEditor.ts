@@ -58,7 +58,19 @@ export const createRegionEditor = (
       render();
     },
     show(message) {
-      content = message;
+      content = {
+        ...message,
+        append: undefined,
+        selected: message.selected ?? content.selected,
+        regions: message.append
+          ? [
+              ...content.regions.filter(
+                (old) => !message.regions.some((each) => each.id === old.id),
+              ),
+              ...message.regions,
+            ]
+          : message.regions,
+      };
       render();
     },
     fit: layer.fit,

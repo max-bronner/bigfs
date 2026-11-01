@@ -28,6 +28,22 @@ export interface MappedImageBlock {
   endLine: number;
 }
 
+/** Finds the header of the `MappedImage` block that holds a line, or nothing when the line sits outside one or in another kind of block */
+export const findMappedImageHeader = (
+  lines: readonly string[],
+  line: number,
+): number | undefined => {
+  for (let at = line; at >= 0; at--) {
+    if (HEADER.test(lines[at] ?? '')) {
+      return at;
+    }
+    if (at < line && END.test(lines[at] ?? '')) {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
 /** Reads the `MappedImage` block whose header is at `header`, or nothing when that line is not one or the block never closes */
 export const readMappedImageBlock = (
   lines: readonly string[],

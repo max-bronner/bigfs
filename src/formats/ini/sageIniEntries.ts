@@ -189,7 +189,9 @@ export const collectEntries = (
     }
   }
 
-  // Models and animations by file name, so a W3D file finds its users
+  // Models, animations and textures by file name, so the file finds its users.
+  // A texture is kept under its first candidate only, the DDS of its stem; a
+  // lookup folds the extension the same way.
   for (const asset of findAssetReferences(parsed)) {
     if (asset.kind === 'model' || asset.kind === 'animation') {
       for (const candidate of asset.candidates) {
@@ -202,6 +204,15 @@ export const collectEntries = (
           field: asset.kind,
         });
       }
+    } else if (asset.kind === 'texture') {
+      entries.references.push({
+        namespace: FILE_USES,
+        name: asset.candidates[0],
+        line: asset.line,
+        start: asset.start,
+        end: asset.end,
+        field: asset.kind,
+      });
     }
   }
 

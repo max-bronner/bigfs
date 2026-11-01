@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { RegionsMessage } from '../../webview/preview/protocol';
+import type { FindRegions } from './createRegionDiscovery';
 import type { RegionKind } from './regionKind';
 
 /** One open preview of a texture, which regions are sent to */
@@ -10,7 +11,11 @@ interface RegionView {
 
 /** What the preview editor asks of the regions of the textures it shows */
 export interface TextureRegions extends vscode.Disposable {
-  /** Starts sending a preview the regions of its texture, now and whenever they change */
+  /**
+   * Starts sending a preview the regions of its texture, now and whenever
+   * they change, and searches for what else uses the texture the first time
+   * it is shown. The search stops when the last preview of the texture goes.
+   */
   attach(
     texture: vscode.Uri,
     decoded: readonly [number, number],
@@ -31,6 +36,10 @@ interface TextureState {
   views: Set<RegionView>;
   ids: Set<string>;
   selected?: string;
+  /** Set while the search for more regions runs */
+  search?: vscode.CancellationTokenSource;
+  /** Whether a search ran to its end, so a later preview does not run it again */
+  searched: boolean;
 }
 
 /**
@@ -40,46 +49,97 @@ interface TextureState {
  */
 export const createTextureRegions = (
   kinds: readonly RegionKind[],
+  findRegions: FindRegions,
 ): TextureRegions => {
   const textures = new Map<string, TextureState>();
-  const kindOf = (id: string) => kinds.find((each) => each.owns(id));
 
   const stateOf = (texture: vscode.Uri): TextureState => {
     const key = texture.toString();
     let state = textures.get(key);
 
     if (!state) {
-      state = { views: new Set(), ids: new Set() };
+      state = { views: new Set(), ids: new Set(), searched: false };
       textures.set(key, state);
     }
     return state;
   };
 
-  const send = async (state: TextureState, view: RegionView) => {
-    const found = await Promise.all(
-      [...state.ids].map((id) =>
-        kindOf(id)
-          ?.read(id, view.decoded)
-          .catch(() => undefined),
-      ),
-    );
+  const readRegions = async (
+    ids: readonly string[],
+    decoded: readonly [number, number],
+  ) =>
+    (
+      await Promise.all(
+        kinds.map((kind) =>
+          kind
+            .read(
+              ids.filter((id) => kind.owns(id)),
+              decoded,
+            )
+            .catch(() => []),
+        ),
+      )
+    ).flat();
 
+  const send = async (
+    state: TextureState,
+    view: RegionView,
+    ids: readonly string[],
+    append: boolean,
+  ) =>
     view.post({
       kind: 'regions',
-      regions: found.flatMap((region) => region ?? []),
+      regions: await readRegions(ids, view.decoded),
+      append,
       selected: state.selected,
+      loading: state.search !== undefined,
     });
-  };
 
   const sendAll = (state: TextureState) =>
-    Promise.all([...state.views].map((view) => send(state, view)));
+    Promise.all([...state.views].map((view) => send(state, view, [...state.ids], false)));
+
+  const search = (texture: vscode.Uri, state: TextureState) => {
+    const source = new vscode.CancellationTokenSource();
+
+    state.search = source;
+    findRegions(
+      texture,
+      (ids) => {
+        const added = ids.filter((id) => !state.ids.has(id));
+
+        added.forEach((id) => state.ids.add(id));
+        if (added.length && !source.token.isCancellationRequested) {
+          void Promise.all(
+            [...state.views].map((view) => send(state, view, added, true)),
+          );
+        }
+      },
+      source.token,
+    )
+      // A search that fails leaves what it found; nothing is reported to the user
+      .catch(() => undefined)
+      .finally(() => {
+        state.searched = !source.token.isCancellationRequested;
+        state.search = undefined;
+        source.dispose();
+        void sendAll(state);
+        // A preview opened while this search was being stopped still wants one
+        if (!state.searched && state.views.size) {
+          search(texture, state);
+        }
+      });
+  };
 
   const subscription = vscode.workspace.onDidChangeTextDocument((event) => {
     const changed = event.document.uri.toString();
 
     for (const state of textures.values()) {
       if (
-        [...state.ids].some((id) => kindOf(id)?.documentOf(id)?.toString() === changed)
+        [...state.ids].some(
+          (id) =>
+            kinds.find((kind) => kind.owns(id))?.documentOf(id)?.toString() ===
+            changed,
+        )
       ) {
         void sendAll(state);
       }
@@ -87,18 +147,29 @@ export const createTextureRegions = (
   });
 
   return {
-    dispose: () => subscription.dispose(),
+    dispose: () => {
+      subscription.dispose();
+      textures.forEach((state) => state.search?.cancel());
+    },
     attach(texture, decoded, post) {
       const state = stateOf(texture);
       const view: RegionView = { decoded, post };
 
       state.views.add(view);
-      void send(state, view);
-      return new vscode.Disposable(() => state.views.delete(view));
+      if (!state.search && !state.searched) {
+        search(texture, state);
+      }
+      void send(state, view, [...state.ids], false);
+      return new vscode.Disposable(() => {
+        state.views.delete(view);
+        if (!state.views.size) {
+          state.search?.cancel();
+        }
+      });
     },
     async edit(texture, id, rect) {
       const state = stateOf(texture);
-      const kind = kindOf(id);
+      const kind = kinds.find((each) => each.owns(id));
       const view = [...state.views][0];
 
       if (!kind || !view || !state.ids.has(id)) {

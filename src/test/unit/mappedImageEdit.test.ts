@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import { parseMappedImage } from '../../formats/mappedImage/mappedImage';
 import {
+  findMappedImageHeader,
   getCoordsEdit,
   readMappedImageBlock,
 } from '../../formats/mappedImage/mappedImageEdit';
@@ -28,6 +29,20 @@ suite('MappedImage editing', () => {
     assert.strictEqual(found?.endLine, 7);
     assert.strictEqual(readMappedImageBlock(block, 2), undefined);
     assert.strictEqual(readMappedImageBlock(block.slice(0, 7), 1), undefined);
+  });
+
+  test('a line finds the MappedImage header above it, but not through another block', () => {
+    const lines = [
+      'ParticleSystem Smoke',
+      '  Texture = smoke.tga',
+      'End',
+      ...block,
+    ];
+
+    assert.strictEqual(findMappedImageHeader(lines, 7), 4);
+    assert.strictEqual(findMappedImageHeader(lines, 4), 4);
+    assert.strictEqual(findMappedImageHeader(lines, 1), undefined);
+    assert.strictEqual(findMappedImageHeader(lines, 2), undefined);
   });
 
   test('replaces the Coords value and keeps the comment after it', () => {

@@ -416,6 +416,22 @@ suite('SAGE INI reference checking', () => {
     );
   });
 
+  test('a Texture field is a use of the file under its stem’s DDS name, once', () => {
+    const entries = collectEntries(
+      ['MappedImage Sample', '  Texture = Sample.tga', 'End'].join('\n'),
+      'mapped.ini',
+      schema,
+    );
+    const uses = entries.references.filter(
+      ({ namespace }) => namespace === '#file',
+    );
+
+    assert.deepStrictEqual(
+      uses.map(({ name, line, field }) => [name, line, field]),
+      [['sample.dds', 1, 'texture']],
+    );
+  });
+
   test('only capitals with underscores are skipped as names', () => {
     assert.ok(isNotAName('HUMAN_ARMOR'));
     assert.ok(isNotAName('FOO__BAR'));

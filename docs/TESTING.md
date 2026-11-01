@@ -691,6 +691,19 @@ Sound is opt-in: opening a view never plays anything.
   `TextureWidth`/`TextureHeight` still writes `Coords` in the stated size. A
   block in a base game archive shows its box but cannot be dragged; the
   warning offers **Override in Folder**.
+- [ ] **new** References panel of a texture: open any `.tga`/`.dds` from the
+  explorer (for example `aptcomponents_001`, or a UI atlas such as
+  `scgameuserinterface512_001`). Beside the image a panel lists, under
+  "References (n) · searching…" while it works, every `MappedImage` whose
+  `Texture` names the file and, for an `apt_<movie>_<n>` texture, every shape
+  of that movie that samples it; all their boxes are drawn on the image.
+  Click a name or a box to select it (blue, with corner handles); with more
+  than a dozen a filter box appears. Selecting one shows its edges: drag it,
+  resize it by a corner or type the numbers, as for **Edit region in
+  texture**, and **Open definition** jumps to its INI block or `.ru` line. The
+  list appears after the preview, never before it; closing the preview stops
+  the search. With no game or no INI loaded the panel simply does not show;
+  a texture nothing uses shows no panel.
 - [ ] **new** `.ru` geometry texture regions: open a shape's
   `<movie>_geometry/<n>.ru` from the explorer (it opens as plain text, as
   before). Each `s tc:` line has a lens saying which image it samples and the

@@ -2,6 +2,7 @@ import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
 import { createMappedImageRegionKind } from './mappedImageRegionKind';
 import { createRuRegionKind } from './ruRegionKind';
+import { createRegionDiscovery } from './createRegionDiscovery';
 import { createTextureRegions } from './createTextureRegions';
 import { PreviewEditorProvider } from './previewEditorProvider';
 import { registerEditMappedImageRegion } from './registerEditMappedImageRegion';
@@ -10,12 +11,12 @@ import { registerShowRuRegion } from './registerShowRuRegion';
 /** Registers the preview editor for textures, audio, cursors and W3D models, and the commands that open a texture on a region */
 export const registerPreview = (
   context: ExtensionContext,
-  { tools, locator, archives }: Services,
+  { tools, locator, archives, iniIndex }: Services,
 ): void => {
-  const regions = createTextureRegions([
-    createMappedImageRegionKind(archives),
-    createRuRegionKind(archives),
-  ]);
+  const regions = createTextureRegions(
+    [createMappedImageRegionKind(archives), createRuRegionKind(archives)],
+    createRegionDiscovery(iniIndex, locator),
+  );
 
   context.subscriptions.push(
     regions,

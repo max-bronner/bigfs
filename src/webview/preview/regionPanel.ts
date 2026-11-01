@@ -4,8 +4,9 @@ import type { TextureRegion } from './protocol';
 
 /**
  * The side panel beside a texture: the regions other files use, grouped by
- * what uses them, and the selected one's edges as numbers to type. Dashed
- * boxes on the texture are rotated images, packed turned a quarter turn.
+ * what uses them and filtered by what is typed, and the selected one's edges
+ * as numbers to type. Dashed boxes on the texture are rotated images, packed
+ * turned a quarter turn.
  */
 
 /** What the panel reports back to the page */
@@ -21,6 +22,9 @@ export interface RegionPanelContent {
   selected?: string;
   loading?: boolean;
 }
+
+/** More regions than this get a filter box */
+const FILTER_FROM = 12;
 
 const EDGES = ['Left', 'Top', 'Right', 'Bottom'] as const;
 
@@ -53,69 +57,91 @@ const createEdgeFields = (
   return fields;
 };
 
-/** Creates the panel inside `root`, which stays hidden until there is something to show */
+/** Builds the selected region's details: its edges, what to know about it, and a way to its definition */
+const createDetail = (
+  region: TextureRegion,
+  events: RegionPanelEvents,
+): HTMLElement => {
+  const detail = element('div', undefined, 'detail');
+
+  detail.append(element('strong', region.label), createEdgeFields(region, events.onEdit));
+  if (region.rotated) {
+    detail.append(
+      element(
+        'p',
+        'Drawn dashed: turned. The box is the rect as the file stores it.',
+      ),
+    );
+  }
+  if (region.note) {
+    detail.append(element('p', region.note));
+  }
+  if (region.source) {
+    const { source } = region;
+    const open = element('button', 'Open definition');
+
+    open.onclick = () => events.onReveal(source);
+    detail.append(open);
+  }
+  return detail;
+};
+
+/** Creates the panel inside `root`, which stays hidden until there is a region to show */
 export const createRegionPanel = (
   root: HTMLElement,
   events: RegionPanelEvents,
 ): ((content: RegionPanelContent) => void) => {
-  return ({ regions, selected, loading }) => {
-    root.hidden = !regions.length && !loading;
+  const heading = element('h3');
+  const filter = element('input');
+  const detail = element('div');
+  const list = element('div');
+  let last: RegionPanelContent = { regions: [] };
 
-    const chosen = regions.find((region) => region.id === selected);
-    const parts: HTMLElement[] = [
-      element(
-        'h3',
-        `References (${regions.length})${loading ? ' · searching…' : ''}`,
-      ),
-    ];
+  filter.type = 'search';
+  filter.placeholder = 'Filter references';
+  root.replaceChildren(heading, filter, detail, list);
 
-    if (chosen) {
-      const detail = element('div', undefined, 'detail');
-
-      detail.append(
-        element('strong', chosen.label),
-        createEdgeFields(chosen, events.onEdit),
+  const render = ({ regions, selected, loading }: RegionPanelContent) => {
+    const wanted = filter.value.trim().toLowerCase();
+    const shown = regions
+      .filter((region) => region.label.toLowerCase().includes(wanted))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { numeric: true }),
       );
-      if (chosen.rotated) {
-        detail.append(
-          element(
-            'p',
-            'Packed turned a quarter turn clockwise: the box is the rect as packed.',
-          ),
-        );
-      }
-      if (chosen.note) {
-        detail.append(element('p', chosen.note));
-      }
-      if (chosen.source) {
-        const { source } = chosen;
-        const open = element('button', 'Open definition');
-
-        open.onclick = () => events.onReveal(source);
-        detail.append(open);
-      }
-      parts.push(detail);
-    }
-
+    const chosen = regions.find((region) => region.id === selected);
     const groups = new Map<string, TextureRegion[]>();
 
-    for (const region of regions) {
+    root.hidden = !regions.length;
+    heading.textContent = `References (${regions.length})${loading ? ' · searching…' : ''}`;
+    filter.hidden = regions.length < FILTER_FROM;
+    detail.replaceChildren(...(chosen ? [createDetail(chosen, events)] : []));
+    for (const region of shown) {
       groups.set(region.group, [...(groups.get(region.group) ?? []), region]);
     }
-    for (const [group, members] of groups) {
-      const list = element('div', undefined, 'group');
+    list.replaceChildren(
+      ...[...groups].map(([group, members]) => {
+        const section = element('div', undefined, 'group');
 
-      list.append(element('h4', `${group} (${members.length})`));
-      for (const region of members) {
-        const item = element('button', region.label, 'item');
+        section.append(element('h4', `${group} (${members.length})`));
+        for (const region of members) {
+          const item = element('button', region.label, 'item');
 
-        item.setAttribute('aria-pressed', String(region.id === selected));
-        item.onclick = () => events.onSelect(region.id);
-        list.append(item);
-      }
-      parts.push(list);
-    }
+          item.setAttribute('aria-pressed', String(region.id === selected));
+          item.onclick = () => events.onSelect(region.id);
+          section.append(item);
+        }
+        return section;
+      }),
+    );
+    list
+      .querySelector('[aria-pressed="true"]')
+      ?.scrollIntoView({ block: 'nearest' });
+  };
 
-    root.replaceChildren(...parts);
+  filter.oninput = () => render(last);
+
+  return (content) => {
+    last = content;
+    render(content);
   };
 };

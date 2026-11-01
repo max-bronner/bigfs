@@ -51,6 +51,8 @@ export interface TextureRegion {
 export interface RegionsMessage {
   kind: 'regions';
   regions: TextureRegion[];
+  /** Whether the regions are added to those already shown instead of replacing them */
+  append?: boolean;
   /** The region to show selected */
   selected?: string;
   /** Whether more regions are still being found */

@@ -9,11 +9,14 @@ import type { TextureRegion } from '../../webview/preview/protocol';
 export interface RegionKind {
   /** Whether the id names a region of this kind */
   owns(id: string): boolean;
-  /** Reads the region from its document as it is now, or nothing when it is gone or unreadable */
+  /**
+   * Reads regions from their documents as they are now, each document once
+   * however many regions it holds. A region that is gone or unreadable is left out.
+   */
   read(
-    id: string,
+    ids: readonly string[],
     decoded: readonly [number, number],
-  ): Promise<TextureRegion | undefined>;
+  ): Promise<TextureRegion[]>;
   /** Writes a box, in pixels of the decoded texture, into the region's document; whether it changed */
   write(
     id: string,

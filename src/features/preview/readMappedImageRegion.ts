@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { isEditable } from '../../services/ini/archiveText';
 import { readMappedImageBlock } from '../../formats/mappedImage/mappedImageEdit';
@@ -10,20 +9,17 @@ import type { MappedImageSource } from './mappedImageRegionId';
 
 /**
  * Reads a `MappedImage` block as a region of the texture it names, from the
- * document as it is now so an edit not yet saved shows. A block without
- * `Coords` covers the whole texture. A block in a read-only archive entry is
- * shown but cannot be edited.
+ * lines of its document as they are now so an edit not yet saved shows. A
+ * block without `Coords` covers the whole texture. A block in a read-only
+ * archive entry is shown but cannot be edited.
  */
-export const readMappedImageRegion = async (
+export const readMappedImageRegion = (
   archives: ArchiveModel,
   source: MappedImageSource,
+  lines: readonly string[],
   decoded: readonly [number, number],
-): Promise<TextureRegion | undefined> => {
-  const document = await vscode.workspace.openTextDocument(source.uri);
-  const block = readMappedImageBlock(
-    document.getText().split(/\r?\n/),
-    source.line,
-  );
+): TextureRegion | undefined => {
+  const block = readMappedImageBlock(lines, source.line);
 
   if (!block) {
     return undefined;

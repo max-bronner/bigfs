@@ -330,7 +330,9 @@ your mod's archives.
 **Previews**
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip
-  levels. **Export as PNG**, **Replace with PNG…** (written back in the
+  levels. A References panel lists every `MappedImage` and every APT shape
+  that uses part of the texture, draws their boxes on it and lets you select
+  one and drag, resize or type its region back into the INI or `.ru` file. **Export as PNG**, **Replace with PNG…** (written back in the
   texture's own format, mipmaps included) and **Convert to Game Texture…**
   for PNGs (TGA 24/32-bit, DDS DXT1/3/5 or uncompressed).
 - Sounds: WAV, including IMA ADPCM, which VS Code's own audio preview cannot play. MP3 opens in VS Code's own preview.
