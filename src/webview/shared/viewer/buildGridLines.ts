@@ -10,8 +10,9 @@ const COLOR: LineColor = [1, 1, 1, 0.12];
 const AXIS_SQUARES = 2;
 
 /**
- * Builds the ground grid and the red, green and blue axes as line vertices on Z 0, doubling until it reaches
- * past `radius`, so the line count stays the same under the largest model.
+ * Builds the ground grid and the red, green and blue axes as line vertices on
+ * Z 0, doubling until it reaches past `radius`, so the line count stays the
+ * same under the largest model.
  */
 export const buildGridLines = (radius: number): number[] => {
   const out: number[] = [];

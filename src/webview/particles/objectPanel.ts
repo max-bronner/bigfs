@@ -74,7 +74,7 @@ const renderHiddenParts = () => {
   const meshes = model?.meshes ?? [];
   const hiding = findHidingSources(
     meshes,
-    state && scene ? listSubObjectRules(scene, state) : [],
+    scene ? listSubObjectRules(scene, state) : [],
     model?.skeleton?.parents,
   );
   const hidden = meshes.flatMap((mesh, at) =>

@@ -166,6 +166,9 @@ export const renderHtml = (
   main { flex: 1; min-width: 0; padding: 12px; }
   aside { flex: none; width: 260px; box-sizing: border-box; padding: 12px; max-height: calc(100vh - 44px); overflow-y: auto; position: sticky; top: 44px; border-left: 1px solid var(--vscode-panel-border); }
   aside[hidden], .splitter[hidden] { display: none; }
+  body.model-page { height: 100vh; overflow: hidden; }
+  body.model-page .content { height: 100%; }
+  body.model-page main { height: 100%; padding: 0; }
   body.texture-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
   body.texture-page header { flex: none; position: static; }
   body.texture-page .content { flex: 1; min-height: 0; align-items: stretch; }
@@ -187,7 +190,6 @@ export const renderHtml = (
   canvas.pixelated { image-rendering: pixelated; }
   .error { color: var(--vscode-errorForeground); }
   audio { width: min(600px, 100%); margin-top: 12px; }
-  canvas.model { display: block; cursor: grab; touch-action: none; }
   canvas.video { display: block; max-width: 100%; image-rendering: auto; }
   canvas.video.checker { background: repeating-conic-gradient(#808080 0 25%, #c0c0c0 0 50%) 0 0 / 16px 16px; }
   .controls { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }

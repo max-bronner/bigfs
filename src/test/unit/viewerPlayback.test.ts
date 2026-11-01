@@ -5,6 +5,7 @@ import { buildGridLines } from '../../webview/shared/viewer/buildGridLines';
 import { computeOrbitBasis } from '../../webview/shared/orbitBasis';
 import { describeDetailLevels, describeModel } from '../../webview/shared/viewer/describeModel';
 import type { ViewerModel } from '../../webview/shared/viewer/describeModel';
+import { listFileClips } from '../../webview/preview/listFileClips';
 
 const CLIP = { frameCount: 31, frameRate: 30 };
 
@@ -78,6 +79,24 @@ suite('Viewer playback', () => {
   test('a clip starts on its first frame and ends on its last', () => {
     assert.strictEqual(getClipFrame(CLIP, 0), 0);
     assert.strictEqual(getClipFrame(CLIP, 1), 30);
+  });
+});
+
+suite('Viewer animation list', () => {
+  const thisFile = [{ id: '#own', label: 'CLIP (this file)' }];
+
+  test('what the file holds comes first, then its skeleton\'s files', () => {
+    assert.deepStrictEqual(listFileClips(thisFile, ['a_run.W3D'], []).own, [
+      thisFile[0],
+      { id: 'a_run.W3D', label: 'a_run' },
+    ]);
+  });
+
+  test('another skeleton\'s clip is labelled with the skeleton', () => {
+    assert.deepStrictEqual(
+      listFileClips([], [], [{ file: 'b_run.w3d', hierarchyName: 'B_SKL' }]).foreign,
+      [{ id: 'b_run.w3d', label: 'b_run (B_SKL)' }],
+    );
   });
 });
 

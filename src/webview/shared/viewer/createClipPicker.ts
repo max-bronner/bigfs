@@ -45,6 +45,7 @@ export const createClipPicker = (
     select,
     setList: ({ own, foreign = [] }) => {
       const group = document.createElement('optgroup');
+      const picked = select.value;
 
       group.label = 'Made for other skeletons';
       group.append(...foreign.map(toOption));
@@ -53,6 +54,7 @@ export const createClipPicker = (
         ...own.map(toOption),
         ...(foreign.length ? [group] : []),
       );
+      select.value = picked;
       hasChoices = own.length + foreign.length > 0;
       refresh();
     },

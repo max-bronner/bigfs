@@ -1,12 +1,12 @@
 import { getVsCodeApi } from '../shared/vscodeApi';
 import { showAudio } from './audio';
+import { createModelPage } from './createModelPage';
+import type { ModelPage } from './createModelPage';
 import { createRegionEditor } from './createRegionEditor';
 import { showCursor } from './cursor';
 import { showMovie } from './movie';
 import type { MovieControl } from './movie';
 import type { FromPreviewPage, ToPreviewPage } from './protocol';
-import { showModel } from './showModel';
-import type { ModelControl } from './showModel';
 import { createTexturePage } from './texture';
 
 /**
@@ -23,16 +23,14 @@ const regions = createRegionEditor(document.getElementById('regions')!, (message
 const showTexture = createTexturePage(main, regions, {
   onPopOut: () => vscode.postMessage({ kind: 'popOut' }),
 });
-let modelControl: ModelControl | undefined;
+let modelPage: ModelPage | undefined;
 let movie: MovieControl | undefined;
 
 window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
   switch (data.kind) {
     case 'model':
-      modelControl = showModel(data, {
-        main,
-        post: (message) => vscode.postMessage(message),
-      });
+      modelPage ??= createModelPage(main, (message) => vscode.postMessage(message));
+      modelPage.show(data);
       break;
     case 'video':
       movie = showMovie(main, data, (message) => vscode.postMessage(message));
@@ -50,16 +48,16 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
       break;
     }
     case 'uses':
-      modelControl?.setUses(data.uses);
+      modelPage?.setUses(data.uses);
       break;
     case 'animations':
-      modelControl?.setAnimations(data.own, data.foreign);
+      modelPage?.setAnimations(data.own, data.foreign);
       break;
     case 'animation':
-      modelControl?.play(data);
+      modelPage?.play(data);
       break;
     case 'animationError':
-      modelControl?.showNotice(data.message);
+      modelPage?.showNotice(data.message);
       break;
     case 'texture':
       showTexture(data);
