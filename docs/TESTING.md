@@ -296,6 +296,14 @@ Movie**.
 - [ ] **changed** **Interact** on `MainMenu`: hover a nav button and its
   sub-menu rolls out; move away and it closes; move across the nav buttons and
   they swap. `QuitMainMenu` and `MyHeroes` play their hover effect.
+- [ ] **changed** **Interact**: a button whose over state shows other art
+  changes on hover; a clip that carries mouse handlers responds
+  (`GadgetColorPicker`, the `Strategic…` panels); hold a button and drag off
+  it: it runs its drag script, not its roll-out; a button hidden by a mask
+  takes no pointer.
+- [ ] **changed** Playing a movie: scripts see clips already on their new frame,
+  a `gotoAndStop` past the end lands on the last frame, and a clip hidden with
+  `_visible` keeps animating when shown again.
 - [ ] **new** Editing with undo: text, colours, bounds, exports, imports,
   placements, frame labels, frames, new text / sprite / shape / image
   characters, geometry and texture import, remove characters.

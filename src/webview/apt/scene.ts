@@ -117,6 +117,8 @@ export const getPlacedColor = (child: Instance): ColorTransform => {
 export interface DisplayTree {
   readonly root: Instance;
   textOf(instance: Instance): string | undefined;
+  /** Whether a clip takes the pointer itself, over what it holds */
+  takesPointer?(instance: Instance): boolean;
 }
 
 /** Collects what a player shows right now, flattened in paint order, with button hit areas */
@@ -133,10 +135,12 @@ export const collect = (
     top: number | undefined,
     out: Leaf[],
     masks: Leaf[][] = [],
+    isMask = false,
   ): void => {
     const { character } = instance;
 
-    if (instance.visible === false) {
+    // A mask draws whatever `_visible` says (mint's `render_children`)
+    if (instance.visible === false && !isMask) {
       return;
     }
     if (
@@ -167,6 +171,7 @@ export const collect = (
     // A child with a clip depth is a mask: not drawn, it bounds the
     // children above it up to that depth (SWF's PlaceObject ClipDepth)
     const open: { until: number; leaves: Leaf[] }[] = [];
+    const firstLeaf = out.length;
 
     for (const [key, child] of instance.children) {
       const depth = Number(key);
@@ -181,7 +186,7 @@ export const collect = (
       if (child.clipDepth !== undefined && !emptyClip) {
         const area: Leaf[] = [];
 
-        visit(child, place(child), IDENTITY_COLOR, childTop, area, masks);
+        visit(child, place(child), IDENTITY_COLOR, childTop, area, masks, true);
         open.push({ until: child.clipDepth, leaves: area });
         continue;
       }
@@ -202,9 +207,13 @@ export const collect = (
       for (const hit of instance.hits) {
         const area: Leaf[] = [];
 
-        visit(hit, place(hit), color, top, area);
+        visit(hit, place(hit), color, top, area, masks);
         hits.push(...area.map((leaf) => ({ leaf, button: instance })));
       }
+    } else if (!isMask && player.takesPointer?.(instance)) {
+      hits.push(
+        ...out.slice(firstLeaf).map((leaf) => ({ leaf, button: instance })),
+      );
     }
   };
 
@@ -254,9 +263,28 @@ export const toLeafSpace = (
     : undefined;
 };
 
+/** Whether a point is in a leaf's bounds */
+const isInBounds = (leaf: Leaf, point: [number, number]): boolean => {
+  const local = toLeafSpace(leaf, point);
+
+  if (!local) {
+    return false;
+  }
+
+  const [left, top, right, bottom] = getLocalBounds(leaf);
+
+  return (
+    local[0] >= left &&
+    local[0] <= right &&
+    local[1] >= top &&
+    local[1] <= bottom
+  );
+};
+
 /**
- * Finds the topmost button whose hit area is under a point. A hit area is the
- * hit record's bounds: the shipped hit shapes are bounds around empty geometry.
+ * Finds the topmost button or clip whose hit area is under a point, and not
+ * masked away there. A hit area is its record's bounds: the shipped hit
+ * shapes are bounds around empty geometry.
  */
 export const findButtonAt = (
   hits: readonly HitArea[],
@@ -264,19 +292,14 @@ export const findButtonAt = (
 ): Instance | undefined => {
   for (let index = hits.length - 1; index >= 0; index--) {
     const { leaf, button } = hits[index];
-    const local = toLeafSpace(leaf, point);
 
-    if (local) {
-      const [left, top, right, bottom] = getLocalBounds(leaf);
-
-      if (
-        local[0] >= left &&
-        local[0] <= right &&
-        local[1] >= top &&
-        local[1] <= bottom
-      ) {
-        return button;
-      }
+    if (
+      isInBounds(leaf, point) &&
+      (leaf.masks ?? []).every((mask) =>
+        mask.some((each) => isInBounds(each, point)),
+      )
+    ) {
+      return button;
     }
   }
   return undefined;

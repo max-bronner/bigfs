@@ -1,3 +1,4 @@
+import { AsObject, toBoolean } from "./avm/value";
 import { Vm } from "./avm/vm";
 import type { EngineHooks } from "./avm/vmState";
 import type { StageHost } from "./avm/value";
@@ -9,7 +10,13 @@ import { isTimeline } from "./instance";
 import type { Instance } from "./instance";
 import type { PageMovie } from "./protocol";
 import { getMovieName } from "./avm/movieLoad";
-import { CONDITION, DOWN, HIT, OVER, UP } from "./buttonState";
+import {
+  HIT,
+  POINTER,
+  POINTER_CLIP_EVENTS,
+  UP,
+} from "./buttonState";
+import type { PointerEvent } from "./buttonState";
 import { createBehaviourRunner } from "./createBehaviourRunner";
 import type { BehaviourRunner } from "./createBehaviourRunner";
 import { describeInstance } from "./describeInstance";
@@ -74,14 +81,8 @@ const CLIP_EVENT = {
   construct: 1 << 18,
 };
 
-/** Script handlers a button or clip object can carry, by pointer event */
-const HANDLERS: Record<number, string> = {
-  [CONDITION.rollOver]: "onRollOver",
-  [CONDITION.rollOut]: "onRollOut",
-  [CONDITION.press]: "onPress",
-  [CONDITION.release]: "onRelease",
-  [CONDITION.releaseOutside]: "onReleaseOutside",
-};
+/** The order queued scripts run in: a lower number empties first (mint's `ActionQueue`) */
+const SCRIPT_PRIORITY = { initialize: 0, construct: 1, normal: 2 };
 
 /** Player of one character's timelines and buttons, and the stage the AVM drives */
 export class Player implements StageHost {
@@ -92,9 +93,13 @@ export class Player implements StageHost {
   /** The ActionScript machine, when an engine answers for the game */
   public readonly vm?: Vm;
   private readonly runBehaviour: BehaviourRunner;
-  /** Scripts waiting for the one running to finish */
-  private readonly waiting: (() => void)[] = [];
+  /** Scripts waiting their turn, by `SCRIPT_PRIORITY` */
+  private readonly waiting: (() => void)[][] = [[], [], []];
   private draining = false;
+  /** Clips to run each frame, newest first (Ruffle's execution list) */
+  private clips: Instance[] = [];
+  /** Hit records are areas: nothing in them runs */
+  private isPlacingHitRecords = false;
 
   public constructor(
     movie: PageMovie,
@@ -151,7 +156,10 @@ export class Player implements StageHost {
 
           if (item.type === "initAction" && !vm.initialised.has(key)) {
             vm.initialised.add(key);
-            this.later(() => vm.runBlock(on ?? this.root, item.block));
+            this.later(
+              () => vm.runBlock(on ?? this.root, item.block),
+              SCRIPT_PRIORITY.initialize,
+            );
           }
         }
       }
@@ -239,7 +247,6 @@ export class Player implements StageHost {
     clip.frame = 0;
     clip.playing = true;
     clip.visible = true;
-    clip.created = this.ticks;
 
     // A movie loaded again runs its init actions again
     this.vm?.initialised.forEach((key) => {
@@ -272,50 +279,85 @@ export class Player implements StageHost {
     clip.playing = false;
   }
 
-  /** Advances every playing timeline a frame, parents first */
+  /**
+   * Plays one frame: every clip advances first, queueing its scripts, and
+   * only then do the scripts run, so one sees every clip already on its new
+   * frame (mint's `Player::tick`, after Ruffle). A clip made this frame
+   * starts playing on the next.
+   */
   public tick(): void {
     this.ticks++;
-
-    const timelines: Instance[] = [];
-    const gather = (instance: Instance) => {
-      if (isTimeline(instance)) {
-        timelines.push(instance);
-      }
-      instance.children.forEach(gather);
-    };
-
-    gather(this.root);
-    for (const timeline of timelines) {
-      if (
-        this.attached(timeline) &&
-        timeline.playing &&
-        timeline.created < this.ticks &&
-        timeline.frames.length > 1
-      ) {
-        this.enter(timeline, (timeline.frame + 1) % timeline.frames.length);
-      }
-    }
+    this.clips = this.clips.filter((clip) => !clip.removed);
 
     const vm = this.vm;
+    const runsScripts = !!vm && this.scriptsRun(this.root);
 
-    if (vm && this.scriptsRun(this.root)) {
+    if (vm) {
       vm.ticks = this.ticks;
-      for (const instance of this.all()) {
-        if (instance.clipActions) {
-          this.clipEvent(instance, CLIP_EVENT.enterFrame);
-        }
-
-        // Only a clip a script has touched can carry an onEnterFrame
-        const object = vm.peekObject(instance);
-        const handler = object?.has("onEnterFrame")
-          ? object.get("onEnterFrame")
-          : undefined;
-
-        if (handler !== undefined && object) {
-          vm.callFromEngine(handler, object, []);
+    }
+    this.queueScripts(() => {
+      for (const clip of [...this.clips]) {
+        if (!clip.removed) {
+          this.runClipFrame(clip, runsScripts);
         }
       }
+    });
+    if (vm && runsScripts) {
       vm.runIntervals();
+      this.idle();
+    }
+  }
+
+  /** Queues a clip's per-frame events, then advances it if it plays */
+  private runClipFrame(clip: Instance, runsScripts: boolean): void {
+    if (runsScripts) {
+      this.clipEvent(clip, CLIP_EVENT.enterFrame);
+      this.queueMethod(clip, "onEnterFrame");
+    }
+    if (!clip.playing) {
+      return;
+    }
+    if (clip.frames.length > 1) {
+      this.enter(clip, (clip.frame + 1) % clip.frames.length);
+    } else {
+      clip.playing = false;
+    }
+  }
+
+  /** Runs `queue`, holding the scripts it queues until it has finished */
+  private queueScripts(queue: () => void): void {
+    const wasDraining = this.draining;
+
+    this.draining = true;
+    try {
+      queue();
+    } finally {
+      this.draining = wasDraining;
+    }
+    this.idle();
+  }
+
+  /** Gets a handler property of a clip; only a clip a script has touched can carry one */
+  private findHandler(instance: Instance, name: string): AsObject | undefined {
+    const handler = this.vm?.peekObject(instance)?.get(name);
+
+    return handler instanceof AsObject && handler.kind.type === "function"
+      ? handler
+      : undefined;
+  }
+
+  /** Queues a call of a handler property, if the clip carries one when its turn comes */
+  private queueMethod(instance: Instance, name: string): void {
+    const vm = this.vm;
+
+    if (vm && this.findHandler(instance, name)) {
+      this.later(() => {
+        const handler = this.findHandler(instance, name);
+
+        if (handler && !instance.removed) {
+          vm.callFromEngine(handler, vm.peekObject(instance), []);
+        }
+      });
     }
   }
 
@@ -333,23 +375,28 @@ export class Player implements StageHost {
     }
     this.draining = true;
     try {
-      for (let ran = 0; this.waiting.length; ran++) {
+      for (let ran = 0; ; ran++) {
+        const next = this.waiting.find((bucket) => bucket.length)?.shift();
+
+        if (!next) {
+          break;
+        }
         if (ran >= MAX_ACTIONS) {
           this.options.log?.(
             `stopped after ${MAX_ACTIONS} scripts in one go: scripts keep starting each other`,
           );
-          this.waiting.length = 0;
+          this.waiting.forEach((bucket) => (bucket.length = 0));
           break;
         }
-        this.waiting.shift()!();
+        next();
       }
     } finally {
       this.draining = false;
     }
   }
 
-  private later(run: () => void): void {
-    this.waiting.push(run);
+  private later(run: () => void, priority = SCRIPT_PRIORITY.normal): void {
+    this.waiting[priority].push(run);
   }
 
   /** Plays or stops a clip's timeline */
@@ -415,6 +462,7 @@ export class Player implements StageHost {
       framesOffset: 0,
     };
     instance.missing = undefined;
+    this.clips.unshift(instance);
     return this.place(parent, depth, instance);
   }
 
@@ -472,23 +520,33 @@ export class Player implements StageHost {
     const vm = this.vm;
     const parent = instance.parent;
 
+    const priority =
+      event === CLIP_EVENT.initialize
+        ? SCRIPT_PRIORITY.initialize
+        : event === CLIP_EVENT.construct
+          ? SCRIPT_PRIORITY.construct
+          : SCRIPT_PRIORITY.normal;
+
     for (const action of instance.clipActions ?? []) {
       if (action.events & event) {
-        this.later(() => vm.runBlock(instance, action.block, parent));
+        this.later(() => vm.runBlock(instance, action.block, parent), priority);
       }
     }
     this.idle();
   }
 
-  /** Moves a timeline to a frame, running that frame's scripts */
+  /**
+   * Moves a timeline to a frame, running that frame's scripts. A frame past
+   * either end lands on that end, and a goto to the frame it is on does
+   * nothing (mint's `goto_frame`, after Ruffle).
+   */
   public goTo(timeline: Instance, frame: number, play: boolean): void {
     timeline.playing = play;
-    if (
-      frame !== timeline.frame &&
-      frame >= 0 &&
-      frame < timeline.frames.length
-    ) {
-      this.enter(timeline, frame);
+
+    const target = Math.max(0, Math.min(timeline.frames.length - 1, frame));
+
+    if (target !== timeline.frame && timeline.frames.length) {
+      this.enter(timeline, target);
     }
   }
 
@@ -520,33 +578,55 @@ export class Player implements StageHost {
     this.syncButton(button);
   }
 
-  /** Moves the pointer onto a button, or off every button, rolling out of the previous one */
+  /**
+   * Moves the pointer from one target to another. While a target is held
+   * down the others get drag events, never roll events (mint's
+   * `update_mouse`, after Ruffle).
+   */
   public hover(
     previous: Instance | undefined,
     next: Instance | undefined,
+    held?: Instance,
   ): void {
     if (previous === next) {
       return;
     }
     if (previous && this.attached(previous)) {
-      this.buttonEvent(previous, CONDITION.rollOut, UP);
+      this.pointerEvent(previous, held ? POINTER.dragOut : POINTER.rollOut);
     }
     if (next) {
-      this.buttonEvent(next, CONDITION.rollOver, OVER);
+      this.pointerEvent(next, held ? POINTER.dragOver : POINTER.rollOver);
     }
   }
 
-  /** Presses the pointer on a button */
-  public press(button: Instance): void {
-    this.buttonEvent(button, CONDITION.press, DOWN);
+  /** Presses the pointer on a target */
+  public press(target: Instance): void {
+    this.pointerEvent(target, POINTER.press);
   }
 
-  /** Lets the pointer go: over the button pressed, or elsewhere */
-  public release(button: Instance, over: boolean): void {
-    this.buttonEvent(
-      button,
-      over ? CONDITION.release : CONDITION.releaseOutside,
-      over ? OVER : UP,
+  /** Lets the pointer go: over the target pressed, or over `hovered` or nothing */
+  public release(target: Instance, hovered: Instance | undefined): void {
+    if (target === hovered) {
+      this.pointerEvent(target, POINTER.release);
+      return;
+    }
+    this.pointerEvent(target, POINTER.releaseOutside);
+    if (hovered) {
+      this.pointerEvent(hovered, POINTER.rollOver);
+    }
+  }
+
+  /**
+   * Whether a clip takes the pointer itself, by a mouse clip event or a
+   * mouse handler property (mint's `button_mode`, after Ruffle)
+   */
+  public takesPointer(instance: Instance): boolean {
+    if (instance.clipActions?.some(({ events }) => events & POINTER_CLIP_EVENTS)) {
+      return true;
+    }
+
+    return Object.values(POINTER).some(
+      ({ handler }) => !!this.findHandler(instance, handler),
     );
   }
 
@@ -627,23 +707,31 @@ export class Player implements StageHost {
       children: new Map(),
       hits: [],
       buttonState: UP,
-      created: this.ticks,
     };
     const depth = path.split("/").length;
 
     if (depth > MAX_DEPTH) {
       return instance;
     }
+
+    const runsEvents =
+      !this.isPlacingHitRecords &&
+      !!parent &&
+      !!this.vm &&
+      this.scriptsRun(parent);
+
+    if (runsEvents) {
+      this.clipEvent(instance, CLIP_EVENT.initialize);
+      this.clipEvent(instance, CLIP_EVENT.construct);
+      this.clipEvent(instance, CLIP_EVENT.load);
+    }
     if (isTimeline(instance)) {
+      if (!this.isPlacingHitRecords) {
+        this.clips.unshift(instance);
+      }
       this.enter(instance, 0);
     } else if (instance.character?.type === "button") {
       this.syncButton(instance);
-    }
-    if (parent && this.vm && this.scriptsRun(parent)) {
-      this.clipEvent(
-        instance,
-        CLIP_EVENT.initialize | CLIP_EVENT.construct | CLIP_EVENT.load,
-      );
     }
     return instance;
   }
@@ -667,14 +755,16 @@ export class Player implements StageHost {
 
         if (item.type === "initAction" && !vm.initialised.has(key)) {
           vm.initialised.add(key);
-          this.later(() => vm.runBlock(timeline, item.block));
+          this.later(
+            () => vm.runBlock(timeline, item.block),
+            SCRIPT_PRIORITY.initialize,
+          );
         }
       }
       for (const item of items) {
         if (item.type === "action") {
-          // A frame left before its turn came does not run its script
           this.later(() => {
-            if (timeline.frame === frame && !timeline.removed) {
+            if (!timeline.removed) {
               vm.runBlock(timeline, item.block);
             }
           });
@@ -767,46 +857,83 @@ export class Player implements StageHost {
         },
       );
 
-    for (const record of button.character.records) {
+    const inDepthOrder = [...button.character.records].sort(
+      (a, b) => a.depth - b.depth,
+    );
+
+    for (const record of inDepthOrder) {
       if (record.flags & state) {
         const key = `b${record.depth}`;
+        const shown = button.children.get(key);
 
-        kept.set(key, button.children.get(key) ?? place(record));
+        // A state can put another character at the same depth
+        kept.set(
+          key,
+          shown?.placed === record.character ? shown : place(record),
+        );
+      }
+    }
+    for (const [key, child] of button.children) {
+      if (kept.get(key) !== child) {
+        this.retire(child);
       }
     }
     button.children = kept;
     if (!button.hits.length) {
+      this.isPlacingHitRecords = true;
       button.hits = button.character.records
         .filter((record) => record.flags & HIT)
         .map(place);
+      this.isPlacingHitRecords = false;
     }
   }
 
-  private buttonEvent(
-    button: Instance,
-    condition: number,
-    state: number,
-  ): void {
+  /** Sends a pointer event to a button or a clip that takes the pointer */
+  private pointerEvent(target: Instance, event: PointerEvent): void {
+    this.queueScripts(() => {
+      if (target.character?.type === "button") {
+        this.buttonEvent(target, event);
+      } else {
+        this.clipEvent(target, event.clipEvent);
+        this.queueMethod(target, event.handler);
+      }
+    });
+  }
+
+  /** Whether a script has turned a button off; absent means on */
+  private isDisabled(button: Instance): boolean {
+    const enabled = this.vm?.peekObject(button)?.get("enabled");
+
+    return enabled !== undefined && !toBoolean(enabled);
+  }
+
+  private buttonEvent(button: Instance, event: PointerEvent): void {
     if (button.character?.type !== "button") {
       return;
     }
+    if (this.isDisabled(button)) {
+      // A disabled button changes state but runs nothing
+      if (event.state !== POINTER.rollOver.state) {
+        button.buttonState = UP;
+        this.syncButton(button);
+      }
+      return;
+    }
 
-    button.buttonState = state;
+    button.buttonState = event.state;
     this.syncButton(button);
 
     // A button's actions run on the timeline it is placed in
     const owner = button.parent ?? this.root;
     const name =
-      Object.entries(CONDITION).find(([, bit]) => bit === condition)?.[0] ??
-      "event";
-
+      Object.entries(POINTER).find(([, each]) => each === event)?.[0] ?? "event";
     const vm = this.vm;
 
     for (const action of button.character.actions) {
-      if (action.condition & condition) {
+      if (action.condition & event.condition) {
         if (vm) {
           this.options.log?.(`${name} on ${describeInstance(button)}`);
-          vm.runBlock(owner, action.block, button);
+          this.later(() => vm.runBlock(owner, action.block, button));
         } else {
           this.runBehaviour(
             owner,
@@ -818,16 +945,7 @@ export class Player implements StageHost {
     }
 
     // A handler a script gave the button (`btn.onRelease = function () {}`)
-    const handler = vm && HANDLERS[condition];
-
-    if (vm && handler) {
-      const self = vm.objectOf(button);
-      const fn = vm.member(self, handler);
-
-      if (fn !== undefined) {
-        vm.callFromEngine(fn, self, []);
-      }
-    }
+    this.queueMethod(button, event.handler);
   }
 
   /** Gets a text field's text: set by a script, else its bound variable's value */

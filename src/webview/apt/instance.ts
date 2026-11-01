@@ -52,8 +52,6 @@ export interface Instance {
   buttonState: number;
   /** A state the inspector holds the button in */
   forced?: number;
-  /** The tick it was created in; it starts playing on the next */
-  created: number;
 }
 
 /** Whether an instance has a timeline of its own */

@@ -1,3 +1,5 @@
+import type { Rect } from '../../../formats/apt/aptMovie';
+import { isTimeline } from '../instance';
 import type { Instance } from '../instance';
 import { parseLevel } from './movieLoad';
 import { getClipObject, getPrimitiveProto } from './objects';
@@ -6,6 +8,9 @@ import type { Value } from './value';
 import type { VmState } from './vmState';
 
 /** Reading clips as objects: display properties, children by name, levels and members */
+
+/** How deep a clip's size is measured, against a nesting a hostile movie builds */
+const MAX_EXTENT_DEPTH = 64;
 
 /** Display properties in `GetProperty`/`SetProperty` index order */
 export const DISPLAY_PROPERTIES = [
@@ -81,13 +86,64 @@ export const getTargetPath = (
     : [level ? '' : '_level0', ...names].filter(Boolean).join('.');
 };
 
+/** Gets the box around where a matrix puts a rectangle */
+const transformExtent = (
+  [a, b, c, d]: Instance['matrix'],
+  [tx, ty]: Instance['translate'],
+  [left, top, right, bottom]: Rect,
+): Rect => {
+  const xs = [left, right].flatMap((x) => [a * x + c * top, a * x + c * bottom]);
+  const ys = [left, right].flatMap((x) => [b * x + d * top, b * x + d * bottom]);
+
+  return [
+    Math.min(...xs) + tx,
+    Math.min(...ys) + ty,
+    Math.max(...xs) + tx,
+    Math.max(...ys) + ty,
+  ];
+};
+
+/**
+ * Gets what a clip covers in its own space: a clip or button by what it shows
+ * now, anything else by its stored bounds (mint's `local_bounds`)
+ */
+export const getLocalExtent = (
+  instance: Instance,
+  depth = 0,
+): Rect | undefined => {
+  const { character } = instance;
+
+  if (depth > MAX_EXTENT_DEPTH) {
+    return undefined;
+  }
+  if (!isTimeline(instance) && character?.type !== 'button') {
+    return character && 'bounds' in character ? character.bounds : undefined;
+  }
+
+  let extent: Rect | undefined;
+
+  for (const child of instance.children.values()) {
+    const inner = getLocalExtent(child, depth + 1);
+
+    if (inner) {
+      const box = transformExtent(child.matrix, child.translate, inner);
+
+      extent = extent
+        ? [
+            Math.min(extent[0], box[0]),
+            Math.min(extent[1], box[1]),
+            Math.max(extent[2], box[2]),
+            Math.max(extent[3], box[3]),
+          ]
+        : box;
+    }
+  }
+  return extent;
+};
+
 /** Reads a display property of a clip by its lowercased name */
 export const getDisplayProperty = (instance: Instance, name: string): Value => {
   const [a, b, c, d] = instance.matrix;
-  const bounds =
-    instance.character && 'bounds' in instance.character
-      ? instance.character.bounds
-      : undefined;
 
   switch (name) {
     case '_x':
@@ -114,9 +170,12 @@ export const getDisplayProperty = (instance: Instance, name: string): Value => {
     case '_target':
       return getTargetPath(instance, '/');
     case '_width':
-      return bounds ? (bounds[2] - bounds[0]) * Math.hypot(a, b) : 0;
-    case '_height':
-      return bounds ? (bounds[3] - bounds[1]) * Math.hypot(c, d) : 0;
+    case '_height': {
+      const extent = getLocalExtent(instance);
+      const box = extent && transformExtent(instance.matrix, [0, 0], extent);
+
+      return box ? (name === '_width' ? box[2] - box[0] : box[3] - box[1]) : 0;
+    }
     case '_url':
       return '';
     case '_quality':

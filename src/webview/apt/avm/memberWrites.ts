@@ -1,6 +1,6 @@
 import type { Instance } from '../instance';
 import { toAvmString } from './calls';
-import { DISPLAY_PROPERTIES } from './displayObjects';
+import { DISPLAY_PROPERTIES, getLocalExtent } from './displayObjects';
 import { AsObject, toBoolean, toInt32, toNumber } from './value';
 import type { Value } from './value';
 import type { VmState } from './vmState';
@@ -26,8 +26,8 @@ export const setDisplayProperty = (
     ];
   };
 
-  // Once a script moves a clip, its timeline no longer does
-  instance.scripted = true;
+  // Once a script moves a clip, its timeline no longer does; hiding or renaming it is no move
+  instance.scripted ||= name !== '_visible' && name !== '_name';
   switch (name) {
     case '_x':
       if (!Number.isNaN(n)) {
@@ -67,10 +67,7 @@ export const setDisplayProperty = (
       break;
     case '_width':
     case '_height': {
-      const bounds =
-        instance.character && 'bounds' in instance.character
-          ? instance.character.bounds
-          : undefined;
+      const bounds = getLocalExtent(instance);
       const size = bounds
         ? name === '_width'
           ? bounds[2] - bounds[0]

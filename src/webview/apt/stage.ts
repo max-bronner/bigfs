@@ -619,8 +619,7 @@ const inTriangle = (
 
 /**
  * Moves the pointer's hover to the button under it, returning whether it
- * changed. A script can swap the button under a still pointer, so this runs
- * after every played frame as well as on every move.
+ * changed.
  */
 const updateHover = (point: [number, number]): boolean => {
   const next = findButtonAt(scene.hits, point);
@@ -629,10 +628,18 @@ const updateHover = (point: [number, number]): boolean => {
   if (next === hovered) {
     return false;
   }
-  currentPlayer().hover(hovered, next);
+  currentPlayer().hover(hovered, next, pressed);
   hovered = next;
   return true;
 };
+
+/**
+ * Whether a still pointer needs a new pick: only when nothing stays hovered,
+ * so a button appearing over the hovered one waits for the pointer to move
+ * (mint's `idle_pointer`).
+ */
+const isHoverLost = (): boolean =>
+  !hovered || !!hovered.removed || hovered.visible === false;
 
 /** The topmost instance worth inspecting under the point */
 const findInstanceAt = (
@@ -717,7 +724,7 @@ window.addEventListener("mouseup", () => {
   holder?.up();
   holder = undefined;
   if (view.interact && pressed) {
-    currentPlayer().release(pressed, pressed === hovered);
+    currentPlayer().release(pressed, hovered);
     pressed = undefined;
     render();
   }
@@ -748,7 +755,7 @@ const loop = (time: number) => {
     }
     state.frame = currentPlayer().root.frame;
     render();
-    if (view.interact && pointer && updateHover(pointer)) {
+    if (view.interact && pointer && isHoverLost() && updateHover(pointer)) {
       render();
     }
   }
