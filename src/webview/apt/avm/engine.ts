@@ -229,6 +229,13 @@ export class Engine implements EngineHooks {
   public readonly externOverrides = new Map<string, string>();
   /** Pictures the user gave engine surfaces, by lowercased surface key */
   public readonly imageOverrides = new Map<string, string>();
+  /**
+   * Calls the user made into the movie, by lowercased path. The game makes
+   * these as a movie loads, so a run started over makes them again.
+   */
+  public readonly repeatedCalls = new Map<string, string[]>();
+  /** The repeated calls already made in this run */
+  private readonly repeatedThisRun = new Set<string>();
   /** What the movie itself wrote to externs, shown read-only */
   public readonly externWrites = new Map<
     string,
@@ -280,6 +287,7 @@ export class Engine implements EngineHooks {
     this.sounds.clear();
     this.externWrites.clear();
     this.written.clear();
+    this.repeatedThisRun.clear();
     this.changed();
   }
 
@@ -288,7 +296,11 @@ export class Engine implements EngineHooks {
     this.overrides.clear();
     this.externOverrides.clear();
     this.imageOverrides.clear();
+    this.repeatedCalls.clear();
     this.returns.clear();
+    Object.entries(saved?.calls ?? {}).forEach(([path, args]) =>
+      this.repeatedCalls.set(path, args),
+    );
     Object.entries(saved?.images ?? {}).forEach(([k, v]) =>
       this.imageOverrides.set(k.toLowerCase(), v),
     );
@@ -314,6 +326,7 @@ export class Engine implements EngineHooks {
       overrides: Object.fromEntries(this.overrides),
       externs: Object.fromEntries(this.externOverrides),
       images: Object.fromEntries(this.imageOverrides),
+      calls: Object.fromEntries(this.repeatedCalls),
       returns: Object.fromEntries(this.returns),
     };
   }
@@ -323,6 +336,7 @@ export class Engine implements EngineHooks {
     this.overrides.clear();
     this.externOverrides.clear();
     this.imageOverrides.clear();
+    this.repeatedCalls.clear();
     this.reparse();
   }
 
@@ -541,5 +555,26 @@ export class Engine implements EngineHooks {
   public invoke(entry: FunctionEntry, args: string[]): Value {
     this.onLog(`called ${entry.path}(${args.join(', ')})`);
     return this.vm?.callFromEngine(entry.fn, entry.owner, args.map(parseTyped));
+  }
+
+  /** Calls a function for the user, and makes the call again in every later run */
+  public invokeAndRepeat(entry: FunctionEntry, args: string[]): Value {
+    const key = entry.path.toLowerCase();
+
+    this.repeatedCalls.set(key, args);
+    this.repeatedThisRun.add(key);
+    return this.invoke(entry, args);
+  }
+
+  /** Makes the calls this run has not made yet, for functions the movie has defined by now */
+  public makeRepeatedCalls(): void {
+    for (const [key, args] of this.repeatedCalls) {
+      const entry = this.functions.get(key);
+
+      if (entry && !this.repeatedThisRun.has(key)) {
+        this.repeatedThisRun.add(key);
+        this.invoke(entry, args);
+      }
+    }
   }
 }

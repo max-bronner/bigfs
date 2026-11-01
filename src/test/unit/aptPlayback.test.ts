@@ -5,6 +5,7 @@ import type { FrameItem } from '../../formats/apt/aptMovie';
 import { parseScript } from '../../formats/apt/aptScriptParser';
 import { AptImage } from '../../formats/apt/writer/aptImage';
 import { Engine } from '../../webview/apt/avm/engine';
+import { isMovieSettled } from '../../webview/apt/isMovieSettled';
 import { DOWN, OVER, UP } from '../../webview/apt/buttonState';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
@@ -185,6 +186,7 @@ const start = ({
   return {
     player,
     read: (name: string) => player.vm!.readBound(player.root, name),
+    engine,
     kid: player.root.children.get('1')!,
     button: player.root.children.get('2')!,
   };
@@ -487,5 +489,44 @@ suite('APT playback', () => {
 
     assert.strictEqual(findPointerTargetAt(hits, [7, 5]) as unknown, 'button');
     assert.strictEqual(findPointerTargetAt(hits, [2, 5]), undefined);
+  });
+
+  test('a call the user makes is made again once in a later run', () => {
+    const script = 'stop(); _global.count = 0; _root.setState = function (state) { _root.seen = state; _global.count++; };';
+    const { engine, read } = start({ root: [script] });
+    const entry = [...engine.functions.values()].find(({ name }) => name === 'setState')!;
+
+    engine.invokeAndRepeat(entry, ['_evil']);
+    assert.strictEqual(read('seen'), '_evil');
+    engine.makeRepeatedCalls();
+    assert.strictEqual(engine.save().calls?.[entry.path.toLowerCase()]?.[0], '_evil');
+
+    const next = start({ root: [script] });
+
+    next.engine.load(engine.save());
+    assert.strictEqual(next.read('seen'), undefined);
+    next.engine.makeRepeatedCalls();
+    next.engine.makeRepeatedCalls();
+    assert.strictEqual(next.read('seen'), '_evil');
+  });
+
+  test('clearing the overrides forgets the calls', () => {
+    const { engine } = start({ root: ['stop();'] });
+
+    engine.load({ returns: {}, calls: { '_level0.setstate': ['_evil'] } });
+    engine.clear();
+    assert.strictEqual(engine.repeatedCalls.size, 0);
+  });
+
+  test('a movie is settled once its root stops, ends or has run a while', () => {
+    const frames = [{ items: [] }, { items: [] }] as never;
+
+    assert.strictEqual(isMovieSettled({ playing: true, frames }, 5), false);
+    assert.strictEqual(isMovieSettled({ playing: false, frames }, 5), true);
+    assert.strictEqual(isMovieSettled({ playing: true, frames }, 60), true);
+    assert.strictEqual(
+      isMovieSettled({ playing: true, frames: [{ items: [] }] as never }, 0),
+      true,
+    );
   });
 });

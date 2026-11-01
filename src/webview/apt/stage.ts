@@ -16,6 +16,7 @@ import {
   transformRect,
   union,
 } from "./scene";
+import { isMovieSettled } from "./isMovieSettled";
 import { growExtent } from "./stageExtent";
 import { fitZoom, getFitSpace } from "./stageFit";
 import { attachStagePointer } from "./stagePointer";
@@ -619,6 +620,9 @@ const loop = (time: number) => {
     owed -= Math.floor(owed);
     for (let step = 0; step < steps; step++) {
       currentPlayer().tick();
+    }
+    if (isMovieSettled(currentPlayer().root, currentPlayer().ticks)) {
+      engine.makeRepeatedCalls();
     }
     state.frame = currentPlayer().root.frame;
     render();

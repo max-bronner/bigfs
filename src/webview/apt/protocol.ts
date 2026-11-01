@@ -29,6 +29,8 @@ export interface EngineValues {
   returns: Record<string, string>;
   /** Pictures the user gave engine surfaces, by surface key */
   images?: Record<string, string>;
+  /** Arguments of the calls the user made into the movie, by lowercased function path */
+  calls?: Record<string, string[]>;
   /** Before overrides: values only for names nothing set */
   values?: Record<string, string>;
 }

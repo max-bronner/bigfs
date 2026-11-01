@@ -18,7 +18,7 @@ import { engine, onEngineChange, postSoundRequest, saveAnswers } from './engineS
 import { currentGadgets } from './gadgets';
 import { listBindings, writeBinding } from './gadgetModel';
 import { getImageKey } from './imageSurface';
-import { currentPlayer, render } from './stage';
+import { currentPlayer, play, render, view } from './stage';
 import { suggestFrom } from './suggestingInput';
 
 /**
@@ -42,6 +42,10 @@ import { suggestFrom } from './suggestingInput';
 const panel = byId('engine');
 let restart = () => {};
 let filter = '';
+/** What is typed in a call's fields and not called yet, as rebuilding the panel empties them */
+const drafts = new Map<string, string>();
+/** Whether the pointer is held on the panel: a rebuild now would take the button from under the click */
+let isPressing = false;
 /** Rows listed per section before the filter has to narrow them */
 const MAX_ROWS = 150;
 
@@ -83,8 +87,16 @@ const changed = (apply: () => void) => {
 };
 
 const callRow = (entry: FunctionEntry) => {
-  const fields = entry.params.map((param) => {
-    const field = createInput('', () => {}, 'line');
+  const called = engine.repeatedCalls.get(entry.path.toLowerCase());
+  const fields = entry.params.map((param, at) => {
+    const draftKey = `${entry.path}#${at}`;
+    const field = createInput(
+      drafts.get(draftKey) ?? called?.[at] ?? '',
+      () => {},
+      'line',
+    );
+
+    field.addEventListener('input', () => drafts.set(draftKey, field.value));
 
     const suggestion = findParameterSuggestion(entry.name, param);
 
@@ -100,11 +112,16 @@ const callRow = (entry: FunctionEntry) => {
     entry.path,
     ...fields,
     createButton('Call', () => {
-      const result = engine.invoke(
+      const result = engine.invokeAndRepeat(
         entry,
         fields.map((field) => field.value),
       );
 
+      saveAnswers();
+      // A movie answers with animations, which a stopped stage never plays
+      if (!view.playing) {
+        play(true);
+      }
       render();
       panel
         .querySelector('.engine-result')
@@ -311,6 +328,7 @@ export const showEngine = (): void => {
 
   // Typing is not interrupted; the panel catches up when the field is left
   if (
+    isPressing ||
     (active instanceof HTMLInputElement ||
       active instanceof HTMLTextAreaElement) &&
     panel.contains(active)
@@ -423,7 +441,13 @@ export const showEngine = (): void => {
       : [text('No call to the engine yet.', 'muted')]),
     createRow(
       '',
-      createButton('Restart with these overrides', () => restart()),
+      createButton('Restart with these overrides', () => {
+        restart();
+        // Calls wait for the movie to start up, which takes it playing
+        if (engine.repeatedCalls.size && !view.playing) {
+          play(true);
+        }
+      }),
       createButton('Clear overrides', () => changed(() => engine.clear())),
     ),
   );
@@ -431,4 +455,13 @@ export const showEngine = (): void => {
 };
 
 onEngineChange(showEngine);
+panel.addEventListener('pointerdown', () => {
+  isPressing = true;
+});
+window.addEventListener('pointerup', () => {
+  if (isPressing) {
+    isPressing = false;
+    setTimeout(showEngine, 0);
+  }
+});
 panel.addEventListener('focusout', () => setTimeout(showEngine, 0));

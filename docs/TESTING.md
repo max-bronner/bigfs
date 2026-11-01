@@ -335,6 +335,11 @@ Movie**.
   (`GadgetColorPicker`, the `Strategic…` panels); hold a button and drag off
   it: it runs its drag script, not its roll-out; a button hidden by a mask
   takes no pointer. A button that appears under a still pointer rolls over.
+- [ ] **changed** Engine panel on `Palantir`: set `SetPalantirFrameState` to
+  `_evil` and press **Call**. The stage plays on its own and the frame changes.
+  **Restart with these overrides** ends on the same frame, and so does closing
+  and reopening the movie; **Clear overrides** forgets the call. Same with
+  `SetFaction` on `InGameHeroSelect`.
 - [ ] **changed** Playing a movie: scripts see clips already on their new frame,
   a frame's scripts take their place among what it places, so `InitColoredTextString`
   and friends are defined when text fields start (`StrategicConflictResults`
