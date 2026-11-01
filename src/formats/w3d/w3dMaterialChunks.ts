@@ -286,8 +286,9 @@ const readPass = (payload: Uint8Array): W3dMaterialPass => {
     } else if (type === CHUNK.SHADER_MATERIAL_ID) {
       pass.fxMaterialIds = readIds(part);
     } else if (type === CHUNK.DCG) {
-      // Copied so a message carries these bytes alone, not the file they sit in
-      pass.colors = part.slice();
+      // A plain copy: the extension reads files as Buffers, whose slice() is a view,
+      // and a Buffer in a webview message arrives as a JSON object, not bytes
+      pass.colors = new Uint8Array(part);
     } else if (type === CHUNK.STAGE_TEXCOORDS) {
       pass.uvs = readFloats(part);
     } else if (type === CHUNK.TEXTURE_STAGE) {

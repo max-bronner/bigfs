@@ -3,6 +3,7 @@ import { parseW3d } from "../../formats/w3d/w3dTools";
 import { buildBumpOffsets } from "../../formats/w3d/w3dBumpMap";
 import { parseHouseColours } from "../../formats/w3d/w3dHouseColour";
 import { buildW3dScene } from "../../formats/w3d/w3dScene";
+import { readMeshMaterials } from "../../formats/w3d/w3dMaterialChunks";
 import { createToolRegistry } from "../../core/toolRegistry";
 import { classifyBlend } from "../../formats/w3d/classifyBlend";
 import { isSurfaceAnimated } from "../../formats/w3d/isSurfaceAnimated";
@@ -357,6 +358,16 @@ suite("W3D materials", () => {
     assert.strictEqual(mesh.draws[0].surface.vertexColour?.multipliesResult, true);
     assert.strictEqual(mesh.draws[0].surface.vertexColour?.diffuse, false);
     assert.strictEqual(mesh.draws[0].colors?.length, 16);
+  });
+
+  test("vertex colours read from a Node Buffer stay bytes a webview message can carry", () => {
+    const file = Buffer.from(buildChunk(0x03b, Uint8Array.of(1, 2, 3, 4)));
+    const [pass] = readMeshMaterials([{ type: 0x038, payload: file }]).passes;
+
+    assert.strictEqual(Buffer.isBuffer(pass.colors), false);
+    assert.deepStrictEqual(Array.from(pass.colors ?? []), [1, 2, 3, 4]);
+    file.fill(0);
+    assert.strictEqual(pass.colors?.[0], 1, "the colours are a copy of the file");
   });
 
   test("a vertex colour array that does not fit the vertices is dropped", () => {
