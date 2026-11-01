@@ -478,6 +478,13 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   building windows), textures marked clamped no longer repeat past their edge
   (`ch_staff04`), and bump water (`ebfcmoat`) ripples what is under it instead of
   showing the height map as a colour.
+- [ ] **new** Texture animation runs: torch and fire flipbooks step through their
+  sheet (`bb_torch`), water and glows scroll (`armyantsglow`), rings rotate
+  (`ch_staff04`, `sfe_armydecal`) and metal shows a reflection that slides as you
+  orbit (`exwatersphere`, `sfe_menuspells`). Such a model has a **Play**/**Pause**
+  button even with no skeleton. Pausing, Space and dragging the frame slider stop
+  or move the effects with the clip, and the particle preview's **On a model…**
+  runs them on its own clock and stops with its pause.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.

@@ -8,6 +8,9 @@ import type {
   W3dVertexMaterial,
 } from "./w3dMaterialChunks";
 
+import { isUvMapperAnimated, parseUvMapper } from "./w3dUvMapper";
+import type { W3dUvMapper } from "./w3dUvMapper";
+
 /**
  * The material decisions of a W3D mesh: from the tables a mesh stores to the
  * draws that show it, one for each material pass and each set of triangles
@@ -76,6 +79,8 @@ export interface W3dSurface {
   detailAlpha: number;
   /** `GRADIENT_BUMPENVMAP`: the first stage is no colour, but offsets the second's coordinates */
   bumpOffset: boolean;
+  /** The UV mappers of the two stages; absent when both show their stored coordinates */
+  mappers?: [W3dUvMapper, W3dUvMapper];
 }
 
 /** One draw of a mesh, in the order the game draws them */
@@ -358,6 +363,24 @@ const resolveColours = ({ ambient, diffuse, emissive, opacity }: W3dVertexMateri
   opacity,
 });
 
+/** Reads the mappers a vertex material names: stage 0 in bits 16-23, stage 1 in bits 8-15 */
+const resolveMappers = ({
+  attributes,
+  mapperArgs0,
+  mapperArgs1,
+}: W3dVertexMaterial): W3dSurface["mappers"] => {
+  const first = (attributes >>> 16) & 0xff;
+  const second = (attributes >>> 8) & 0xff;
+
+  return first || second
+    ? [parseUvMapper(first, mapperArgs0), parseUvMapper(second, mapperArgs1)]
+    : undefined;
+};
+
+/** Whether a surface changes with the preview's clock */
+export const isSurfaceAnimated = ({ mappers }: W3dSurface): boolean =>
+  !!mappers?.some(isUvMapperAnimated);
+
 const resolveDraw = (
   materials: W3dMeshMaterials,
   pass: W3dMaterialPass,
@@ -404,6 +427,7 @@ const resolveDraw = (
       detailAlpha:
         detailTexture && shader && shader.detailAlpha <= MAX_DETAIL_ALPHA ? shader.detailAlpha : 0,
       bumpOffset: shader?.primaryGradient === GRADIENT_BUMPENVMAP,
+      mappers: vertexMaterial && resolveMappers(vertexMaterial),
       sortLevel:
         geometry.sortLevel > 0 && geometry.sortLevel <= MAX_SORT_LEVEL ? geometry.sortLevel : 0,
       ...(shader

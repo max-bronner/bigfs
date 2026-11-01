@@ -341,7 +341,9 @@ your mod's archives.
   drawn pass by pass with each triangle's own texture, shader, blend and
   depth test, and with the material's colours: emissive glow, tints, vertex
   colours, opacity, unlit surfaces, second texture stages with every detail
-  combine, clamped textures and bump offsets.
+  combine, clamped textures and bump offsets. Scrolling, rotating, flipbook
+  and environment-mapped textures run on the preview's clock and stop with
+  its pause.
   Any animation plays on any model, by bone number as the game applies it;
   the list shows the skeleton's own clips first and the ones made for other
   skeletons in their own group, and playing one of those says so.

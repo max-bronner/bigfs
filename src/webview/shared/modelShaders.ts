@@ -14,14 +14,36 @@ attribute vec2 detailUv;
 attribute vec4 color;
 uniform mat4 viewProjection;
 uniform vec3 offset;
+uniform vec3 eye;
+uniform mat3 viewRotation;
+uniform vec4 uvLinear;
+uniform vec2 uvOffset;
+uniform int uvGenerated;
+uniform vec4 detailUvLinear;
+uniform vec2 detailUvOffset;
+uniform int detailUvGenerated;
 varying vec3 vNormal;
 varying vec2 vUv;
 varying vec2 vDetailUv;
 varying vec4 vColor;
+// The environment mappers of w3d-format.md: a normal or reflection vector read
+// as a coordinate, in camera space or, for the WS ones, in world space
+vec2 generateUv(int mapper, vec2 stored) {
+  if (mapper != 1 && mapper != 2 && mapper != 12 && mapper != 13) return stored;
+  vec3 unit = normalize(normal);
+  vec3 reflection = reflect(normalize(position + offset - eye), unit);
+  if (mapper == 2) return (viewRotation * unit).xy * 0.5 + 0.5;
+  if (mapper == 1) return (viewRotation * reflection).xy * 0.25 + 0.5;
+  if (mapper == 12) return unit.xy * 0.5 + 0.5;
+  return reflection.xy * 0.25 + 0.5;
+}
+vec2 transformUv(vec2 at, vec4 linear, vec2 shift) {
+  return vec2(linear.x * at.x + linear.y * at.y, linear.z * at.x + linear.w * at.y) + shift;
+}
 void main() {
   vNormal = normal;
-  vUv = uv;
-  vDetailUv = detailUv;
+  vUv = transformUv(generateUv(uvGenerated, uv), uvLinear, uvOffset);
+  vDetailUv = transformUv(generateUv(detailUvGenerated, detailUv), detailUvLinear, detailUvOffset);
   vColor = color;
   gl_Position = viewProjection * vec4(position + offset, 1.0);
 }`;
@@ -40,6 +62,7 @@ uniform bool hasDetail;
 uniform int detailColor;
 uniform int detailAlpha;
 uniform bool bumpOffset;
+uniform vec4 bumpMatrix;
 uniform bool hasNormals;
 uniform vec3 lightDirection;
 uniform float alphaCutoff;
@@ -104,7 +127,8 @@ void main() {
   vec4 base = bumpOffset ? vec4(1.0) : texel;
   base.a *= materialAlpha * (alphaFromVertex ? vColor.a * vertexAlphaScale : 1.0);
   if (hasDetail) {
-    vec2 shift = bumpOffset ? (texel.rg * 255.0 - 128.0) / 127.0 : vec2(0.0);
+    vec2 slope = (texel.rg * 255.0 - 128.0) / 127.0;
+    vec2 shift = bumpOffset ? slope.x * bumpMatrix.xy + slope.y * bumpMatrix.zw : vec2(0.0);
     vec4 detail = texture2D(detailTex, vDetailUv + shift);
     base = vec4(
       combineColour(base.rgb, detail.rgb, base.a, detail.a),

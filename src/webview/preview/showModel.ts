@@ -6,6 +6,7 @@ import {
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import type { W3dAnimation } from "../../formats/w3d/w3dAnimation";
 import type { ForeignClip } from "../../formats/w3d/w3dModelFinder";
+import { isSurfaceAnimated } from "../../formats/w3d/w3dMaterial";
 import { findHidingSources, getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { SceneSkeleton } from "../../formats/w3d/w3dScene";
 import { createModelRenderer } from "../shared/modelRenderer";
@@ -13,8 +14,9 @@ import { createOrbit } from "../shared/orbit";
 import type { FileUse, ModelMessage } from "./protocol";
 
 /**
- * The W3D viewer's model view: the model textured and skinned, its
- * skeleton's animations to play on it, its bones as a toggle (B), off
+ * The W3D viewer's model view: the model textured and skinned, one clock for
+ * its skeleton's animations and its animated materials, which Play and Pause
+ * stop together, its bones as a toggle (B), off
  * whenever there are meshes to show, the HLOD level of detail to draw, a
  * toggle for the meshes marked hidden and one for collision boxes. The
  * preview page calls `showModel` with the extension's message and gets back
@@ -106,6 +108,10 @@ export const showModel = (
     animation: undefined as W3dAnimation | undefined,
     frame: 0,
     playing: false,
+    /** A frame is on its way to `tick` */
+    ticking: false,
+    /** The clock of the animated materials */
+    seconds: 0,
     showBones: !meshes.length,
     showHidden: false,
     partOverrides: new Map<number, boolean>(),
@@ -135,6 +141,8 @@ export const showModel = (
       showHidden: player.showHidden,
       partOverrides: player.partOverrides,
       showBoxes: player.showBoxes,
+      seconds: player.seconds,
+      camera: orbit.camera(),
     });
   };
   const orbit = createOrbit(canvas, centre, radius, draw);
@@ -142,7 +150,10 @@ export const showModel = (
   renderer.setModel(message);
 
   const select = element("select");
-  const play = element("button", { textContent: "Play", disabled: true });
+  const animatesMaterials = meshes.some((mesh) =>
+    mesh.draws?.some((each) => isSurfaceAnimated(each.surface)),
+  );
+  const play = element("button", { textContent: "Play", disabled: !animatesMaterials });
   const slider = element("input", {
     type: "range",
     min: "0",
@@ -222,6 +233,8 @@ export const showModel = (
   select.append(new Option(skeleton ? "Bind pose" : "No skeleton", ""));
   if (skeleton) {
     controls.append(select, play, slider, bones, label);
+  } else if (animatesMaterials) {
+    controls.append(play);
   }
 
   if (hlod && hlod.lods.length) {
@@ -274,25 +287,32 @@ export const showModel = (
   const tick = (time: number) => {
     const animation = player.animation;
 
-    if (!player.playing || !animation) {
+    if (!player.playing || !canvas.isConnected) {
+      player.ticking = false;
       return;
     }
 
     const elapsed = player.last ? (time - player.last) / 1000 : 0;
 
     player.last = time;
-    player.frame =
-      (player.frame + elapsed * animation.frameRate) %
-      Math.max(1, animation.frameCount - 1);
-    showFrame();
+    player.seconds += elapsed;
+    if (animation) {
+      player.frame =
+        (player.frame + elapsed * animation.frameRate) %
+        Math.max(1, animation.frameCount - 1);
+      showFrame();
+    } else {
+      draw();
+    }
     requestAnimationFrame(tick);
   };
 
   const setPlaying = (playing: boolean) => {
-    player.playing = playing && !!player.animation;
+    player.playing = playing && (!!player.animation || animatesMaterials);
     play.textContent = player.playing ? "Pause" : "Play";
     player.last = 0;
-    if (player.playing) {
+    if (player.playing && !player.ticking) {
+      player.ticking = true;
       requestAnimationFrame(tick);
     }
   };
@@ -329,7 +349,12 @@ export const showModel = (
   play.onclick = () => setPlaying(!player.playing);
   slider.oninput = () => {
     setPlaying(false);
-    player.frame = Number(slider.value);
+
+    const frame = Number(slider.value);
+
+    // Scrubbing moves the materials by as much as it moves the clip
+    player.seconds += (frame - player.frame) / (player.animation?.frameRate || 1);
+    player.frame = frame;
     showFrame();
   };
   bones.onclick = toggleBones;
@@ -337,8 +362,9 @@ export const showModel = (
     if (!select.value) {
       player.animation = undefined;
       clipNotice.textContent = "";
-      setPlaying(false);
-      play.disabled = slider.disabled = true;
+      setPlaying(animatesMaterials);
+      slider.disabled = true;
+      play.disabled = !animatesMaterials;
       player.frame = 0;
       showFrame();
     } else if (select.value === OWN && message.animation) {
@@ -435,6 +461,7 @@ export const showModel = (
     });
   } else {
     showFrame();
+    setPlaying(true);
   }
   return control;
 };

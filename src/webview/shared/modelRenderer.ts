@@ -11,6 +11,14 @@ import type { VisibilityOptions } from "../../formats/w3d/w3dScene";
 import type { ModelScene, SceneDraw, SceneMesh } from "../../formats/w3d/w3dScene";
 import { DEFAULT_SURFACE } from "../../formats/w3d/w3dMaterial";
 import type { W3dBlend, W3dSurface } from "../../formats/w3d/w3dMaterial";
+import {
+  IDENTITY_UV_TRANSFORM,
+  parseUvMapper,
+  sampleBumpMatrix,
+  sampleUvTransform,
+  UV_MAPPER,
+} from "../../formats/w3d/w3dUvMapper";
+import type { W3dUvMapper } from "../../formats/w3d/w3dUvMapper";
 import { FRAGMENT_SHADER, VERTEX_SHADER } from "./modelShaders";
 
 /**
@@ -46,7 +54,22 @@ export interface DrawOptions {
   partOverrides?: VisibilityOptions["partOverrides"];
   /** Draws the collision boxes as wireframes */
   showBoxes?: boolean;
+  /** The preview's clock: where animated materials stand. Stopping it pauses them */
+  seconds?: number;
+  /** The camera, for environment-mapped materials; they see a fixed one when absent */
+  camera?: ModelCamera;
 }
+
+/** Where the camera stands, for materials whose coordinates depend on it */
+export interface ModelCamera {
+  eye: Vec3;
+  /** World to camera rotation, three columns of three */
+  rotation: number[];
+}
+
+/** The camera of a draw that gives none: far along the light, axes as the world's */
+const DEFAULT_ROTATION = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+const FAR_EYE = 1e5;
 
 /** WebGL renderer for one W3D model at a time, shared by the W3D viewer and the particle preview */
 export interface ModelRenderer {
@@ -98,6 +121,8 @@ const BLEND_FACTORS = (
   addScaledByColor: [gl.ONE, gl.SRC_COLOR],
   addInverseScaledByColor: [gl.ONE, gl.ONE_MINUS_SRC_COLOR],
 });
+
+const NO_MAPPER = parseUvMapper(UV_MAPPER.UV);
 
 /** The material's own opacity reaches only an alpha blend taking its alpha from the material: mint's `material_alpha` */
 const getMaterialAlpha = ({ blend, opacity, vertexColour }: W3dSurface) =>
@@ -410,6 +435,22 @@ export const createModelRenderer = (
     gl.uniform1i(uniform("bumpOffset"), surface.bumpOffset ? 1 : 0);
   };
 
+  /** Sets a stage's coordinate transform and its generated coordinates at `seconds` */
+  const applyMapper = (
+    prefix: string,
+    mapper: W3dUvMapper | undefined,
+    seconds: number,
+    hasNormals: boolean,
+  ) => {
+    const { linear, offset } = mapper
+      ? sampleUvTransform(mapper, seconds)
+      : IDENTITY_UV_TRANSFORM;
+
+    gl.uniform4fv(uniform(`${prefix}Linear`), linear);
+    gl.uniform2fv(uniform(`${prefix}Offset`), offset);
+    gl.uniform1i(uniform(`${prefix}Generated`), hasNormals && mapper ? mapper.type : 0);
+  };
+
   const bindColors = (data: WebGLBuffer | undefined) => {
     if (attributes.color < 0) {
       return;
@@ -436,6 +477,8 @@ export const createModelRenderer = (
       subObjectRules,
       partOverrides,
       showBoxes,
+      seconds = 0,
+      camera,
     }: DrawOptions,
   ) => {
     if (!scene) {
@@ -445,6 +488,12 @@ export const createModelRenderer = (
     gl.uniformMatrix4fv(uniform("viewProjection"), false, viewProjection);
     gl.uniform3fv(uniform("offset"), offset);
     gl.uniform3fv(uniform("lightDirection"), light);
+    gl.uniform3fv(uniform("eye"), camera?.eye ?? light.map((axis) => axis * FAR_EYE));
+    gl.uniformMatrix3fv(
+      uniform("viewRotation"),
+      false,
+      camera?.rotation ?? DEFAULT_ROTATION,
+    );
     gl.uniform1i(uniform("useSolid"), 0);
     gl.enable(gl.DEPTH_TEST);
     gl.depthMask(true);
@@ -484,6 +533,12 @@ export const createModelRenderer = (
 
       applyBlend(blend);
       applySurface(part.surface);
+      applyMapper("uv", part.surface.mappers?.[0], seconds, drawable.hasNormals);
+      applyMapper("detailUv", part.surface.mappers?.[1], seconds, drawable.hasNormals);
+      gl.uniform4fv(
+        uniform("bumpMatrix"),
+        sampleBumpMatrix(part.surface.mappers?.[0] ?? NO_MAPPER, seconds),
+      );
       gl.uniform1f(uniform("opacity"), opacityOf(drawable));
       gl.uniform1i(uniform("fadesColour"), blend === "alpha" ? 0 : 1);
       gl.uniform1i(uniform("writesOpaque"), blend === "opaque" ? 1 : 0);

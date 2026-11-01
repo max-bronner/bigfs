@@ -11,6 +11,8 @@ export interface Orbit {
   viewProjection(aspect: number): Float32Array;
   /** Returns the unit vector from the target towards the eye */
   towardsEye(): Vec3;
+  /** Returns where the camera stands, for materials whose coordinates depend on it */
+  camera(): { eye: Vec3; rotation: number[] };
 }
 
 const subtract = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -77,13 +79,33 @@ export const createOrbit = (
     onChange();
   });
 
+  /** The camera's axes in world space, right, up and back */
+  const computeAxes = (from: Vec3): [Vec3, Vec3, Vec3] => {
+    const z = normalize(subtract(from, target));
+    const x = normalize(cross([0, 0, 1], z));
+
+    return [x, cross(z, x), z];
+  };
+
   return {
     towardsEye: () => normalize(subtract(eye(), target)),
+    camera: () => {
+      const from = eye();
+      const [x, y, z] = computeAxes(from);
+
+      return {
+        eye: from,
+        // prettier-ignore
+        rotation: [
+          x[0], y[0], z[0],
+          x[1], y[1], z[1],
+          x[2], y[2], z[2],
+        ],
+      };
+    },
     viewProjection: (aspect) => {
       const from = eye();
-      const z = normalize(subtract(from, target));
-      const x = normalize(cross([0, 0, 1], z));
-      const y = cross(z, x);
+      const [x, y, z] = computeAxes(from);
       const near = radius / 100;
       const far = radius * 100;
       const f = 1 / Math.tan(Math.PI / 8);

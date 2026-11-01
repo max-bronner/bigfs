@@ -161,6 +161,16 @@ const draw = () => {
     showMeshes: !objectView.scene || objectView.showModel,
     showHidden: objectView.showHiddenParts,
     subObjectRules: objectView.subObjectRules,
+    seconds: state.time,
+    camera: {
+      eye: basis.eye,
+      // prettier-ignore
+      rotation: [
+        basis.right[0], basis.up[0], -basis.forward[0],
+        basis.right[1], basis.up[1], -basis.forward[1],
+        basis.right[2], basis.up[2], -basis.forward[2],
+      ],
+    },
   });
   drawSystems(
     matrix,

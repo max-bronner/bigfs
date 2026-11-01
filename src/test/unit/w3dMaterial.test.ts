@@ -3,7 +3,18 @@ import { parseW3d } from "../../formats/w3d/w3dTools";
 import { buildBumpOffsets } from "../../formats/w3d/w3dBumpMap";
 import { buildW3dScene } from "../../formats/w3d/w3dScene";
 import { createToolRegistry } from "../../core/toolRegistry";
-import { classifyBlend, DEFAULT_SURFACE, resolveVertexColour } from "../../formats/w3d/w3dMaterial";
+import {
+  classifyBlend,
+  DEFAULT_SURFACE,
+  isSurfaceAnimated,
+  resolveVertexColour,
+} from "../../formats/w3d/w3dMaterial";
+import {
+  parseUvMapper,
+  sampleBumpMatrix,
+  sampleUvTransform,
+  UV_MAPPER,
+} from "../../formats/w3d/w3dUvMapper";
 import type { W3dShader } from "../../formats/w3d/w3dMaterialChunks";
 import { buildChunk, concatBytes, encodeFloats, encodeName, encodeUints } from "./w3d.test";
 
@@ -104,6 +115,27 @@ const vertexMaterials = (
   const material = buildChunk(0x02b, buildChunk(0x02d, info), true);
 
   return buildChunk(0x02a, concatBytes(...Array<Uint8Array>(count).fill(material)), true);
+};
+
+/** A `VERTEX_MATERIALS` table of one material with mapper arguments */
+const vertexMaterialsWithArgs = (attributes: number, args0: string, args1: string) => {
+  const info = new Uint8Array(32);
+
+  new DataView(info.buffer).setUint32(0, attributes, true);
+
+  return buildChunk(
+    0x02a,
+    buildChunk(
+      0x02b,
+      concatBytes(
+        buildChunk(0x02d, info),
+        buildChunk(0x02e, encodeName(args0, args0.length + 1)),
+        buildChunk(0x02f, encodeName(args1, args1.length + 1)),
+      ),
+      true,
+    ),
+    true,
+  );
 };
 
 /** A one-pixel uncompressed 32-bit TGA */
@@ -427,6 +459,90 @@ suite("W3D materials", () => {
 
     // Luminance rounds down, so 100 and 50 read 99 and 49 in EA's fixed point
     assert.deepStrictEqual(Array.from(pixels.slice(4, 8)), [50 + 128, 128, 0, 255]);
+  });
+
+  test("a vertex material's attribute word and argument text name each stage's mapper", () => {
+    const material = vertexMaterialsWithArgs(
+      0x00040800,
+      "UPerSec=0.0\r\nVPerSec=1.0;scroll\r\nUScale=2",
+      "Speed=0.03;In Hertz. 1 = 1 rotate per second\nUCenter=0.5\nVCenter=0.5",
+    );
+    const { surface } = parseMesh(material, buildChunk(0x038, buildChunk(0x039, encodeUints(0)), true)).draws[0];
+
+    assert.strictEqual(surface.mappers?.[0].type, UV_MAPPER.LINEAR_OFFSET);
+    assert.strictEqual(surface.mappers?.[0].vPerSecond, 1);
+    assert.strictEqual(surface.mappers?.[0].uScale, 2);
+    assert.strictEqual(surface.mappers?.[1].type, UV_MAPPER.ROTATE);
+    assert.strictEqual(surface.mappers?.[1].speed, 0.03);
+    assert.strictEqual(isSurfaceAnimated(surface), true);
+    assert.strictEqual(isSurfaceAnimated(DEFAULT_SURFACE), false);
+  });
+
+  test("a scroll moves the image the way its arguments say, so the sample point the other way", () => {
+    const mapper = parseUvMapper(UV_MAPPER.LINEAR_OFFSET, "UPerSec=0.25\nVPerSec=-0.5\nUScale=2");
+    const { linear, offset } = sampleUvTransform(mapper, 1);
+
+    assert.deepStrictEqual(linear, [2, 0, 0, 1]);
+    assert.deepStrictEqual(offset, [0.75, 0.5]);
+  });
+
+  test("a flipbook steps through its cells and holds at zero frames a second", () => {
+    const grid = (text: string, seconds: number) =>
+      sampleUvTransform(parseUvMapper(UV_MAPPER.GRID, text), seconds).offset;
+
+    // A 4 by 4 sheet at 10 fps: 100 ms a cell
+    assert.deepStrictEqual(grid("FPS=10\nLog2Width=2", 0), [0, 0]);
+    assert.deepStrictEqual(grid("FPS=10\nLog2Width=2", 0.55), [0.25, 0.25]);
+    // The sheet ends after Last cells and comes round
+    assert.deepStrictEqual(grid("FPS=10\nLog2Width=2\nLast=3", 0.35), [0, 0]);
+    assert.deepStrictEqual(grid("FPS=0\nLog2Width=2\nOffset=2", 5), [0.5, 0]);
+    // Backwards from the far end
+    assert.deepStrictEqual(grid("FPS=-10\nLog2Width=1", 0), [0.5, 0.5]);
+    // A shift from the file stays bounded
+    assert.ok(Number.isFinite(grid("FPS=1\nLog2Width=99", 1)[0]));
+  });
+
+  test("a rotation holds its centre still", () => {
+    const { linear, offset } = sampleUvTransform(
+      parseUvMapper(UV_MAPPER.ROTATE, "Speed=0.25\nUCenter=0.5\nVCenter=0.5"),
+      1,
+    );
+    const u = linear[0] * 0.5 + linear[1] * 0.5 + offset[0];
+    const v = linear[2] * 0.5 + linear[3] * 0.5 + offset[1];
+
+    assert.ok(Math.abs(u - 0.5) < 1e-9 && Math.abs(v - 0.5) < 1e-9);
+    assert.ok(Math.abs(linear[0]) < 1e-9);
+  });
+
+  test("a sine offset follows its amplitude, frequency and phase", () => {
+    const { offset } = sampleUvTransform(
+      parseUvMapper(UV_MAPPER.SINE_LINEAR_OFFSET, "UAmp=0.5\nUFreq=0.25\nVAmp=0"),
+      1,
+    );
+
+    assert.ok(Math.abs(offset[0] - 0.5) < 1e-9);
+  });
+
+  test("a scale mapper tiles, and a mapper that is not animated stands still", () => {
+    const mapper = parseUvMapper(UV_MAPPER.SCALE, "UScale=4\nVScale=8");
+
+    assert.deepStrictEqual(sampleUvTransform(mapper, 3).linear, [4, 0, 0, 8]);
+    assert.deepStrictEqual(sampleUvTransform(parseUvMapper(0x0a), 3).offset, [0, 0]);
+  });
+
+  test("a bump mapper's matrix turns and scales; prose arguments read as defaults", () => {
+    const mapper = parseUvMapper(
+      UV_MAPPER.BUMP_ENVIRONMENT,
+      "BumpRotation=0.25\nBumpScale=.3 scale factor applied to the bumps",
+    );
+    const [m00, m01] = sampleBumpMatrix(mapper, 1);
+
+    assert.ok(Math.abs(m00) < 1e-9);
+    assert.ok(Math.abs(m01 + 0.3) < 1e-9);
+    assert.strictEqual(
+      parseUvMapper(UV_MAPPER.BUMP_ENVIRONMENT, "BumpScale = scale factor").bumpScale,
+      1,
+    );
   });
 
   test("the sort level of a mesh reaches its surface, and an out of range one is none", () => {
