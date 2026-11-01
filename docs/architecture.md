@@ -124,7 +124,7 @@ modules it registers. From there:
 | effective object view, new object wizard | `features/objects/` | `services/ini/effectiveObject.ts`, `game/objects/` |
 | particle and object previews | `features/particles/` | `webview/particles/`, `services/effectLibrary.ts`, `formats/particles/` |
 | texture, audio and W3D previews | `features/preview/` | `webview/preview/`, the tools in `formats/texture`, `formats/audio`, `formats/w3d` |
-| APT movies | `features/apt/` | `webview/apt/` (player and AVM in `avm/`), `formats/apt/`; `docs/apt-scripts.md`, `docs/apt-text-format.md` |
+| APT movies | `features/apt/` | `webview/apt/` (`player.ts` with `scriptQueue.ts`, `pointerDispatcher.ts` and `movieLoader.ts`; `stage.ts` with `stagePointer.ts` and `hitTest.ts`; the AVM in `avm/`), `formats/apt/`; `docs/apt-scripts.md`, `docs/apt-text-format.md` |
 | maps and map scripts | `features/map/`, `features/scripts/` | `webview/map/`, `webview/scripts/`, `formats/map/` |
 | string tables, translations | `features/strings/`, `features/translations/` | `webview/strings/`, `formats/str/`, `formats/csf/`, `game/text/` |
 | Create-a-Hero | `features/cah/` | `webview/cah/`, `formats/cah/`, `game/objects/cahSystem.ts` |

@@ -33,7 +33,7 @@ export interface PointerDispatcher {
   hover(
     previous: Instance | undefined,
     next: Instance | undefined,
-    held?: Instance,
+    isHeld?: boolean,
   ): void;
   /** Presses the pointer on a target */
   press(target: Instance): void;
@@ -68,9 +68,6 @@ export const createPointerDispatcher = (host: PointerHost): PointerDispatcher =>
       return;
     }
 
-    button.buttonState = gesture.state;
-    host.syncButton(button);
-
     // A button's actions run on the timeline it is placed in
     const owner = button.parent ?? host.getRoot();
     const name =
@@ -83,7 +80,11 @@ export const createPointerDispatcher = (host: PointerHost): PointerDispatcher =>
       if (action.condition & gesture.condition) {
         if (vm) {
           host.log(label);
-          host.queue.add(() => vm.runBlock(owner, action.block, button));
+          host.queue.add(() => {
+            if (!button.removed) {
+              vm.runBlock(owner, action.block, button);
+            }
+          });
         } else {
           host.runBehaviour(owner, button.movie.behaviours[action.block], label);
         }
@@ -92,9 +93,16 @@ export const createPointerDispatcher = (host: PointerHost): PointerDispatcher =>
 
     // A handler a script gave the button (`btn.onRelease = function () {}`)
     host.queueMethod(button, gesture.handler);
+
+    // After its actions are queued, so what the new state shows runs after them
+    button.buttonState = gesture.state;
+    host.syncButton(button);
   };
 
   const sendGesture = (target: Instance, gesture: PointerGesture) => {
+    if (target.removed) {
+      return;
+    }
     host.queue.hold(() => {
       if (target.character?.type === 'button') {
         sendButtonGesture(target, gesture);
@@ -107,25 +115,28 @@ export const createPointerDispatcher = (host: PointerHost): PointerDispatcher =>
   };
 
   return {
-    hover: (previous, next, held) => {
+    hover: (previous, next, isHeld) => {
       if (previous === next) {
         return;
       }
       if (previous && host.isAttached(previous)) {
         sendGesture(
           previous,
-          held ? POINTER_GESTURES.dragOut : POINTER_GESTURES.rollOut,
+          isHeld ? POINTER_GESTURES.dragOut : POINTER_GESTURES.rollOut,
         );
       }
       if (next) {
         sendGesture(
           next,
-          held ? POINTER_GESTURES.dragOver : POINTER_GESTURES.rollOver,
+          isHeld ? POINTER_GESTURES.dragOver : POINTER_GESTURES.rollOver,
         );
       }
     },
     press: (target) => sendGesture(target, POINTER_GESTURES.press),
     release: (target, hovered) => {
+      if (target.removed) {
+        return;
+      }
       if (target === hovered) {
         sendGesture(target, POINTER_GESTURES.release);
         return;

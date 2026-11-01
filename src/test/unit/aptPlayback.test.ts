@@ -35,13 +35,33 @@ interface Source {
   placed?: FrameItem[];
   /** The clip's frame count */
   frames?: number;
+  /** `kid`'s clip event scripts, by event bits */
+  kidEvents?: Record<number, string>;
+  /** A second clip `other`, placed after `kid`, with these event scripts */
+  otherEvents?: Record<number, string>;
+  /** A script on `kid`'s first frame */
+  kidFrame?: string;
+  /** Items on the root's second frame */
+  nextFrame?: FrameItem[];
+  /** Whether the button's hit record is the clip rather than a shape */
+  hitRecordIsClip?: boolean;
 }
 
 /**
  * #1 a clip named `kid` whose frames move its shape; #2 a shape; #3 a button
  * showing #2 up and #4 over at the same depth; #4 another shape.
  */
-const start = ({ root, actions = {}, placed = [], frames = 3 }: Source) => {
+const start = ({
+  root,
+  actions = {},
+  placed = [],
+  frames = 3,
+  kidEvents = {},
+  otherEvents,
+  kidFrame,
+  nextFrame = [],
+  hitRecordIsClip = false,
+}: Source) => {
   const image = new AptImage(new Uint8Array(64));
   const code: PageMovie['code'] = {};
   const compile = (text: string) => {
@@ -50,6 +70,11 @@ const start = ({ root, actions = {}, placed = [], frames = 3 }: Source) => {
     code[block] = decodeBlock(image.bytes, block);
     return block;
   };
+  const compileEvents = (scripts: Record<number, string>) =>
+    Object.entries(scripts).map(([events, text]) => ({
+      events: Number(events),
+      block: compile(text),
+    }));
   const record = (flags: number, character: number) => ({
     flags,
     character,
@@ -68,7 +93,11 @@ const start = ({ root, actions = {}, placed = [], frames = 3 }: Source) => {
         id: 3,
         offset: 0,
         type: 'button',
-        records: [record(1 | 8, 2), record(2 | 4, 4)],
+        records: [
+          record(hitRecordIsClip ? 1 : 1 | 8, 2),
+          record(2 | 4, 4),
+          ...(hitRecordIsClip ? [record(8, 1)] : []),
+        ],
         actions: Object.entries(actions).map(([condition, text]) => ({
           condition: Number(condition),
           block: compile(text),
@@ -82,13 +111,29 @@ const start = ({ root, actions = {}, placed = [], frames = 3 }: Source) => {
       items: [
         { offset: 0, type: 'action', block: compile(text) } as FrameItem,
         ...(index === 0
-          ? [place(1, 1, { name: 'kid' }), place(2, 3, { name: 'btn', matrix: [1, 0, 0, 1], translate: [50, 50] }), ...placed]
+          ? [
+              place(1, 1, { name: 'kid', clipActions: compileEvents(kidEvents) }),
+              place(2, 3, { name: 'btn', matrix: [1, 0, 0, 1], translate: [50, 50] }),
+              ...(otherEvents
+                ? [
+                    place(4, 1, {
+                      name: 'other',
+                      clipActions: compileEvents(otherEvents),
+                    }),
+                  ]
+                : []),
+              ...placed,
+            ]
           : []),
+        ...(index === 1 ? nextFrame : []),
       ],
     })),
     spriteFrames: {
       1: Array.from({ length: frames }, (_, index) => ({
         items: [
+          ...(index === 0 && kidFrame
+            ? [{ offset: 0, type: 'action', block: compile(kidFrame) } as FrameItem]
+            : []),
           index === 0
             ? place(1, 2, { matrix: [1, 0, 0, 1], translate: [0, 0] })
             : place(1, 2, {
@@ -212,7 +257,7 @@ suite('APT playback', () => {
 
     player.press(button);
     assert.strictEqual(button.buttonState, DOWN);
-    player.hover(button, undefined, button);
+    player.hover(button, undefined, true);
     assert.strictEqual(read('dragged'), 1);
     assert.strictEqual(read('rolled'), undefined);
     assert.strictEqual(button.buttonState, OVER);
@@ -257,10 +302,120 @@ suite('APT playback', () => {
 
   test('a cleared handler no longer takes the pointer', () => {
     const { player, kid } = start({
-      root: ['stop(); kid.onRollOver = undefined;'],
+      root: [
+        'kid.onRollOver = function () {};',
+        'stop(); kid.onRollOver = undefined;',
+      ],
     });
 
+    assert.strictEqual(player.takesPointer(kid), true);
+    player.tick();
     assert.strictEqual(player.takesPointer(kid), false);
+  });
+
+  test('a new clip runs initialize, construct, load, then its first frame', () => {
+    const add = (mark: string) => `_root.log = _root.log + "${mark}";`;
+    const { read } = start({
+      root: ['stop();'],
+      kidEvents: {
+        [1 << 0]: add('l'),
+        [1 << 9]: add('i'),
+        [1 << 18]: add('c'),
+      },
+      kidFrame: add('f'),
+    });
+
+    assert.match(String(read('log')), /iclf$/);
+  });
+
+  test('a frame script ahead of a placement runs before the clip loads', () => {
+    const { read } = start({
+      root: ['_root.ready = 1; stop();'],
+      kidEvents: { [1 << 0]: '_root.seen = _root.ready;' },
+    });
+
+    assert.strictEqual(read('seen'), 1);
+  });
+
+  test('a goto runs the frame script before what the frame places loads', () => {
+    const { player, read } = start({
+      root: ['stop(); gotoAndStop(2);', '_root.ready = 1;'],
+      kidEvents: {},
+      nextFrame: [
+        { offset: 0, type: 'removeObject', depth: 1 } as FrameItem,
+        place(1, 1, { name: 'late' }),
+      ],
+    });
+
+    player.tick();
+    assert.strictEqual(read('ready'), 1);
+    assert.strictEqual(player.root.children.get('1')!.name, 'late');
+  });
+
+  test('the newest clip runs first', () => {
+    const add = (mark: string) => `_root.log = _root.log + "${mark}";`;
+    const { player, read } = start({
+      root: ['stop();'],
+      kidEvents: { [1 << 1]: add('k') },
+      otherEvents: { [1 << 1]: add('o') },
+    });
+
+    player.tick();
+    assert.match(String(read('log')), /ok$/);
+  });
+
+  test('a clip removed before its turn runs nothing queued', () => {
+    const { player, read, kid } = start({
+      root: ['stop();', ''],
+      kidEvents: { [1 << 1]: 'ran = 1; _root.ran = 1;' },
+      otherEvents: { [1 << 1]: '_root.gotoAndStop(2);' },
+      nextFrame: [{ offset: 0, type: 'removeObject', depth: 1 } as FrameItem],
+    });
+
+    player.tick();
+    assert.strictEqual(kid.removed, true);
+    assert.strictEqual(read('ran'), undefined);
+  });
+
+  test('a removed target takes no gesture', () => {
+    const { player, button, read } = start({
+      root: ['stop();'],
+      actions: { 0x8: 'ran = 1;' },
+    });
+
+    button.removed = true;
+    player.release(button, button);
+    assert.strictEqual(read('ran'), undefined);
+  });
+
+  test('what a hit record holds runs no frame scripts', () => {
+    const { read } = start({
+      root: ['stop();'],
+      kidFrame: '_root.log = _root.log + "Q";',
+      hitRecordIsClip: true,
+    });
+
+    assert.match(String(read('log')), /^[^Q]*Q$/);
+  });
+
+  test('a mask placed on a timeline cuts the hit area under it, hidden or not', () => {
+    const { player, kid } = start({
+      root: ['stop(); kid.onRollOver = function () {};'],
+      placed: [
+        place(0, 2, {
+          clipDepth: 1,
+          matrix: [1, 0, 0, 1],
+          translate: [5, 0],
+        }),
+      ],
+    });
+
+    player.root.children.get('0')!.visible = false;
+
+    const { hits } = collect(player);
+
+    assert.strictEqual(findPointerTargetAt(hits, [7, 5]), kid);
+    assert.strictEqual(findPointerTargetAt(hits, [2, 5]), undefined);
   });
 
   test('a mask cuts a hit area', () => {

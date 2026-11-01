@@ -5,6 +5,7 @@ import type { StageHost } from "./avm/value";
 import type {
   ButtonRecord,
   Character,
+  FrameItem,
 } from "../../formats/apt/aptMovie";
 import { isTimeline } from "./instance";
 import type { Instance } from "./instance";
@@ -126,6 +127,11 @@ export class Player implements StageHost {
     retire: (instance) => this.retire(instance),
     queueInitActions: (movie, on) => this.queueInitActions(movie, on),
     enter: (timeline, frame) => this.enter(timeline, frame),
+    scheduleClip: (clip) => {
+      if (!this.clips.includes(clip)) {
+        this.clips.unshift(clip);
+      }
+    },
     drainScripts: () => this.idle(),
   });
 
@@ -154,6 +160,28 @@ export class Player implements StageHost {
     this.idle();
   }
 
+  /** Queues a frame item if it is an init action not yet run, to run as the root or `on` */
+  private queueInitAction(
+    vm: Vm,
+    movie: PageMovie,
+    item: FrameItem,
+    on?: Instance,
+  ): void {
+    if (item.type !== "initAction") {
+      return;
+    }
+
+    const key = `${movie.name}#${item.sprite}`;
+
+    if (!vm.initialised.has(key)) {
+      vm.initialised.add(key);
+      this.queue.add(
+        () => vm.runBlock(on ?? this.root, item.block),
+        SCRIPT_PRIORITY.initialize,
+      );
+    }
+  }
+
   /**
    * Queues every init action of a movie's timelines, to run as the root
    * before the first frame (mint's queue_init_actions, after Ruffle's
@@ -177,15 +205,7 @@ export class Player implements StageHost {
     for (const frames of timelines) {
       for (const frame of frames) {
         for (const item of frame.items) {
-          const key = `${movie.name}#${item.type === "initAction" ? item.sprite : ""}`;
-
-          if (item.type === "initAction" && !vm.initialised.has(key)) {
-            vm.initialised.add(key);
-            this.queue.add(
-              () => vm.runBlock(on ?? this.root, item.block),
-              SCRIPT_PRIORITY.initialize,
-            );
-          }
+          this.queueInitAction(vm, movie, item, on);
         }
       }
     }
@@ -231,7 +251,10 @@ export class Player implements StageHost {
       return;
     }
     if (clip.frames.length > 1) {
-      this.enter(clip, (clip.frame + 1) % clip.frames.length);
+      const next = (clip.frame + 1) % clip.frames.length;
+
+      // Looping back is a goto
+      this.enter(clip, next, next === 0);
     } else {
       clip.playing = false;
     }
@@ -398,7 +421,12 @@ export class Player implements StageHost {
 
     for (const action of instance.clipActions ?? []) {
       if (action.events & event) {
-        this.queue.add(() => vm.runBlock(instance, action.block, parent), priority);
+        this.queue.add(() => {
+          // Only an unload runs on a clip already gone
+          if (!instance.removed || event === CLIP_EVENT.unload) {
+            vm.runBlock(instance, action.block, parent);
+          }
+        }, priority);
       }
     }
     this.idle();
@@ -415,7 +443,7 @@ export class Player implements StageHost {
     const target = Math.max(0, Math.min(timeline.frames.length - 1, frame));
 
     if (target !== timeline.frame && timeline.frames.length) {
-      this.enter(timeline, target);
+      this.enter(timeline, target, true);
     }
   }
 
@@ -560,43 +588,56 @@ export class Player implements StageHost {
     return instance;
   }
 
-  /** Shows a frame: brings the children in line with it, then runs its scripts */
-  private enter(timeline: Instance, frame: number): void {
-    timeline.frame = frame;
-    this.syncTimeline(timeline);
-
-    if (!this.scriptsRun(timeline)) {
-      return;
-    }
-
+  /**
+   * Shows a frame. Played in order, its scripts and placements queue as the
+   * frame lists them, so a script ahead of a placement runs before the placed
+   * clip's load. A goto queues the frame's scripts first (mint's
+   * `run_frame_internal` and `run_goto`).
+   */
+  private enter(timeline: Instance, frame: number, isGoto = false): void {
     const items = timeline.frames[frame]?.items ?? [];
     const vm = this.vm;
+    const runsScripts = !timeline.isHitRecord && this.scriptsRun(timeline);
 
-    if (vm) {
-      // A sprite's init actions run once, before any frame script
-      for (const item of items) {
-        const key = `${timeline.movie.name}#${item.type === "initAction" ? item.sprite : ""}`;
-
-        if (item.type === "initAction" && !vm.initialised.has(key)) {
-          vm.initialised.add(key);
-          this.queue.add(
-            () => vm.runBlock(timeline, item.block),
-            SCRIPT_PRIORITY.initialize,
-          );
-        }
+    timeline.frame = frame;
+    if (!vm || !runsScripts) {
+      this.syncTimeline(timeline);
+      if (!vm && runsScripts) {
+        this.runBehaviours(timeline, items);
       }
-      for (const item of items) {
-        if (item.type === "action") {
-          this.queue.add(() => {
-            if (!timeline.removed) {
-              vm.runBlock(timeline, item.block);
-            }
-          });
-        }
-      }
-      this.idle();
       return;
     }
+
+    const firstPlacement = items.findIndex(
+      ({ type }) => type === "placeObject" || type === "removeObject",
+    );
+    const leading =
+      isGoto || firstPlacement < 0 ? items.length : firstPlacement;
+
+    items.forEach((item) => this.queueInitAction(vm, timeline.movie, item));
+    this.queueFrameScripts(vm, timeline, items.slice(0, leading));
+    this.syncTimeline(timeline);
+    this.queueFrameScripts(vm, timeline, items.slice(leading));
+    this.idle();
+  }
+
+  private queueFrameScripts(
+    vm: Vm,
+    timeline: Instance,
+    items: readonly FrameItem[],
+  ): void {
+    for (const item of items) {
+      if (item.type === "action") {
+        this.queue.add(() => {
+          if (!timeline.removed) {
+            vm.runBlock(timeline, item.block);
+          }
+        });
+      }
+    }
+  }
+
+  private runBehaviours(timeline: Instance, items: readonly FrameItem[]): void {
     for (const item of items) {
       if (item.type === "action") {
         this.runBehaviour(timeline, timeline.movie.behaviours[item.block], "frame");

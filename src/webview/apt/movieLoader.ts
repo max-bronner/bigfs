@@ -21,6 +21,8 @@ export interface MovieLoadHost {
   retire(instance: Instance): void;
   queueInitActions(movie: PageMovie, on?: Instance): void;
   enter(timeline: Instance, frame: number): void;
+  /** Puts a clip on the list that plays, for one that held nothing to play */
+  scheduleClip(clip: Instance): void;
   drainScripts(): void;
 }
 
@@ -64,6 +66,7 @@ export const createMovieLoader = (host: MovieLoadHost) => {
     clip.frame = 0;
     clip.playing = true;
     clip.visible = true;
+    host.scheduleClip(clip);
 
     // A movie loaded again runs its init actions again
     const vm = host.getVm();

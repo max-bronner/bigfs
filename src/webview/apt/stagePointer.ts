@@ -51,6 +51,7 @@ export const attachStagePointer = (
 ): StagePointer => {
   let hovered: Instance | undefined;
   let pressed: Instance | undefined;
+  let isDown = false;
   /** Where the pointer last was, in the shown character's space */
   let pointer: [number, number] | undefined;
   /** The tool that holds the pointer, while a drag lasts */
@@ -63,7 +64,7 @@ export const attachStagePointer = (
     if (next === hovered) {
       return false;
     }
-    host.getPlayer().hover(hovered, next, pressed);
+    host.getPlayer().hover(hovered, next, isDown);
     hovered = next;
     return true;
   };
@@ -101,7 +102,7 @@ export const attachStagePointer = (
 
   canvas.addEventListener('mouseleave', () => {
     if (host.isInteractive() && hovered) {
-      host.getPlayer().hover(hovered, undefined);
+      host.getPlayer().hover(hovered, undefined, isDown);
     }
     hovered = undefined;
     pointer = undefined;
@@ -114,16 +115,19 @@ export const attachStagePointer = (
     if (!host.hasMovie()) {
       return;
     }
-    if (host.isInteractive()) {
-      if (hovered) {
-        pressed = hovered;
-        host.getPlayer().press(hovered);
-        host.render();
-      }
-      return;
-    }
 
     const point = host.pointAt(event);
+
+    if (host.isInteractive()) {
+      updateHover(point);
+      isDown = true;
+      pressed = hovered;
+      if (hovered) {
+        host.getPlayer().press(hovered);
+      }
+      host.render();
+      return;
+    }
 
     holder = host.tools.find((each) => each.down(point, event));
     if (!holder) {
@@ -135,11 +139,18 @@ export const attachStagePointer = (
   window.addEventListener('mouseup', () => {
     holder?.up();
     holder = undefined;
-    if (host.isInteractive() && pressed) {
+    isDown = false;
+    if (!host.isInteractive()) {
+      return;
+    }
+    if (pointer) {
+      updateHover(pointer);
+    }
+    if (pressed) {
       host.getPlayer().release(pressed, hovered);
       pressed = undefined;
-      host.render();
     }
+    host.render();
   });
 
   return {
@@ -147,6 +158,7 @@ export const attachStagePointer = (
     reset: () => {
       hovered = undefined;
       pressed = undefined;
+      isDown = false;
     },
     updateAfterFrame: () =>
       host.isInteractive() &&

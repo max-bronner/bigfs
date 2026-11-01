@@ -90,8 +90,6 @@ export const setInspectorView = (
   onRendered = update;
 };
 
-export type { StageTool };
-
 /** Tools in the order they are offered the pointer */
 const tools: StageTool[] = [];
 
@@ -99,7 +97,6 @@ const tools: StageTool[] = [];
 export const addTool = (next: StageTool): void => {
   tools.unshift(next);
 };
-
 
 let player: Player | undefined;
 let extent: Rect | undefined;

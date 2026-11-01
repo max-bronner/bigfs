@@ -300,10 +300,13 @@ Movie**.
   changes on hover; a clip that carries mouse handlers responds
   (`GadgetColorPicker`, the `Strategic…` panels); hold a button and drag off
   it: it runs its drag script, not its roll-out; a button hidden by a mask
-  takes no pointer.
+  takes no pointer. A button that appears under a still pointer rolls over.
 - [ ] **changed** Playing a movie: scripts see clips already on their new frame,
-  a `gotoAndStop` past the end lands on the last frame, and a clip hidden with
-  `_visible` keeps animating when shown again.
+  a frame's scripts run before what it places loads, so `InitColoredTextString`
+  and friends are defined when text fields start (`StrategicConflictResults`
+  logs no engine call for them), a `gotoAndStop` past the end lands on the last frame, and a clip hidden with
+  `_visible` keeps animating when shown again; `_width` and `_height` of a clip
+  read what it shows.
 - [ ] **new** Editing with undo: text, colours, bounds, exports, imports,
   placements, frame labels, frames, new text / sprite / shape / image
   characters, geometry and texture import, remove characters.
