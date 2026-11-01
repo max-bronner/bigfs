@@ -12,6 +12,7 @@ import {
   getTimelineSeconds,
   listEffects,
   renderTimeline,
+  skipDueSounds,
 } from './timeline';
 import { drawSystems, hasGraphics, loadTextures } from './graphics';
 import { $, library, post, state, viewer, world } from './page';
@@ -441,6 +442,7 @@ viewer.addLayer({
       startEffects();
     }
     stepTo(time, MAX_SEEK_STEPS);
+    skipDueSounds();
   },
   onRestart: startEffects,
   onFrame,

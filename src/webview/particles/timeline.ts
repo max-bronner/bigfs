@@ -279,6 +279,11 @@ let soundFrame = 0;
 /** Width in pixels of the play mark at the start of a sound row's label */
 const PLAY_ZONE = 18;
 
+/** Passes over the sounds of a jump of the playhead: a drag is not playing them */
+export const skipDueSounds = (): void => {
+  soundFrame = world.frame;
+};
+
 /** Plays the sounds that fell due since the last frame, when opted in */
 const playDueSounds = (list: FxListDef): void => {
   if (!soundsBox?.checked) {
