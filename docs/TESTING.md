@@ -517,6 +517,18 @@ Movie**.
 
 Open a `.w3d` from an archive or folder (**bigFS Preview**).
 
+- [ ] **new** **One viewer.** Open a `.w3d` (from an archive, or Ctrl-click a model
+  name in an INI), then **▶ Preview object** and an FX **Preview**: all three show
+  the same two bars above the view in the same order: animation list, **Play**,
+  **Stop**, **Restart**, **Step**, time slider, speed, **Loop**, then **Bones**,
+  **Model**, **Show hidden**, **Show boxes**, **Grid**, level of detail, sky. A
+  control that does not apply stays, greyed. The same grid, orbit, right-drag pan,
+  wheel zoom and double-click reset work on all three. A plain `.w3d` has no
+  panel but its facts, **Parts** and **Used in**.
+- [ ] **new** Time: **Stop** goes to the start and stays there. **Step** moves one
+  step. Dragging the slider moves a clip and materials, and on an FX replays to
+  that time, backwards too. With **Loop** off a clip stops on its last frame and
+  **Play** starts it again. Speed works on clips as it does on FX.
 - [ ] **changed** Models are textured as the game draws them (units,
   buildings, props, shader materials): correct V orientation, the drawn pass's
   texture and coordinates, holes from alpha, glows not drawn solid.
@@ -711,7 +723,8 @@ Sound is opt-in: opening a view never plays anything.
 - [ ] **new** **Particle preview** (Preview lens on `FXParticleSystem`,
   `ParticleSystem`, `FXList`; command **Preview Particle System**): orbit, pan,
   zoom; play, pause, step, restart, speed 0.1× to 4×; moving emitter; hotkeys
-  Space, R, `.`, W (wind), H (hollow box), B (A/B).
+  Space, R, `.`, W (wind), H (hollow box), C (A/B), B (bones).
+- [ ] **changed** A/B moved from `B` to `C`, since `B` is bones in every preview.
 - [ ] **new** A slider per value; **Apply to INI** writes one undoable edit,
   **Reset** drops them; typing in the block updates the preview.
 - [ ] **new** Emission volume handles: drag to size a sphere, cylinder or box;
@@ -725,7 +738,7 @@ Sound is opt-in: opening a view never plays anything.
   fire, smoke, sparks, dust cloud, magic glow, flash; name and texture as tab
   stops.
 - [ ] **new** **On a model…** picks any W3D and a bone, drawn textured and
-  lit, the same as in the W3D viewer.
+  lit, the same as in the W3D viewer, and framed in the view.
 - [ ] **new** FX list **Timeline**: a bar per nugget; mute (click), solo
   (shift-click), drag a delay. `Sound` rows have a ▶ and a **Play sounds** box
   (off); nothing plays by itself.
@@ -744,8 +757,9 @@ Sound is opt-in: opening a view never plays anything.
   `AnimationState`, `IdleAnimationState`: that state's model and first
   animation. Lightbulb **Preview on the object** on an `AnimationName` (plays
   it, `SKELETON.CLIP` names too), an FX line (runs it on the model) and a
-  `ParticleSysBone` line (follows the bone). Toggles for Model, Bones (off) and
-  every effect; State and Animation pickers; a `ChildObject` shows what it
+  `ParticleSysBone` line (follows the bone). Model, Bones (off) and Show hidden are
+  the viewer's buttons and Animation its list; a toggle for every effect; a State
+  picker; the first model is framed in the view; a `ChildObject` shows what it
   inherits; previewing an FX from `fxlist.ini` shows no model.
 - [ ] **changed** The object preview tracks its object by definition name:
   edit the INI; the panel redraws (debounced) and stays on the same object

@@ -11,7 +11,7 @@ import { createTexturePage } from './texture';
 
 /**
  * The preview editor's page: a texture on a canvas, a sound with its
- * facts, a VP6 movie frame by frame, or a W3D model in 3D. The extension
+ * facts, a VP6 movie frame by frame, or a W3D model in the shared viewer. The extension
  * sends what to show for the file; the page asks for what it needs next.
  */
 

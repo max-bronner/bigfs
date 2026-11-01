@@ -210,6 +210,14 @@ your mod's archives.
   is written beside it as a new animation file, named as the game finds it,
   for an INI line to switch to by name.
 
+**The 3D viewer**
+
+- A `.w3d`, **Preview object** and an FX preview all open one viewer: the same
+  view, grid and camera, and the same controls in the same place (animation
+  list, play, stop, restart, step, time slider, speed, loop, bones, model, hidden
+  parts, boxes, grid, level of detail, sky). A `.w3d` opened directly or by
+  Ctrl-click shows the model alone; a preview adds its own panels beside it.
+
 **Particle preview**
 
 - A **Preview** lens on every `FXParticleSystem`, `ParticleSystem` and
@@ -227,7 +235,7 @@ your mod's archives.
 - **On a model…** shows the effect on any W3D model of the workspace or
   its archives, drawn shaded, started at a bone you pick in its bind pose,
   the way a unit carries an effect on a bone.
-- **A/B** (`B`) flips the preview between the block as written and with the
+- **A/B** (`C`) flips the preview between the block as written and with the
   values being tried; **Vary ±** nudges every value by up to a percentage
   to try variations; **Save as variant…** writes the values as a new system
   after this one, which keeps its own.

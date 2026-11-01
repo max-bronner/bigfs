@@ -122,6 +122,7 @@ modules it registers. From there:
 | INI highlighting, hover, completion, navigation, rename, diagnostics | `features/iniLanguage/providers/` | `services/ini/sageIniDocuments.ts`, `sageIniIndex.ts`; `formats/ini/` |
 | INI checks (assets, unused, duplicates, validation, hotkeys) | `features/iniLanguage/` | `services/ini/sageIniAssetCheck.ts`, `diagnoseIniText.ts`; `game/ini-tools/` |
 | effective object view, new object wizard | `features/objects/` | `services/ini/effectiveObject.ts`, `game/objects/` |
+| the 3D viewer every model and effect preview runs on: canvas and render loop, orbit camera, grid, the clock and its transport, the base controls and the parts list; a page adds a `ViewerLayer` and side panels | | `webview/shared/viewer/createViewer.ts` |
 | particle and object previews | `features/particles/` | `webview/particles/`, `services/effectLibrary.ts`, `formats/particles/` |
 | texture, audio and W3D previews (a texture's regions: `createTextureRegions` with the `RegionKind`s for `MappedImage` and `.ru` and `createRegionDiscovery`) | `features/preview/` | `webview/preview/`, the tools in `formats/texture`, `formats/audio`, `formats/w3d` |
 | APT movies | `features/apt/` | `webview/apt/` (`player.ts` with `scriptQueue.ts`, `pointerDispatcher.ts` and `movieLoader.ts`; `stage.ts` with `stagePointer.ts` and `hitTest.ts`; `view3dSurface.ts` with `view3dCamera.ts` and `renderObjectCache.ts` for `View3D` clips, `imageSurface.ts` for image clips; the AVM in `avm/`), `formats/apt/`; `docs/apt-scripts.md`, `docs/apt-text-format.md` |

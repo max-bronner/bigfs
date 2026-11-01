@@ -42,7 +42,7 @@ const esbuildProblemMatcherPlugin = {
  * The extension loads them by that name, so a name never changes.
  */
 const PAGES = [
-  // The particle preview's page, with the simulation it runs
+  // The FX and object previews' page, with the simulation it runs
   { name: 'particles', entry: 'src/webview/particles/main.ts' },
   // The APT editor's page
   { name: 'apt', entry: 'src/webview/apt/main.ts' },
@@ -50,7 +50,7 @@ const PAGES = [
   { name: 'armor', entry: 'src/webview/armor/main.ts' },
   // The CommandSet editor's page
   { name: 'commandset', entry: 'src/webview/commandset/main.ts' },
-  // The W3D viewer's model view
+  // The bigFS Preview editor's page: textures, sounds, movies, cursors and models
   { name: 'model', entry: 'src/webview/preview/main.ts' },
   // The WND layout preview's page
   { name: 'wnd', entry: 'src/webview/wnd/main.ts' },

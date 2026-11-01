@@ -31,8 +31,8 @@ import { uploadTextures } from "./uploadTextures";
  * and lit from the camera, grey where its texture is missing, skinned on the
  * CPU to the pose it is given, its bones and collision boxes as lines when asked, one
  * level of detail at a time and without the meshes marked hidden. One
- * renderer serves the W3D viewer and the particle preview, so a model looks
- * the same in both. WebGL 1, which the particle preview draws with.
+ * renderer serves the viewer and the APT page's `View3D`, so a model looks
+ * the same in both. WebGL 1, which the particle sprites draw with.
  */
 
 /** What a draw shows in place of a texture that was not found */
@@ -78,7 +78,7 @@ export interface ModelCamera {
 const DEFAULT_ROTATION = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const FAR_EYE = 1e5;
 
-/** WebGL renderer for one W3D model at a time, shared by the W3D viewer and the particle preview */
+/** WebGL renderer for one W3D model at a time, shared by the viewer and `View3D` */
 export interface ModelRenderer {
   /** Replaces the model, or clears it */
   setModel(scene: ModelScene | undefined): void;
