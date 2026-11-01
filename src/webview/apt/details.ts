@@ -36,7 +36,6 @@ import {
   textRunBlock,
 } from './recordFields';
 
-export { showScript } from './blocks/scriptBlock';
 
 const vscode = getVsCodeApi<FromPage>();
 

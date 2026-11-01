@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
+import { formatStrRecord } from '../../formats/str/sageStringRecords';
 import {
   duplicateDefinition,
-  strRecord,
 } from '../../game/objects/duplicateDefinition';
 import type { SageBlock } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
@@ -109,7 +109,7 @@ const duplicate = async (
     edit.insert(
       original.uri,
       end,
-      lead + strRecord(label.to, original.text, tableEol),
+      lead + formatStrRecord(label.to, original.text, tableEol),
     );
     added.push(label.to);
   }

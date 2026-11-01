@@ -16,7 +16,8 @@ import { findConflicts, planTransfer } from '../../core/transferPlan';
 import { refuseDirtyEditors } from './dirtyEditors';
 import { findChild, getTopLevelNodes, isArchiveRoot } from '../../services/archives/virtualTree';
 import type { VirtualNode } from '../../services/archives/virtualNode';
-import type { ArchiveModel, ImportedFile } from '../../services/archives/archiveModel';
+import type { ArchiveModel } from '../../services/archives/archiveModel';
+import type { ImportedFile } from '../../services/archives/archiveOperations';
 import type { ConflictChoice } from '../../core/transferPlan';
 
 /**

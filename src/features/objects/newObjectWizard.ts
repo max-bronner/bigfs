@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { strRecord } from '../../game/objects/duplicateDefinition';
+import { formatStrRecord } from '../../formats/str/sageStringRecords';
 import {
   deriveButtonName,
   copyButton,
@@ -422,7 +422,7 @@ export const registerNewObjectWizard = (
         const key = table.uri.toString();
         const record = records.get(key) ?? { uri: table.uri, text: [] };
 
-        record.text.push(strRecord(entry.to, entry.text, '\n'));
+        record.text.push(formatStrRecord(entry.to, entry.text, '\n'));
         records.set(key, record);
       } else {
         left.push(`add ${entry.to} ("${entry.text}") to your string table`);

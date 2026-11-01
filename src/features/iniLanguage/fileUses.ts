@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { readObjectScene } from '../../game/objects/objectScene';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import { FILE_USES } from '../../services/ini/sageIniIndex';
+import { FILE_USES } from '../../formats/ini/sageIniEntries';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import { registerCommand } from '../../platform/commands';

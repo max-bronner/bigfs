@@ -17,7 +17,7 @@ import {
 import { findBelow } from '../../services/apt/findBelow';
 import { readMovieTextures } from '../../services/apt/readMovieTextures';
 import type { EntryLocator } from '../../services/entryLocator';
-import { FILE_USES } from '../../services/ini/sageIniIndex';
+import { FILE_USES } from '../../formats/ini/sageIniEntries';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import { getMappedImageRegionId } from './mappedImageRegionId';

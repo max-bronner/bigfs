@@ -7,7 +7,6 @@ import { getNodeUri } from "../archives/nodeAddress";
 import type { SageIniSchema } from "../../formats/ini/sageIniSchema";
 import { getArchiveLanguage } from "../../game/text/gameLanguage";
 import {
-  FILE_USES,
   collectEntries,
   reachedThroughMacros,
 } from "../../formats/ini/sageIniEntries";
@@ -78,8 +77,6 @@ export interface SageReference {
   /** The field the value sat on, for the peek header */
   field: string;
 }
-
-export { FILE_USES };
 
 /** A token of a macro's body and the file that holds it */
 interface SageBodyToken extends EntryBodyToken {

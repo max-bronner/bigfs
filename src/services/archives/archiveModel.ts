@@ -16,8 +16,6 @@ import type { ArchiveScanner } from './archiveScanner';
 import type { ArchiveSource } from './archiveSource';
 import type { VirtualNode } from './virtualNode';
 
-export type { ArchiveChange, ImportedFile, TransferResult };
-
 /** Options of an `ArchiveModel`, for a caller that wants some of its background work off */
 export interface ArchiveModelOptions {
   /**

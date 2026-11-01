@@ -28,8 +28,6 @@ const TOKEN_EOB = 42;
 const PROFILE_SIMPLE = 0;
 const PROFILE_ADVANCED = 3;
 
-export { MbType, Ref, getReference as referenceOf } from './prediction';
-
 /** Slot of each macroblock mode in the mode probability tables, which order them differently */
 export const MODEL_INDEX: Record<MbType, number> = {
   [MbType.InterNoMv]: 0,
