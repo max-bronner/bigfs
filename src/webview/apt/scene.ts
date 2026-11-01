@@ -242,6 +242,46 @@ export const getLocalBounds = (leaf: Leaf): Rect => {
   return [0, 0, texture?.width ?? 64, texture?.height ?? 64];
 };
 
+/** Gets a point in a leaf's own space, or nothing when its matrix has collapsed */
+export const toLeafSpace = (
+  { matrix: [a, b, c, d, tx, ty] }: Pick<Leaf, 'matrix'>,
+  [x, y]: [number, number],
+): [number, number] | undefined => {
+  const det = a * d - b * c;
+
+  return det
+    ? [(d * (x - tx) - c * (y - ty)) / det, (a * (y - ty) - b * (x - tx)) / det]
+    : undefined;
+};
+
+/**
+ * Finds the topmost button whose hit area is under a point. A hit area is the
+ * hit record's bounds: the shipped hit shapes are bounds around empty geometry.
+ */
+export const findButtonAt = (
+  hits: readonly HitArea[],
+  point: [number, number],
+): Instance | undefined => {
+  for (let index = hits.length - 1; index >= 0; index--) {
+    const { leaf, button } = hits[index];
+    const local = toLeafSpace(leaf, point);
+
+    if (local) {
+      const [left, top, right, bottom] = getLocalBounds(leaf);
+
+      if (
+        local[0] >= left &&
+        local[0] <= right &&
+        local[1] >= top &&
+        local[1] <= bottom
+      ) {
+        return button;
+      }
+    }
+  }
+  return undefined;
+};
+
 /** Transforms a rectangle, giving the box around the result */
 export const transformRect = (m: Affine, [l, t, r, b]: Rect): Rect => {
   const xs = [l, r, l, r].map(

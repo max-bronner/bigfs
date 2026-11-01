@@ -6,7 +6,8 @@ import { layoutText } from '../../webview/apt/paint';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
 import { resolve } from '../../webview/apt/resolve';
-import { collect, getImageTexture } from '../../webview/apt/scene';
+import { collect, findButtonAt, getImageTexture } from '../../webview/apt/scene';
+import type { HitArea } from '../../webview/apt/scene';
 import { state } from '../../webview/apt/state';
 import { colorFromApt, concatColor } from '../../webview/apt/timeline';
 
@@ -188,6 +189,51 @@ suite('APT text layout', () => {
         [2, 13.5],
         [2, 25],
       ],
+    );
+  });
+});
+
+suite('APT button picking', () => {
+  const hitArea = (
+    button: string,
+    matrix: HitArea['leaf']['matrix'],
+  ): HitArea =>
+    ({
+      button,
+      leaf: {
+        matrix,
+        character: { type: 'shape', bounds: [-10, -5, 10, 5], geometry: 0 },
+      },
+    }) as unknown as HitArea;
+
+  test('a hit area is its bounds, whatever geometry the shape holds', () => {
+    const hits = [hitArea('button', [1, 0, 0, 1, 100, 50])];
+
+    assert.strictEqual(findButtonAt(hits, [105, 52]), 'button');
+    assert.strictEqual(findButtonAt(hits, [120, 50]), undefined);
+  });
+
+  test('the placement scales the area', () => {
+    const hits = [hitArea('button', [2, 0, 0, 2, 0, 0])];
+
+    assert.strictEqual(findButtonAt(hits, [19, 0]), 'button');
+    assert.strictEqual(findButtonAt(hits, [21, 0]), undefined);
+  });
+
+  test('the topmost button wins where two overlap', () => {
+    const hits = [
+      hitArea('below', [1, 0, 0, 1, 0, 0]),
+      hitArea('above', [1, 0, 0, 1, 5, 0]),
+    ];
+
+    assert.strictEqual(findButtonAt(hits, [8, 0]), 'above');
+    assert.strictEqual(findButtonAt(hits, [-8, 0]), 'below');
+  });
+
+  test('a collapsed placement takes nothing', () => {
+    assert.strictEqual(
+      findButtonAt([hitArea('button', [0, 0, 0, 0, 0, 0])], [0, 0]),
+      undefined,
     );
   });
 });

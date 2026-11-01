@@ -6,7 +6,15 @@ import { buildMaskArea, paintLeaf } from "./paint";
 import { Player } from "./player";
 import type { Instance } from "./instance";
 import { resolve } from "./resolve";
-import { getLeafBounds, collect, getLocalBounds, transformRect, union } from "./scene";
+import {
+  getLeafBounds,
+  collect,
+  findButtonAt,
+  getLocalBounds,
+  toLeafSpace,
+  transformRect,
+  union,
+} from "./scene";
 import { growExtent } from "./stageExtent";
 import type { Affine, HitArea, Leaf } from "./scene";
 import { movie, state } from "./state";
@@ -111,6 +119,8 @@ let extent: Rect | undefined;
 let scene: { leaves: Leaf[]; hits: HitArea[] } = { leaves: [], hits: [] };
 let base: Affine = [1, 0, 0, 1, 0, 0];
 let hovered: Instance | undefined;
+/** Where the pointer last was on the stage, in the shown character's space */
+let pointer: [number, number] | undefined;
 let pressed: Instance | undefined;
 const log: string[] = [];
 /** What other frames of the shown timeline draw, for onion skinning */
@@ -552,16 +562,14 @@ export const pointAt = (event: MouseEvent): [number, number] => {
 };
 
 /** Whether a leaf covers a point: a shape by its triangles, the rest by their box */
-const covers = (leaf: Leaf, [x, y]: [number, number]): boolean => {
-  const [a, b, c, d, tx, ty] = leaf.matrix;
-  const det = a * d - b * c;
+const covers = (leaf: Leaf, point: [number, number]): boolean => {
+  const local = toLeafSpace(leaf, point);
 
-  if (!det) {
+  if (!local) {
     return false;
   }
 
-  const lx = (d * (x - tx) - c * (y - ty)) / det;
-  const ly = (a * (y - ty) - b * (x - tx)) / det;
+  const [lx, ly] = local;
 
   if (leaf.character?.type === "shape") {
     return (leaf.movie.shapes[leaf.id] ?? []).some((run) => {
@@ -609,14 +617,21 @@ const inTriangle = (
   return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
 };
 
-/** The topmost button whose hit area is under the point */
-const findButtonAt = (point: [number, number]): Instance | undefined => {
-  for (let index = scene.hits.length - 1; index >= 0; index--) {
-    if (covers(scene.hits[index].leaf, point)) {
-      return scene.hits[index].button;
-    }
+/**
+ * Moves the pointer's hover to the button under it, returning whether it
+ * changed. A script can swap the button under a still pointer, so this runs
+ * after every played frame as well as on every move.
+ */
+const updateHover = (point: [number, number]): boolean => {
+  const next = findButtonAt(scene.hits, point);
+
+  stage.style.cursor = next ? "pointer" : "default";
+  if (next === hovered) {
+    return false;
   }
-  return undefined;
+  currentPlayer().hover(hovered, next);
+  hovered = next;
+  return true;
 };
 
 /** The topmost instance worth inspecting under the point */
@@ -643,15 +658,11 @@ stage.addEventListener("mousemove", (event) => {
     return;
   }
 
+  pointer = point;
   if (view.interact) {
-    const next = findButtonAt(point);
-
-    if (next !== hovered) {
-      currentPlayer().hover(hovered, next);
-      hovered = next;
+    if (updateHover(point)) {
       render();
     }
-    stage.style.cursor = next ? "pointer" : "default";
   } else {
     const next = findInstanceAt(point);
 
@@ -670,6 +681,7 @@ stage.addEventListener("mouseleave", () => {
     currentPlayer().hover(hovered, undefined);
   }
   hovered = undefined;
+  pointer = undefined;
   if (state.movie) {
     render();
   }
@@ -736,6 +748,9 @@ const loop = (time: number) => {
     }
     state.frame = currentPlayer().root.frame;
     render();
+    if (view.interact && pointer && updateHover(pointer)) {
+      render();
+    }
   }
   requestAnimationFrame(loop);
 };

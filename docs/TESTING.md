@@ -293,6 +293,9 @@ Movie**.
 - [ ] **new** Inspector; picking on the stage (click, double-click goes
   inside); overlays origin (O), boxes (B), wireframe (W); **Interact** (I)
   makes buttons respond.
+- [ ] **changed** **Interact** on `MainMenu`: hover a nav button and its
+  sub-menu rolls out; move away and it closes; move across the nav buttons and
+  they swap. `QuitMainMenu` and `MyHeroes` play their hover effect.
 - [ ] **new** Editing with undo: text, colours, bounds, exports, imports,
   placements, frame labels, frames, new text / sprite / shape / image
   characters, geometry and texture import, remove characters.
