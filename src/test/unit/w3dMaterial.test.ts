@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import { parseW3d } from "../../formats/w3d/w3dTools";
 import { buildBumpOffsets } from "../../formats/w3d/w3dBumpMap";
+import { parseHouseColours } from "../../formats/w3d/w3dHouseColour";
 import { buildW3dScene } from "../../formats/w3d/w3dScene";
 import { createToolRegistry } from "../../core/toolRegistry";
 import {
@@ -543,6 +544,65 @@ suite("W3D materials", () => {
       parseUvMapper(UV_MAPPER.BUMP_ENVIRONMENT, "BumpScale = scale factor").bumpScale,
       1,
     );
+  });
+
+  test("the house colour table reads base textures to masks, comments and casing aside", () => {
+    const table = parseHouseColours(
+      "; note\r\nHouseColor\r\n\tBaseTexture\t= GUArcher.tga ; a\r\n\tHouseTexture = HC_GUArcher.tga\r\nEnd\r\n",
+    );
+
+    assert.strictEqual(table.get("guarcher.tga"), "HC_GUArcher.tga");
+  });
+
+  test("a mesh takes the mask its texture lists, in one pass only, and a mask is not reported missing", async () => {
+    const ini = new TextEncoder().encode(
+      "HouseColor\nBaseTexture = A.tga\nHouseTexture = HC_A.tga\nEnd\n",
+    );
+    const files = new Map<string, Uint8Array>([
+      ["data/ini/housecolor.ini", ini],
+      ["A.tga", tgaOf(1)],
+      ["HC_A.tga", tgaOf(2)],
+    ]);
+    const build = (...chunks: Uint8Array[]) =>
+      buildW3dScene(
+        buildMesh(0, "BODY", ...chunks),
+        async (name) => files.get(name),
+        createToolRegistry(),
+      );
+    const table = [buildChunk(0x029, shaderBytes()), textureTable("A.tga")];
+    const single = await build(...table, pass([0], [0]));
+    const double = await build(...table, pass([0], [0]), pass([0], [0]));
+    const unknown = await build(textureTable("B.tga"), pass([0], [0]));
+
+    assert.strictEqual(single.meshes[0].draws?.[0].houseMask, 1);
+    assert.strictEqual(single.textures[1].pixels[0], 2);
+    assert.strictEqual(double.meshes[0].draws?.[0].houseMask, undefined);
+    assert.strictEqual(unknown.meshes[0].draws?.[0].houseMask, undefined);
+
+    files.delete("HC_A.tga");
+    assert.deepStrictEqual((await build(...table, pass([0], [0]))).missing, []);
+  });
+
+  test("a mask compiled to a PNG is found when the host can decode one", async () => {
+    const ini = new TextEncoder().encode(
+      "HouseColor\nBaseTexture = A.tga\nHouseTexture = HC_A.tga\nEnd\n",
+    );
+    const mask = { width: 1, height: 1, pixels: Uint8Array.of(255, 255, 255, 9) };
+    const scene = await buildW3dScene(
+      buildMesh(0, "BODY", buildChunk(0x029, shaderBytes()), textureTable("A.tga"), pass([0], [0])),
+      async (name) =>
+        name === "data/ini/housecolor.ini"
+          ? ini
+          : name === "A.tga"
+            ? tgaOf(1)
+            : name === "HC_A.png"
+              ? Uint8Array.of(1)
+              : undefined,
+      createToolRegistry(),
+      () => mask,
+    );
+
+    assert.strictEqual(scene.textures[scene.meshes[0].draws?.[0].houseMask ?? -1], mask);
   });
 
   test("the sort level of a mesh reaches its surface, and an out of range one is none", () => {

@@ -7,6 +7,7 @@ import {
   parseW3dAnimations,
 } from '../../formats/w3d/w3dAnimation';
 import { buildW3dScene, loadSkeleton } from '../../formats/w3d/w3dScene';
+import { decodePng } from '../../node/png';
 import { createToolRegistry } from '../../core/toolRegistry';
 import { EffectLibrary } from '../../services/effectLibrary';
 import { composeEffectiveObject } from '../../services/ini/effectiveObject';
@@ -237,6 +238,7 @@ const createObjectPreview = (
           bytes,
           (fileName) => locator!.read(fileName, uri),
           tools,
+          decodePng,
         ),
       },
     });

@@ -7,6 +7,7 @@ import {
 } from '../../formats/texture/textureTools';
 import { playableAudioTool } from '../../formats/audio/audioTools';
 import { buildW3dScene, loadSkeleton } from '../../formats/w3d/w3dScene';
+import { decodePng } from '../../node/png';
 import { parseW3dAnimations } from '../../formats/w3d/w3dAnimation';
 import {
   findAnimationCarrier,
@@ -87,7 +88,7 @@ const buildMessage = async (
       }
       case '.w3d': {
         const loadFile = (fileName: string) => locator.read(fileName, uri);
-        const scene = await buildW3dScene(bytes, loadFile, tools);
+        const scene = await buildW3dScene(bytes, loadFile, tools, decodePng);
 
         // An animation alone is bones: play it on the model drawn on them,
         // the one an object's INI plays it on, else found by the skeleton

@@ -63,6 +63,9 @@ uniform int detailColor;
 uniform int detailAlpha;
 uniform bool bumpOffset;
 uniform vec4 bumpMatrix;
+uniform sampler2D houseMaskTex;
+uniform bool hasHouseMask;
+uniform vec3 houseColour;
 uniform bool hasNormals;
 uniform vec3 lightDirection;
 uniform float alphaCutoff;
@@ -141,6 +144,10 @@ void main() {
     ? clamp(base.rgb * clamp(lit, 0.0, 1.0) * 2.0, 0.0, 1.0)
     : base.rgb * lit;
   if (vertexMultiplies) shaded *= vertexColour;
+  if (hasHouseMask) {
+    vec4 mask = texture2D(houseMaskTex, vUv);
+    shaded = mix(shaded, mask.r * houseColour, mask.a);
+  }
   if (writesOpaque) gl_FragColor = vec4(shaded, 1.0);
   else if (fadesColour) gl_FragColor = vec4(shaded * opacity, base.a);
   else gl_FragColor = vec4(shaded, base.a * opacity);

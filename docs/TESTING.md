@@ -485,6 +485,11 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   button even with no skeleton. Pausing, Space and dragging the frame slider stop
   or move the effects with the clip, and the particle preview's **On a model…**
   runs them on its own clock and stops with its pause.
+- [ ] **new** House colour: a unit whose texture `housecolor.ini` lists wears the
+  default blue on its masked parts (`guarcher_skn`, `muorcwar_skn`, shields on
+  `gb` buildings), with no prompt. Only the masked parts change, not the face. It
+  needs `housecolor.ini` in the game view or workspace; a normal-mapped mesh never
+  takes it.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.

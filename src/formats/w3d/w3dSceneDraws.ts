@@ -2,6 +2,7 @@ import type { ToolBox } from "../../core/toolRegistry";
 import { decodeDdsTool, decodeTgaTool } from "../texture/textureTools";
 import type { RgbaImage } from "../texture/textureTools";
 import { buildBumpOffsets } from "./w3dBumpMap";
+import { HOUSE_COLOR_INI, parseHouseColours } from "./w3dHouseColour";
 import type { W3dTexture } from "./w3dMaterialChunks";
 import type { W3dMaterialDraw } from "./w3dMaterial";
 import type { W3dMesh } from "./w3dTools";
@@ -14,6 +15,8 @@ export interface SceneDraw extends Omit<W3dMaterialDraw, "texture" | "detailText
   textured: boolean;
   /** Index into `ModelScene.textures` of the second stage's texture, when found */
   detailTexture?: number;
+  /** Index into `ModelScene.textures` of the mask that takes the house colour */
+  houseMask?: number;
 }
 
 /** How a scene texture is sampled */
@@ -24,6 +27,12 @@ export interface SceneTextureAddressing {
 
 /** Finds an entry by file name, matched without casing, wherever it lives */
 export type LoadFile = (fileName: string) => Promise<Uint8Array | undefined>;
+
+/**
+ * Decodes a PNG. Inflating needs the host, so a caller hands this in; without
+ * it the masks retail compiled to PNG are not found.
+ */
+export type DecodePng = (bytes: Uint8Array) => RgbaImage;
 
 /** What a model's draws need from outside the file */
 export interface SceneDraws {
@@ -75,6 +84,27 @@ const loadTexture = async (
   return undefined;
 };
 
+/**
+ * Finds a house colour mask. Retail compiled many to a JPEG of their luminance
+ * and a white PNG holding their alpha, which is the part that says where the
+ * colour goes; JPEG is not decoded here, so those masks show at full luminance.
+ */
+const loadMask = async (
+  name: string,
+  loadFile: LoadFile,
+  tools: ToolBox,
+  decodePng: DecodePng | undefined,
+): Promise<RgbaImage | undefined> => {
+  const image = await loadTexture(name, loadFile, tools);
+  const bytes = !image && decodePng && (await loadFile(`${removeExtension(name)}.png`));
+
+  try {
+    return bytes ? decodePng?.(bytes) : image;
+  } catch {
+    return undefined;
+  }
+};
+
 /** One way a draw samples a texture; two draws that ask alike share one upload */
 interface TextureUse extends W3dTexture {
   /** The texture is a height map a bump stage reads as offsets */
@@ -90,21 +120,53 @@ const getBaseUse = ({ texture, surface }: W3dMaterialDraw): TextureUse | undefin
 const getUses = (draw: W3dMaterialDraw): TextureUse[] =>
   [getBaseUse(draw), draw.detailTexture].flatMap((use) => (use ? [use] : []));
 
+/** Loads the table of house colour masks when a mesh could take one; none without the file */
+const loadHouseColours = async (meshes: readonly W3dMesh[], loadFile: LoadFile) => {
+  const bytes = meshes.some((mesh) => mesh.draws.some((draw) => draw.surface.houseColourable))
+    ? await loadFile(HOUSE_COLOR_INI)
+    : undefined;
+
+  return parseHouseColours(bytes ? new TextDecoder("windows-1252").decode(bytes) : "");
+};
+
 /** Loads the textures a model's draws name and turns its draws into scene draws */
 export const loadSceneDraws = async (
   meshes: readonly W3dMesh[],
   loadFile: LoadFile,
   tools: ToolBox,
+  decodePng?: DecodePng,
 ): Promise<SceneDraws> => {
+  const houseColours = await loadHouseColours(meshes, loadFile);
+  const getMaskUse = ({ texture, surface }: W3dMaterialDraw): TextureUse | undefined => {
+    const mask =
+      texture && surface.houseColourable
+        ? houseColours.get(texture.name.toLowerCase())
+        : undefined;
+
+    return mask === undefined ? undefined : { name: mask, clampU: false, clampV: false };
+  };
   const uses = new Map(
     meshes.flatMap((mesh) =>
-      mesh.draws.flatMap(getUses).map((use) => [getUseKey(use), use] as const),
+      mesh.draws
+        .flatMap((draw) => [...getUses(draw), getMaskUse(draw)])
+        .flatMap((use) => (use ? [[getUseKey(use), use] as const] : [])),
     ),
   );
   const names = [...new Set([...uses.values()].map((use) => use.name))];
+  const drawnNames = new Set(
+    meshes.flatMap((mesh) => mesh.draws.flatMap(getUses)).map((use) => use.name),
+  );
   const decoded = new Map(
     await Promise.all(
-      names.map(async (name) => [name, await loadTexture(name, loadFile, tools)] as const),
+      names.map(
+        async (name) =>
+          [
+            name,
+            await (drawnNames.has(name)
+              ? loadTexture(name, loadFile, tools)
+              : loadMask(name, loadFile, tools, decodePng)),
+          ] as const,
+      ),
     ),
   );
   const textures: RgbaImage[] = [];
@@ -137,7 +199,7 @@ export const loadSceneDraws = async (
   return {
     textures,
     addressing,
-    missing: names.filter((name) => !decoded.get(name)),
+    missing: [...drawnNames].filter((name) => !decoded.get(name)),
     draws: meshes.map((mesh, at) =>
       mesh.draws.map((draw) => ({
         ...draw,
@@ -146,6 +208,7 @@ export const loadSceneDraws = async (
         texture: findIndex(getBaseUse(draw)),
         textured: !!draw.texture,
         detailTexture: findIndex(draw.detailTexture),
+        houseMask: findIndex(getMaskUse(draw)),
       })),
     ),
     uvs: meshes.map((mesh, at) => flipAll[at](mesh.uvs)),

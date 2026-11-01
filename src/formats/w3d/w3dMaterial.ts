@@ -79,6 +79,11 @@ export interface W3dSurface {
   detailAlpha: number;
   /** `GRADIENT_BUMPENVMAP`: the first stage is no colour, but offsets the second's coordinates */
   bumpOffset: boolean;
+  /**
+   * The material can take a house colour. Necessary only: `housecolor.ini` must
+   * also list its texture (`house-color.md` section 3)
+   */
+  houseColourable: boolean;
   /** The UV mappers of the two stages; absent when both show their stored coordinates */
   mappers?: [W3dUvMapper, W3dUvMapper];
 }
@@ -127,6 +132,7 @@ export const DEFAULT_SURFACE: W3dSurface = {
   detailColor: 0,
   detailAlpha: 0,
   bumpOffset: false,
+  houseColourable: false,
 };
 
 const isBlack = ([red, green, blue]: Rgb) => red === 0 && green === 0 && blue === 0;
@@ -356,6 +362,12 @@ export const resolveVertexColour = (
   }
 };
 
+/** Whether a draw qualifies for house colour: a lone legacy pass, or the one effect that declares it */
+const isHouseColourable = (materials: W3dMeshMaterials, fxMaterial: W3dFxMaterial | undefined) =>
+  fxMaterial
+    ? fxMaterial.shaderName.toLowerCase() === "defaultw3d.fx"
+    : materials.passes.length === 1;
+
 const resolveColours = ({ ambient, diffuse, emissive, opacity }: W3dVertexMaterial) => ({
   ambient,
   diffuse,
@@ -427,6 +439,7 @@ const resolveDraw = (
       detailAlpha:
         detailTexture && shader && shader.detailAlpha <= MAX_DETAIL_ALPHA ? shader.detailAlpha : 0,
       bumpOffset: shader?.primaryGradient === GRADIENT_BUMPENVMAP,
+      houseColourable: isHouseColourable(materials, fxMaterial),
       mappers: vertexMaterial && resolveMappers(vertexMaterial),
       sortLevel:
         geometry.sortLevel > 0 && geometry.sortLevel <= MAX_SORT_LEVEL ? geometry.sortLevel : 0,

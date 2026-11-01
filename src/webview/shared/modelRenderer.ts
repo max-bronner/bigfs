@@ -19,6 +19,7 @@ import {
   UV_MAPPER,
 } from "../../formats/w3d/w3dUvMapper";
 import type { W3dUvMapper } from "../../formats/w3d/w3dUvMapper";
+import { DEFAULT_HOUSE_COLOUR } from "../../formats/w3d/w3dHouseColour";
 import { FRAGMENT_SHADER, VERTEX_SHADER } from "./modelShaders";
 
 /**
@@ -58,6 +59,8 @@ export interface DrawOptions {
   seconds?: number;
   /** The camera, for environment-mapped materials; they see a fixed one when absent */
   camera?: ModelCamera;
+  /** The colour house-coloured parts take, 0 to 1 a channel */
+  houseColour?: Vec3;
 }
 
 /** Where the camera stands, for materials whose coordinates depend on it */
@@ -93,6 +96,7 @@ interface DrawablePart {
   /** The draw names a texture that was not found */
   missingTexture: boolean;
   detailTexture?: WebGLTexture;
+  houseMask?: WebGLTexture;
   uv?: WebGLBuffer;
   detailUv?: WebGLBuffer;
   color?: WebGLBuffer;
@@ -326,6 +330,8 @@ export const createModelRenderer = (
                 draw.detailUvs && draw.detailTexture !== undefined
                   ? textures[draw.detailTexture]
                   : undefined,
+              houseMask:
+                draw.uvs && draw.houseMask !== undefined ? textures[draw.houseMask] : undefined,
               uv: draw.uvs && uploadOnce(draw.uvs),
               detailUv: draw.detailUvs && uploadOnce(draw.detailUvs),
               color: draw.colors && uploadOnce(draw.colors),
@@ -451,6 +457,14 @@ export const createModelRenderer = (
     gl.uniform1i(uniform(`${prefix}Generated`), hasNormals && mapper ? mapper.type : 0);
   };
 
+  const bindTexture = (texture: WebGLTexture | undefined, name: string, unit: number) => {
+    if (texture) {
+      gl.activeTexture(gl.TEXTURE0 + unit);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(uniform(name), unit);
+    }
+  };
+
   const bindColors = (data: WebGLBuffer | undefined) => {
     if (attributes.color < 0) {
       return;
@@ -479,6 +493,7 @@ export const createModelRenderer = (
       showBoxes,
       seconds = 0,
       camera,
+      houseColour = DEFAULT_HOUSE_COLOUR,
     }: DrawOptions,
   ) => {
     if (!scene) {
@@ -488,6 +503,7 @@ export const createModelRenderer = (
     gl.uniformMatrix4fv(uniform("viewProjection"), false, viewProjection);
     gl.uniform3fv(uniform("offset"), offset);
     gl.uniform3fv(uniform("lightDirection"), light);
+    gl.uniform3fv(uniform("houseColour"), houseColour);
     gl.uniform3fv(uniform("eye"), camera?.eye ?? light.map((axis) => axis * FAR_EYE));
     gl.uniformMatrix3fv(
       uniform("viewRotation"),
@@ -553,20 +569,16 @@ export const createModelRenderer = (
         part.missingTexture ? MISSING_TEXTURE : NO_TEXTURE,
       );
       gl.uniform1i(uniform("hasNormals"), drawable.hasNormals ? 1 : 0);
-      if (part.texture) {
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, part.texture);
-        gl.uniform1i(uniform("tex"), 0);
-      }
+      bindTexture(part.texture, "tex", 0);
       bindAttribute(attributes.position, drawable.position, 3);
       bindAttribute(attributes.normal, drawable.normal, 3);
-      gl.uniform1i(uniform("hasDetail"), part.detailTexture ? 1 : 0);
-      if (part.detailTexture) {
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, part.detailTexture);
-        gl.uniform1i(uniform("detailTex"), 1);
-        gl.activeTexture(gl.TEXTURE0);
-      }
+      // The mask replaces the mesh's own second stage
+      const detail = part.houseMask ? undefined : part.detailTexture;
+
+      gl.uniform1i(uniform("hasDetail"), detail ? 1 : 0);
+      bindTexture(detail, "detailTex", 1);
+      gl.uniform1i(uniform("hasHouseMask"), part.houseMask ? 1 : 0);
+      bindTexture(part.houseMask, "houseMaskTex", 2);
       bindAttribute(attributes.uv, part.uv, 2);
       bindAttribute(attributes.detailUv, part.detailUv ?? part.uv, 2);
       bindColors(part.color);

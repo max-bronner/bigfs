@@ -14,7 +14,7 @@ import { skinVertices, toBoneMatrix } from "./w3dSkin";
 import type { BoneSpaceMesh, Matrix } from "./w3dSkin";
 import type { W3dBlend } from "./w3dMaterial";
 import { loadSceneDraws } from "./w3dSceneDraws";
-import type { LoadFile, SceneDraw, SceneTextureAddressing } from "./w3dSceneDraws";
+import type { DecodePng, LoadFile, SceneDraw, SceneTextureAddressing } from "./w3dSceneDraws";
 
 export type { LoadFile, SceneDraw };
 
@@ -481,6 +481,7 @@ export const buildW3dScene = async (
   bytes: Uint8Array,
   loadFile: LoadFile,
   tools: ToolBox,
+  decodePng?: DecodePng,
 ): Promise<ModelScene> => {
   const parse = tools.use(parseW3dTool);
   const file = await parse(bytes);
@@ -507,6 +508,7 @@ export const buildW3dScene = async (
     file.meshes,
     loadFile,
     tools,
+    decodePng,
   );
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];

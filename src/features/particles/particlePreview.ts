@@ -10,6 +10,7 @@ import type { ParticleDef } from '../../formats/particles/particleDef';
 import { computeKeyEdits } from '../../formats/particles/particleKeys';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
+import { decodePng } from '../../node/png';
 import { createToolRegistry } from '../../core/toolRegistry';
 import { duplicateDefinition } from '../../game/objects/duplicateDefinition';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
@@ -278,6 +279,7 @@ const createParticlePreview = (
           bytes,
           (fileName) => locator!.read(fileName, uri),
           createToolRegistry(),
+          decodePng,
         ),
       };
     }
