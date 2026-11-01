@@ -8,7 +8,7 @@ import { Engine } from '../../webview/apt/avm/engine';
 import { DOWN, OVER, UP } from '../../webview/apt/buttonState';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
-import { collect, findButtonAt } from '../../webview/apt/scene';
+import { collect, findPointerTargetAt } from '../../webview/apt/scene';
 import type { Leaf } from '../../webview/apt/scene';
 
 const place = (
@@ -249,7 +249,7 @@ suite('APT playback', () => {
     });
     const { hits } = collect(player);
 
-    assert.strictEqual(findButtonAt(hits, [5, 5]), kid);
+    assert.strictEqual(findPointerTargetAt(hits, [5, 5]), kid);
     player.hover(undefined, kid);
     assert.strictEqual(player.vm!.readBound(player.root, 'over'), 1);
   });
@@ -273,11 +273,11 @@ suite('APT playback', () => {
     const hits = [
       {
         leaf: leaf([1, 0, 0, 1, 0, 0], [[mask]]),
-        button: 'button',
+        target: 'button',
       },
-    ] as unknown as Parameters<typeof findButtonAt>[0];
+    ] as unknown as Parameters<typeof findPointerTargetAt>[0];
 
-    assert.strictEqual(findButtonAt(hits, [7, 5]) as unknown, 'button');
-    assert.strictEqual(findButtonAt(hits, [2, 5]), undefined);
+    assert.strictEqual(findPointerTargetAt(hits, [7, 5]) as unknown, 'button');
+    assert.strictEqual(findPointerTargetAt(hits, [2, 5]), undefined);
   });
 });

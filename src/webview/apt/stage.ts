@@ -9,7 +9,8 @@ import { resolve } from "./resolve";
 import {
   getLeafBounds,
   collect,
-  findButtonAt,
+  findPointerTargetAt,
+  isInBounds,
   getLocalBounds,
   toLeafSpace,
   transformRect,
@@ -595,9 +596,7 @@ const covers = (leaf: Leaf, point: [number, number]): boolean => {
     });
   }
 
-  const [l, top, r, bottom] = getLocalBounds(leaf);
-
-  return lx >= l && lx <= r && ly >= top && ly <= bottom;
+  return isInBounds(leaf, point);
 };
 
 const inTriangle = (
@@ -618,11 +617,11 @@ const inTriangle = (
 };
 
 /**
- * Moves the pointer's hover to the button under it, returning whether it
+ * Moves the pointer's hover to the target under it, returning whether it
  * changed.
  */
 const updateHover = (point: [number, number]): boolean => {
-  const next = findButtonAt(scene.hits, point);
+  const next = findPointerTargetAt(scene.hits, point);
 
   stage.style.cursor = next ? "pointer" : "default";
   if (next === hovered) {

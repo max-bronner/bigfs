@@ -86,10 +86,10 @@ export interface Leaf {
   text?: string;
 }
 
-/** Pointer target of a button: one of its hit-test records' leaves */
+/** Pointer target's area: a leaf of a button's hit record, or of a clip that takes the pointer */
 export interface HitArea {
   leaf: Leaf;
-  button: Instance;
+  target: Instance;
 }
 
 /**
@@ -208,11 +208,11 @@ export const collect = (
         const area: Leaf[] = [];
 
         visit(hit, place(hit), color, top, area, masks);
-        hits.push(...area.map((leaf) => ({ leaf, button: instance })));
+        hits.push(...area.map((leaf) => ({ leaf, target: instance })));
       }
     } else if (!isMask && player.takesPointer?.(instance)) {
       hits.push(
-        ...out.slice(firstLeaf).map((leaf) => ({ leaf, button: instance })),
+        ...out.slice(firstLeaf).map((leaf) => ({ leaf, target: instance })),
       );
     }
   };
@@ -264,7 +264,7 @@ export const toLeafSpace = (
 };
 
 /** Whether a point is in a leaf's bounds */
-const isInBounds = (leaf: Leaf, point: [number, number]): boolean => {
+export const isInBounds = (leaf: Leaf, point: [number, number]): boolean => {
   const local = toLeafSpace(leaf, point);
 
   if (!local) {
@@ -286,12 +286,12 @@ const isInBounds = (leaf: Leaf, point: [number, number]): boolean => {
  * masked away there. A hit area is its record's bounds: the shipped hit
  * shapes are bounds around empty geometry.
  */
-export const findButtonAt = (
+export const findPointerTargetAt = (
   hits: readonly HitArea[],
   point: [number, number],
 ): Instance | undefined => {
   for (let index = hits.length - 1; index >= 0; index--) {
-    const { leaf, button } = hits[index];
+    const { leaf, target } = hits[index];
 
     if (
       isInBounds(leaf, point) &&
@@ -299,7 +299,7 @@ export const findButtonAt = (
         mask.some((each) => isInBounds(each, point)),
       )
     ) {
-      return button;
+      return target;
     }
   }
   return undefined;

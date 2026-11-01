@@ -49,6 +49,8 @@ export interface Instance {
   children: Map<string, Instance>;
   /** A button's hit-test records */
   hits: Instance[];
+  /** Part of a hit record: an area, so nothing in it runs */
+  isHitRecord?: boolean;
   buttonState: number;
   /** A state the inspector holds the button in */
   forced?: number;

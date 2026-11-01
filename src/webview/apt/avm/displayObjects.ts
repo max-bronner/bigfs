@@ -1,6 +1,7 @@
 import type { Rect } from '../../../formats/apt/aptMovie';
 import { isTimeline } from '../instance';
 import type { Instance } from '../instance';
+import { transformRect, union } from '../scene';
 import { parseLevel } from './movieLoad';
 import { getClipObject, getPrimitiveProto } from './objects';
 import { AsObject } from './value';
@@ -86,23 +87,6 @@ export const getTargetPath = (
     : [level ? '' : '_level0', ...names].filter(Boolean).join('.');
 };
 
-/** Gets the box around where a matrix puts a rectangle */
-const transformExtent = (
-  [a, b, c, d]: Instance['matrix'],
-  [tx, ty]: Instance['translate'],
-  [left, top, right, bottom]: Rect,
-): Rect => {
-  const xs = [left, right].flatMap((x) => [a * x + c * top, a * x + c * bottom]);
-  const ys = [left, right].flatMap((x) => [b * x + d * top, b * x + d * bottom]);
-
-  return [
-    Math.min(...xs) + tx,
-    Math.min(...ys) + ty,
-    Math.max(...xs) + tx,
-    Math.max(...ys) + ty,
-  ];
-};
-
 /**
  * Gets what a clip covers in its own space: a clip or button by what it shows
  * now, anything else by its stored bounds (mint's `local_bounds`)
@@ -120,25 +104,15 @@ export const getLocalExtent = (
     return character && 'bounds' in character ? character.bounds : undefined;
   }
 
-  let extent: Rect | undefined;
+  return union(
+    [...instance.children.values()].flatMap((child) => {
+      const inner = getLocalExtent(child, depth + 1);
 
-  for (const child of instance.children.values()) {
-    const inner = getLocalExtent(child, depth + 1);
-
-    if (inner) {
-      const box = transformExtent(child.matrix, child.translate, inner);
-
-      extent = extent
-        ? [
-            Math.min(extent[0], box[0]),
-            Math.min(extent[1], box[1]),
-            Math.max(extent[2], box[2]),
-            Math.max(extent[3], box[3]),
-          ]
-        : box;
-    }
-  }
-  return extent;
+      return inner
+        ? [transformRect([...child.matrix, ...child.translate], inner)]
+        : [];
+    }),
+  );
 };
 
 /** Reads a display property of a clip by its lowercased name */
@@ -172,7 +146,7 @@ export const getDisplayProperty = (instance: Instance, name: string): Value => {
     case '_width':
     case '_height': {
       const extent = getLocalExtent(instance);
-      const box = extent && transformExtent(instance.matrix, [0, 0], extent);
+      const box = extent && transformRect([...instance.matrix, 0, 0], extent);
 
       return box ? (name === '_width' ? box[2] - box[0] : box[3] - box[1]) : 0;
     }
