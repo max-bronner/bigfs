@@ -76,6 +76,12 @@ const MAGICS = new Set(['BIGF', 'BIG4']);
  */
 export class NotAnArchiveError extends Error {}
 
+/**
+ * Largest archive an index table can address: offsets, sizes and the header's
+ * total are four bytes each
+ */
+export const MAX_ARCHIVE_SIZE = 0xffffffff;
+
 /** Rounds up to the next 4 byte boundary, where entry data has to start */
 const alignToFourBytes = (offset: number): number => {
   return (offset + 3) & ~3;
@@ -193,6 +199,7 @@ export const parseIndexTable = (
  * between the table and the data: eight bytes in every shipped BIG4 archive,
  * none in a BIGF one. A size comes from pending content where there is any,
  * so the layout describes the archive about to be written, not the one on disk.
+ * @throws when the archive would outgrow what four byte offsets address
  */
 export const computeArchiveLayout = (
   entries: readonly BigFileEntry[] | ReadonlyMap<string, BigFileEntry>,
@@ -222,6 +229,12 @@ export const computeArchiveLayout = (
 
   const last = placedEntries[placedEntries.length - 1];
   const totalSize = last ? last.offset + last.size : firstDataOffset;
+
+  if (totalSize > MAX_ARCHIVE_SIZE) {
+    throw new Error(
+      `The archive would be ${totalSize} bytes, past the ${MAX_ARCHIVE_SIZE} a BIG index can address`,
+    );
+  }
 
   return {
     placedEntries,
