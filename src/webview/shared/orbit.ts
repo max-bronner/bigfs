@@ -1,5 +1,5 @@
 import type { Vec3 } from '../../formats/w3d/w3dPose';
-import { composeViewProjection } from './viewProjection';
+import { composeViewProjection, cross } from './viewProjection';
 
 /**
  * An orbit camera around a point, Z up as in the games: drag to orbit,

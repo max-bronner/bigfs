@@ -15,7 +15,8 @@ export interface CameraLens {
   far: number;
 }
 
-const cross = (a: Vec3, b: Vec3): Vec3 => [
+/** Gets the cross product of two vectors */
+export const cross = (a: Vec3, b: Vec3): Vec3 => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
   a[0] * b[1] - a[1] * b[0],
