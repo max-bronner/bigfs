@@ -586,7 +586,11 @@ File**.
 
 Sound is opt-in: opening a view never plays anything.
 
-- [ ] **new** WAV (including IMA ADPCM) and MP3 playback in **bigFS Preview**.
+- [ ] **new** WAV (including IMA ADPCM) playback in **bigFS Preview**. Open an
+  IMA ADPCM one (about half of BFME II's sounds, for example from `Audio.big`):
+  it plays. **Changed:** an `.mp3` (a `Music.big` track, also from a link in an
+  INI file) opens in VS Code's own audio preview, from inside the archive too,
+  and plays from its controls only.
 - [ ] **new** **▶ Play** lens on audio event blocks (AudioEvent, Multisound,
   EVA headers; not `AudioEvent = X` fields), and play links on hover of a
   sound or event name. One click plays one file; several variants (role,
@@ -780,7 +784,7 @@ Previews and editors:
 
 Custom editors:
 
-- [ ] `bigfs.preview` bigFS Preview (`.tga`, `.dds`, `.wav`, `.mp3`, `.w3d`, `.vp6`)
+- [ ] `bigfs.preview` bigFS Preview (`.tga`, `.dds`, `.wav`, `.w3d`, `.vp6`)
 - [ ] `bigfs.aptEditor` bigFS APT Movie (`.apt`)
 - [ ] `bigfs.strTable` bigFS String Table (`.str`)
 - [ ] `bigfs.csfEditor` bigFS CSF String Table (`.csf`)

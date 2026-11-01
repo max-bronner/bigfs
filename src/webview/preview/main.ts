@@ -1,5 +1,5 @@
 import { getVsCodeApi } from '../shared/vscodeApi';
-import { showAudio, showCompressedAudio } from './audio';
+import { showAudio } from './audio';
 import { showMovie } from './movie';
 import type { MovieControl } from './movie';
 import type { FromPreviewPage, ToPreviewPage } from './protocol';
@@ -26,9 +26,6 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
         main,
         post: (message) => vscode.postMessage(message),
       });
-      break;
-    case 'compressedAudio':
-      showCompressedAudio(main, data);
       break;
     case 'video':
       movie = showMovie(main, data, (message) => vscode.postMessage(message));

@@ -37,14 +37,6 @@ export interface AudioMessage {
   };
 }
 
-/** Message carrying a sound in a format the browser decodes itself */
-export interface CompressedAudioMessage {
-  kind: 'compressedAudio';
-  bytes: Uint8Array;
-  mime: string;
-  format: string;
-}
-
 /** Message opening a VP6 movie; its frames follow one by one as the page asks */
 export interface VideoMessage {
   kind: 'video';
@@ -59,7 +51,6 @@ export interface VideoMessage {
 export type ToPreviewPage =
   | TextureMessage
   | AudioMessage
-  | CompressedAudioMessage
   | VideoMessage
   | ({ kind: 'model' } & ModelMessage)
   | { kind: 'error'; message: string }

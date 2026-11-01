@@ -838,7 +838,7 @@
         "displayName": "bigFS Preview",
         "selector": [
           {
-            "filenamePattern": "*.{tga,dds,wav,w3d,mp3,vp6,TGA,DDS,WAV,W3D,MP3,VP6}"
+            "filenamePattern": "*.{tga,dds,wav,w3d,vp6,TGA,DDS,WAV,W3D,VP6}"
           }
         ],
         "priority": "default"

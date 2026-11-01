@@ -12,6 +12,10 @@ import { registerCommand } from '../../platform/commands';
  * player starts only on a click.
  */
 
+/** Whether VS Code's own preview opens the file, which plays an MP3 and the images bigFS has no view for */
+const isBuiltInPreview = (uri: vscode.Uri) =>
+  /\.(mp3|jpe?g|png)$/i.test(uri.path);
+
 /** Creates the links from every asset an INI file names to its viewer */
 const createAssetLinkProvider = (
   documents: SageIniDocuments,
@@ -57,12 +61,18 @@ export const registerAssetLinks = (
         const uri = await locator.findUri(candidate, vscode.Uri.parse(near));
 
         if (uri) {
-          await vscode.commands.executeCommand(
-            'vscode.openWith',
-            uri,
-            PREVIEW_VIEW_TYPE,
-            vscode.ViewColumn.Beside,
-          );
+          await (isBuiltInPreview(uri)
+            ? vscode.commands.executeCommand(
+                'vscode.open',
+                uri,
+                vscode.ViewColumn.Beside,
+              )
+            : vscode.commands.executeCommand(
+                'vscode.openWith',
+                uri,
+                PREVIEW_VIEW_TYPE,
+                vscode.ViewColumn.Beside,
+              ));
           return;
         }
       }

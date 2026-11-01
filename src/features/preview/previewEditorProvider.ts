@@ -31,8 +31,8 @@ const getFileName = (uri: vscode.Uri) =>
 /**
  * Read-only editor that previews the binary entries a text editor cannot
  * show: TGA and DDS textures, drawn on a canvas with zoom, channel and mip
- * controls, WAV and MP3 sounds, a WAV played after IMA ADPCM is decoded, VP6
- * movies, and W3D models, drawn in 3D with their skeleton and textures found
+ * controls, WAV sounds, played after IMA ADPCM is decoded, which VS Code's own
+ * audio preview cannot play, VP6 movies, and W3D models, drawn in 3D with their skeleton and textures found
  * wherever they live. It opens files inside archives and loose on disk alike,
  * since it only reads bytes through `workspace.fs`.
  */
@@ -42,7 +42,7 @@ const getFileName = (uri: vscode.Uri) =>
 type PreviewMessage = Extract<
   ToPreviewPage,
   {
-    kind: 'texture' | 'audio' | 'compressedAudio' | 'video' | 'model' | 'error';
+    kind: 'texture' | 'audio' | 'video' | 'model' | 'error';
   }
 >;
 
@@ -69,13 +69,6 @@ const buildMessage = async (
         return {
           kind: 'audio',
           ...(await tools.use(playableAudioTool)(bytes)),
-        };
-      case '.mp3':
-        return {
-          kind: 'compressedAudio',
-          bytes,
-          mime: 'audio/mpeg',
-          format: 'MP3',
         };
       case '.vp6': {
         const movie = new Vp6Movie(bytes);
