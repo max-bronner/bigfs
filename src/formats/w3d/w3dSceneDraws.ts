@@ -8,13 +8,16 @@ import type { W3dMaterialDraw } from "./w3dMaterial";
 import type { W3dMesh } from "./w3dTools";
 
 /** One draw of a scene mesh: `W3dMaterialDraw` with its textures found and V flipped */
-export interface SceneDraw extends Omit<W3dMaterialDraw, "texture" | "detailTexture"> {
+export interface SceneDraw
+  extends Omit<W3dMaterialDraw, "texture" | "detailTexture" | "normalMap"> {
   /** Index into `ModelScene.textures`, when the texture was found */
   texture?: number;
   /** The draw names a texture, so without one it shows that one is missing */
   textured: boolean;
   /** Index into `ModelScene.textures` of the second stage's texture, when found */
   detailTexture?: number;
+  /** Index into `ModelScene.textures` of the normal map, when found */
+  normalMap?: number;
   /** Index into `ModelScene.textures` of the mask that takes the house colour */
   houseMask?: number;
 }
@@ -117,8 +120,13 @@ const getUseKey = ({ name, clampU, clampV, isBumpMap }: TextureUse) =>
 const getBaseUse = ({ texture, surface }: W3dMaterialDraw): TextureUse | undefined =>
   texture && { ...texture, isBumpMap: surface.bumpOffset };
 
+const getNormalMapUse = ({ normalMap }: W3dMaterialDraw): TextureUse | undefined =>
+  normalMap ? { name: normalMap, clampU: false, clampV: false } : undefined;
+
 const getUses = (draw: W3dMaterialDraw): TextureUse[] =>
-  [getBaseUse(draw), draw.detailTexture].flatMap((use) => (use ? [use] : []));
+  [getBaseUse(draw), draw.detailTexture, getNormalMapUse(draw)].flatMap((use) =>
+    use ? [use] : [],
+  );
 
 /** Loads the table of house colour masks when a mesh could take one; none without the file */
 const loadHouseColours = async (meshes: readonly W3dMesh[], loadFile: LoadFile) => {
@@ -208,6 +216,7 @@ export const loadSceneDraws = async (
         texture: findIndex(getBaseUse(draw)),
         textured: !!draw.texture,
         detailTexture: findIndex(draw.detailTexture),
+        normalMap: findIndex(getNormalMapUse(draw)),
         houseMask: findIndex(getMaskUse(draw)),
       })),
     ),

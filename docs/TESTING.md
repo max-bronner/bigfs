@@ -490,6 +490,10 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   `gb` buildings), with no prompt. Only the masked parts change, not the face. It
   needs `housecolor.ini` in the game view or workspace; a normal-mapped mesh never
   takes it.
+- [ ] **new** Normal-mapped meshes show their relief and highlight: stone joints
+  and carved trim on buildings and heroes (`gbfortress`, `gbfarm_a`) stand out
+  and catch the light as you orbit, and a posed or animated model keeps them.
+  The texture list reports a normal map no archive holds.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.

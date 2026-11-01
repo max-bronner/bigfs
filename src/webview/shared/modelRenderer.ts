@@ -20,7 +20,7 @@ import {
 } from "../../formats/w3d/w3dUvMapper";
 import type { W3dUvMapper } from "../../formats/w3d/w3dUvMapper";
 import { DEFAULT_HOUSE_COLOUR } from "../../formats/w3d/w3dHouseColour";
-import { FRAGMENT_SHADER, VERTEX_SHADER } from "./modelShaders";
+import { buildFragmentShader, VERTEX_SHADER } from "./modelShaders";
 
 /**
  * Draws a W3D model with WebGL: every material draw of every mesh textured
@@ -97,6 +97,7 @@ interface DrawablePart {
   missingTexture: boolean;
   detailTexture?: WebGLTexture;
   houseMask?: WebGLTexture;
+  normalMap?: WebGLTexture;
   uv?: WebGLBuffer;
   detailUv?: WebGLBuffer;
   color?: WebGLBuffer;
@@ -185,7 +186,14 @@ export const createModelRenderer = (
   const program = gl.createProgram()!;
 
   gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX_SHADER));
-  gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER));
+  gl.attachShader(
+    program,
+    compile(
+      gl,
+      gl.FRAGMENT_SHADER,
+      buildFragmentShader(!!gl.getExtension("OES_standard_derivatives")),
+    ),
+  );
   gl.linkProgram(program);
 
   const wideIndices = !!gl.getExtension("OES_element_index_uint");
@@ -332,6 +340,8 @@ export const createModelRenderer = (
                   : undefined,
               houseMask:
                 draw.uvs && draw.houseMask !== undefined ? textures[draw.houseMask] : undefined,
+              normalMap:
+                draw.uvs && draw.normalMap !== undefined ? textures[draw.normalMap] : undefined,
               uv: draw.uvs && uploadOnce(draw.uvs),
               detailUv: draw.detailUvs && uploadOnce(draw.detailUvs),
               color: draw.colors && uploadOnce(draw.colors),
@@ -439,6 +449,9 @@ export const createModelRenderer = (
     gl.uniform1i(uniform("detailColor"), surface.detailColor);
     gl.uniform1i(uniform("detailAlpha"), surface.detailAlpha);
     gl.uniform1i(uniform("bumpOffset"), surface.bumpOffset ? 1 : 0);
+    gl.uniform3fv(uniform("specularColour"), surface.specular);
+    gl.uniform1f(uniform("shininess"), surface.shininess);
+    gl.uniform1f(uniform("bumpScale"), surface.bumpScale);
   };
 
   /** Sets a stage's coordinate transform and its generated coordinates at `seconds` */
@@ -579,6 +592,8 @@ export const createModelRenderer = (
       bindTexture(detail, "detailTex", 1);
       gl.uniform1i(uniform("hasHouseMask"), part.houseMask ? 1 : 0);
       bindTexture(part.houseMask, "houseMaskTex", 2);
+      gl.uniform1i(uniform("hasNormalMap"), part.normalMap && drawable.hasNormals ? 1 : 0);
+      bindTexture(part.normalMap, "normalTex", 3);
       bindAttribute(attributes.uv, part.uv, 2);
       bindAttribute(attributes.detailUv, part.detailUv ?? part.uv, 2);
       bindColors(part.color);

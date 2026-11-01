@@ -26,6 +26,8 @@ varying vec3 vNormal;
 varying vec2 vUv;
 varying vec2 vDetailUv;
 varying vec4 vColor;
+varying vec3 vPosition;
+varying vec3 vToEye;
 // The environment mappers of w3d-format.md: a normal or reflection vector read
 // as a coordinate, in camera space or, for the WS ones, in world space
 vec2 generateUv(int mapper, vec2 stored) {
@@ -45,13 +47,21 @@ void main() {
   vUv = transformUv(generateUv(uvGenerated, uv), uvLinear, uvOffset);
   vDetailUv = transformUv(generateUv(detailUvGenerated, detailUv), detailUvLinear, detailUvOffset);
   vColor = color;
+  vPosition = position + offset;
+  vToEye = eye - vPosition;
   gl_Position = viewProjection * vec4(position + offset, 1.0);
 }`;
 
-/** Fragment shader of the model renderer */
-export const FRAGMENT_SHADER = `
+/** Fragment shader of the model renderer, past what depends on the context */
+const FRAGMENT_BODY = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
 precision mediump float;
+#endif
 varying vec3 vNormal;
+varying vec3 vPosition;
+varying vec3 vToEye;
 varying vec2 vUv;
 varying vec2 vDetailUv;
 varying vec4 vColor;
@@ -66,6 +76,11 @@ uniform vec4 bumpMatrix;
 uniform sampler2D houseMaskTex;
 uniform bool hasHouseMask;
 uniform vec3 houseColour;
+uniform sampler2D normalTex;
+uniform bool hasNormalMap;
+uniform float bumpScale;
+uniform vec3 specularColour;
+uniform float shininess;
 uniform bool hasNormals;
 uniform vec3 lightDirection;
 uniform float alphaCutoff;
@@ -110,10 +125,37 @@ float combineAlpha(float local, float other) {
   if (detailAlpha == 3) return local + (1.0 - local) * other;
   return local;
 }
-vec3 shade(vec3 vertexColour) {
+// The surface's basis from how position and UV change across the pixel, which
+// holds on a posed mesh with no tangents to skin; the V of vUv runs as mint's
+// bitangent does. Without the extension the mesh stays smooth.
+vec3 applyNormalMap(vec3 unit) {
+#ifdef GL_OES_standard_derivatives
+  vec3 positionX = dFdx(vPosition);
+  vec3 positionY = dFdy(vPosition);
+  vec2 uvX = dFdx(vUv);
+  vec2 uvY = dFdy(vUv);
+  vec3 acrossY = cross(positionY, unit);
+  vec3 acrossX = cross(unit, positionX);
+  vec3 tangent = acrossY * uvX.x + acrossX * uvY.x;
+  vec3 bitangent = acrossY * uvX.y + acrossX * uvY.y;
+  float size = max(dot(tangent, tangent), dot(bitangent, bitangent));
+  if (size > 0.0) {
+    vec3 mapped = texture2D(normalTex, vUv).xyz * 2.0 - 1.0;
+    vec3 tilt = (mapped.x * tangent + mapped.y * bitangent) * bumpScale / sqrt(size);
+    return normalize(tilt + mapped.z * unit);
+  }
+#endif
+  return unit;
+}
+vec3 findNormal() {
+  vec3 unit = normalize(vNormal);
+  if (dot(unit, lightDirection) < 0.0) unit = -unit;
+  return hasNormalMap ? applyNormalMap(unit) : unit;
+}
+vec3 shade(vec3 vertexColour, vec3 unit) {
   vec3 ambient = ambientFromVertex ? vertexColour : materialAmbient;
   vec3 diffuse = diffuseFromVertex ? vertexColour : materialDiffuse;
-  float light = hasNormals ? abs(dot(normalize(vNormal), lightDirection)) : 1.0;
+  float light = hasNormals ? max(dot(unit, lightDirection), 0.0) : 1.0;
   if (unlit) return vec3(1.0) + materialEmissive;
   if (vertexIsLit) return diffuse;
   return clamp(
@@ -139,11 +181,16 @@ void main() {
     );
   }
   if (base.a < alphaCutoff) discard;
-  vec3 lit = shade(vertexColour);
+  vec3 unit = hasNormals ? findNormal() : vec3(0.0);
+  vec3 lit = shade(vertexColour, unit);
   vec3 shaded = modulate2x
     ? clamp(base.rgb * clamp(lit, 0.0, 1.0) * 2.0, 0.0, 1.0)
     : base.rgb * lit;
   if (vertexMultiplies) shaded *= vertexColour;
+  if (hasNormals && dot(unit, lightDirection) > 0.0) {
+    vec3 halfway = normalize(lightDirection + normalize(vToEye));
+    shaded += specularColour * SCENE_LIGHT * pow(max(dot(unit, halfway), 0.0), shininess);
+  }
   if (hasHouseMask) {
     vec4 mask = texture2D(houseMaskTex, vUv);
     shaded = mix(shaded, mask.r * houseColour, mask.a);
@@ -152,3 +199,7 @@ void main() {
   else if (fadesColour) gl_FragColor = vec4(shaded * opacity, base.a);
   else gl_FragColor = vec4(shaded, base.a * opacity);
 }`;
+
+/** Builds the fragment shader for a context with or without `OES_standard_derivatives` */
+export const buildFragmentShader = (hasDerivatives: boolean): string =>
+  `${hasDerivatives ? "#extension GL_OES_standard_derivatives : enable" : ""}${FRAGMENT_BODY}`;

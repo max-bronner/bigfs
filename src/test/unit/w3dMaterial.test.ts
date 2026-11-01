@@ -605,6 +605,77 @@ suite("W3D materials", () => {
     assert.strictEqual(scene.textures[scene.meshes[0].draws?.[0].houseMask ?? -1], mask);
   });
 
+  test("a normal-mapped material brings its map, highlight and colours, and takes no house colour", () => {
+    const colour = (red: number, green: number, blue: number) =>
+      encodeFloats(red, green, blue, 1);
+    const fx = buildChunk(
+      0x050,
+      fxMaterial(
+        "NormalMapped.fx",
+        [1, "NormalMap", fxText("Unit_NRM.tga")],
+        [1, "DiffuseTexture", fxText("Unit.tga")],
+        [5, "DiffuseColor", colour(0.5, 0.5, 0.5)],
+        [5, "SpecularColor", colour(0.25, 0.25, 0.25)],
+        [2, "SpecularExponent", encodeFloats(80)],
+        [2, "BumpScale", encodeFloats(2)],
+      ),
+      true,
+    );
+    const [draw] = parseMesh(fx, buildChunk(0x038, buildChunk(0x03f, encodeUints(0)), true)).draws;
+
+    assert.strictEqual(draw.texture?.name, "Unit.tga");
+    assert.strictEqual(draw.normalMap, "Unit_NRM.tga");
+    assert.deepStrictEqual(draw.surface.diffuse, [0.5, 0.5, 0.5]);
+    assert.deepStrictEqual(draw.surface.specular, [0.25, 0.25, 0.25]);
+    assert.strictEqual(draw.surface.shininess, 80);
+    assert.strictEqual(draw.surface.bumpScale, 2);
+    assert.strictEqual(draw.surface.houseColourable, false);
+  });
+
+  test("a parameter cut short is left out rather than read past its chunk", () => {
+    const fx = buildChunk(
+      0x050,
+      fxMaterial(
+        "NormalMapped.fx",
+        [5, "SpecularColor", encodeFloats(1)],
+        [2, "BumpScale", new Uint8Array(2)],
+        [1, "NormalMap", new Uint8Array(1)],
+      ),
+      true,
+    );
+    const [draw] = parseMesh(fx).draws;
+
+    assert.deepStrictEqual(draw.surface.specular, [0, 0, 0]);
+    assert.strictEqual(draw.surface.bumpScale, 1);
+    assert.strictEqual(draw.normalMap, undefined);
+  });
+
+  test("the scene finds a draw's normal map, and reports it when it is not there", async () => {
+    const fx = buildChunk(
+      0x050,
+      fxMaterial(
+        "NormalMapped.fx",
+        [1, "DiffuseTexture", fxText("A.tga")],
+        [1, "NormalMap", fxText("A_NRM.tga")],
+      ),
+      true,
+    );
+    const model = buildMesh(0, "BODY", fx, buildChunk(0x038, buildChunk(0x03f, encodeUints(0)), true));
+    const found = await buildW3dScene(
+      model,
+      async (name) => (name.startsWith("A") ? tgaOf(1) : undefined),
+      createToolRegistry(),
+    );
+    const absent = await buildW3dScene(
+      model,
+      async (name) => (name === "A.tga" ? tgaOf(1) : undefined),
+      createToolRegistry(),
+    );
+
+    assert.strictEqual(found.meshes[0].draws?.[0].normalMap, 1);
+    assert.deepStrictEqual(absent.missing, ["A_NRM.tga"]);
+  });
+
   test("the sort level of a mesh reaches its surface, and an out of range one is none", () => {
     const withLevel = (level: number) => {
       const bytes = buildMesh(0, "BODY");

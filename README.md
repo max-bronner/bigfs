@@ -343,7 +343,8 @@ your mod's archives.
   colours, opacity, unlit surfaces, second texture stages with every detail
   combine, clamped textures and bump offsets. Scrolling, rotating, flipbook
   and environment-mapped textures run on the preview's clock and stop with
-  its pause. Parts `housecolor.ini` masks wear a default team colour.
+  its pause. Parts `housecolor.ini` masks wear a default team colour, and
+  normal-mapped meshes show their relief and highlight.
   Any animation plays on any model, by bone number as the game applies it;
   the list shows the skeleton's own clips first and the ones made for other
   skeletons in their own group, and playing one of those says so.

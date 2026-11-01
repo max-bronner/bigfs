@@ -79,6 +79,12 @@ export interface W3dSurface {
   detailAlpha: number;
   /** `GRADIENT_BUMPENVMAP`: the first stage is no colour, but offsets the second's coordinates */
   bumpOffset: boolean;
+  /** `NormalMapped.fx`'s highlight, added over the texture; black for none */
+  specular: Rgb;
+  /** The highlight's exponent */
+  shininess: number;
+  /** How far the normal map tilts the surface: `BumpScale` */
+  bumpScale: number;
   /**
    * The material can take a house colour. Necessary only: `housecolor.ini` must
    * also list its texture (`house-color.md` section 3)
@@ -99,6 +105,8 @@ export interface W3dMaterialDraw {
   texture?: W3dTexture;
   /** The second stage's texture */
   detailTexture?: W3dTexture;
+  /** The tangent-space normal map a shader material names */
+  normalMap?: string;
   /** Two per vertex, as stored: V measured from the bottom */
   uvs?: Float32Array;
   /** The second stage's own coordinates, else the first stage's */
@@ -132,6 +140,9 @@ export const DEFAULT_SURFACE: W3dSurface = {
   detailColor: 0,
   detailAlpha: 0,
   bumpOffset: false,
+  specular: [0, 0, 0],
+  shininess: 1,
+  bumpScale: 1,
   houseColourable: false,
 };
 
@@ -362,11 +373,45 @@ export const resolveVertexColour = (
   }
 };
 
-/** Whether a draw qualifies for house colour: a lone legacy pass, or the one effect that declares it */
+/**
+ * Whether a draw qualifies for house colour: a lone legacy pass, or the one
+ * effect that declares it. A normal-mapped mesh never does.
+ */
 const isHouseColourable = (materials: W3dMeshMaterials, fxMaterial: W3dFxMaterial | undefined) =>
   fxMaterial
-    ? fxMaterial.shaderName.toLowerCase() === "defaultw3d.fx"
+    ? fxMaterial.shaderName.toLowerCase() === "defaultw3d.fx" && !readFxText(fxMaterial, "normalmap")
     : materials.passes.length === 1;
+
+/** Reads a colour parameter's red, green and blue; one with fewer channels reads as absent */
+const readFxColour = ({ properties }: W3dFxMaterial, name: string): Rgb | undefined => {
+  const value = properties.get(name);
+
+  return Array.isArray(value) && value.length >= 3 ? [value[0], value[1], value[2]] : undefined;
+};
+
+const readFxNumber = ({ properties }: W3dFxMaterial, name: string): number | undefined => {
+  const value = properties.get(name);
+
+  return typeof value === "number" ? value : undefined;
+};
+
+const readFxText = ({ properties }: W3dFxMaterial, name: string): string | undefined => {
+  const value = properties.get(name);
+
+  return typeof value === "string" ? value : undefined;
+};
+
+/**
+ * Reads the colours a shader material sets. Its `AmbientColor` of 0.4 is left
+ * out, as in mint: it multiplies a map's ambient, and the preview's stands for
+ * the sum of them, which would draw every normal-mapped mesh dark.
+ */
+const resolveFxColours = (material: W3dFxMaterial) => ({
+  diffuse: readFxColour(material, "diffusecolor") ?? DEFAULT_SURFACE.diffuse,
+  specular: readFxColour(material, "specularcolor") ?? DEFAULT_SURFACE.specular,
+  shininess: readFxNumber(material, "specularexponent") ?? DEFAULT_SURFACE.shininess,
+  bumpScale: readFxNumber(material, "bumpscale") ?? DEFAULT_SURFACE.bumpScale,
+});
 
 const resolveColours = ({ ambient, diffuse, emissive, opacity }: W3dVertexMaterial) => ({
   ambient,
@@ -416,7 +461,10 @@ const resolveDraw = (
     legacyTexture ??
     (fxTexture ? { name: fxTexture, clampU: false, clampV: false } : undefined);
   const vertexMaterial = materials.vertexMaterials[group.vertexMaterial ?? -1];
-  const colours = vertexMaterial ? resolveColours(vertexMaterial) : DEFAULT_SURFACE;
+  const colours = {
+    ...(vertexMaterial ? resolveColours(vertexMaterial) : DEFAULT_SURFACE),
+    ...(fxMaterial && resolveFxColours(fxMaterial)),
+  };
   const isEffect = isEffectPath(materials, shader);
   const colors =
     pass.colors?.length === geometry.vertexCount * 4 ? pass.colors : undefined;
@@ -453,6 +501,7 @@ const resolveDraw = (
     },
     texture,
     detailTexture,
+    normalMap: fxMaterial && readFxText(fxMaterial, "normalmap"),
     uvs: fitsVertices(uvs),
     detailUvs: fitsVertices(detailUvs),
     colors,
@@ -464,11 +513,8 @@ const resolveDraw = (
  * material is a list of named parameters, and `Simple.fx` calls its texture
  * `Texture_0`
  */
-const readFxDiffuseTexture = ({ properties }: W3dFxMaterial): string | undefined => {
-  const value = properties.get("diffusetexture") ?? properties.get("texture_0");
-
-  return typeof value === "string" ? value : undefined;
-};
+const readFxDiffuseTexture = (material: W3dFxMaterial): string | undefined =>
+  readFxText(material, "diffusetexture") ?? readFxText(material, "texture_0");
 
 /**
  * Resolves the draws of a mesh, a material pass at a time and in file order;
