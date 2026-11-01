@@ -222,7 +222,7 @@ export const createModelRenderer = (
   let textures: WebGLTexture[] = [];
   let pose: Pose | undefined;
   let buffers = new Set<WebGLBuffer>();
-  let arrayBuffers = new Map<Float32Array | Uint8Array, WebGLBuffer>();
+  let arrayBuffers = new Map<ArrayBufferLike, Map<string, WebGLBuffer>>();
 
   const uploadBuffer = (
     target: number,
@@ -249,13 +249,19 @@ export const createModelRenderer = (
     textures = [];
   };
 
+  // A message hands every reference to an array over as a view of its own, so
+  // the same bytes are found by where they lie rather than by which view
+  // names them
   /** Uploads an array the first time a draw uses it: a mesh's passes often share one */
   const uploadOnce = (data: Float32Array | Uint8Array) => {
-    let made = arrayBuffers.get(data);
+    const key = `${data.byteOffset}:${data.byteLength}`;
+    const known = arrayBuffers.get(data.buffer) ?? new Map<string, WebGLBuffer>();
+    let made = known.get(key);
 
     if (!made) {
       made = uploadBuffer(gl.ARRAY_BUFFER, data);
-      arrayBuffers.set(data, made);
+      known.set(key, made);
+      arrayBuffers.set(data.buffer, known);
     }
     return made;
   };
@@ -417,8 +423,8 @@ export const createModelRenderer = (
   // Only an alpha blend covers what is behind, in the buffer's alpha too, so a
   // model drawn over a clear background keeps its picture: light that adds or
   // multiplies covers nothing
-  const applyBlend = (blend: W3dBlend) => {
-    gl.depthMask(blend === "opaque");
+  const applyBlend = (blend: W3dBlend, writesDepth: boolean) => {
+    gl.depthMask(writesDepth);
     if (blend === "opaque") {
       gl.disable(gl.BLEND);
       return;
@@ -443,6 +449,8 @@ export const createModelRenderer = (
       gl.disable(gl.CULL_FACE);
     } else {
       gl.enable(gl.CULL_FACE);
+      gl.frontFace(gl.CCW);
+      gl.cullFace(gl.BACK);
     }
     gl.uniform3fv(uniform("materialAmbient"), surface.ambient);
     gl.uniform3fv(uniform("materialDiffuse"), surface.diffuse);
@@ -570,7 +578,10 @@ export const createModelRenderer = (
     for (const { drawable, part } of ordered) {
       const blend = blendOf(drawable, part);
 
-      applyBlend(blend);
+      applyBlend(
+        blend,
+        blend === "opaque" || (part.surface.blend !== "opaque" && part.surface.depthWrite),
+      );
       applySurface(part.surface);
       applyMapper("uv", part.surface.mappers?.[0], seconds, drawable.hasNormals);
       applyMapper("detailUv", part.surface.mappers?.[1], seconds, drawable.hasNormals);
@@ -611,7 +622,7 @@ export const createModelRenderer = (
       gl.drawElements(gl.TRIANGLES, part.count, part.indexType, 0);
     }
 
-    applyBlend("opaque");
+    applyBlend("opaque", true);
     gl.depthFunc(gl.LESS);
     gl.disable(gl.CULL_FACE);
 
@@ -653,6 +664,7 @@ export const createModelRenderer = (
         gl.disableVertexAttribArray(location);
       }
     }
+    gl.activeTexture(gl.TEXTURE0);
   };
 
   return { setModel, setPose, draw };

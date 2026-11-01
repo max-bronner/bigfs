@@ -4,6 +4,7 @@ import {
   getRestingFrame,
   parsePlayback,
 } from '../../formats/apt/aptView3d';
+import { isSurfaceAnimated } from '../../formats/w3d/w3dMaterial';
 import { poseAt } from '../../formats/w3d/w3dPose';
 import { createModelRenderer } from '../shared/modelRenderer';
 import type { ModelRenderer } from '../shared/modelRenderer';
@@ -38,8 +39,10 @@ const MAX_PICTURE_SIDE = 2048;
 interface Picture {
   renderer: ModelRenderer;
   canvas: HTMLCanvasElement;
-  /** The frame and size `canvas` shows */
+  /** The frame and size `canvas` shows, and the time when a material moves with it */
   shows: string;
+  /** Some material of the model moves with time, so a still picture is not enough */
+  isAnimated: boolean;
 }
 
 let arrived: () => void = () => {};
@@ -100,6 +103,9 @@ const getPicture = (
       renderer: idle.pop() ?? createModelRenderer(gl),
       canvas: document.createElement('canvas'),
       shows: '',
+      isAnimated: object.scene.meshes.some((mesh) =>
+        mesh.draws?.some((draw) => isSurfaceAnimated(draw.surface)),
+      ),
     };
     picture.renderer.setModel(object.scene);
     pictures.set(object, picture);
@@ -152,11 +158,12 @@ const drawPicture = (
   object: RenderObject,
   picture: Picture,
   frame: number,
+  seconds: number,
   { canvas, gl }: NonNullable<ReturnType<typeof getSurface>>,
   width: number,
   height: number,
 ): void => {
-  const shows = `${frame}:${width}x${height}`;
+  const shows = `${frame}:${width}x${height}${picture.isAnimated ? `@${seconds}` : ''}`;
 
   if (shows === picture.shows) {
     return;
@@ -174,7 +181,7 @@ const drawPicture = (
   picture.renderer.setPose(pose);
   picture.renderer.draw(
     bone ? lookThroughBone(bone, width / height) : frameModel(bounds, width / height),
-    { light: [0, 0, 1], unlit: true, showBones: false },
+    { light: [0, 0, 1], unlit: true, showBones: false, seconds },
   );
   // Read back in this task: the context's buffer does not outlive it
   picture.canvas.getContext('2d')!.drawImage(canvas, 0, 0);
@@ -233,6 +240,7 @@ export const paintView3d = (
     object,
     picture,
     frame,
+    pass.player.ticks / TICKS_PER_SECOND,
     shared,
     fit(Math.hypot(a, b) * (right - left)),
     fit(Math.hypot(c, d) * (bottom - top)),

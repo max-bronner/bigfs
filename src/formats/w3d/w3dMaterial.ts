@@ -58,6 +58,8 @@ export interface W3dSurface {
   alphaTest: boolean;
   /** `D3DCMP_*` minus one, the order GL's depth functions share */
   depthCompare: number;
+  /** A blended draw also writes depth: the shader's depth mask. An opaque draw always does */
+  depthWrite: boolean;
   /** The `TWO_SIDED` mesh attribute: its back faces draw too */
   twoSided: boolean;
   /** Draw-order bin among blended draws, 1 to 32; 0 for none */
@@ -129,6 +131,7 @@ export const DEFAULT_SURFACE: W3dSurface = {
   blend: "opaque",
   alphaTest: false,
   depthCompare: 3,
+  depthWrite: false,
   twoSided: false,
   sortLevel: 0,
   ambient: [1, 1, 1],
@@ -168,6 +171,13 @@ const MAX_DETAIL_ALPHA = 3;
 
 /** The id a per-triangle table stores for a triangle it says nothing about */
 const NO_ID = 0xffffffff;
+
+/** Most material passes a mesh draws; the game's meshes use up to three */
+export const MAX_PASSES_PER_MESH = 8;
+/** Most draws a mesh makes; past it each pass draws the whole mesh */
+export const MAX_DRAWS_PER_MESH = 256;
+/** The last `D3DCMP_*` minus one, `ALWAYS` */
+const MAX_DEPTH_COMPARE = 7;
 
 /** The ids of one set of triangles that draw alike */
 interface MaterialGroup {
@@ -235,11 +245,14 @@ export const pickMeshBlend = (surfaces: readonly W3dSurface[]): W3dBlend =>
     "opaque",
   );
 
-/** A table's id for a triangle: one id speaks for every triangle */
-const pickId = (ids: readonly number[], at: number): number | undefined => {
+/**
+ * A table's id for a triangle: one id speaks for every triangle. An id past
+ * the `tableLength` entries it indexes names nothing.
+ */
+const pickId = (ids: readonly number[], at: number, tableLength: number): number | undefined => {
   const id = ids.length > 1 ? ids[at] : ids[0];
 
-  return id === NO_ID ? undefined : id;
+  return id < tableLength ? id : undefined;
 };
 
 /**
@@ -249,26 +262,27 @@ const pickId = (ids: readonly number[], at: number): number | undefined => {
 const groupTriangles = (
   pass: W3dMaterialPass,
   { indices }: W3dMaterialGeometry,
+  materials: W3dMeshMaterials,
+  isSplit: boolean,
 ): MaterialGroup[] => {
   const textureIds = pass.stages[0]?.textureIds ?? [];
   const detailTextureIds = pass.stages[1]?.textureIds ?? [];
   const vertexMaterialIds = pass.vertexMaterialIds;
-  const perTriangle = [
-    textureIds,
-    detailTextureIds,
-    pass.shaderIds,
-    pass.fxMaterialIds,
-    vertexMaterialIds,
-  ].some((ids) => ids.length > 1);
+  const { textures, shaders, fxMaterials, vertexMaterials } = materials;
+  const perTriangle =
+    isSplit &&
+    [textureIds, detailTextureIds, pass.shaderIds, pass.fxMaterialIds, vertexMaterialIds].some(
+      (ids) => ids.length > 1,
+    );
 
   if (!perTriangle) {
     return [
       {
-        texture: pickId(textureIds, 0),
-        detailTexture: pickId(detailTextureIds, 0),
-        shader: pickId(pass.shaderIds, 0),
-        fxMaterial: pickId(pass.fxMaterialIds, 0),
-        vertexMaterial: pickId(vertexMaterialIds, 0),
+        texture: pickId(textureIds, 0, textures.length),
+        detailTexture: pickId(detailTextureIds, 0, textures.length),
+        shader: pickId(pass.shaderIds, 0, shaders.length),
+        fxMaterial: pickId(pass.fxMaterialIds, 0, fxMaterials.length),
+        vertexMaterial: pickId(vertexMaterialIds, 0, vertexMaterials.length),
         triangles: [],
       },
     ];
@@ -277,12 +291,12 @@ const groupTriangles = (
   const groups = new Map<string, MaterialGroup>();
 
   for (let triangle = 0; triangle * 3 < indices.length; triangle++) {
-    const texture = pickId(textureIds, triangle);
-    const detailTexture = pickId(detailTextureIds, triangle);
-    const shader = pickId(pass.shaderIds, triangle);
-    const fxMaterial = pickId(pass.fxMaterialIds, triangle);
+    const texture = pickId(textureIds, triangle, textures.length);
+    const detailTexture = pickId(detailTextureIds, triangle, textures.length);
+    const shader = pickId(pass.shaderIds, triangle, shaders.length);
+    const fxMaterial = pickId(pass.fxMaterialIds, triangle, fxMaterials.length);
     // That table is per vertex, and a triangle takes its first vertex's material
-    const vertexMaterial = pickId(vertexMaterialIds, indices[triangle * 3]);
+    const vertexMaterial = pickId(vertexMaterialIds, indices[triangle * 3], vertexMaterials.length);
     const key = `${texture}|${detailTexture}|${shader}|${fxMaterial}|${vertexMaterial}`;
     let group = groups.get(key);
 
@@ -495,7 +509,8 @@ const resolveDraw = (
         ? {
             blend: classifyBlend(shader),
             alphaTest: shader.alphaTest !== 0,
-            depthCompare: shader.depthCompare,
+            depthCompare: Math.min(shader.depthCompare, MAX_DEPTH_COMPARE),
+            depthWrite: shader.depthMask !== 0,
           }
         : resolveFxSurface(fxMaterial)),
     },
@@ -518,14 +533,24 @@ const readFxDiffuseTexture = (material: W3dFxMaterial): string | undefined =>
 
 /**
  * Resolves the draws of a mesh, a material pass at a time and in file order;
- * a mesh with no pass still has one, for what its shader material says.
+ * a mesh with no pass still has one, for what its shader material says. Past
+ * `MAX_PASSES_PER_MESH` passes the rest are dropped, and past
+ * `MAX_DRAWS_PER_MESH` draws each pass draws the whole mesh.
  */
 export const resolveMaterialDraws = (
   materials: W3dMeshMaterials,
   geometry: W3dMaterialGeometry,
-): W3dMaterialDraw[] =>
-  (materials.passes.length ? materials.passes : [EMPTY_PASS]).flatMap((pass, passIndex) =>
-    groupTriangles(pass, geometry).map((group) =>
-      resolveDraw(materials, pass, passIndex, group, geometry),
-    ),
-  );
+): W3dMaterialDraw[] => {
+  const passes = materials.passes.length
+    ? materials.passes.slice(0, MAX_PASSES_PER_MESH)
+    : [EMPTY_PASS];
+  const resolveAll = (isSplit: boolean) =>
+    passes.flatMap((pass, passIndex) =>
+      groupTriangles(pass, geometry, materials, isSplit).map((group) =>
+        resolveDraw(materials, pass, passIndex, group, geometry),
+      ),
+    );
+  const draws = resolveAll(true);
+
+  return draws.length > MAX_DRAWS_PER_MESH ? resolveAll(false) : draws;
+};

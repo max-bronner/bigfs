@@ -128,6 +128,9 @@ const getUses = (draw: W3dMaterialDraw): TextureUse[] =>
     use ? [use] : [],
   );
 
+/** Most distinct texture names a model loads; the game's models name up to about fifty */
+export const MAX_TEXTURE_NAMES = 256;
+
 /** Loads the table of house colour masks when a mesh could take one; none without the file */
 const loadHouseColours = async (meshes: readonly W3dMesh[], loadFile: LoadFile) => {
   const bytes = meshes.some((mesh) => mesh.draws.some((draw) => draw.surface.houseColourable))
@@ -160,7 +163,10 @@ export const loadSceneDraws = async (
         .flatMap((use) => (use ? [[getUseKey(use), use] as const] : [])),
     ),
   );
-  const names = [...new Set([...uses.values()].map((use) => use.name))];
+  const names = [...new Set([...uses.values()].map((use) => use.name))].slice(
+    0,
+    MAX_TEXTURE_NAMES,
+  );
   const drawnNames = new Set(
     meshes.flatMap((mesh) => mesh.draws.flatMap(getUses)).map((use) => use.name),
   );

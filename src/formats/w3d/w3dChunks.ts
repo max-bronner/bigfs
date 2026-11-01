@@ -40,9 +40,12 @@ export const readChunks = (bytes: Uint8Array): Chunk[] => {
   return chunks;
 };
 
-/** Reads a fixed-length, NUL-padded name */
+/** Longest name read; the game's paths top out at `MAX_PATH`, and a longer run is not a name */
+export const MAX_NAME_LENGTH = 260;
+
+/** Reads a fixed-length, NUL-padded name, cut at `MAX_NAME_LENGTH` bytes */
 export const readName = (bytes: Uint8Array, at: number, length: number): string => {
-  const slice = bytes.subarray(at, Math.min(at + length, bytes.length));
+  const slice = bytes.subarray(at, Math.min(at + Math.min(length, MAX_NAME_LENGTH), bytes.length));
   const end = slice.indexOf(0);
 
   return String.fromCharCode(...(end < 0 ? slice : slice.subarray(0, end)));

@@ -286,7 +286,8 @@ const readPass = (payload: Uint8Array): W3dMaterialPass => {
     } else if (type === CHUNK.SHADER_MATERIAL_ID) {
       pass.fxMaterialIds = readIds(part);
     } else if (type === CHUNK.DCG) {
-      pass.colors = part;
+      // Copied so a message carries these bytes alone, not the file they sit in
+      pass.colors = part.slice();
     } else if (type === CHUNK.STAGE_TEXCOORDS) {
       pass.uvs = readFloats(part);
     } else if (type === CHUNK.TEXTURE_STAGE) {
