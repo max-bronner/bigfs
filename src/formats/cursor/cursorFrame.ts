@@ -34,6 +34,3 @@ export interface CursorParseOptions {
   /** Without it a PNG-compressed frame is an error */
   decodePng?: PngDecoder;
 }
-
-/** Jiffies per second: the unit `.ani` durations are stored in */
-export const JIFFIES_PER_SECOND = 60;

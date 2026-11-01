@@ -707,6 +707,21 @@ Sound is opt-in: opening a view never plays anything.
   value outside the image or text is refused in the box), then a save dialog.
   The `.cur` opens in the preview with the hotspot where typed, and an image
   over 256 pixels a side says so instead of writing.
+- [ ] **new** **Build Animated Cursor…** (palette): the panel opens empty and
+  says to add images, with Save disabled. **Add Images…** takes several
+  `.png`, `.tga`, `.cur` or `.ani` files at once (an `.ani` adds every frame);
+  each becomes a row with a thumbnail, size, hotspot and duration in ms, and
+  the loop below plays them at those times. Check: the arrows reorder (first
+  up and last down are disabled), duplicate and remove work, a hotspot edit
+  moves the red outline on the thumbnail and the loop, Set All Durations
+  changes every row, Pause stops the loop. Add an image of another size: the
+  message names the frame and Save stays disabled until it is removed. Select
+  several images in the file explorer and run it from their menu: they arrive
+  already added. **Save as .ani…** opens a save dialog in the workspace; the
+  file opens in the preview with the same order, hotspots and timing,. Also pick it
+  in Windows (Mouse settings, Pointers, Browse) to see it animate there, and
+  once in the game via `mouse.ini` in a test mod. Nothing is written until the
+  dialog is confirmed.
 - [ ] **new** **Convert to VP6 Movie…** from a video, an image or a folder of
   numbered frames: size, frame rate, quality asked; the result is decoded
   before saving and plays in the game. `bigfs.vp6.keyFrameSeconds` = 0 makes
@@ -794,6 +809,7 @@ Previews and editors:
 - [ ] `bigfs.convertPng` Convert to Game Texture…
 - [ ] `bigfs.exportCursorPng` Export Cursor as PNG…
 - [ ] `bigfs.convertPngToCursor` Convert to Cursor…
+- [ ] `bigfs.buildAnimatedCursor` Build Animated Cursor…
 - [ ] `bigfs.convertToVp6` Convert to VP6 Movie…
 - [ ] `bigfs.editW3dAnimation` Edit W3D Animation…
 - [ ] `bigfs.newAptMovie` New APT Movie…

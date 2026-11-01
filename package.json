@@ -202,6 +202,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.buildAnimatedCursor",
+        "title": "Build Animated Cursor…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.previewParticles",
         "title": "Preview Particle System",
         "category": "BIG"
@@ -622,6 +627,11 @@
           "command": "bigfs.convertPngToCursor",
           "group": "7_modification@13",
           "when": "resourceExtname =~ /^\\.png$/i"
+        },
+        {
+          "command": "bigfs.buildAnimatedCursor",
+          "group": "7_modification@13",
+          "when": "resourceExtname =~ /^\\.(png|cur|tga)$/i"
         },
         {
           "command": "bigfs.newAptMovie",

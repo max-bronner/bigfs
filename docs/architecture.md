@@ -354,6 +354,12 @@ playable audio, W3D), declared beside its format (`formats/texture/textureTools.
 `services/createServices.ts` through `core/toolRegistry` and reached through
 the `ToolBox` the previews are handed.
 
+Cursors (`formats/cursor/`) are not a tool: reading a PNG-compressed icon
+needs zlib, which a format module may not import, so `parseCur` takes the PNG
+decoder as an option and the features pass the one in `node/png`. The preview
+reads `.cur` and `.ani`, `features/cursors` converts them and builds an `.ani`
+from images in its own panel (`webview/cursors`).
+
 Anything that needs "the file the game would load" asks the game view, not the
 archive it happens to hold. `game/install/gameView` is the engine's rule (loose
 files first, archives in path order with the first holding a path winning,

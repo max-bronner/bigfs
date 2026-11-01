@@ -1,5 +1,10 @@
 import * as assert from 'assert';
+import { buildAnimation } from '../../formats/cursor/buildAnimation';
 import type { CursorFrame } from '../../formats/cursor/cursorFrame';
+import {
+  jiffiesToMilliseconds,
+  millisecondsToJiffies,
+} from '../../formats/cursor/jiffies';
 import { parseAni } from '../../formats/cursor/parseAni';
 import { parseCur } from '../../formats/cursor/parseCur';
 import { parseHotspot } from '../../formats/cursor/parseHotspot';
@@ -319,5 +324,51 @@ suite('cursor conversion', () => {
     assert.match(String(parseHotspot('8,0', 8, 8)), /inside/);
     assert.match(String(parseHotspot('-1,0', 8, 8)), /x,y/);
     assert.match(String(parseHotspot('left', 8, 8)), /x,y/);
+  });
+});
+
+suite('animation builder', () => {
+  test('rows become an animation that writes and reads back in the same order', () => {
+    const rows = [
+      { frame: makeFrame(4, 4, 1, 2), jiffies: millisecondsToJiffies(100) },
+      { frame: makeFrame(4, 4, 3, 0), jiffies: millisecondsToJiffies(250) },
+      { frame: makeFrame(4, 4, 0, 3), jiffies: millisecondsToJiffies(16) },
+    ];
+    const back = parseAni(writeAni(buildAnimation(rows)));
+
+    assert.deepStrictEqual(
+      back.steps,
+      rows.map((row, frame) => ({ frame, jiffies: row.jiffies })),
+    );
+    assert.deepStrictEqual(
+      back.frames.map((frame) => [frame.hotspotX, frame.hotspotY]),
+      [
+        [1, 2],
+        [3, 0],
+        [0, 3],
+      ],
+    );
+    assert.deepStrictEqual(
+      back.steps.map((step) => jiffiesToMilliseconds(step.jiffies)),
+      [100, 250, 17],
+    );
+  });
+
+  test('a duration never rounds down to no time at all', () => {
+    assert.strictEqual(millisecondsToJiffies(0), 1);
+    assert.strictEqual(millisecondsToJiffies(1000), 60);
+  });
+
+  test('rows of different sizes cannot be saved', () => {
+    assert.throws(
+      () =>
+        writeAni(
+          buildAnimation([
+            { frame: makeFrame(4, 4), jiffies: 6 },
+            { frame: makeFrame(4, 5), jiffies: 6 },
+          ]),
+        ),
+      /Frame 2 is 4x5/,
+    );
   });
 });

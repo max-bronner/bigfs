@@ -334,6 +334,11 @@ your mod's archives.
   `.ani`, as PNG (to a file or a folder you pick, never beside the source), and
   **Convert to Cursor…** on a PNG asks for the hotspot and writes a `.cur`
   with alpha.
+- **new** **Build Animated Cursor…** (command palette, or the file explorer menu on
+  images) puts `.png`, `.tga`, `.cur`, `.ico` or `.ani` files in a list of
+  frames: reorder, duplicate or remove them, set each frame's hotspot and
+  duration in milliseconds, watch the loop, then **Save as .ani…** to a place
+  you choose. All frames must share one size.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
   pause and seeking (dragging the slider follows the pointer and lands on
   the frame you let go on); alpha movies show over a checkerboard.
@@ -490,6 +495,7 @@ row, file or editor they act on.
 | Export as PNG, Replace with PNG…, Convert to Game Texture… | `.tga`/`.dds`/`.png` menu | Textures |
 | Export Cursor as PNG… | `.cur`/`.ani` menu | Cursors |
 | Convert to Cursor… | `.png` menu | Cursors |
+| Build Animated Cursor… | palette, `.png`/`.cur`/`.tga` file menu | Cursors |
 | Convert to VP6 Movie… | video, image or folder menu | VP6 |
 | Edit W3D Animation… | `.w3d` menu | Bone animations |
 | New APT Movie…, Rename APT Movie…, Delete APT Movie… | folder or `.apt` menu | APT movies |

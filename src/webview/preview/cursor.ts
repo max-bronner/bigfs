@@ -1,4 +1,7 @@
-import { JIFFIES_PER_SECOND } from '../../formats/cursor/cursorFrame';
+import {
+  JIFFIES_PER_SECOND,
+  jiffiesToMilliseconds,
+} from '../../formats/cursor/jiffies';
 import type { CursorFrame } from '../../formats/cursor/cursorFrame';
 import { drawCursorFrame, pickCursorScale } from '../shared/drawCursorFrame';
 import { element } from '../shared/element';
@@ -54,7 +57,7 @@ const createPlayer = (
 
     drawCursorFrame(canvas, frames[frame], scale);
     slider.value = String(step);
-    label.textContent = `step ${step + 1} / ${steps.length} · frame ${frame + 1} · ${Math.round((jiffies * 1000) / JIFFIES_PER_SECOND)} ms`;
+    label.textContent = `step ${step + 1} / ${steps.length} · frame ${frame + 1} · ${jiffiesToMilliseconds(jiffies)} ms`;
   };
   const stop = () => {
     window.clearTimeout(timer);
@@ -67,7 +70,7 @@ const createPlayer = (
         show((step + 1) % steps.length);
         schedule();
       },
-      Math.max(1, (steps[step].jiffies * 1000) / JIFFIES_PER_SECOND),
+      Math.max(1, jiffiesToMilliseconds(steps[step].jiffies)),
     );
   };
   const start = () => {
