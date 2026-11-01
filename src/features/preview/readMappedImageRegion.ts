@@ -1,6 +1,9 @@
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { isEditable } from '../../services/ini/archiveText';
-import { readMappedImageBlock } from '../../formats/mappedImage/mappedImageEdit';
+import {
+  locateMappedImageBlock,
+  readMappedImageBlock,
+} from '../../formats/mappedImage/mappedImageEdit';
 import { getMappedPixelRect } from '../../formats/mappedImage/mappedRegion';
 import { isRotated } from '../../formats/mappedImage/mappedImage';
 import type { TextureRegion } from '../../webview/preview/protocol';
@@ -19,7 +22,9 @@ export const readMappedImageRegion = (
   lines: readonly string[],
   decoded: readonly [number, number],
 ): TextureRegion | undefined => {
-  const block = readMappedImageBlock(lines, source.line);
+  const header = locateMappedImageBlock(lines, source.name, source.line);
+  const block =
+    header === undefined ? undefined : readMappedImageBlock(lines, header);
 
   if (!block) {
     return undefined;
@@ -49,6 +54,6 @@ export const readMappedImageRegion = (
       ]
         .filter((each) => each)
         .join(' ') || undefined,
-    source: { uri: source.uri.toString(), line: source.line },
+    source: { uri: source.uri.toString(), line: header as number },
   };
 };

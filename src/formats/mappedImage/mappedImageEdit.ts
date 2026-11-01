@@ -62,6 +62,28 @@ export const readMappedImageBlock = (
   };
 };
 
+/**
+ * Finds the header of the block called `name`, at `line` if it is still there
+ * and otherwise anywhere in the text, since edits move a block. Gives nothing
+ * when the block has gone, so a stale line never reaches another block.
+ */
+export const locateMappedImageBlock = (
+  lines: readonly string[],
+  name: string,
+  line: number,
+): number | undefined => {
+  const isHeader = (text: string | undefined) =>
+    HEADER.exec(text ?? '')?.[1].toLowerCase() === name.toLowerCase();
+
+  if (isHeader(lines[line])) {
+    return line;
+  }
+
+  const found = lines.findIndex(isHeader);
+
+  return found < 0 ? undefined : found;
+};
+
 /** Formats `Coords` as the INI writes it */
 export const formatCoords = (rect: MappedRect): string =>
   `Left:${rect.left} Top:${rect.top} Right:${rect.right} Bottom:${rect.bottom}`;

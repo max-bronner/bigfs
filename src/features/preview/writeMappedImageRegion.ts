@@ -3,6 +3,7 @@ import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { isEditable, offerOverride } from '../../services/ini/archiveText';
 import {
   getCoordsEdit,
+  locateMappedImageBlock,
   readMappedImageBlock,
 } from '../../formats/mappedImage/mappedImageEdit';
 import { getMappedCoords } from '../../formats/mappedImage/mappedRegion';
@@ -34,12 +35,14 @@ export const writeMappedImageRegion = async (
 
   const document = await vscode.workspace.openTextDocument(source.uri);
   const lines = document.getText().split(/\r?\n/);
-  const block = readMappedImageBlock(lines, source.line);
+  const header = locateMappedImageBlock(lines, source.name, source.line);
+  const block =
+    header === undefined ? undefined : readMappedImageBlock(lines, header);
   const edit =
     block &&
     getCoordsEdit(
       lines,
-      source.line,
+      header as number,
       getMappedCoords(block.image, decoded, {
         left: rect[0],
         top: rect[1],
@@ -50,7 +53,7 @@ export const writeMappedImageRegion = async (
 
   if (!edit) {
     void vscode.window.showWarningMessage(
-      'The MappedImage block moved or was closed since the texture opened; open its texture again.',
+      `${source.name} is no longer in ${source.uri.path}; open its texture again.`,
     );
     return false;
   }

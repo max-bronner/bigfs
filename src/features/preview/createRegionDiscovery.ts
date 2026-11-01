@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { decodeWindows1252 } from '../../core/windows1252';
 import { getTextureCandidates } from '../../formats/ini/sageIniAssets';
-import { findMappedImageHeader } from '../../formats/mappedImage/mappedImageEdit';
+import {
+  findMappedImageHeader,
+  readMappedImageBlock,
+} from '../../formats/mappedImage/mappedImageEdit';
 import {
   findRuStyleLines,
   parseRu,
@@ -82,11 +85,16 @@ export const createRegionDiscovery = (
         );
       }
 
-      const header = findMappedImageHeader(await texts.get(key)!, use.line);
-      const id =
+      const lines = await texts.get(key)!;
+      const header = findMappedImageHeader(lines, use.line);
+      const name =
         header === undefined
           ? undefined
-          : getMappedImageRegionId({ uri: use.uri, line: header });
+          : readMappedImageBlock(lines, header)?.image.name;
+      const id =
+        header === undefined || !name
+          ? undefined
+          : getMappedImageRegionId({ uri: use.uri, name, line: header });
 
       if (id && !seen.has(id)) {
         seen.add(id);

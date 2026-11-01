@@ -3,6 +3,7 @@ import { parseMappedImage } from '../../formats/mappedImage/mappedImage';
 import {
   findMappedImageHeader,
   getCoordsEdit,
+  locateMappedImageBlock,
   readMappedImageBlock,
 } from '../../formats/mappedImage/mappedImageEdit';
 import {
@@ -123,5 +124,13 @@ suite('MappedImage editing', () => {
       }),
       { left: 0, top: 20, right: 512, bottom: 100 },
     );
+  });
+
+  test('a stale line never reaches another block', () => {
+    const lines = ['MappedImage A', 'End', 'MappedImage B', 'End'];
+
+    assert.strictEqual(locateMappedImageBlock(lines, 'B', 2), 2);
+    assert.strictEqual(locateMappedImageBlock(lines, 'b', 0), 2);
+    assert.strictEqual(locateMappedImageBlock(lines, 'Gone', 0), undefined);
   });
 });

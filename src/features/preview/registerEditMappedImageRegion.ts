@@ -82,6 +82,10 @@ export const registerEditMappedImageRegion = (
           `${block.image.name} is in a read-only archive; its box is shown but cannot be changed. Override the file in a folder to edit it.`,
         );
       }
-      await openTextureRegion(regions, found, getMappedImageRegionId(source));
+      await openTextureRegion(
+        regions,
+        found,
+        getMappedImageRegionId({ ...source, name: block.image.name }),
+      );
     },
   );
