@@ -5,7 +5,7 @@ import {
   drawsGrey,
   findEngineImage,
   getSurfaceKey,
-} from '../../formats/apt/aptEngineImages';
+} from '../../game/apt/engineImages';
 import type { Rect } from '../../formats/apt/aptMovie';
 import { engine } from './engineState';
 import type { Gadget } from './gadgetModel';
@@ -19,7 +19,7 @@ import { paintPlaceholder } from './surfacePlaceholder';
 /**
  * Image surfaces on the stage: a clip the engine fills with a `MappedImage`,
  * by the name it holds, what the user set in the Engine panel, or what the
- * game supplies when no movie names one (`aptEngineImages.ts`).
+ * game supplies when no movie names one (`game/apt/engineImages.ts`).
  */
 
 /** Gets the key the panel and the overrides know a surface by */

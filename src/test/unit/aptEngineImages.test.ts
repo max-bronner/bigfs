@@ -9,7 +9,7 @@ import {
   findEngineImage,
   getSurfaceKey,
   isTextureFile,
-} from '../../formats/apt/aptEngineImages';
+} from '../../game/apt/engineImages';
 import { readJpegSize } from '../../formats/texture/jpegSize';
 import { Engine } from '../../webview/apt/avm/engine';
 

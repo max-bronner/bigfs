@@ -1,6 +1,6 @@
 import type { Uri } from 'vscode';
 import type { EntryLocator } from '../../services/entryLocator';
-import { isTextureFile } from '../../formats/apt/aptEngineImages';
+import { isTextureFile } from '../../game/apt/engineImages';
 import { imageExtent, isRotated, mappedUv } from '../../formats/mappedImage/mappedImage';
 import type { MappedImage } from '../../formats/mappedImage/mappedImage';
 import { readJpegSize } from '../../formats/texture/jpegSize';

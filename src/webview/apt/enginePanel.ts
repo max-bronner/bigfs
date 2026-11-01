@@ -2,7 +2,7 @@ import {
   BACKDROP_CALL,
   BACKDROP_KEY,
   findEngineImage,
-} from '../../formats/apt/aptEngineImages';
+} from '../../game/apt/engineImages';
 import { toPathKey } from './avm/engine';
 import type { FunctionEntry, ReadValue, Seen } from './avm/engine';
 import { AsObject } from './avm/value';

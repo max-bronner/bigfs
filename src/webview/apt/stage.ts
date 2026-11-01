@@ -2,7 +2,7 @@ import { engine, onEngineLog, watchMovie } from "./engineState";
 import { fetchMovie } from "./movieLoads";
 import type { Rect } from "../../formats/apt/aptMovie";
 import { byId } from "./dom";
-import { BACKDROP_CALL } from "../../formats/apt/aptEngineImages";
+import { BACKDROP_CALL } from "../../game/apt/engineImages";
 import { findGadgetOf, isEngineSurface } from "./gadgetModel";
 import { paintBackdrop, paintImageSurface } from "./imageSurface";
 import { buildMaskArea, paintLeaf } from "./paint";
