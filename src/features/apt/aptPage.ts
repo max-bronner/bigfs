@@ -11,7 +11,7 @@ const STYLE = /* css */ `
   .row { padding: 2px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row:hover { background: var(--vscode-list-hoverBackground); }
   .row.selected { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); }
-  main { overflow: auto; padding: 8px 12px; }
+  main { overflow: auto; scrollbar-gutter: stable; padding: 8px 12px; }
   .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
   #stage { background: repeating-conic-gradient(#808080 0 25%, #a0a0a0 0 50%) 0 0 / 16px 16px; }
   #side { border-left: 1px solid var(--vscode-panel-border); padding: 0 10px; }

@@ -321,6 +321,9 @@ Movie**.
   across archives in the game's priority (mod, ROTWK, BFME II); a movie
   inside an archive opens with its own `.const` / `.dat` even where casing
   differs.
+- [ ] **changed** Zoom **Fit** fills the column and holds while a movie
+  plays, in Inspect and Interact; it changes only when the window is resized
+  or another character is selected. It no longer shrinks to a speck.
 - [ ] **new** Inspector; picking on the stage (click, double-click goes
   inside); overlays origin (O), boxes (B), wireframe (W); **Interact** (I)
   makes buttons respond.

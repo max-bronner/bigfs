@@ -17,6 +17,7 @@ import {
   union,
 } from "./scene";
 import { growExtent } from "./stageExtent";
+import { fitZoom, getFitSpace } from "./stageFit";
 import { attachStagePointer } from "./stagePointer";
 import type { StageTool } from "./stagePointer";
 import { isDrawnAt } from "./hitTest";
@@ -375,16 +376,7 @@ export const render = (): void => {
   const height = Math.max(1, bottom - top);
   const zoom =
     zoomSelect.value === "fit"
-      ? Math.min(
-          4,
-          Math.max(
-            0.05,
-            Math.min(
-              (stage.parentElement!.clientWidth - 24) / (width + 2 * MARGIN),
-              (window.innerHeight - 230) / (height + 2 * MARGIN),
-            ),
-          ),
-        )
+      ? fitZoom(getFitSpace(stage, window.innerHeight), { width, height }, MARGIN)
       : Number(zoomSelect.value);
   const ratio = window.devicePixelRatio || 1;
   const pixelWidth = Math.ceil((width + 2 * MARGIN) * zoom * ratio);
