@@ -128,8 +128,8 @@ export const decodeDib = (bytes: Uint8Array): DibImage => {
   }
 
   if (bitsPerPixel === 32 && !hasAlpha) {
-    for (let at = 3; at < pixels.length; at += 4) {
-      pixels[at] = 255;
+    for (let alpha = 3; alpha < pixels.length; alpha += 4) {
+      pixels[alpha] = 255;
     }
   }
 

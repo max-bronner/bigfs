@@ -127,7 +127,7 @@ suite('parseCur', () => {
   });
 
   test('hands a PNG-compressed entry to the decoder and refuses it without one', () => {
-    const png = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0];
+    const png = [137, 80, 78, 71, 13, 10, 26, 10, ...new Array(16).fill(0)];
     const bytes = buildCur(png, [2, 3]);
     const [frame] = parseCur(bytes, {
       decodePng: () => ({ width: 4, height: 4, pixels: new Uint8Array(64) }),
@@ -370,5 +370,56 @@ suite('animation builder', () => {
         ),
       /Frame 2 is 4x5/,
     );
+  });
+
+  test('directory entries cannot share bytes to decode more than the file holds', () => {
+    const file = writeCur([
+      { width: 2, height: 2, hotspotX: 0, hotspotY: 0, pixels: new Uint8Array(16) },
+    ]);
+    const twice = new Uint8Array(file.length + 16);
+
+    twice.set(file.subarray(0, 22));
+    twice.set(file.subarray(6, 22), 22);
+    twice.set(file.subarray(22), 38);
+
+    const view = new DataView(twice.buffer);
+
+    view.setUint16(4, 2, true);
+    view.setUint32(18, 38, true);
+    view.setUint32(34, 38, true);
+    assert.throws(() => parseCur(twice), /more bytes than the file holds/);
+  });
+
+  test('a PNG image too large is refused before it is decoded', () => {
+    const png = new Uint8Array(24);
+
+    png.set([137, 80, 78, 71]);
+    new DataView(png.buffer).setUint32(16, 100000);
+
+    const file = new Uint8Array(22 + png.length);
+    const view = new DataView(file.buffer);
+
+    view.setUint16(2, 2, true);
+    view.setUint16(4, 1, true);
+    view.setUint32(14, png.length, true);
+    view.setUint32(18, 22, true);
+    file.set(png, 22);
+    assert.throws(
+      () =>
+        parseCur(file, {
+          decodePng: () => assert.fail('it must not be decoded'),
+        }),
+      /outside 1 to/,
+    );
+  });
+
+  test('a step of no time lasts one jiffy', () => {
+    const frame = { width: 1, height: 1, hotspotX: 0, hotspotY: 0, pixels: new Uint8Array(4) };
+    const file = writeAni({ frames: [frame], steps: [{ frame: 0, jiffies: 1 }] });
+    const text = String.fromCharCode(...file);
+    const rate = text.indexOf('rate') + 8;
+
+    new DataView(file.buffer, file.byteOffset).setUint32(rate, 0, true);
+    assert.strictEqual(parseAni(file).steps[0].jiffies, 1);
   });
 });

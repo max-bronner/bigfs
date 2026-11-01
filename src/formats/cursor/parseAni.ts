@@ -94,7 +94,11 @@ export const parseAni = (
         );
       }
 
-      return { frame, jiffies: durations?.[step] ?? defaultJiffies };
+      // A step of no time would spin whatever plays it
+      return {
+        frame,
+        jiffies: Math.max(1, durations?.[step] ?? defaultJiffies),
+      };
     }),
   };
 };

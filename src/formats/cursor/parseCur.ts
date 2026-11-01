@@ -5,9 +5,11 @@ const DIRECTORY_LENGTH = 6;
 const ENTRY_LENGTH = 16;
 const TYPE_ICON = 1;
 const TYPE_CURSOR = 2;
-/** Directory entries read; entries may share bytes, so the count bounds the pixels decoded */
+/** Directory entries read; far above any shipped cursor */
 const MAX_ENTRIES = 256;
 const PNG_SIGNATURE = [137, 80, 78, 71];
+/** Where a PNG states its width and height, read before anything is inflated */
+const PNG_SIZE_OFFSET = 16;
 
 /**
  * Parses a `.cur` or `.ico` file into one frame per directory entry: the same
@@ -47,6 +49,20 @@ export const parseCur = (
     throw new Error('The cursor directory runs past the end of the file');
   }
 
+  let stated = 0;
+
+  // Entries pointing at the same bytes would decode more than the file holds
+  for (let index = 0; index < count; index++) {
+    stated += view.getUint32(
+      DIRECTORY_LENGTH + index * ENTRY_LENGTH + 8,
+      true,
+    );
+  }
+
+  if (stated > bytes.length) {
+    throw new Error('The cursor images claim more bytes than the file holds');
+  }
+
   return Array.from({ length: count }, (_, index) => {
     const entry = DIRECTORY_LENGTH + index * ENTRY_LENGTH;
     const length = view.getUint32(entry + 8, true);
@@ -74,16 +90,23 @@ const decodePngPayload = (payload: Uint8Array, options: CursorParseOptions) => {
     throw new Error('A PNG-compressed image needs a PNG decoder');
   }
 
-  const image = options.decodePng(payload);
+  if (payload.length < PNG_SIZE_OFFSET + 8) {
+    throw new Error('The PNG image is cut short');
+  }
 
-  if (
-    image.width > MAX_CURSOR_DIMENSION ||
-    image.height > MAX_CURSOR_DIMENSION
-  ) {
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength,
+  );
+  const width = view.getUint32(PNG_SIZE_OFFSET);
+  const height = view.getUint32(PNG_SIZE_OFFSET + 4);
+
+  if (width > MAX_CURSOR_DIMENSION || height > MAX_CURSOR_DIMENSION) {
     throw new Error(
-      `Image size ${image.width}x${image.height} is outside 1 to ${MAX_CURSOR_DIMENSION}`,
+      `Image size ${width}x${height} is outside 1 to ${MAX_CURSOR_DIMENSION}`,
     );
   }
 
-  return image;
+  return options.decodePng(payload);
 };
