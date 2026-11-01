@@ -1,6 +1,7 @@
 import { ConfigurationTarget, window, workspace } from 'vscode';
 import type { ExtensionContext } from 'vscode';
 import type { Services } from '../../services/createServices';
+import type { ExplorerRow } from '../../services/archives/explorerRow';
 import { SCHEME } from '../../constants';
 import { registerCommand } from '../../platform/commands';
 import { setContextKey } from '../../platform/contextKeys';
@@ -12,6 +13,7 @@ import { createNodeCommandRegistrar } from '../../services/archives/nodeCommands
 import { registerFileCommands } from './fileCommands';
 import { registerExtractCommands } from './extractCommands';
 import { registerClipboardCommands } from './clipboardCommands';
+import { createArchive } from './archiveFileActions';
 
 /**
  * Registers the archive explorer: the `bigfs` file system, the tree view with
@@ -74,6 +76,10 @@ export const registerExplorer = (
   registerExtractCommands(registerNodeCommand, archives);
   registerClipboardCommands(registerNodeCommand, archives);
   context.subscriptions.push(
+    // A source or a folder on disk is not a node, so this skips the node registrar
+    registerCommand('bigfs.newArchive', (row?: ExplorerRow) =>
+      row ? createArchive(archives, row) : undefined,
+    ),
     registerCommand('bigfs.refreshArchives', async () => {
       await setContextKey('scanned', false);
 

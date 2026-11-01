@@ -1,4 +1,5 @@
 import { window } from 'vscode';
+import { validateEntryName } from '../core/entryName';
 import type { ConflictChoice } from '../core/transferPlan';
 
 const MAX_LISTED_NAMES = 5;
@@ -7,8 +8,6 @@ const REPLACE_LABEL = 'Replace';
 const SKIP_LABEL = 'Skip';
 const KEEP_BOTH_LABEL = 'Keep Both';
 const DELETE_LABEL = 'Delete';
-
-const SEPARATOR_PATTERN = /[\\/]/;
 
 type OverwriteChoice = 'replace' | 'skip' | 'cancel';
 
@@ -22,6 +21,11 @@ export interface NamePrompt {
   takenNames: Set<string>;
   /** The name being changed, which does not count as taken */
   currentName?: string;
+  /**
+   * Turns what was typed into the name it stands for, or says why it cannot;
+   * entry names are checked by `validateEntryName` when this is left out
+   */
+  normalizeName?: (input: string) => { name: string } | { error: string };
 }
 
 /** Asks for a node name and validates it against its future siblings */
@@ -33,33 +37,42 @@ export const askForName = async (
   );
   const currentKey = prompt.currentName?.toLowerCase();
 
+  const normalize =
+    prompt.normalizeName ??
+    ((input: string) => {
+      const name = input.trim();
+      const error = validateEntryName(name);
+
+      return error ? { error } : { name };
+    });
+
   const validateName = (input: string): string | undefined => {
-    const name = input.trim();
+    const result = normalize(input);
 
-    if (!name) {
-      return 'A name is required.';
+    if ('error' in result) {
+      return result.error;
     }
 
-    if (SEPARATOR_PATTERN.test(name)) {
-      return 'A name cannot contain a path separator.';
-    }
+    const key = result.name.toLowerCase();
 
-    const key = name.toLowerCase();
-
-    if (key !== currentKey && takenKeys.has(key)) {
-      return `${name} already exists here.`;
-    }
-
-    return undefined;
+    return key !== currentKey && takenKeys.has(key)
+      ? `${result.name} already exists here.`
+      : undefined;
   };
 
-  const name = await window.showInputBox({
+  const input = await window.showInputBox({
     title: prompt.title,
     value: prompt.currentName,
     validateInput: validateName,
   });
 
-  return name?.trim();
+  if (input === undefined) {
+    return undefined;
+  }
+
+  const result = normalize(input);
+
+  return 'name' in result ? result.name : undefined;
 };
 
 /** Joins names for a dialog detail, counting off whatever does not fit */
@@ -155,6 +168,22 @@ export const resolveConflicts = async <T extends { name: string }>(
     default:
       return [];
   }
+};
+
+/** Asks whether archives should be moved to the trash, off the disk */
+export const confirmDeleteArchives = async (
+  names: string[],
+): Promise<boolean> => {
+  const subject =
+    names.length === 1 ? 'this archive' : `these ${names.length} archives`;
+
+  const selectedOption = await window.showWarningMessage(
+    `Move ${subject} to the trash?`,
+    { modal: true, detail: formatNameList(names) },
+    DELETE_LABEL,
+  );
+
+  return selectedOption === DELETE_LABEL;
 };
 
 /** Asks whether the items should be removed from the archive for good */

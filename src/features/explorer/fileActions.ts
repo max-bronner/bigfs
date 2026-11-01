@@ -1,13 +1,20 @@
 import { FileType, Uri, window, workspace } from 'vscode';
 import path from 'path';
+import { formatCount } from '../../core/messages';
 import { getAvailableName } from '../../core/paths';
 import {
   askForTransferConflict,
   confirmDelete,
   resolveConflicts,
 } from '../../platform/dialogs';
+import {
+  findPathClashes,
+  getMoveRefusal,
+  validateEntryPath,
+} from '../../core/entryName';
 import { findConflicts, planTransfer } from '../../core/transferPlan';
-import { findChild, getTopLevelNodes, isArchiveRoot, isBelow } from '../../services/archives/virtualTree';
+import { refuseDirtyEditors } from './dirtyEditors';
+import { findChild, getTopLevelNodes, isArchiveRoot } from '../../services/archives/virtualTree';
 import type { VirtualNode } from '../../services/archives/virtualNode';
 import type { ArchiveModel, ImportedFile } from '../../services/archives/archiveModel';
 import type { ConflictChoice } from '../../core/transferPlan';
@@ -23,7 +30,7 @@ export const getTargetDirectory = (
 
 /** Whether a node can move into a directory: not already there, and not into itself or below it */
 const canMoveInto = (source: VirtualNode, target: VirtualNode): boolean =>
-  source.parent !== target && !isBelow(target, source) && target !== source;
+  !getMoveRefusal(source.entryPath, target.entryPath);
 
 /**
  * Keeps the sources that belong to the target's archive and warns about the
@@ -94,6 +101,10 @@ export const moveNodes = async (
     canMoveInto(source, targetDirectory),
   );
 
+  if (refuseDirtyEditors(movableSources, 'move')) {
+    return 0;
+  }
+
   const hasNodeConflict = (node: VirtualNode) =>
     Boolean(findChild(targetDirectory, node.name));
 
@@ -162,7 +173,11 @@ export const deleteNodes = async (
 ): Promise<number> => {
   const topLevelNodes = getTopLevelNodes(nodes);
 
-  if (!topLevelNodes.length || refuseReadOnly(archiveModel, topLevelNodes)) {
+  if (
+    !topLevelNodes.length ||
+    refuseReadOnly(archiveModel, topLevelNodes) ||
+    refuseDirtyEditors(topLevelNodes, 'delete')
+  ) {
     return 0;
   }
 
@@ -222,6 +237,45 @@ const readFilesFromDisk = async (sourceUris: Uri[]): Promise<ImportedFile[]> => 
 };
 
 /**
+ * Keeps the files whose path can be stored, and warns about the rest: a name
+ * the archive could not hold, a path claimed twice, or one that needs a file
+ * of the target as a folder
+ */
+const keepAddableFiles = (
+  files: readonly ImportedFile[],
+  existingFiles: readonly string[],
+): ImportedFile[] => {
+  const problems = new Map<ImportedFile, string>();
+
+  for (const file of files) {
+    const reason = validateEntryPath(file.name);
+
+    if (reason) {
+      problems.set(file, reason);
+    }
+  }
+
+  const valid = files.filter((file) => !problems.has(file));
+
+  for (const { index, reason } of findPathClashes(
+    valid.map((file) => file.name),
+    existingFiles,
+  )) {
+    problems.set(valid[index], reason);
+  }
+
+  if (problems.size) {
+    const [[first, reason]] = problems;
+
+    window.showWarningMessage(
+      `${formatCount(problems.size, 'file')} could not be added, for example ${first.name}: ${reason}`,
+    );
+  }
+
+  return files.filter((file) => !problems.has(file));
+};
+
+/**
  * Adds files from disk into a directory, walking a picked folder for
  * everything below it, and reports how many were added. A name already taken
  * in the target prompts to replace, skip or cancel.
@@ -235,8 +289,11 @@ export const importFromDisk = async (
     return 0;
   }
 
-  const files = await readFilesFromDisk(sourceUris);
   const content = archiveModel.getDirectoryContent(targetDirectory);
+  const files = keepAddableFiles(
+    await readFilesFromDisk(sourceUris),
+    content.files,
+  );
   const conflicts = findConflicts(
     files.map((file) => ({ path: file.name })),
     content,
@@ -320,6 +377,10 @@ export const transferNodes = async (
   }
 
   if (!movable.length) {
+    return { transferred: 0, moved: false };
+  }
+
+  if (operation === 'move' && refuseDirtyEditors(movable, 'move')) {
     return { transferred: 0, moved: false };
   }
 

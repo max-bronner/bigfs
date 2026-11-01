@@ -29,6 +29,16 @@ your mod's archives.
   folders, and Wine, Proton and CrossOver prefixes on Linux and macOS.
   Nothing is written until you pick one; **BIG: Find Game Installs** asks
   again later. The folders are only read.
+- **new** **Create archives and manage them:** right-click a folder (or the
+  workspace row) in the view for **New Archive…**, which writes an empty BIG4
+  archive and never replaces a file of that name. **Rename…** and **Delete** on
+  an archive row rename it on disk and move it to the trash. Names are checked
+  before anything is written: no empty, dot, Windows-reserved or
+  non-Windows-1252 names, no separators in a single name, no path past 255
+  characters, nothing differing from an existing name only in case. Dropped
+  files and folders that break these rules are skipped with a message; an
+  archive that would pass 4 GiB is refused before it is touched. Dragging
+  `.big` files from outside onto a folder row copies them there.
 - **Context menu and keys** on a row of the view: **New File…**, **New
   Folder…**, **Add Files…**, **Rename…** (F2), **Delete** (Del), **Cut**
   (Ctrl+X), **Copy** (Ctrl+C), **Paste** (Ctrl+V), **Duplicate**, **Copy Path**

@@ -91,8 +91,9 @@ export const validateEntryPath = (entryPath: string): string | undefined => {
   return undefined;
 };
 
-/** A path that cannot be added, with the reason */
+/** A path that cannot be added, with its place in the list checked and the reason */
 export interface PathProblem {
+  index: number;
   path: string;
   reason: string;
 }
@@ -101,24 +102,32 @@ export interface PathProblem {
  * Finds the paths that cannot stand beside the others in one archive: a path
  * repeated, or a file whose path another path needs as a directory. Case is
  * ignored, as the archive does. The first path to claim a name keeps it.
+ * `existingFiles` are files already in the archive: a path may replace one,
+ * but may not need it as a directory.
  */
-export const findPathClashes = (paths: readonly string[]): PathProblem[] => {
+export const findPathClashes = (
+  paths: readonly string[],
+  existingFiles: readonly string[] = [],
+): PathProblem[] => {
+  const existing = new Set(existingFiles.map((file) => file.toLowerCase()));
   const files = new Set<string>();
   const directories = new Set<string>();
   const clashes: PathProblem[] = [];
 
-  for (const entryPath of paths) {
+  for (const [index, entryPath] of paths.entries()) {
     const segments = entryPath.toLowerCase().split('/');
     const key = segments.join('/');
     const parents = segments.slice(0, -1).map((_, index) => segments.slice(0, index + 1).join('/'));
-    const blocker = parents.find((parent) => files.has(parent));
+    const blocker = parents.find(
+      (parent) => files.has(parent) || existing.has(parent),
+    );
 
     if (files.has(key)) {
-      clashes.push({ path: entryPath, reason: 'The same path is added twice.' });
+      clashes.push({ index, path: entryPath, reason: 'The same path is added twice.' });
     } else if (directories.has(key)) {
-      clashes.push({ path: entryPath, reason: 'A folder of that name exists.' });
+      clashes.push({ index, path: entryPath, reason: 'A folder of that name exists.' });
     } else if (blocker) {
-      clashes.push({ path: entryPath, reason: `${blocker} is a file, not a folder.` });
+      clashes.push({ index, path: entryPath, reason: `${blocker} is a file, not a folder.` });
     } else {
       files.add(key);
       parents.forEach((parent) => directories.add(parent));

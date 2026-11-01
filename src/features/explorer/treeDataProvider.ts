@@ -22,6 +22,8 @@ import {
 import type { ExplorerRow, FolderRow, GameRow } from '../../services/archives/explorerRow';
 import { GameViewModel } from '../../services/archives/gameViewModel';
 import { getGameFiles } from '../../game/install/gameView';
+import { getContextValue } from './rowContext';
+import { isReadOnlySource } from '../../services/archives/sourceAccess';
 
 /** Compares names as an explorer does: `a2` before `a10`, casing ignored */
 const nameCollator = new Intl.Collator(undefined, {
@@ -55,9 +57,6 @@ const getRowName = (element: ExplorerRow): string =>
       ? element.node.name
       : element.name;
 
-/** Ends the context value of a row in a read-only source, which package.json keeps the edit items off */
-const READ_ONLY_SUFFIX = 'ReadOnly';
-
 /** Whether the explorer shows the game view rather than every archive */
 export const isGameViewShown = (): boolean =>
   settings.explorerView.get() === 'game';
@@ -76,7 +75,7 @@ const createGameItem = (
 
     item.id = `game:/${node.path}`;
     item.iconPath = ThemeIcon.Folder;
-    item.contextValue = 'bigGameFolder';
+    item.contextValue = getContextValue('gameFolder');
     item.description = `(${formatCount(getGameFiles(node).length, 'file')})`;
 
     return item;
@@ -99,8 +98,8 @@ const createGameItem = (
   ].join('\n');
   item.contextValue =
     winner.ref.kind === 'entry'
-      ? `bigFile${isReadOnly(winner.ref.node) ? READ_ONLY_SUFFIX : ''}`
-      : 'bigLooseFile';
+      ? getContextValue('file', isReadOnly(winner.ref.node))
+      : getContextValue('looseFile');
   item.command = { command: 'vscode.open', title: 'Open', arguments: [uri] };
 
   return item;
@@ -129,14 +128,12 @@ export class BigTreeItem extends TreeItem {
   ) {
     super(node.name, collapsibleState);
 
-    const suffix = isReadOnly ? READ_ONLY_SUFFIX : '';
-
     this.id = getNodePath(node);
     this.resourceUri = getNodeUri(node);
     this.tooltip = getNodePath(node);
 
     if (node.type === FileType.File) {
-      this.contextValue = `bigFile${suffix}`;
+      this.contextValue = getContextValue('file', isReadOnly);
       this.command = {
         command: 'vscode.open',
         title: 'Open',
@@ -146,7 +143,10 @@ export class BigTreeItem extends TreeItem {
       return;
     }
 
-    this.contextValue = `${isArchiveRoot(node) ? 'bigArchive' : 'bigFolder'}${suffix}`;
+    this.contextValue = getContextValue(
+      isArchiveRoot(node) ? 'archive' : 'folder',
+      isReadOnly,
+    );
 
     // An archive that has not been read yet says nothing about its content
     if (isLoaded) {
@@ -215,7 +215,10 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerRow> {
       item.id = `/${element.source.id}`;
       item.iconPath = new ThemeIcon('root-folder');
       item.resourceUri = element.source.baseUri;
-      item.contextValue = 'bigSource';
+      item.contextValue = getContextValue(
+        'source',
+        isReadOnlySource(element.source),
+      );
 
       return item;
     }
@@ -228,7 +231,10 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerRow> {
 
       item.id = `/${element.sourceId}/${element.path}`;
       item.iconPath = ThemeIcon.Folder;
-      item.contextValue = 'bigDiskFolder';
+      item.contextValue = getContextValue(
+        'diskFolder',
+        this.archiveModel.isSourceReadOnly(element.sourceId),
+      );
 
       return item;
     }

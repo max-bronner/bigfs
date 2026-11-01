@@ -94,7 +94,7 @@ suite('Entry names', () => {
 suite('Path clashes', () => {
   test('reports a path repeated, ignoring case', () => {
     assert.deepStrictEqual(findPathClashes(['a/b.ini', 'A/B.INI']), [
-      { path: 'A/B.INI', reason: 'The same path is added twice.' },
+      { index: 1, path: 'A/B.INI', reason: 'The same path is added twice.' },
     ]);
   });
 
@@ -102,6 +102,11 @@ suite('Path clashes', () => {
     assert.strictEqual(findPathClashes(['a', 'a/b.ini']).length, 1);
     assert.strictEqual(findPathClashes(['a/b.ini', 'a']).length, 1);
     assert.strictEqual(findPathClashes(['A', 'a/b.ini']).length, 1);
+  });
+
+  test('reports a path that needs an existing file as a folder, but not one that replaces it', () => {
+    assert.strictEqual(findPathClashes(['a/b.ini'], ['A']).length, 1);
+    assert.deepStrictEqual(findPathClashes(['a'], ['a']), []);
   });
 
   test('leaves siblings and cousins alone', () => {

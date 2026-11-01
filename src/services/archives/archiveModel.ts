@@ -114,6 +114,11 @@ export class ArchiveModel {
     return this.policy.isReadOnly(archive.sourceId);
   }
 
+  /** Whether a source, by its id, is never written to */
+  public isSourceReadOnly(sourceId: string): boolean {
+    return this.policy.isReadOnly(sourceId);
+  }
+
   /**
    * Rejects a write into a source that is read-only, going by the source a
    * uri names first so it holds for an archive nobody has opened

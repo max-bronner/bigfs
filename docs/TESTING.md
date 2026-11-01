@@ -88,6 +88,37 @@ tables, `.cah`) deserves one load in the game as well.
 - [ ] **new** **Archive root holds its own folders.** Select an archive and
   some of its folders together and run Extract (or Delete): the archive is
   handled once. Drag an archive onto one of its own folders: refused.
+- [ ] **new** **New Archive… and archive rows.** Right-click a folder row (or
+  the workspace row when there is one source) in *BIG Archives*: **New
+  Archive…** is offered, and not on a base game source. Type `mod`: `mod.big`
+  appears (add `.big` yourself and it is not doubled). Try `con`, `a:b`, a
+  name with `/`, an empty name and `MOD` when `mod.big` exists: each is refused
+  in the input box before anything is written. Right-click the new archive:
+  New File…, New Folder…, Add Files…, **Rename…** and **Delete** (moves to the
+  trash after a confirmation) are all there; rename it and it keeps its place.
+  Expect the empty archive to open with no entries and to take its first file.
+  Not yet seen in a running VS Code by the author.
+- [ ] **new** **Entry names are checked.** New File… / New Folder… / Rename…
+  inside an archive refuse an empty or blank name, `.`, `..`, names with a
+  trailing dot (spaces around a typed name are trimmed), `\`, `/`, `con`, `aux.txt`,
+  `<>:"|?*`, `€` or Japanese letters, and a name that matches an existing one
+  in any casing. Dragging a folder holding such a file in from the OS skips
+  just those files with one warning and adds the rest.
+- [ ] **new** **Menus on read-only rows.** In a base game archive (not in the
+  workspace) right-click an archive, folder and file: Extract…, Copy, Copy Path
+  and Override in Folder… are offered; New File, Cut, Rename, Delete, Paste are
+  not. In *Show What the Game Loads*, a folder offers Extract… and Override in
+  Folder….
+- [ ] **new** **Drag and drop, all directions.** Drag a file and a folder from
+  the OS file manager, and from the VS Code Explorer, onto an archive, a
+  folder in an archive and a file (its folder is used). Drag within an archive
+  and between two archives; a folder onto itself or its own child is refused;
+  onto its own folder does nothing. Drag a `.big` from the OS onto a folder row:
+  it is copied there, and a name already present (any casing) is left alone.
+  Dragging an entry **out** to the OS or the Explorer cannot be done by the
+  extension (VS Code gives a tree no way to hand over files): use Extract….
+  An entry open with unsaved edits cannot be moved, renamed or deleted until it
+  is saved or closed.
 - [ ] **new** **Find Game Installs.** Run **BIG: Find Game Installs** (also
   offered once on first start when `bigfs.baseGameFolder` and
   `bigfs.underlyingGameFolder` are empty). Expect a quick pick of installs
@@ -857,6 +888,7 @@ Explorer view and rows:
 - [ ] `bigfs.validateIni` Validate INI Files (title)
 - [ ] `bigfs.showGameView` Show What the Game Loads (title)
 - [ ] `bigfs.showArchiveView` Show Every Archive (title)
+- [ ] `bigfs.newArchive` New Archive…
 - [ ] `bigfs.newFile` New File…
 - [ ] `bigfs.newFolder` New Folder…
 - [ ] `bigfs.addFiles` Add Files…
