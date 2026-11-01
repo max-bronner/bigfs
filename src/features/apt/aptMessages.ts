@@ -181,14 +181,20 @@ const HANDLERS: {
     );
   },
 
-  async mappedImages(message, { post, game, locator, sentTextures }) {
+  async mappedImages(message, { document, post, game, locator, sentTextures }) {
     const names = Array.isArray(message.names)
       ? message.names.filter((n: unknown) => typeof n === 'string')
       : [];
 
     await post({
       kind: 'mappedImages',
-      ...(await resolveMappedImages(names, game.index, locator, sentTextures)),
+      ...(await resolveMappedImages(
+        names,
+        game.index,
+        locator,
+        sentTextures,
+        document.uri,
+      )),
     });
   },
 

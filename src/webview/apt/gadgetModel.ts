@@ -74,7 +74,7 @@ export const findGadgets = (player: Player): Gadget[] =>
 /** Whether the stage paints a clip as an engine surface, in place of its stored art */
 export const isEngineSurface = (player: Player, instance: Instance): boolean =>
   instance.character?.type === 'sprite' &&
-  findGadgetOf(player, instance)?.kind === 'view3d';
+  ['image', 'view3d'].includes(findGadgetOf(player, instance)?.kind ?? '');
 
 const show = (value: string | number | boolean): string => String(value);
 

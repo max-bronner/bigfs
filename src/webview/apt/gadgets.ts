@@ -14,7 +14,7 @@ import {
   writeBinding,
 } from './gadgetModel';
 import type { Gadget } from './gadgetModel';
-import { getMappedImage, onMappedImages } from './mappedSurfaces';
+import { onMappedImages } from './mappedSurfaces';
 import type { Affine } from './scene';
 import { multiply } from './scene';
 import { addRenderHook, currentPlayer, measureInstanceBox, render } from './stage';
@@ -25,10 +25,10 @@ import { onRenderObjects } from './view3dSurface';
  * Gadgets on the stage: interactive controls laid over the canvas for
  * sliders, check boxes, list and combo boxes, text entries, scroll bars and
  * progress bars, drawn at the box their clip covers (or a default size when
- * it draws nothing), and `MappedImage` surfaces painted on the canvas. A
- * `View3D` is the stage's to paint (`view3dSurface.ts`). A `_type` nothing
- * here knows is a labelled placeholder. Ported from mint's apt-viewer; what
- * each control reads and writes is `BINDINGS`.
+ * it draws nothing). Images and `View3D` models are the stage's to paint, in
+ * paint order (`imageSurface.ts`, `view3dSurface.ts`). A `_type` nothing here
+ * knows is a labelled placeholder. Ported from mint's apt-viewer; what each
+ * control reads and writes is `BINDINGS`.
  */
 
 const stage = byId<HTMLCanvasElement>('stage');
@@ -184,7 +184,7 @@ const controls = new Map<
   { kind: string; element: HTMLElement; fill: (g: Gadget) => void }
 >();
 
-const sync = (ctx: CanvasRenderingContext2D, base: Affine): void => {
+const sync = (_ctx: CanvasRenderingContext2D, base: Affine): void => {
   const ratio = window.devicePixelRatio || 1;
   const all = currentGadgets();
   const alive = new Set<Gadget['instance']>();
@@ -193,16 +193,12 @@ const sync = (ctx: CanvasRenderingContext2D, base: Affine): void => {
   layer.style.height = `${stage.height / ratio}px`;
 
   for (const gadget of all) {
-    if (gadget.kind === 'view3d') {
+    if (gadget.kind === 'view3d' || gadget.kind === 'image') {
       continue;
     }
 
     const [left, top, right, bottom] = boxOf(gadget);
 
-    if (gadget.kind === 'image') {
-      paintImage(ctx, base, gadget, [left, top, right, bottom]);
-      continue;
-    }
     alive.add(gadget.instance);
 
     let held = controls.get(gadget.instance);
@@ -229,56 +225,6 @@ const sync = (ctx: CanvasRenderingContext2D, base: Affine): void => {
       controls.delete(instance);
     }
   }
-};
-
-/** An image surface: its `MappedImage` drawn into its box, or a placeholder naming it */
-const paintImage = (
-  ctx: CanvasRenderingContext2D,
-  base: Affine,
-  gadget: Gadget,
-  [left, top, right, bottom]: Rect,
-): void => {
-  const name = gadget.imageName?.trim() || gadget.imageMap?.trim() || '';
-  const image = getMappedImage(name);
-  const texture = image && state.textures.get(image.texture);
-  const boxed = measureInstanceBox(gadget.instance);
-  const [w, h] = image?.extent ?? [right - left, bottom - top];
-  const dest: Rect = boxed ?? [left, top, left + w, top + h];
-  const [x, y] = [dest[0], dest[1]];
-  const [width, height] = [dest[2] - dest[0], dest[3] - dest[1]];
-
-  ctx.save();
-  ctx.setTransform(...base);
-  if (image && texture) {
-    const [u, v, uw, vh] = image.uv;
-    const source: Rect = [
-      u * texture.width,
-      v * texture.height,
-      uw * texture.width,
-      vh * texture.height,
-    ];
-
-    if (image.rotated) {
-      ctx.translate(x, y + height);
-      ctx.rotate(-Math.PI / 2);
-      ctx.drawImage(texture, source[0], source[1], source[2], source[3], 0, 0, height, width);
-    } else {
-      ctx.drawImage(texture, source[0], source[1], source[2], source[3], x, y, width, height);
-    }
-  } else {
-    ctx.strokeStyle = '#c0c';
-    ctx.setLineDash([4, 3]);
-    ctx.lineWidth = 1 / base[0];
-    ctx.strokeRect(x, y, width, height);
-    ctx.fillStyle = '#c0c';
-    ctx.font = `${11 / base[0]}px monospace`;
-    ctx.fillText(
-      image === null ? `[no MappedImage ${name}]` : `[image ${name || '?'}]`,
-      x + 2 / base[0],
-      y + 12 / base[0],
-    );
-  }
-  ctx.restore();
 };
 
 addRenderHook(sync);

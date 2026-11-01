@@ -22,6 +22,8 @@ export interface EngineValues {
   externs?: Record<string, string>;
   /** What calls into the engine return, by function name */
   returns: Record<string, string>;
+  /** Pictures the user gave engine surfaces, by surface key */
+  images?: Record<string, string>;
   /** Before overrides: values only for names nothing set */
   values?: Record<string, string>;
 }
@@ -108,6 +110,8 @@ export type ToPage =
       kind: 'mappedImages';
       images: Record<string, PageMappedImage | null>;
       textures: Record<string, TexturePixels>;
+      /** Textures shipped as JPEG, which the page decodes */
+      jpegs?: Record<string, Uint8Array>;
     }
   /** The answer to `renderObject`: the model, or why there is none */
   | { kind: 'renderObject'; name: string; scene?: ModelScene; error?: string }

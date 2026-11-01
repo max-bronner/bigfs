@@ -60,6 +60,7 @@ const NAMES: [GadgetKind, RegExp][] = [
   ['scrollbar', /^(horz|vert)?scrollbar$/],
   ['progressbar', /^progress(bar)?$/],
   ['view3d', /^view3d$/],
+  ['image', /^renderimage(disabled)?$|^renderfactionicon$/],
 ];
 
 const kindOfName = (name: string | undefined): GadgetKind | undefined => {

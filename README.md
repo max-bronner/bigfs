@@ -427,6 +427,11 @@ your mod's archives.
   (`FSCommand:PlaySound`) are listed in the Engine panel with a play button;
   the **Play movie sounds** checkbox, off at every start, lets them play as
   the movie asks.
+- **new** Engine images: surfaces no movie names get what the game supplies, the
+  main menu's logo and shell background, the faction icon and a black portrait,
+  in place of their magenta squares. The Engine panel shows each with a field to
+  change it to any `MappedImage` or texture file, kept per movie with the other
+  answers.
 - **new** `View3D` surfaces (ported from mint's `view3d.rs`): a clip naming a W3D
   model in `_RenderObj` draws it, found through the game's load order, through
   the model's own camera and following `_AnimMode` and `_Frame`, in the clip's

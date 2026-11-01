@@ -459,6 +459,16 @@ Movie**.
   override. A name no install holds is a dashed box saying so; an empty
   `_RenderObj` (`BannerUI`) draws nothing. At most 16 models load at a time,
   only when shown.
+- [ ] **new** Engine images: with the game's INI indexed, open `MainMenu` and
+  play: `InstallLoad` fills the screen behind the movie and the logo fades in
+  where the magenta square was. The Engine panel's **Gadgets** section gives
+  `MainMenu.Image`, **Shell background** and every other image surface a field
+  whose placeholder is what the game supplies, saying it is inferred. Type a
+  `MappedImage` name or a texture file (`LoadScreenForeground`, `art.tga`) and
+  the picture changes; `black` fills it, `none` empties it; the choice comes back
+  when the movie is reopened and **Clear overrides** drops it. In `Palantir` the
+  faction icon is `AptIconMen` and the portrait black. A disabled button's
+  picture is grey. A surface only the live game fills is a labelled dashed box.
 - Known gaps: `View3D` models do not run their UV mappers or take the clip's red,
   green and blue tint.
 - Known gaps: pointer events on plain clips (`onPress` on a sprite) are only

@@ -1,3 +1,8 @@
+import {
+  BACKDROP_CALL,
+  BACKDROP_KEY,
+  findEngineImage,
+} from '../../formats/apt/aptEngineImages';
 import { toPathKey } from './avm/engine';
 import type { FunctionEntry, ReadValue, Seen } from './avm/engine';
 import { AsObject } from './avm/value';
@@ -6,6 +11,7 @@ import { createButton, byId, createHeading, createInput, createRow } from './dom
 import { engine, onEngineChange, saveAnswers } from './engineState';
 import { currentGadgets } from './gadgets';
 import { listBindings, writeBinding } from './gadgetModel';
+import { getImageKey } from './imageSurface';
 import { currentPlayer, render } from './stage';
 
 /**
@@ -158,6 +164,20 @@ const callReturnRow = (seen: Seen) => {
   );
 };
 
+/** A field for the picture of an engine surface, showing what the game supplies */
+const imageFields = (key: string) => {
+  const supplied = findEngineImage(key);
+
+  return [
+    overrideField(
+      engine.imageOverrides.get(key.toLowerCase()) ?? '',
+      supplied?.image ?? 'MappedImage, or file.tga',
+      (value) => engine.overrideImage(key, value),
+    ),
+    text(supplied ? `${key}: ${supplied.basis}` : key, 'muted'),
+  ];
+};
+
 /** Each gadget the movie attached, with the variables it is bound to */
 const gadgetRows = () => {
   const gadgets = currentGadgets().filter((each) =>
@@ -196,9 +216,13 @@ const gadgetRows = () => {
               field.title = binding.name;
               return field;
             }),
+            ...(gadget.kind === 'image' ? imageFields(getImageKey(gadget)) : []),
           );
         })
       : [text('No gadget surface (_type, _Load, _imageName) yet.', 'muted')]),
+    ...(engine.calls.has(BACKDROP_CALL.toLowerCase())
+      ? [createRow('Shell background', ...imageFields(BACKDROP_KEY))]
+      : []),
   ];
 };
 
@@ -326,7 +350,7 @@ export const showEngine = (): void => {
   const title = document.createElement('summary');
 
   wrapper.open = panel.querySelector('details')?.open ?? true;
-  title.textContent = `Engine: ${engine.overrides.size + engine.externOverrides.size} overrides · ${entries.length} entry points · ${engine.reads.size} values read · ${engine.calls.size} calls`;
+  title.textContent = `Engine: ${engine.overrides.size + engine.externOverrides.size + engine.imageOverrides.size} overrides · ${entries.length} entry points · ${engine.reads.size} values read · ${engine.calls.size} calls`;
   wrapper.append(
     title,
     createRow('', search),

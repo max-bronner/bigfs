@@ -65,8 +65,8 @@ const tintTexture = (
   return out;
 };
 
-/** A leaf's texture, tinted when its colour transform asks */
-const shown = (texture: HTMLCanvasElement, leaf: Leaf): HTMLCanvasElement =>
+/** Gets a leaf's texture, tinted when its colour transform asks */
+export const getTintedTexture = (texture: HTMLCanvasElement, leaf: Leaf): HTMLCanvasElement =>
   isPlainColor(leaf.color) ? texture : tintTexture(texture, leaf.color);
 
 /** Flash's `TextField` gutter: 2 units of padding inside the box on every side */
@@ -255,7 +255,7 @@ export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
               (m01 * tx - m00 * ty) / det,
             );
             ctx.globalAlpha *= style.color[3] / 255;
-            ctx.drawImage(shown(texture, leaf), 0, 0);
+            ctx.drawImage(getTintedTexture(texture, leaf), 0, 0);
           } else {
             ctx.fillStyle = 'rgba(255,0,255,0.35)';
             ctx.fill(path);
@@ -277,7 +277,7 @@ export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
       const texture = getImageTexture(movie, leaf.id);
 
       if (texture) {
-        ctx.drawImage(shown(texture, leaf), 0, 0);
+        ctx.drawImage(getTintedTexture(texture, leaf), 0, 0);
       }
       break;
     }

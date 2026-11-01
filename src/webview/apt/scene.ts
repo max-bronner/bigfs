@@ -127,7 +127,7 @@ export interface DisplayTree {
 }
 
 /** The box of an engine surface whose clip holds no art */
-const EMPTY_SURFACE: Rect = [0, 0, 64, 64];
+export const EMPTY_SURFACE: Rect = [0, 0, 64, 64];
 
 /**
  * Collects what a player shows right now, flattened in paint order, with

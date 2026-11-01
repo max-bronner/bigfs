@@ -2,7 +2,9 @@ import { engine, onEngineLog, watchMovie } from "./engineState";
 import { fetchMovie } from "./movieLoads";
 import type { Rect } from "../../formats/apt/aptMovie";
 import { byId } from "./dom";
+import { BACKDROP_CALL } from "../../formats/apt/aptEngineImages";
 import { findGadgetOf, isEngineSurface } from "./gadgetModel";
+import { paintBackdrop, paintImageSurface } from "./imageSurface";
 import { buildMaskArea, paintLeaf } from "./paint";
 import { Player } from "./player";
 import type { Instance } from "./instance";
@@ -342,6 +344,8 @@ const paintOnStage = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
 
   if (!gadget) {
     paintLeaf(ctx, leaf);
+  } else if (gadget.kind === "image") {
+    paintImageSurface(ctx, leaf, gadget, leaf.surfaceBox!);
   } else if (gadget.kind === "view3d") {
     paintView3d(ctx, gadget, leaf.surfaceBox!, {
       player: current,
@@ -399,6 +403,17 @@ export const render = (): void => {
   base = [scale, 0, 0, scale, (MARGIN - left) * scale, (MARGIN - top) * scale];
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, stage.width, stage.height);
+
+  const shown = resolve(movie(), state.selected);
+
+  if (shown?.character.type === "movie" && engine.calls.has(BACKDROP_CALL.toLowerCase())) {
+    const { screenWidth, screenHeight } = shown.movie.record;
+
+    ctx.save();
+    ctx.setTransform(...base);
+    paintBackdrop(ctx, [0, 0, screenWidth, screenHeight]);
+    ctx.restore();
+  }
 
   // Onion skin: neighbours by replaying, so it shows only when inspecting a still frame
   if (view.onion && !view.interact && !view.playing) {
