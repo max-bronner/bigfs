@@ -192,6 +192,16 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.exportCursorPng",
+        "title": "Export Cursor as PNG…",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.convertPngToCursor",
+        "title": "Convert to Cursor…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.previewParticles",
         "title": "Preview Particle System",
         "category": "BIG"
@@ -435,6 +445,16 @@
           "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
         },
         {
+          "command": "bigfs.exportCursorPng",
+          "group": "7_modification@13",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(cur|ani)$/i"
+        },
+        {
+          "command": "bigfs.convertPngToCursor",
+          "group": "7_modification@13",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i"
+        },
+        {
           "command": "bigfs.newAptMovie",
           "group": "7_modification@14",
           "when": "view == bigArchiveExplorer && viewItem =~ /^big(Folder|Archive)$/ && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
@@ -557,6 +577,14 @@
         {
           "command": "bigfs.convertPng",
           "when": "false"
+        },
+        {
+          "command": "bigfs.exportCursorPng",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.convertPngToCursor",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -582,6 +610,16 @@
         },
         {
           "command": "bigfs.convertPng",
+          "group": "7_modification@13",
+          "when": "resourceExtname =~ /^\\.png$/i"
+        },
+        {
+          "command": "bigfs.exportCursorPng",
+          "group": "7_modification@13",
+          "when": "resourceExtname =~ /^\\.(cur|ani)$/i"
+        },
+        {
+          "command": "bigfs.convertPngToCursor",
           "group": "7_modification@13",
           "when": "resourceExtname =~ /^\\.png$/i"
         },

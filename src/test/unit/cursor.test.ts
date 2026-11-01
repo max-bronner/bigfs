@@ -2,9 +2,11 @@ import * as assert from 'assert';
 import type { CursorFrame } from '../../formats/cursor/cursorFrame';
 import { parseAni } from '../../formats/cursor/parseAni';
 import { parseCur } from '../../formats/cursor/parseCur';
+import { parseHotspot } from '../../formats/cursor/parseHotspot';
 import { parseCursorFile } from '../../formats/cursor/parseCursorFile';
 import { writeAni } from '../../formats/cursor/writeAni';
 import { writeCur } from '../../formats/cursor/writeCur';
+import { decodePng, encodePng } from '../../node/png';
 
 /** A frame whose pixel `i` is `(i, 2i, 3i, alpha)`, alpha 0 on the first pixel */
 const makeFrame = (
@@ -282,5 +284,40 @@ suite('animated cursors', () => {
         }),
       /does not exist/,
     );
+  });
+});
+
+suite('cursor conversion', () => {
+  test('a cursor survives a trip through PNG and back with its hotspot typed in', () => {
+    const [original] = parseCur(writeCur([makeFrame(6, 4, 3, 1)]));
+    const image = decodePng(encodePng(original));
+    const hotspot = parseHotspot('3,1', image.width, image.height);
+
+    assert.ok(typeof hotspot !== 'string');
+
+    const [back] = parseCur(
+      writeCur([{ ...image, hotspotX: hotspot.x, hotspotY: hotspot.y }]),
+    );
+
+    assert.deepStrictEqual(back, original);
+  });
+
+  test('a PNG-compressed cursor entry opens through the host decoder', () => {
+    const png = encodePng(makeFrame(3, 2));
+    const bytes = buildCur([...png], [1, 1]);
+    const [frame] = parseCur(bytes, { decodePng });
+
+    assert.deepStrictEqual(
+      [frame.width, frame.height, frame.hotspotX],
+      [3, 2, 1],
+    );
+  });
+
+  test('a typed hotspot is checked against the image', () => {
+    assert.deepStrictEqual(parseHotspot(' 4 , 2 ', 8, 8), { x: 4, y: 2 });
+    assert.deepStrictEqual(parseHotspot('4 2', 8, 8), { x: 4, y: 2 });
+    assert.match(String(parseHotspot('8,0', 8, 8)), /inside/);
+    assert.match(String(parseHotspot('-1,0', 8, 8)), /x,y/);
+    assert.match(String(parseHotspot('left', 8, 8)), /x,y/);
   });
 });

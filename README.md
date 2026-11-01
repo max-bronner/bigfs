@@ -330,6 +330,10 @@ your mod's archives.
 - **new** Cursors: `.cur` and `.ani` open in the preview with every image,
   its size and its hotspot (outlined in red); an animated cursor plays its own
   sequence and rates, with play, pause and a step slider.
+- **new** **Export Cursor as PNG…** writes a `.cur`, or one or all frames of an
+  `.ani`, as PNG (to a file or a folder you pick, never beside the source), and
+  **Convert to Cursor…** on a PNG asks for the hotspot and writes a `.cur`
+  with alpha.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
   pause and seeking (dragging the slider follows the pointer and lands on
   the frame you let go on); alpha movies show over a checkerboard.
@@ -484,6 +488,8 @@ row, file or editor they act on.
 | Convert String Table (.str ⇄ .csf), Open as Table | `.str`/`.csf` menu, editor title | String tables |
 | Show Layout Preview | `.wnd` editor title | WND preview |
 | Export as PNG, Replace with PNG…, Convert to Game Texture… | `.tga`/`.dds`/`.png` menu | Textures |
+| Export Cursor as PNG… | `.cur`/`.ani` menu | Cursors |
+| Convert to Cursor… | `.png` menu | Cursors |
 | Convert to VP6 Movie… | video, image or folder menu | VP6 |
 | Edit W3D Animation… | `.w3d` menu | Bone animations |
 | New APT Movie…, Rename APT Movie…, Delete APT Movie… | folder or `.apt` menu | APT movies |

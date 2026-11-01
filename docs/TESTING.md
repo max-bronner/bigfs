@@ -698,6 +698,15 @@ Sound is opt-in: opening a view never plays anything.
   the sequence and the label names the step, the frame and its duration. Every
   distinct frame is listed below with its hotspot. A broken or truncated cursor
   shows an error, not a blank page.
+- [ ] **new** **Export Cursor as PNG…** on a `.cur` (archive explorer or file
+  explorer): a save dialog opens in the workspace, the PNG keeps the shape and
+  transparency, and the message names the hotspot. On an `.ani` a pick list
+  offers all frames or one; all frames asks for a folder and writes
+  `name_01.png`, `name_02.png`, … Nothing is written beside the source.
+- [ ] **new** **Convert to Cursor…** on a PNG: asks for the hotspot (`4,2`; a
+  value outside the image or text is refused in the box), then a save dialog.
+  The `.cur` opens in the preview with the hotspot where typed, and an image
+  over 256 pixels a side says so instead of writing.
 - [ ] **new** **Convert to VP6 Movie…** from a video, an image or a folder of
   numbered frames: size, frame rate, quality asked; the result is decoded
   before saving and plays in the game. `bigfs.vp6.keyFrameSeconds` = 0 makes
@@ -783,6 +792,8 @@ Previews and editors:
 - [ ] `bigfs.exportPng` Export as PNG
 - [ ] `bigfs.importImage` Replace with PNG…
 - [ ] `bigfs.convertPng` Convert to Game Texture…
+- [ ] `bigfs.exportCursorPng` Export Cursor as PNG…
+- [ ] `bigfs.convertPngToCursor` Convert to Cursor…
 - [ ] `bigfs.convertToVp6` Convert to VP6 Movie…
 - [ ] `bigfs.editW3dAnimation` Edit W3D Animation…
 - [ ] `bigfs.newAptMovie` New APT Movie…
