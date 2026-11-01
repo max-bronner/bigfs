@@ -280,7 +280,12 @@ export const writeVp6 = (movie: Vp6Output): Uint8Array => {
   };
   const body = movie.frames.flatMap((frame) => [
     ...(frame.alpha
-      ? [chunk(frame.isAlphaKey ?? frame.isKey ? 'AV0K' : 'AV0F', frame.alpha)]
+      ? [
+          chunk(
+            (frame.isAlphaKey ?? frame.isKey) ? 'AV0K' : 'AV0F',
+            frame.alpha,
+          ),
+        ]
       : []),
     chunk(frame.isKey ? 'MV0K' : 'MV0F', frame.colour),
   ]);

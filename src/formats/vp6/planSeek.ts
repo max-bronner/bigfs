@@ -14,7 +14,7 @@ export interface SeekRestart {
 }
 
 /** Frames decoded forward in place before a restart from a key frame is cheaper */
-const forwardLimit = 60;
+const FORWARD_LIMIT = 60;
 
 /**
  * Decides how to reach `target` when the decoders have decoded up to, not
@@ -28,7 +28,7 @@ export const planSeek = (
   next: number,
   target: number,
 ): SeekRestart | undefined => {
-  if (target >= next && target - next <= forwardLimit) {
+  if (target >= next && target - next <= FORWARD_LIMIT) {
     return undefined;
   }
 

@@ -32,8 +32,9 @@ const getFileName = (uri: vscode.Uri) =>
  * Read-only editor that previews the binary entries a text editor cannot
  * show: TGA and DDS textures, drawn on a canvas with zoom, channel and mip
  * controls, WAV sounds, played after IMA ADPCM is decoded, which VS Code's own
- * audio preview cannot play, VP6 movies, and W3D models, drawn in 3D with their skeleton and textures found
- * wherever they live. It opens files inside archives and loose on disk alike,
+ * audio preview cannot play, VP6 movies, and W3D models, drawn in 3D with their
+ * skeleton and textures found wherever they live. It opens files inside
+ * archives and loose on disk alike,
  * since it only reads bytes through `workspace.fs`.
  */
 
