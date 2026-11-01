@@ -17,6 +17,7 @@ import { registerApt } from './features/apt';
 import { registerStrings } from './features/strings';
 import { registerTranslations } from './features/translations';
 import { registerWnd } from './features/wnd';
+import { registerCursors } from './features/cursors';
 import { registerTextures } from './features/textures';
 import { registerW3d } from './features/w3d';
 import { registerVideo } from './features/video';
@@ -48,6 +49,7 @@ const FEATURES: ((context: ExtensionContext, services: Services) => void)[] = [
   registerTranslations,
   registerWnd,
   registerTextures,
+  registerCursors,
   registerW3d,
   registerVideo,
   registerInstalls,

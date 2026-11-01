@@ -66,7 +66,7 @@ flowchart TD
 | `game/` | how the engine behaves: the game view and install layering (`install/`), object composition and stats (`objects/`), audio resolution (`audio/`), language and translations (`text/`), the policies behind the INI checks (`ini-tools/`) | core, formats |
 | `node/` | Node I/O: reading and writing archive files, install discovery, mod diff and packaging on disk, FFmpeg, PNG encoding, the launch plan | core, formats, game |
 | `platform/` | VS Code adapters with no domain knowledge: `registerCommand`, typed settings, context keys, dialogs, webview pages, singleton panels, snapshot editors | core |
-| `services/` | the long-lived state built once in `createServices.ts`: `archives/` (`ArchiveModel` and its scanner, registry, policy and operations, the virtual tree, addressing, the game view model, the explorer selection and node command registrar), `ini/` (`SageIniDocuments`, `SageIniIndex`, game language, audio lookup, asset check, effective objects), `entryLocator`, `mappedImagePreview`, `effectLibrary` | everything below, `vscode` |
+| `services/` | the long-lived state built once in `createServices.ts`: `archives/` (`ArchiveModel` and its scanner, registry, policy and operations, the virtual tree, addressing, the game view model, the explorer selection and node command registrar), `apt/` (finding a movie's files beside it, and the texture each of its images is drawn from), `ini/` (`SageIniDocuments`, `SageIniIndex`, game language, audio lookup, asset check, effective objects), `entryLocator`, `mappedImagePreview`, `effectLibrary` | everything below, `vscode` |
 | `features/<feature>/` | one user-facing feature each, wired by its `index.ts` | everything below, its own `webview/<feature>/protocol` |
 | `webview/<page>/` | the code inside one webview page, bundled by `esbuild.mjs` into `dist/webview/<name>.js` | core, formats, game, `webview/shared/` |
 
@@ -123,8 +123,8 @@ modules it registers. From there:
 | INI checks (assets, unused, duplicates, validation, hotkeys) | `features/iniLanguage/` | `services/ini/sageIniAssetCheck.ts`, `diagnoseIniText.ts`; `game/ini-tools/` |
 | effective object view, new object wizard | `features/objects/` | `services/ini/effectiveObject.ts`, `game/objects/` |
 | particle and object previews | `features/particles/` | `webview/particles/`, `services/effectLibrary.ts`, `formats/particles/` |
-| texture, audio and W3D previews | `features/preview/` | `webview/preview/`, the tools in `formats/texture`, `formats/audio`, `formats/w3d` |
-| APT movies | `features/apt/` | `webview/apt/` (`player.ts` with `scriptQueue.ts`, `pointerDispatcher.ts` and `movieLoader.ts`; `stage.ts` with `stagePointer.ts` and `hitTest.ts`; the AVM in `avm/`), `formats/apt/`; `docs/apt-scripts.md`, `docs/apt-text-format.md` |
+| texture, audio and W3D previews (a texture's regions: `createTextureRegions` with the `RegionKind`s for `MappedImage` and `.ru` and `createRegionDiscovery`) | `features/preview/` | `webview/preview/`, the tools in `formats/texture`, `formats/audio`, `formats/w3d` |
+| APT movies | `features/apt/` | `webview/apt/` (`player.ts` with `scriptQueue.ts`, `pointerDispatcher.ts` and `movieLoader.ts`; `stage.ts` with `stagePointer.ts` and `hitTest.ts`; `view3dSurface.ts` with `view3dCamera.ts` and `renderObjectCache.ts` for `View3D` clips, `imageSurface.ts` for image clips; the AVM in `avm/`), `formats/apt/`; `docs/apt-scripts.md`, `docs/apt-text-format.md` |
 | maps and map scripts | `features/map/`, `features/scripts/` | `webview/map/`, `webview/scripts/`, `formats/map/` |
 | string tables, translations | `features/strings/`, `features/translations/` | `webview/strings/`, `formats/str/`, `formats/csf/`, `game/text/` |
 | Create-a-Hero | `features/cah/` | `webview/cah/`, `formats/cah/`, `game/objects/cahSystem.ts` |
@@ -353,6 +353,12 @@ playable audio, W3D), declared beside its format (`formats/texture/textureTools.
 `formats/audio/audioTools.ts`, `formats/w3d/w3dTools.ts`), registered once in
 `services/createServices.ts` through `core/toolRegistry` and reached through
 the `ToolBox` the previews are handed.
+
+Cursors (`formats/cursor/`) are not a tool: reading a PNG-compressed icon
+needs zlib, which a format module may not import, so `parseCur` takes the PNG
+decoder as an option and the features pass the one in `node/png`. The preview
+reads `.cur` and `.ani`, `features/cursors` converts them and builds an `.ani`
+from images in its own panel (`webview/cursors`).
 
 Anything that needs "the file the game would load" asks the game view, not the
 archive it happens to hold. `game/install/gameView` is the engine's rule (loose

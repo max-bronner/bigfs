@@ -227,6 +227,8 @@ export class Engine implements EngineHooks {
   public readonly overrides = new Map<string, string>();
   /** Values `GetExtern` answers before anything the movie wrote, by extern key */
   public readonly externOverrides = new Map<string, string>();
+  /** Pictures the user gave engine surfaces, by lowercased surface key */
+  public readonly imageOverrides = new Map<string, string>();
   /** What the movie itself wrote to externs, shown read-only */
   public readonly externWrites = new Map<
     string,
@@ -285,7 +287,11 @@ export class Engine implements EngineHooks {
   public load(saved: EngineValues | undefined): void {
     this.overrides.clear();
     this.externOverrides.clear();
+    this.imageOverrides.clear();
     this.returns.clear();
+    Object.entries(saved?.images ?? {}).forEach(([k, v]) =>
+      this.imageOverrides.set(k.toLowerCase(), v),
+    );
     Object.entries({ ...saved?.values, ...saved?.overrides }).forEach(
       ([k, v]) =>
         // Keys saved before externs had their own table: `Game::Key` is one
@@ -307,6 +313,7 @@ export class Engine implements EngineHooks {
     return {
       overrides: Object.fromEntries(this.overrides),
       externs: Object.fromEntries(this.externOverrides),
+      images: Object.fromEntries(this.imageOverrides),
       returns: Object.fromEntries(this.returns),
     };
   }
@@ -315,6 +322,7 @@ export class Engine implements EngineHooks {
   public clear(): void {
     this.overrides.clear();
     this.externOverrides.clear();
+    this.imageOverrides.clear();
     this.reparse();
   }
 
@@ -333,6 +341,11 @@ export class Engine implements EngineHooks {
   /** Sets or clears (empty text) the override of an extern */
   public overrideExtern(name: string, text: string): void {
     this.store(this.externOverrides, externKey(name), text);
+  }
+
+  /** Sets or clears (empty text) the picture of an engine surface */
+  public overrideImage(key: string, text: string): void {
+    this.store(this.imageOverrides, key.toLowerCase(), text);
   }
 
   private store(table: Map<string, string>, key: string, text: string): void {

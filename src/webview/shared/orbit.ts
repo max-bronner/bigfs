@@ -1,4 +1,5 @@
 import type { Vec3 } from '../../formats/w3d/w3dPose';
+import { composeViewProjection } from './viewProjection';
 
 /**
  * An orbit camera around a point, Z up as in the games: drag to orbit,
@@ -16,12 +17,6 @@ export interface Orbit {
 }
 
 const subtract = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const cross = (a: Vec3, b: Vec3): Vec3 => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
-const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const normalize = (v: Vec3): Vec3 => {
   const length = Math.hypot(...v) || 1;
 
@@ -105,35 +100,16 @@ export const createOrbit = (
     },
     viewProjection: (aspect) => {
       const from = eye();
-      const [x, y, z] = computeAxes(from);
-      const near = radius / 100;
-      const far = radius * 100;
-      const f = 1 / Math.tan(Math.PI / 8);
-      // prettier-ignore
-      const view = [
-        x[0], y[0], z[0], 0,
-        x[1], y[1], z[1], 0,
-        x[2], y[2], z[2], 0,
-        -dot(x, from), -dot(y, from), -dot(z, from), 1,
-      ];
-      // prettier-ignore
-      const projection = [
-        f / aspect, 0, 0, 0,
-        0, f, 0, 0,
-        0, 0, (far + near) / (near - far), -1,
-        0, 0, (2 * far * near) / (near - far), 0,
-      ];
-      const out = new Float32Array(16);
 
-      for (let column = 0; column < 4; column++) {
-        for (let row = 0; row < 4; row++) {
-          for (let k = 0; k < 4; k++) {
-            out[column * 4 + row] +=
-              projection[k * 4 + row] * view[column * 4 + k];
-          }
-        }
-      }
-      return out;
+      return composeViewProjection({
+        eye: from,
+        towardsEye: normalize(subtract(from, target)),
+        up: [0, 0, 1],
+        focalLength: 1 / Math.tan(Math.PI / 8),
+        aspect,
+        near: radius / 100,
+        far: radius * 100,
+      });
     },
   };
 };

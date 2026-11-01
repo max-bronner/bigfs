@@ -3,6 +3,8 @@ import type { MovieAccess } from '../../formats/apt/aptIntegrity';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { getNodeUri } from '../../services/archives/nodeAddress';
 import { getFileNodes } from '../../services/archives/virtualTree';
+import { findBelow } from '../../services/apt/findBelow';
+import { clearFolderListings, listFolder } from '../../services/apt/folderListing';
 
 /**
  * The files beside a movie as the game finds them: by path relative to the
@@ -11,46 +13,6 @@ import { getFileNodes } from '../../services/archives/virtualTree';
  * missing file it is looking for. Files an unsaved edit added count, as
  * they will be there once it is saved.
  */
-
-const listings = new Map<string, Promise<[string, vscode.FileType][]>>();
-
-const listFolder = (folder: vscode.Uri) => {
-  const key = folder.toString();
-  let listing = listings.get(key);
-
-  if (!listing) {
-    listing = Promise.resolve(vscode.workspace.fs.readDirectory(folder)).catch(
-      () => [],
-    );
-    listings.set(key, listing);
-  }
-  return listing;
-};
-
-/** Finds a path below a folder, each step matched without casing */
-const findBelow = async (
-  folder: vscode.Uri,
-  relative: string,
-  type: vscode.FileType,
-): Promise<vscode.Uri | undefined> => {
-  const steps = relative.split('/').filter(Boolean);
-  let at = folder;
-
-  for (const [index, step] of steps.entries()) {
-    const wanted =
-      index === steps.length - 1 ? type : vscode.FileType.Directory;
-    const match = (await listFolder(at)).find(
-      ([name, kind]) =>
-        name.toLowerCase() === step.toLowerCase() && (kind & wanted) !== 0,
-    );
-
-    if (!match) {
-      return undefined;
-    }
-    at = vscode.Uri.joinPath(at, match[0]);
-  }
-  return at;
-};
 
 /**
  * Creates the `MovieAccess` an integrity check reads a movie's neighbours
@@ -68,7 +30,7 @@ export const createMovieAccess = (
   );
 
   // Each check sees the folder as it is now
-  listings.clear();
+  clearFolderListings();
 
   return {
     name,
@@ -151,7 +113,7 @@ export const findBeside = (
   relative: string,
   type: vscode.FileType,
 ): Promise<vscode.Uri | undefined> => {
-  listings.clear();
+  clearFolderListings();
   return findBelow(vscode.Uri.joinPath(aptUri, '..'), relative, type);
 };
 

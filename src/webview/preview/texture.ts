@@ -1,3 +1,4 @@
+import type { RegionEditor } from './createRegionEditor';
 import type { TextureMessage } from './protocol';
 
 /** A texture on a canvas, with zoom, channel, background and mip controls */
@@ -8,7 +9,10 @@ const byId = <Element extends HTMLElement>(id: string) =>
   document.getElementById(id) as Element;
 
 /** Creates the texture view on the page's toolbar and returns the function that shows a texture message */
-export const createTexturePage = (main: HTMLElement) => {
+export const createTexturePage = (
+  main: HTMLElement,
+  regions: RegionEditor,
+) => {
   const toolbar = byId('toolbar');
   const status = byId('status');
   const levelSelect = byId<HTMLSelectElement>('level');
@@ -31,6 +35,7 @@ export const createTexturePage = (main: HTMLElement) => {
     canvas!.style.width = `${width * scale}px`;
     canvas!.style.height = `${height * scale}px`;
     canvas!.classList.toggle('pixelated', scale > 1);
+    regions.fit(width * scale, height * scale, state.levels[0].width);
     byId('fit').setAttribute('aria-pressed', String(!state.zoom));
     byId('actual').setAttribute('aria-pressed', String(state.zoom === 1));
     status.textContent =
@@ -112,6 +117,7 @@ export const createTexturePage = (main: HTMLElement) => {
     stage.className = 'stage checker';
     canvas = document.createElement('canvas');
     stage.append(canvas);
+    regions.mount(stage);
     main.replaceChildren(stage);
     drawTexture();
   };

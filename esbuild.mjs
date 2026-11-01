@@ -68,6 +68,8 @@ const PAGES = [
   { name: 'cah', entry: 'src/webview/cah/main.ts' },
   // The string table editor's page
   { name: 'strings', entry: 'src/webview/strings/main.ts' },
+  // The animated cursor builder's page
+  { name: 'cursors', entry: 'src/webview/cursors/main.ts' },
   // The map script viewer's page
   { name: 'scripts', entry: 'src/webview/scripts/main.ts' },
 ];

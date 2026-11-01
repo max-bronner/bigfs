@@ -449,6 +449,28 @@ Movie**.
   `_imageName` / `_imageMap` draws its `MappedImage` (open the game's INI so it
   is indexed); an undefined image or unknown `_type` is a labelled dashed box,
   never an error. The Engine panel loads without a movie.
+- [ ] **new** View3D surfaces: open `MenuFrameAndBg` from an install and select
+  the sprites holding a `View3D` clip (`BackgroundShow`, `MenuFrame`): the
+  game's W3D model fills the clip's box, seen through its own `CAMERA`, in
+  place of the magenta placeholder. Press play: `PLAY_TO_FRAME` runs the model's
+  animation to its `_Frame` and stops; a still stage shows where it comes to
+  rest. Masks, fades and anything drawn above the clip apply to the model. The
+  Engine panel lists each with `_RenderObj`, `_AnimMode` and `_Frame` to
+  override. A name no install holds is a dashed box saying so; an empty
+  `_RenderObj` (`BannerUI`) draws nothing. At most 16 models load at a time,
+  only when shown.
+- [ ] **new** Engine images: with the game's INI indexed, open `MainMenu` and
+  play: `InstallLoad` fills the screen behind the movie and the logo fades in
+  where the magenta square was. The Engine panel's **Gadgets** section gives
+  `MainMenu.Image`, **Shell background** and every other image surface a field
+  whose placeholder is what the game supplies, saying it is inferred. Type a
+  `MappedImage` name or a texture file (`LoadScreenForeground`, `art.tga`) and
+  the picture changes; `black` fills it, `none` empties it; the choice comes back
+  when the movie is reopened and **Clear overrides** drops it. In `Palantir` the
+  faction icon is `AptIconMen` and the portrait black. A disabled button's
+  picture is grey. A surface only the live game fills is a labelled dashed box.
+- Known gaps: `View3D` models do not run their UV mappers or take the clip's red,
+  green and blue tint.
 - Known gaps: pointer events on plain clips (`onPress` on a sprite) are only
   delivered to buttons; a movie loaded into `_level0` is refused; a mounted
   movie's own `onLoad` clip events do not run.
@@ -710,6 +732,45 @@ Sound is opt-in: opening a view never plays anything.
 
 ## Textures, video & other formats
 
+- [ ] **new** Edit a MappedImage's region: in an INI file with a `MappedImage`
+  block, click **Edit region in texture** above its header (or run **BIG: Edit
+  MappedImage Region in Texture** with the cursor in the block). The texture
+  opens beside it with a References panel and the block's rectangle selected
+  as a blue box. Drag inside the box to move it, drag a corner to resize it, or
+  type the four edges into the panel. Each change is written to the `Coords`
+  line of the INI document as one text edit: **Undo** in the INI editor takes
+  it back and the box follows; nothing is saved until you save the INI. A
+  rotated image (`Status = ROTATED_90_CLOCKWISE`) has a dashed box and the panel
+  says it is the packed rect: the edges you drag are the `Coords`, width and
+  height are not swapped. A texture shipped at another size than the block's
+  `TextureWidth`/`TextureHeight` still writes `Coords` in the stated size. A
+  block in a base game archive shows its box but cannot be dragged; the
+  warning offers **Override in Folder**.
+- [ ] **new** References panel of a texture: open any `.tga`/`.dds` from the
+  explorer (for example `aptcomponents_001`, or a UI atlas such as
+  `scgameuserinterface512_001`). Beside the image a panel lists, under
+  "References (n) · searching…" while it works, every `MappedImage` whose
+  `Texture` names the file and, for an `apt_<movie>_<n>` texture, every shape
+  of that movie that samples it; all their boxes are drawn on the image.
+  Click a name or a box to select it (blue, with corner handles); with more
+  than a dozen a filter box appears. Selecting one shows its edges: drag it,
+  resize it by a corner or type the numbers, as for **Edit region in
+  texture**, and **Open definition** jumps to its INI block or `.ru` line. The
+  list appears after the preview, never before it; closing the preview stops
+  the search. With no game or no INI loaded the panel simply does not show;
+  a texture nothing uses shows no panel.
+- [ ] **new** `.ru` geometry texture regions: open a shape's
+  `<movie>_geometry/<n>.ru` from the explorer (it opens as plain text, as
+  before). Each `s tc:` line has a lens saying which image it samples and the
+  box on that image, for example "Samples image #3, 12,40 to 88,120
+  (76×80)". Click it (or run **BIG: Show APT Geometry Texture Region** with the
+  cursor in the style): the movie's texture opens beside it with that box
+  selected. The texture is found through the movie beside the geometry folder
+  (its Image character and `.dat`); with no movie there you get a message
+  saying so. Drag or resize the box: only that `s tc:` line is rewritten, as
+  an undoable edit, a turned mapping keeps its turn, and the triangles are
+  untouched. Close the movie in the APT editor first, which holds its own copy
+  of the `.ru`. In a base game archive the box is shown but locked.
 - [ ] **new** TGA and DDS previews (DXT1/3/5, uncompressed) with zoom,
   channels, mip levels. EAR-compressed textures open (no "TGA image type 82").
 - [ ] **new** **Export as PNG**, **Replace with PNG…** (written back in the
@@ -723,6 +784,38 @@ Sound is opt-in: opening a view never plays anything.
   frame the label names), the thumb does not jump back under the pointer, and
   after letting go the movie stays on that frame; Play continues from it.
   Dragging to a frame far from a key frame is slower but the last stop wins.
+- [ ] **new** Cursor preview: open a `.cur` from the install's `data/cursors`
+  (copied out, or a loose file in the install opened read-only). The image
+  shows on a checkerboard with its size and hotspot, and the hotspot pixel is
+  outlined in red and white. Open an `.ani` (for example `Beam.ani`): it
+  plays by itself at its own speed, Pause stops it, the slider steps through
+  the sequence and the label names the step, the frame and its duration. Every
+  distinct frame is listed below with its hotspot. A broken or truncated cursor
+  shows an error, not a blank page.
+- [ ] **new** **Export Cursor as PNG…** on a `.cur` (archive explorer or file
+  explorer): a save dialog opens in the workspace, the PNG keeps the shape and
+  transparency, and the message names the hotspot. On an `.ani` a pick list
+  offers all frames or one; all frames asks for a folder and writes
+  `name_01.png`, `name_02.png`, … Nothing is written beside the source.
+- [ ] **new** **Convert to Cursor…** on a PNG: asks for the hotspot (`4,2`; a
+  value outside the image or text is refused in the box), then a save dialog.
+  The `.cur` opens in the preview with the hotspot where typed, and an image
+  over 256 pixels a side says so instead of writing.
+- [ ] **new** **Build Animated Cursor…** (palette): the panel opens empty and
+  says to add images, with Save disabled. **Add Images…** takes several
+  `.png`, `.tga`, `.cur` or `.ani` files at once (an `.ani` adds every frame);
+  each becomes a row with a thumbnail, size, hotspot and duration in ms, and
+  the loop below plays them at those times. Check: the arrows reorder (first
+  up and last down are disabled), duplicate and remove work, a hotspot edit
+  moves the red outline on the thumbnail and the loop, Set All Durations
+  changes every row, Pause stops the loop. Add an image of another size: the
+  message names the frame and Save stays disabled until it is removed. Select
+  several images in the file explorer and run it from their menu: they arrive
+  already added. **Save as .ani…** opens a save dialog in the workspace; the
+  file opens in the preview with the same order, hotspots and timing,. Also pick it
+  in Windows (Mouse settings, Pointers, Browse) to see it animate there, and
+  once in the game via `mouse.ini` in a test mod. Nothing is written until the
+  dialog is confirmed.
 - [ ] **new** **Convert to VP6 Movie…** from a video, an image or a folder of
   numbered frames: size, frame rate, quality asked; the result is decoded
   before saving and plays in the game. `bigfs.vp6.keyFrameSeconds` = 0 makes
@@ -808,6 +901,11 @@ Previews and editors:
 - [ ] `bigfs.exportPng` Export as PNG
 - [ ] `bigfs.importImage` Replace with PNG…
 - [ ] `bigfs.convertPng` Convert to Game Texture…
+- [ ] `bigfs.exportCursorPng` Export Cursor as PNG…
+- [ ] `bigfs.convertPngToCursor` Convert to Cursor…
+- [ ] `bigfs.buildAnimatedCursor` Build Animated Cursor…
+- [ ] `bigfs.editMappedImageRegion` Edit MappedImage Region in Texture
+- [ ] `bigfs.showRuRegion` Show APT Geometry Texture Region
 - [ ] `bigfs.convertToVp6` Convert to VP6 Movie…
 - [ ] `bigfs.editW3dAnimation` Edit W3D Animation…
 - [ ] `bigfs.newAptMovie` New APT Movie…

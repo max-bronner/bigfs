@@ -7,6 +7,7 @@ import type {
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import type { Problem } from '../../formats/apt/aptIntegrity';
+import type { ModelScene } from '../../formats/w3d/w3dScene';
 
 /**
  * The messages between the APT editor and its page. Shared by both sides,
@@ -21,6 +22,8 @@ export interface EngineValues {
   externs?: Record<string, string>;
   /** What calls into the engine return, by function name */
   returns: Record<string, string>;
+  /** Pictures the user gave engine surfaces, by surface key */
+  images?: Record<string, string>;
   /** Before overrides: values only for names nothing set */
   values?: Record<string, string>;
 }
@@ -107,7 +110,11 @@ export type ToPage =
       kind: 'mappedImages';
       images: Record<string, PageMappedImage | null>;
       textures: Record<string, TexturePixels>;
+      /** Textures shipped as JPEG, which the page decodes */
+      jpegs?: Record<string, Uint8Array>;
     }
+  /** The answer to `renderObject`: the model, or why there is none */
+  | { kind: 'renderObject'; name: string; scene?: ModelScene; error?: string }
   | { kind: 'select'; character: number }
   /** What the integrity check found in the movie and the files beside it */
   | { kind: 'integrity'; problems: Problem[] }
@@ -129,6 +136,8 @@ export type FromPage =
   | { kind: 'openTextView' }
   /** Image surfaces name `MappedImage`s; the editor finds them in the game's INI */
   | { kind: 'mappedImages'; names: string[] }
+  /** A `View3D` surface is shown; the editor finds the model it names */
+  | { kind: 'renderObject'; name: string }
   | { kind: 'script'; block: number }
   /** The Engine panel's answers for the shown movie, to keep in the workspace */
   | { kind: 'engineAnswers'; values: EngineValues }

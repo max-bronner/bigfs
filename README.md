@@ -94,6 +94,13 @@ your mod's archives.
   whitespace; embedded scripts stay as written, and formatting again never
   changes the result.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
+- A lens over each `MappedImage` header, **Edit region in texture**, opens the
+  texture with the block's rectangle drawn on it. Drag or resize the box, or
+  type its edges, and the `Coords` line is rewritten as an undoable edit of
+  the INI document.
+- In a shape's `.ru` geometry file, a lens over each `s tc:` texture style
+  names the image and box it samples and opens the texture with that box
+  selected; dragging it rewrites only that style line.
 - Lua in `BeginScript` regions is checked for syntax errors.
 - **Duplicate Definition…** (refactor menu, editor context menu) copies the
   definition at the cursor under a new name, renaming the game-text labels
@@ -323,10 +330,24 @@ your mod's archives.
 **Previews**
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip
-  levels. **Export as PNG**, **Replace with PNG…** (written back in the
+  levels. A References panel lists every `MappedImage` and every APT shape
+  that uses part of the texture, draws their boxes on it and lets you select
+  one and drag, resize or type its region back into the INI or `.ru` file. **Export as PNG**, **Replace with PNG…** (written back in the
   texture's own format, mipmaps included) and **Convert to Game Texture…**
   for PNGs (TGA 24/32-bit, DDS DXT1/3/5 or uncompressed).
 - Sounds: WAV, including IMA ADPCM, which VS Code's own audio preview cannot play. MP3 opens in VS Code's own preview.
+- **new** Cursors: `.cur` and `.ani` open in the preview with every image,
+  its size and its hotspot (outlined in red); an animated cursor plays its own
+  sequence and rates, with play, pause and a step slider.
+- **new** **Export Cursor as PNG…** writes a `.cur`, or one or all frames of an
+  `.ani`, as PNG (to a file or a folder you pick, never beside the source), and
+  **Convert to Cursor…** on a PNG asks for the hotspot and writes a `.cur`
+  with alpha.
+- **new** **Build Animated Cursor…** (command palette, or the file explorer menu on
+  images) puts `.png`, `.tga`, `.cur`, `.ico` or `.ani` files in a list of
+  frames: reorder, duplicate or remove them, set each frame's hotspot and
+  duration in milliseconds, watch the loop, then **Save as .ani…** to a place
+  you choose. All frames must share one size.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
   pause and seeking (dragging the slider follows the pointer and lands on
   the frame you let go on); alpha movies show over a checkerboard.
@@ -413,6 +434,16 @@ your mod's archives.
   (`FSCommand:PlaySound`) are listed in the Engine panel with a play button;
   the **Play movie sounds** checkbox, off at every start, lets them play as
   the movie asks.
+- **new** Engine images: surfaces no movie names get what the game supplies, the
+  main menu's logo and shell background, the faction icon and a black portrait,
+  in place of their magenta squares. The Engine panel shows each with a field to
+  change it to any `MappedImage` or texture file, kept per movie with the other
+  answers.
+- **new** `View3D` surfaces (ported from mint's `view3d.rs`): a clip naming a W3D
+  model in `_RenderObj` draws it, found through the game's load order, through
+  the model's own camera and following `_AnimMode` and `_Frame`, in the clip's
+  place in paint order, so masks and fades apply. Models load when shown, at most
+  16 at a time; a missing one is a labelled box.
 - **new** Engine gadgets (ported from mint's apt-player and apt-viewer): a clip
   whose `_type` (or `_Load` template) names a slider, check box, list box,
   combo box, text entry, scroll bar or progress bar gets a working control
@@ -488,6 +519,9 @@ row, file or editor they act on.
 | Convert String Table (.str ⇄ .csf), Open as Table | `.str`/`.csf` menu, editor title | String tables |
 | Show Layout Preview | `.wnd` editor title | WND preview |
 | Export as PNG, Replace with PNG…, Convert to Game Texture… | `.tga`/`.dds`/`.png` menu | Textures |
+| Export Cursor as PNG… | `.cur`/`.ani` menu | Cursors |
+| Convert to Cursor… | `.png` menu | Cursors |
+| Build Animated Cursor… | palette, `.png`/`.cur`/`.tga` file menu | Cursors |
 | Convert to VP6 Movie… | video, image or folder menu | VP6 |
 | Edit W3D Animation… | `.w3d` menu | Bone animations |
 | New APT Movie…, Rename APT Movie…, Delete APT Movie… | folder or `.apt` menu | APT movies |
@@ -506,7 +540,7 @@ row, file or editor they act on.
 
 | Editor | Opens |
 | --- | --- |
-| bigFS Preview | `.tga`, `.dds`, `.wav`, `.w3d`, `.vp6` |
+| bigFS Preview | `.tga`, `.dds`, `.wav`, `.w3d`, `.vp6`, `.cur`, `.ani` |
 | bigFS APT Movie | `.apt` |
 | bigFS String Table, bigFS CSF String Table | `.str`, `.csf` |
 | bigFS Create-a-Hero | `.cah` |

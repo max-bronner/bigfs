@@ -44,6 +44,8 @@ export interface DrawOptions {
   offset?: Vec3;
   /** Unit vector towards the light, usually towards the camera */
   light: Vec3;
+  /** Draws by white ambient light alone, as the game lights a `View3D` surface */
+  unlit?: boolean;
   showBones: boolean;
   /** False draws the bones alone */
   showMeshes?: boolean;
@@ -411,8 +413,10 @@ export const createModelRenderer = (
 
   const blendFactors = BLEND_FACTORS(gl);
 
-  // Blended materials test against the depth buffer but do not write to it,
-  // and the page behind the canvas keeps out of them
+  // Blended materials test against the depth buffer but do not write to it.
+  // Only an alpha blend covers what is behind, in the buffer's alpha too, so a
+  // model drawn over a clear background keeps its picture: light that adds or
+  // multiplies covers nothing
   const applyBlend = (blend: W3dBlend) => {
     gl.depthMask(blend === "opaque");
     if (blend === "opaque") {
@@ -423,7 +427,12 @@ export const createModelRenderer = (
     const [source, destination] = blendFactors[blend];
 
     gl.enable(gl.BLEND);
-    gl.blendFuncSeparate(source, destination, gl.ZERO, gl.ONE);
+    gl.blendFuncSeparate(
+      source,
+      destination,
+      blend === "alpha" ? gl.ONE : gl.ZERO,
+      blend === "alpha" ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
+    );
   };
 
   const applySurface = (surface: W3dSurface) => {
@@ -497,6 +506,7 @@ export const createModelRenderer = (
     {
       offset = [0, 0, 0],
       light,
+      unlit,
       showBones,
       showMeshes = true,
       lod,
@@ -581,7 +591,7 @@ export const createModelRenderer = (
         uniform("untextured"),
         part.missingTexture ? MISSING_TEXTURE : NO_TEXTURE,
       );
-      gl.uniform1i(uniform("hasNormals"), drawable.hasNormals ? 1 : 0);
+      gl.uniform1i(uniform("hasNormals"), drawable.hasNormals && !unlit ? 1 : 0);
       bindTexture(part.texture, "tex", 0);
       bindAttribute(attributes.position, drawable.position, 3);
       bindAttribute(attributes.normal, drawable.normal, 3);

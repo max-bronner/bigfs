@@ -3,6 +3,7 @@ import type { Services } from '../../services/createServices';
 import { AptEditorProvider } from './aptEditorProvider';
 import { registerAptTextLanguage } from './aptTextLanguage';
 import { registerAptCommands } from './aptCommands';
+import { registerRuRegionLens } from './ruRegionLens';
 
 /** Registers the APT movie editor, its text view and the APT commands */
 export const registerApt = (
@@ -21,6 +22,10 @@ export const registerApt = (
     },
   );
 
-  context.subscriptions.push(editor, registerAptTextLanguage());
+  context.subscriptions.push(
+    editor,
+    registerAptTextLanguage(),
+    registerRuRegionLens(),
+  );
   registerAptCommands(context, editor, archives);
 };

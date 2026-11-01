@@ -84,6 +84,11 @@ export interface Leaf {
   masks?: Leaf[][];
   /** A text field's text as scripts left it, when they did */
   text?: string;
+  /**
+   * For a clip the engine draws itself: the box its stored art covers, in its
+   * own space. That art is only a placeholder, so the box is all that is kept.
+   */
+  surfaceBox?: Rect;
 }
 
 /** Pointer target's area: a leaf of a button's hit record, or of a clip that takes the pointer */
@@ -121,9 +126,17 @@ export interface DisplayTree {
   takesPointer?(instance: Instance): boolean;
 }
 
-/** Collects what a player shows right now, flattened in paint order, with button hit areas */
+/** The box of an engine surface whose clip holds no art */
+export const EMPTY_SURFACE: Rect = [0, 0, 64, 64];
+
+/**
+ * Collects what a player shows right now, flattened in paint order, with
+ * button hit areas. A clip `isEngineSurface` picks is one leaf where it stands
+ * in that order, in place of what it holds.
+ */
 export const collect = (
   player: DisplayTree,
+  isEngineSurface?: (instance: Instance) => boolean,
 ): { leaves: Leaf[]; hits: HitArea[] } => {
   const leaves: Leaf[] = [];
   const hits: HitArea[] = [];
@@ -203,6 +216,22 @@ export const collect = (
           .map((mask) => mask.leaves),
       ]);
     }
+    if (!isMask && isEngineSurface?.(instance)) {
+      const art = getLeafBounds(out.splice(firstLeaf));
+
+      out.push({
+        movie: instance.movie,
+        id: instance.id,
+        character,
+        matrix,
+        alpha: color.mult[3],
+        color,
+        instance,
+        top,
+        ...(masks.length ? { masks } : {}),
+        surfaceBox: art ? transformRect(invert(matrix), art) : EMPTY_SURFACE,
+      });
+    }
     if (character.type === 'button') {
       for (const hit of instance.hits) {
         const area: Leaf[] = [];
@@ -237,8 +266,11 @@ export const getImageTexture = (
 
 /** Gets the box a leaf covers in its own space */
 export const getLocalBounds = (leaf: Leaf): Rect => {
-  const { character } = leaf;
+  const { character, surfaceBox } = leaf;
 
+  if (surfaceBox) {
+    return surfaceBox;
+  }
   if (!character) {
     return UNRESOLVED;
   }

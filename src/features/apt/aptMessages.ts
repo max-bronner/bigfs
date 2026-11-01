@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { decompileBlock } from '../../formats/apt/aptScript';
 import { areRunsWellFormed, fitRunTo } from '../../formats/apt/aptGeometry';
 import type { RuRun } from '../../formats/apt/aptGeometry';
+import type { ToolBox } from '../../core/toolRegistry';
 import type { EntryLocator } from '../../services/entryLocator';
 import type { FromPage, ToPage } from '../../webview/apt/protocol';
 import { describeError } from '../../core/errors';
@@ -18,6 +19,7 @@ import type { AptLibrary } from './aptLibrary';
 import { resolveMappedImages } from './aptMappedImages';
 import type { AptGameServices, AptMovieImports } from './aptMovieImports';
 import type { AptScripts } from './aptScripts';
+import { resolveRenderObject } from './aptRenderObjects';
 import type { AptTextView } from './aptTextView';
 import { APT_VIEW_TYPE } from './viewTypes';
 
@@ -36,6 +38,7 @@ export interface AptPageSession {
   library: AptLibrary;
   game: AptGameServices;
   locator: EntryLocator;
+  tools: ToolBox;
   scriptTabs: AptScripts;
   textView: AptTextView;
 }
@@ -178,14 +181,31 @@ const HANDLERS: {
     );
   },
 
-  async mappedImages(message, { post, game, locator, sentTextures }) {
+  async mappedImages(message, { document, post, game, locator, sentTextures }) {
     const names = Array.isArray(message.names)
       ? message.names.filter((n: unknown) => typeof n === 'string')
       : [];
 
     await post({
       kind: 'mappedImages',
-      ...(await resolveMappedImages(names, game.index, locator, sentTextures)),
+      ...(await resolveMappedImages(
+        names,
+        game.index,
+        locator,
+        sentTextures,
+        document.uri,
+      )),
+    });
+  },
+
+  async renderObject(message, { document, post, locator, tools }) {
+    await post({
+      kind: 'renderObject',
+      ...(await resolveRenderObject(
+        String(message.name),
+        (fileName) => locator.read(fileName, document.uri),
+        tools,
+      )),
     });
   },
 
