@@ -67,6 +67,8 @@ export interface DrawOptions {
   offset?: Vec3;
   /** Unit vector towards the light, usually towards the camera */
   light: Vec3;
+  /** Draws by white ambient light alone, as the game lights a `View3D` surface */
+  unlit?: boolean;
   showBones: boolean;
   /** False draws the bones alone */
   showMeshes?: boolean;
@@ -334,7 +336,9 @@ export const createModelRenderer = (
     gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
   };
 
-  // Blended materials test against the depth buffer but do not write to it
+  // Blended materials test against the depth buffer but do not write to it.
+  // The alpha terms keep the buffer premultiplied, for a model drawn over a
+  // clear background: light that adds or multiplies covers nothing
   const applyBlend = (blend: W3dBlend) => {
     gl.depthMask(blend === "opaque");
     if (blend === "opaque") {
@@ -343,11 +347,16 @@ export const createModelRenderer = (
     }
     gl.enable(gl.BLEND);
     if (blend === "additive") {
-      gl.blendFunc(gl.ONE, gl.ONE);
+      gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ZERO, gl.ONE);
     } else if (blend === "multiply") {
-      gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+      gl.blendFuncSeparate(gl.ZERO, gl.SRC_COLOR, gl.ZERO, gl.ONE);
     } else {
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.blendFuncSeparate(
+        gl.SRC_ALPHA,
+        gl.ONE_MINUS_SRC_ALPHA,
+        gl.ONE,
+        gl.ONE_MINUS_SRC_ALPHA,
+      );
     }
   };
 
@@ -356,6 +365,7 @@ export const createModelRenderer = (
     {
       offset = [0, 0, 0],
       light,
+      unlit,
       showBones,
       showMeshes = true,
       lod,
@@ -413,7 +423,7 @@ export const createModelRenderer = (
         drawable.alphaTest ? ALPHA_CUTOFF : -1,
       );
       gl.uniform1i(uniform("hasTexture"), drawable.texture ? 1 : 0);
-      gl.uniform1i(uniform("hasNormals"), drawable.hasNormals ? 1 : 0);
+      gl.uniform1i(uniform("hasNormals"), drawable.hasNormals && !unlit ? 1 : 0);
       if (drawable.texture) {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, drawable.texture);

@@ -343,6 +343,7 @@ export class AptEditorProvider
         },
         imports: this.imports,
         library: this.library,
+        tools: this.tools,
         game: this.game,
         locator: this.locator,
         scriptTabs: this.scriptTabs,

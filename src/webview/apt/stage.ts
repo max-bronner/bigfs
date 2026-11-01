@@ -2,6 +2,7 @@ import { engine, onEngineLog, watchMovie } from "./engineState";
 import { fetchMovie } from "./movieLoads";
 import type { Rect } from "../../formats/apt/aptMovie";
 import { byId } from "./dom";
+import { findGadgetOf, isEngineSurface } from "./gadgetModel";
 import { buildMaskArea, paintLeaf } from "./paint";
 import { Player } from "./player";
 import type { Instance } from "./instance";
@@ -19,6 +20,7 @@ import type { StageTool } from "./stagePointer";
 import { isDrawnAt } from "./hitTest";
 import type { Affine, HitArea, Leaf } from "./scene";
 import { movie, state } from "./state";
+import { paintView3d } from "./view3dSurface";
 
 /**
  * The stage: plays the selected character on a canvas sized once to
@@ -331,11 +333,30 @@ const outlineMasks = (ctx: CanvasRenderingContext2D) => {
   ctx.restore();
 };
 
+let drawPass = 0;
+
+/** Paints a leaf, an engine surface by what the engine draws in it */
+const paintOnStage = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
+  const current = currentPlayer();
+  const gadget = leaf.surfaceBox && findGadgetOf(current, leaf.instance);
+
+  if (!gadget) {
+    paintLeaf(ctx, leaf);
+  } else if (gadget.kind === "view3d") {
+    paintView3d(ctx, gadget, leaf.surfaceBox!, {
+      player: current,
+      pass: drawPass,
+      isPlaying: view.playing,
+    });
+  }
+};
+
 /** Draws the shown character as the player has it now */
 export const render = (): void => {
   const current = currentPlayer();
 
-  scene = collect(current);
+  drawPass++;
+  scene = collect(current, (instance) => isEngineSurface(current, instance));
 
   const frameBox = getLeafBounds(scene.leaves, view.masks);
 
@@ -406,7 +427,7 @@ export const render = (): void => {
       ctx.setTransform(...base);
       ctx.transform(...leaf.matrix);
       ctx.globalAlpha = leaf.alpha * HIDDEN_ALPHA;
-      paintLeaf(ctx, leaf);
+      paintOnStage(ctx, leaf);
       ctx.restore();
     }
     ctx.save();
@@ -420,7 +441,7 @@ export const render = (): void => {
     }
     ctx.transform(...leaf.matrix);
     ctx.globalAlpha = leaf.alpha;
-    paintLeaf(ctx, leaf);
+    paintOnStage(ctx, leaf);
     ctx.restore();
   }
   if (!view.masks) {

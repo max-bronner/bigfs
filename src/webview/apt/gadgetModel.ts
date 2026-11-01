@@ -39,23 +39,15 @@ export const getNamePath = (instance: Instance, root: Instance): string | undefi
   return names.join('.');
 };
 
-/** Finds every surface the player shows now that is a gadget or an image, in tree order */
-export const findGadgets = (player: Player): Gadget[] => {
-  const { vm } = player;
-
-  if (!vm) {
-    return [];
-  }
-
-  const found: Gadget[] = [];
-
-  for (const instance of player.all()) {
-    if (instance.visible === false || instance === player.root) {
-      continue;
-    }
-
-    const own = vm.objectOf(instance);
-    const info = classifySurface({
+/** Reads the gadget a clip is, if its own variables make it one */
+export const findGadgetOf = (
+  player: Player,
+  instance: Instance,
+): Gadget | undefined => {
+  const own = player.vm?.objectOf(instance);
+  const info =
+    own &&
+    classifySurface({
       type: text(own.get('_type')),
       load: text(own.get('_Load')),
       init: text(own.get('_Init')),
@@ -65,12 +57,24 @@ export const findGadgets = (player: Player): Gadget[] => {
       mode: text(own.get('_mode')),
     });
 
-    if (info) {
-      found.push({ ...info, instance, path: getNamePath(instance, player.root) });
-    }
-  }
-  return found;
+  return info && { ...info, instance, path: getNamePath(instance, player.root) };
 };
+
+/** Finds every surface the player shows now that is a gadget or an image, in tree order */
+export const findGadgets = (player: Player): Gadget[] =>
+  player.all().flatMap((instance) => {
+    const gadget =
+      instance.visible === false || instance === player.root
+        ? undefined
+        : findGadgetOf(player, instance);
+
+    return gadget ? [gadget] : [];
+  });
+
+/** Whether the stage paints a clip as an engine surface, in place of its stored art */
+export const isEngineSurface = (player: Player, instance: Instance): boolean =>
+  instance.character?.type === 'sprite' &&
+  findGadgetOf(player, instance)?.kind === 'view3d';
 
 const show = (value: string | number | boolean): string => String(value);
 

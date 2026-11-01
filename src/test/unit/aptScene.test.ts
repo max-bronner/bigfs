@@ -7,7 +7,7 @@ import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
 import { resolve } from '../../webview/apt/resolve';
 import { findPointerTargetAt } from '../../webview/apt/hitTest';
-import { collect, getImageTexture } from '../../webview/apt/scene';
+import { collect, getImageTexture, getLocalBounds } from '../../webview/apt/scene';
 import type { HitArea } from '../../webview/apt/scene';
 import { state } from '../../webview/apt/state';
 import { colorFromApt, concatColor } from '../../webview/apt/timeline';
@@ -108,6 +108,46 @@ suite('APT scene', () => {
     assert.deepStrictEqual(leaves[0].color.mult, [1, 1, 1, half * half]);
     assert.deepStrictEqual(leaves[0].color.add, [0, 2, 0, 0]);
     assert.strictEqual(leaves[0].alpha, half * half);
+  });
+
+  test('an engine surface is one leaf where it stands in paint order, under its masks', () => {
+    const movie = synthetic({
+      characters: [
+        { id: 0, offset: 0, type: 'movie' },
+        sprite(1),
+        shape(2),
+        shape(3),
+        shape(4),
+      ],
+      frames: [
+        {
+          items: [
+            place(1, 4, { clipDepth: 3 }),
+            place(2, 1),
+            place(3, 3),
+            place(4, 3),
+          ],
+        },
+      ],
+      spriteFrames: { 1: [{ items: [place(1, 2)] }] },
+    } as unknown as Partial<PageMovie>);
+    const player = playerOf(movie);
+    const surface = [...player.root.children.values()].find(
+      (child) => child.character?.type === 'sprite',
+    );
+    const { leaves } = collect(player, (instance) => instance === surface);
+
+    assert.deepStrictEqual(
+      leaves.map((leaf) => leaf.id),
+      [1, 3, 3],
+    );
+    assert.ok(leaves[0].surfaceBox, 'its stored art is gone');
+    assert.strictEqual(leaves[0].masks?.length, 1);
+    assert.deepStrictEqual(getLocalBounds(leaves[0]), [0, 0, 10, 10]);
+    assert.deepStrictEqual(
+      collect(player).leaves.map((leaf) => leaf.id),
+      [2, 3, 3],
+    );
   });
 
   test('an empty clip placed with a clip depth masks nothing', () => {

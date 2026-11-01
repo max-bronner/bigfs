@@ -427,6 +427,11 @@ your mod's archives.
   (`FSCommand:PlaySound`) are listed in the Engine panel with a play button;
   the **Play movie sounds** checkbox, off at every start, lets them play as
   the movie asks.
+- **new** `View3D` surfaces (ported from mint's `view3d.rs`): a clip naming a W3D
+  model in `_RenderObj` draws it, found through the game's load order, through
+  the model's own camera and following `_AnimMode` and `_Frame`, in the clip's
+  place in paint order, so masks and fades apply. Models load when shown, at most
+  16 at a time; a missing one is a labelled box.
 - **new** Engine gadgets (ported from mint's apt-player and apt-viewer): a clip
   whose `_type` (or `_Load` template) names a slider, check box, list box,
   combo box, text entry, scroll bar or progress bar gets a working control

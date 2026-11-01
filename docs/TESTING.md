@@ -449,6 +449,18 @@ Movie**.
   `_imageName` / `_imageMap` draws its `MappedImage` (open the game's INI so it
   is indexed); an undefined image or unknown `_type` is a labelled dashed box,
   never an error. The Engine panel loads without a movie.
+- [ ] **new** View3D surfaces: open `MenuFrameAndBg` from an install and select
+  the sprites holding a `View3D` clip (`BackgroundShow`, `MenuFrame`): the
+  game's W3D model fills the clip's box, seen through its own `CAMERA`, in
+  place of the magenta placeholder. Press play: `PLAY_TO_FRAME` runs the model's
+  animation to its `_Frame` and stops; a still stage shows where it comes to
+  rest. Masks, fades and anything drawn above the clip apply to the model. The
+  Engine panel lists each with `_RenderObj`, `_AnimMode` and `_Frame` to
+  override. A name no install holds is a dashed box saying so; an empty
+  `_RenderObj` (`BannerUI`) draws nothing. At most 16 models load at a time,
+  only when shown.
+- Known gaps: `View3D` models do not run their UV mappers or take the clip's red,
+  green and blue tint.
 - Known gaps: pointer events on plain clips (`onPress` on a sprite) are only
   delivered to buttons; a movie loaded into `_level0` is refused; a mounted
   movie's own `onLoad` clip events do not run.

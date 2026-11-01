@@ -2,7 +2,7 @@
  * Engine gadgets: the clips whose `_type` (or `_Load` template) tell the
  * engine to attach a control - sliders, check boxes, list boxes, combo
  * boxes, text entries, scroll bars, progress bars - or a `MappedImage`
- * surface (`_imageName`). Ported from mint's apt-player and apt-viewer
+ * surface (`_imageName`), or a `View3D` W3D view. Ported from mint's apt-player and apt-viewer
  * (`gadget.rs`, `host.rs`): a surface is told apart by what its own
  * variables say, never by its movie, name or place, and a `_type` nothing
  * here knows stays a labelled placeholder.
@@ -13,7 +13,7 @@
  * movie can read and the Engine panel can override.
  */
 
-/** Kind of engine surface: a gadget control, a `MappedImage`, or a `_type` nothing here knows */
+/** Kind of engine surface: a gadget control, a `MappedImage`, a W3D view, or a `_type` nothing here knows */
 export type GadgetKind =
   | 'slider'
   | 'checkbox'
@@ -23,6 +23,7 @@ export type GadgetKind =
   | 'scrollbar'
   | 'progressbar'
   | 'image'
+  | 'view3d'
   | 'unknown';
 
 /** The variables a surface names itself with, as the clip holds them */
@@ -58,6 +59,7 @@ const NAMES: [GadgetKind, RegExp][] = [
   ['textentry', /^(text|edit)entry$|^editbox$/],
   ['scrollbar', /^(horz|vert)?scrollbar$/],
   ['progressbar', /^progress(bar)?$/],
+  ['view3d', /^view3d$/],
 ];
 
 const kindOfName = (name: string | undefined): GadgetKind | undefined => {
@@ -126,6 +128,11 @@ export const BINDINGS: Record<GadgetKind, Binding[]> = {
     { name: '_max', fallback: 100 },
   ],
   image: [],
+  view3d: [
+    { name: '_RenderObj', fallback: '' },
+    { name: '_AnimMode', fallback: 'MANUAL' },
+    { name: '_Frame', fallback: 0 },
+  ],
   unknown: [],
 };
 
@@ -176,5 +183,6 @@ export const DEFAULT_SIZE: Record<GadgetKind, [number, number]> = {
   scrollbar: [16, 90],
   progressbar: [120, 12],
   image: [64, 64],
+  view3d: [100, 100],
   unknown: [96, 24],
 };

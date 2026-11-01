@@ -19,14 +19,16 @@ import type { Affine } from './scene';
 import { multiply } from './scene';
 import { addRenderHook, currentPlayer, measureInstanceBox, render } from './stage';
 import { state } from './state';
+import { onRenderObjects } from './view3dSurface';
 
 /**
  * Gadgets on the stage: interactive controls laid over the canvas for
  * sliders, check boxes, list and combo boxes, text entries, scroll bars and
  * progress bars, drawn at the box their clip covers (or a default size when
  * it draws nothing), and `MappedImage` surfaces painted on the canvas. A
- * `_type` nothing here knows is a labelled placeholder. Ported from mint's
- * apt-viewer; what each control reads and writes is `BINDINGS`.
+ * `View3D` is the stage's to paint (`view3dSurface.ts`). A `_type` nothing
+ * here knows is a labelled placeholder. Ported from mint's apt-viewer; what
+ * each control reads and writes is `BINDINGS`.
  */
 
 const stage = byId<HTMLCanvasElement>('stage');
@@ -191,6 +193,10 @@ const sync = (ctx: CanvasRenderingContext2D, base: Affine): void => {
   layer.style.height = `${stage.height / ratio}px`;
 
   for (const gadget of all) {
+    if (gadget.kind === 'view3d') {
+      continue;
+    }
+
     const [left, top, right, bottom] = boxOf(gadget);
 
     if (gadget.kind === 'image') {
@@ -277,3 +283,4 @@ const paintImage = (
 
 addRenderHook(sync);
 onMappedImages(render);
+onRenderObjects(render);

@@ -13,6 +13,7 @@ import type { FromPage, ToPage } from './protocol';
 import { showAtlas } from './atlas';
 import './gadgets';
 import { mappedImagesArrived } from './mappedSurfaces';
+import { renderObjectArrived } from './view3dSurface';
 import { showIntegrity } from './integrity';
 import { nudge } from './edit';
 import './geometry';
@@ -321,6 +322,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     case 'movieLoaded':
       movieArrived(data);
       render();
+      break;
+    case 'renderObject':
+      renderObjectArrived(data);
       break;
     case 'mappedImages':
       mappedImagesArrived(data);
