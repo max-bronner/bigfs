@@ -337,7 +337,9 @@ your mod's archives.
   (`bigfs.vp6.keyFrameSeconds`) are coded as changes from the one before,
   with motion search, and each frame sends the probabilities it needs. Any video FFmpeg reads works
   when FFmpeg is installed (`bigfs.ffmpegPath`); without it, WebM and Ogg.
-- Models: W3D in 3D, with their skeleton and textures found in any archive.
+- Models: W3D in 3D, with their skeleton and textures found in any archive,
+  drawn pass by pass with each triangle's own texture, shader, blend and
+  depth test.
   Any animation plays on any model, by bone number as the game applies it;
   the list shows the skeleton's own clips first and the ones made for other
   skeletons in their own group, and playing one of those says so.

@@ -460,6 +460,14 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
 - [ ] **changed** Models are textured as the game draws them (units,
   buildings, props, shader materials): correct V orientation, the drawn pass's
   texture and coordinates, holes from alpha, glows not drawn solid.
+- [ ] **new** A mesh draws every material pass and every texture or shader its
+  triangles name: `eugaldrl_skn` shows its second, additive pass over the first,
+  and `aicamp_skn` or `armyantsm_gm01` show each face with its own texture
+  instead of one texture over the whole mesh.
+- [ ] **changed** Back faces are culled unless a mesh is marked two-sided, and
+  each shader's blend pair and depth test are honoured: look through a one-sided
+  glow plane from behind and it is gone; `gbhseheal` and `ebfcmoat` blend as
+  light, not as flat alpha. Meshes named `PICK…` are off, and **Parts** says why.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.

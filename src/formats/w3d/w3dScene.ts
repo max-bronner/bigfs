@@ -3,7 +3,6 @@ import { decodeDdsTool, decodeTgaTool } from "../texture/textureTools";
 import type { RgbaImage } from "../texture/textureTools";
 import { parseW3dTool } from "./w3dTools";
 import type {
-  W3dBlend,
   W3dBox,
   W3dFile,
   W3dHierarchy,
@@ -14,6 +13,7 @@ import { parseW3dAnimations } from "./w3dAnimation";
 import type { W3dAnimation } from "./w3dAnimation";
 import { skinVertices, toBoneMatrix } from "./w3dSkin";
 import type { BoneSpaceMesh, Matrix } from "./w3dSkin";
+import type { W3dBlend, W3dMaterialDraw } from "./w3dMaterial";
 
 /**
  * Builds what a model preview draws from a W3D file: every mesh in model
@@ -25,6 +25,14 @@ import type { BoneSpaceMesh, Matrix } from "./w3dSkin";
  * and a mesh names `GUArcher.tga`, which the game loads as `guarcher.dds`
  * when there is one. `loadFile` finds an entry by file name wherever it is.
  */
+
+/** One draw of a scene mesh: `W3dMaterialDraw` with its texture found and V flipped */
+export interface SceneDraw extends Omit<W3dMaterialDraw, "texture"> {
+  /** Index into `ModelScene.textures`, when the texture was found */
+  texture?: number;
+  /** The draw names a texture, so without one it shows that one is missing */
+  textured: boolean;
+}
 
 /** One mesh ready to draw: positions and normals in model space */
 export interface SceneMesh {
@@ -42,6 +50,10 @@ export interface SceneMesh {
   blend: W3dBlend;
   /** The mesh carries the HIDDEN attribute, so it is not drawn by default */
   hidden: boolean;
+  /** The mesh stands in for mouse picking, so it is not drawn by default */
+  pickProxy?: boolean;
+  /** How its material passes draw it; one plain draw when absent */
+  draws?: SceneDraw[];
   /**
    * The mesh as stored, so a player can pose it: absent when no vertex
    * follows a bone
@@ -372,6 +384,9 @@ export const isSubObjectNamed = (
 /** The reason a mesh with the HIDDEN attribute is not drawn, as the UI names it */
 const HIDDEN_ATTRIBUTE = "the W3D HIDDEN flag";
 
+/** The reason a picking proxy is not drawn, as the UI names it */
+const PICK_PROXY = "being a picking proxy";
+
 /** Whether a bone sits somewhere below another; one that is not in `parents` is below nothing */
 const isBoneBelow = (
   bone: number,
@@ -390,7 +405,7 @@ const isBoneBelow = (
 };
 
 /** The meshes of `getMeshVisibility` and `findHidingSources` */
-type VisibleMesh = Pick<SceneMesh, "container" | "name" | "hidden" | "bone">;
+type VisibleMesh = Pick<SceneMesh, "container" | "name" | "hidden" | "pickProxy" | "bone">;
 
 /**
  * Says, mesh by mesh, what hides it: the source of the last rule reaching it,
@@ -406,7 +421,7 @@ export const findHidingSources = (
   parents: readonly number[] = [],
 ): (string | undefined)[] => {
   const sources = meshes.map((mesh): string | undefined =>
-    mesh.hidden ? HIDDEN_ATTRIBUTE : undefined,
+    mesh.hidden ? HIDDEN_ATTRIBUTE : mesh.pickProxy ? PICK_PROXY : undefined,
   );
 
   for (const rule of rules) {
@@ -533,7 +548,9 @@ export const buildW3dScene = async (
   const matrices = computeBoneMatrices(hierarchy);
   const textureNames = [
     ...new Set(
-      file.meshes.flatMap((mesh) => (mesh.texture ? [mesh.texture] : [])),
+      file.meshes.flatMap((mesh) =>
+        mesh.draws.flatMap(({ texture }) => (texture ? [texture.name] : [])),
+      ),
     ),
   ];
   const decoded = await Promise.all(
@@ -570,17 +587,32 @@ export const buildW3dScene = async (
       }
     }
 
+    const flipped = new Map<Float32Array, Float32Array>();
+    const flipOnce = (uvs: Float32Array | undefined) => {
+      if (uvs && !flipped.has(uvs)) {
+        flipped.set(uvs, flipV(uvs));
+      }
+      return uvs && flipped.get(uvs);
+    };
+
     return {
       name: mesh.name,
       container: mesh.container,
       positions,
       normals,
-      uvs: mesh.uvs && flipV(mesh.uvs),
+      uvs: flipOnce(mesh.uvs),
       indices: mesh.indices,
       texture: mesh.texture ? textureIndex.get(mesh.texture) : undefined,
       alphaTest: mesh.alphaTest,
       blend: mesh.blend,
       hidden: mesh.hidden,
+      pickProxy: mesh.pickProxy || undefined,
+      draws: mesh.draws.map((draw) => ({
+        ...draw,
+        uvs: flipOnce(draw.uvs),
+        texture: draw.texture && textureIndex.get(draw.texture.name),
+        textured: !!draw.texture,
+      })),
       local,
       bone: mesh.isSkin ? undefined : local?.bones[0],
     };

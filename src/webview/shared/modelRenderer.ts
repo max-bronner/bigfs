@@ -8,13 +8,14 @@ import {
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import { getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { VisibilityOptions } from "../../formats/w3d/w3dScene";
-import type { ModelScene } from "../../formats/w3d/w3dScene";
-import type { W3dBlend } from "../../formats/w3d/w3dTools";
+import type { ModelScene, SceneDraw, SceneMesh } from "../../formats/w3d/w3dScene";
+import { DEFAULT_SURFACE } from "../../formats/w3d/w3dMaterial";
+import type { W3dBlend, W3dSurface } from "../../formats/w3d/w3dMaterial";
 
 /**
- * Draws a W3D model with WebGL: every mesh textured and lit from the
- * camera, or flat grey where it has no texture, skinned on the CPU to the
- * pose it is given, its bones and collision boxes as lines when asked, one
+ * Draws a W3D model with WebGL: every material draw of every mesh textured
+ * and lit from the camera, grey where its texture is missing, skinned on the
+ * CPU to the pose it is given, its bones and collision boxes as lines when asked, one
  * level of detail at a time and without the meshes marked hidden. One
  * renderer serves the W3D viewer and the particle preview, so a model looks
  * the same in both. WebGL 1, which the particle preview draws with.
@@ -47,9 +48,10 @@ uniform bool useSolid;
 uniform vec4 solid;
 uniform float opacity;
 uniform bool fadesColour;
+uniform vec4 untextured;
 void main() {
   if (useSolid) { gl_FragColor = solid; return; }
-  vec4 base = hasTexture ? texture2D(tex, vUv) : vec4(0.7, 0.7, 0.7, 1.0);
+  vec4 base = hasTexture ? texture2D(tex, vUv) : untextured;
   if (base.a < alphaCutoff) discard;
   float light = hasNormals ? abs(dot(normalize(vNormal), lightDirection)) : 1.0;
   vec3 lit = base.rgb * (0.35 + 0.65 * light);
@@ -59,6 +61,10 @@ void main() {
 }`;
 
 const BONE_COLOUR = [1, 0.75, 0.2, 1];
+/** What a draw shows in place of a texture that was not found */
+const MISSING_TEXTURE = [0.7, 0.7, 0.7, 1];
+/** What a draw that names no texture shows: its lit colour alone */
+const NO_TEXTURE = [1, 1, 1, 1];
 const BOX_COLOUR = [0.3, 0.9, 0.5, 1];
 
 /** Settings for one `ModelRenderer.draw` call: where the model stands, the light, and what to show */
@@ -93,21 +99,57 @@ export interface ModelRenderer {
 /** Where a cutout material drops a texel: mint's `ALPHA_CUTOFF` */
 const ALPHA_CUTOFF = 96 / 255;
 
+/** One material draw of a mesh, uploaded */
+interface DrawablePart {
+  count: number;
+  surface: W3dSurface;
+  indexType: number;
+  texture?: WebGLTexture;
+  /** The draw names a texture that was not found */
+  missingTexture: boolean;
+  uv?: WebGLBuffer;
+  index: WebGLBuffer;
+}
+
+/** A mesh's vertices, uploaded, and the parts that draw them */
 interface Drawable {
   /** Index into `ModelScene.meshes` */
   mesh: number;
-  count: number;
-  alphaTest: boolean;
-  blend: W3dBlend;
-  indexType: number;
-  texture?: WebGLTexture;
   hasNormals: boolean;
   position: WebGLBuffer;
   normal?: WebGLBuffer;
-  uv?: WebGLBuffer;
-  index: WebGLBuffer;
+  parts: DrawablePart[];
   posed?: { positions: Float32Array; normals?: Float32Array };
 }
+
+/** The factors of each blended operation, source then destination */
+const BLEND_FACTORS = (
+  gl: WebGLRenderingContext,
+): Record<Exclude<W3dBlend, "opaque">, [number, number]> => ({
+  alpha: [gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA],
+  additive: [gl.ONE, gl.ONE],
+  multiply: [gl.ZERO, gl.SRC_COLOR],
+  addScaledByAlpha: [gl.ONE, gl.SRC_ALPHA],
+  addScaledByColor: [gl.ONE, gl.SRC_COLOR],
+  addInverseScaledByColor: [gl.ONE, gl.ONE_MINUS_SRC_COLOR],
+});
+
+/** The draws of a mesh a scene gave none: one over all of it, from the mesh's own fields */
+const getDraws = (mesh: SceneMesh): SceneDraw[] =>
+  mesh.draws ?? [
+    {
+      pass: 0,
+      surface: {
+        ...DEFAULT_SURFACE,
+        blend: mesh.blend,
+        alphaTest: mesh.alphaTest,
+        twoSided: true,
+      },
+      texture: mesh.texture,
+      textured: mesh.texture !== undefined,
+      uvs: mesh.uvs,
+    },
+  ];
 
 const compile = (
   gl: WebGLRenderingContext,
@@ -169,6 +211,8 @@ export const createModelRenderer = (
   let drawables: Drawable[] = [];
   let textures: WebGLTexture[] = [];
   let pose: Pose | undefined;
+  let buffers = new Set<WebGLBuffer>();
+  let arrayBuffers = new Map<Float32Array, WebGLBuffer>();
 
   const uploadBuffer = (
     target: number,
@@ -180,25 +224,30 @@ export const createModelRenderer = (
     gl.bindBuffer(target, made);
     // Messages from the extension never carry shared buffers
     gl.bufferData(target, data as BufferSource, usage);
+    buffers.add(made);
     return made;
   };
 
   const release = () => {
-    for (const drawable of drawables) {
-      for (const each of [
-        drawable.position,
-        drawable.normal,
-        drawable.uv,
-        drawable.index,
-      ]) {
-        if (each) {
-          gl.deleteBuffer(each);
-        }
-      }
+    for (const buffer of buffers) {
+      gl.deleteBuffer(buffer);
     }
     textures.forEach((texture) => gl.deleteTexture(texture));
+    buffers = new Set();
+    arrayBuffers = new Map();
     drawables = [];
     textures = [];
+  };
+
+  /** Uploads an array the first time a draw uses it: a mesh's passes often share one */
+  const uploadOnce = (data: Float32Array) => {
+    let made = arrayBuffers.get(data);
+
+    if (!made) {
+      made = uploadBuffer(gl.ARRAY_BUFFER, data);
+      arrayBuffers.set(data, made);
+    }
+    return made;
   };
 
   const setModel = (next: ModelScene | undefined) => {
@@ -261,22 +310,28 @@ export const createModelRenderer = (
       return [
         {
           mesh: at,
-          count: mesh.indices.length,
-          indexType: narrow ? gl.UNSIGNED_SHORT : gl.UNSIGNED_INT,
-          texture:
-            mesh.uvs && mesh.texture !== undefined
-              ? textures[mesh.texture]
-              : undefined,
           hasNormals: !!mesh.normals,
-          alphaTest: mesh.alphaTest,
-          blend: mesh.blend,
           position: uploadBuffer(gl.ARRAY_BUFFER, mesh.positions, usage),
           normal: mesh.normals && uploadBuffer(gl.ARRAY_BUFFER, mesh.normals, usage),
-          uv: mesh.uvs && uploadBuffer(gl.ARRAY_BUFFER, mesh.uvs),
-          index: uploadBuffer(
-            gl.ELEMENT_ARRAY_BUFFER,
-            narrow ? Uint16Array.from(mesh.indices) : mesh.indices,
-          ),
+          parts: getDraws(mesh).map((draw): DrawablePart => {
+            const indices = draw.indices ?? mesh.indices;
+
+            return {
+              count: indices.length,
+              surface: draw.surface,
+              indexType: narrow ? gl.UNSIGNED_SHORT : gl.UNSIGNED_INT,
+              texture:
+                draw.uvs && draw.texture !== undefined
+                  ? textures[draw.texture]
+                  : undefined,
+              uv: draw.uvs && uploadOnce(draw.uvs),
+              index: uploadBuffer(
+                gl.ELEMENT_ARRAY_BUFFER,
+                narrow ? Uint16Array.from(indices) : indices,
+              ),
+              missingTexture: draw.textured,
+            };
+          }),
           posed: mesh.local && {
             positions: new Float32Array(mesh.positions.length),
             normals: mesh.normals && new Float32Array(mesh.normals.length),
@@ -334,20 +389,29 @@ export const createModelRenderer = (
     gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
   };
 
-  // Blended materials test against the depth buffer but do not write to it
+  const blendFactors = BLEND_FACTORS(gl);
+
+  // Blended materials test against the depth buffer but do not write to it,
+  // and the page behind the canvas keeps out of them
   const applyBlend = (blend: W3dBlend) => {
     gl.depthMask(blend === "opaque");
     if (blend === "opaque") {
       gl.disable(gl.BLEND);
       return;
     }
+
+    const [source, destination] = blendFactors[blend];
+
     gl.enable(gl.BLEND);
-    if (blend === "additive") {
-      gl.blendFunc(gl.ONE, gl.ONE);
-    } else if (blend === "multiply") {
-      gl.blendFunc(gl.ZERO, gl.SRC_COLOR);
+    gl.blendFuncSeparate(source, destination, gl.ZERO, gl.ONE);
+  };
+
+  const applySurface = ({ depthCompare, twoSided }: W3dSurface) => {
+    gl.depthFunc(gl.NEVER + depthCompare);
+    if (twoSided) {
+      gl.disable(gl.CULL_FACE);
     } else {
-      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.enable(gl.CULL_FACE);
     }
   };
 
@@ -388,45 +452,56 @@ export const createModelRenderer = (
       pose ? getMeshOpacity(meshes[each.mesh], pose) : 1;
     // WW3D's mesh alpha override, mint's `faded`: below 1 an opaque mesh draws
     // blended, and a mesh that ignores its own alpha fades by its colour
-    const blendOf = (each: Drawable) =>
-      each.blend === "opaque" && opacityOf(each) < 1 ? "alpha" : each.blend;
+    const blendOf = (drawable: Drawable, { surface }: DrawablePart) =>
+      surface.blend === "opaque" && opacityOf(drawable) < 1 ? "alpha" : surface.blend;
     const shown = showMeshes
-      ? drawables.filter(
-          (each) =>
-            visible[each.mesh] && (!pose || isMeshShown(meshes[each.mesh], pose)),
-        )
+      ? drawables
+          .filter(
+            (each) =>
+              visible[each.mesh] && (!pose || isMeshShown(meshes[each.mesh], pose)),
+          )
+          .flatMap((drawable) => drawable.parts.map((part) => ({ drawable, part })))
       : [];
     // Opaque first, so what blends over it finds it in the depth buffer
     const ordered = [
-      ...shown.filter((each) => blendOf(each) === "opaque"),
-      ...shown.filter((each) => blendOf(each) !== "opaque"),
+      ...shown.filter((each) => blendOf(each.drawable, each.part) === "opaque"),
+      ...shown
+        .filter((each) => blendOf(each.drawable, each.part) !== "opaque")
+        .sort((a, b) => a.part.surface.sortLevel - b.part.surface.sortLevel),
     ];
 
-    for (const drawable of ordered) {
-      const blend = blendOf(drawable);
+    for (const { drawable, part } of ordered) {
+      const blend = blendOf(drawable, part);
 
       applyBlend(blend);
+      applySurface(part.surface);
       gl.uniform1f(uniform("opacity"), opacityOf(drawable));
       gl.uniform1i(uniform("fadesColour"), blend === "alpha" ? 0 : 1);
       gl.uniform1f(
         uniform("alphaCutoff"),
-        drawable.alphaTest ? ALPHA_CUTOFF : -1,
+        part.surface.alphaTest ? ALPHA_CUTOFF : -1,
       );
-      gl.uniform1i(uniform("hasTexture"), drawable.texture ? 1 : 0);
+      gl.uniform1i(uniform("hasTexture"), part.texture ? 1 : 0);
+      gl.uniform4fv(
+        uniform("untextured"),
+        part.missingTexture ? MISSING_TEXTURE : NO_TEXTURE,
+      );
       gl.uniform1i(uniform("hasNormals"), drawable.hasNormals ? 1 : 0);
-      if (drawable.texture) {
+      if (part.texture) {
         gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, drawable.texture);
+        gl.bindTexture(gl.TEXTURE_2D, part.texture);
         gl.uniform1i(uniform("tex"), 0);
       }
       bindAttribute(attributes.position, drawable.position, 3);
       bindAttribute(attributes.normal, drawable.normal, 3);
-      bindAttribute(attributes.uv, drawable.uv, 2);
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, drawable.index);
-      gl.drawElements(gl.TRIANGLES, drawable.count, drawable.indexType, 0);
+      bindAttribute(attributes.uv, part.uv, 2);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.index);
+      gl.drawElements(gl.TRIANGLES, part.count, part.indexType, 0);
     }
 
     applyBlend("opaque");
+    gl.depthFunc(gl.LESS);
+    gl.disable(gl.CULL_FACE);
 
     if (showBoxes && boxVertices) {
       gl.uniform1i(uniform("useSolid"), 1);

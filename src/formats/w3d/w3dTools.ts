@@ -1,4 +1,8 @@
 import type { Tool } from "../../core/toolRegistry";
+import { createView, readChunks, readFloats, readName } from "./w3dChunks";
+import { readMeshMaterials } from "./w3dMaterialChunks";
+import { pickMeshBlend, resolveMaterialDraws } from "./w3dMaterial";
+import type { W3dBlend, W3dMaterialDraw } from "./w3dMaterial";
 
 /**
  * Parser for the parts of a W3D model a preview draws: meshes with their
@@ -6,11 +10,10 @@ import type { Tool } from "../../core/toolRegistry";
  * bone hierarchy, the HLOD that places each mesh on a bone (every level of
  * detail, with its aggregate and proxy lists), and the collision boxes.
  *
- * A W3D file is a tree of chunks, each an 8-byte header (a type, and a size
- * whose top bit marks a chunk that holds chunks) and a payload. Every size is
- * checked against the bytes present, and a chunk this parser does not read is
- * skipped. Layouts are EA's `w3d_file.h`, with the vertex influence as BFME
- * stores it (two bones and two weights), which mint's research confirmed.
+ * A W3D file is a tree of chunks (`w3dChunks.ts`), and a chunk this parser
+ * does not read is skipped. Layouts are EA's `w3d_file.h`, with the vertex
+ * influence as BFME stores it (two bones and two weights), which mint's
+ * research confirmed.
  */
 
 /** One mesh as stored, in its own space */
@@ -47,10 +50,11 @@ export interface W3dMesh {
   alphaTest: boolean;
   /** How the drawn material meets what is behind it */
   blend: W3dBlend;
+  /** The mesh's name says it is a picking proxy, which is never drawn */
+  pickProxy: boolean;
+  /** The material passes as draws, a pass's triangles split by what they draw with */
+  draws: W3dMaterialDraw[];
 }
-
-/** The framebuffer operations the shipped meshes use */
-export type W3dBlend = "opaque" | "alpha" | "additive" | "multiply";
 
 /** One bone, relative to its parent */
 export interface W3dPivot {
@@ -134,18 +138,6 @@ const CHUNK = {
   VERTEX_NORMALS_2: 0xc01,
   MESH_HEADER3: 0x01f,
   TRIANGLES: 0x020,
-  TEXTURES: 0x030,
-  TEXTURE: 0x031,
-  TEXTURE_NAME: 0x032,
-  SHADERS: 0x029,
-  MATERIAL_PASS: 0x038,
-  SHADER_IDS: 0x03a,
-  TEXTURE_IDS: 0x049,
-  TEXTURE_STAGE: 0x048,
-  STAGE_TEXCOORDS: 0x04a,
-  SHADER_MATERIALS: 0x050,
-  SHADER_MATERIAL: 0x051,
-  SHADER_MATERIAL_PROPERTY: 0x053,
   HIERARCHY: 0x100,
   HIERARCHY_HEADER: 0x101,
   PIVOTS: 0x102,
@@ -162,184 +154,12 @@ const CHUNK = {
 const GEOMETRY_TYPE_MASK = 0x00ff0000;
 const GEOMETRY_TYPE_SKIN = 0x00020000;
 const MESH_FLAG_HIDDEN = 0x00001000;
+const MESH_FLAG_TWO_SIDED = 0x00002000;
+const MESH_HEADER_SORT_LEVEL = 56;
 const BOX_ATTRIBUTE_ORIENTED = 0x1;
 const BOX_SIZE = 68;
 const HLOD_ARRAY_HEADER_SIZE = 8;
 const HLOD_SUB_OBJECT_SIZE = 36;
-
-/** A chunk's type and payload */
-interface Chunk {
-  type: number;
-  payload: Uint8Array;
-}
-
-/** Splits a run of bytes into the chunks it holds, refusing any that overrun it */
-const readChunks = (bytes: Uint8Array): Chunk[] => {
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const chunks: Chunk[] = [];
-  let cursor = 0;
-
-  while (cursor + 8 <= bytes.length) {
-    const type = view.getUint32(cursor, true);
-    // The top bit marks a chunk that holds chunks, which the reader of each
-    // type already knows
-    const size = view.getUint32(cursor + 4, true) & 0x7fffffff;
-    const start = cursor + 8;
-
-    if (start + size > bytes.length) {
-      throw new Error(
-        `W3D chunk 0x${type.toString(16)} at ${cursor} runs past the data holding it`,
-      );
-    }
-
-    chunks.push({ type, payload: bytes.subarray(start, start + size) });
-    cursor = start + size;
-  }
-
-  return chunks;
-};
-
-const createView = (bytes: Uint8Array) =>
-  new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-
-/** Reads a fixed-length, NUL-padded name */
-const readName = (bytes: Uint8Array, at: number, length: number): string => {
-  const slice = bytes.subarray(at, Math.min(at + length, bytes.length));
-  const end = slice.indexOf(0);
-
-  return String.fromCharCode(...(end < 0 ? slice : slice.subarray(0, end)));
-};
-
-/** Reads the floats a payload holds, copied so the result owns its memory */
-const readFloats = (bytes: Uint8Array): Float32Array => {
-  const view = createView(bytes);
-  const floats = new Float32Array(Math.floor(bytes.length / 4));
-
-  floats.forEach((_, index) => {
-    floats[index] = view.getFloat32(index * 4, true);
-  });
-
-  return floats;
-};
-
-/**
- * Reads what a shader material says: the texture it binds by name, never by
- * position (a material is a list of named parameters, and the diffuse map
- * is not always first), and whether it alpha-tests
- */
-const readShaderMaterial = (
-  material: Uint8Array,
-): { texture?: string; alphaTest: boolean } => {
-  let texture: string | undefined;
-  let fallback: string | undefined;
-  let alphaTest = false;
-
-  for (const property of readChunks(material)) {
-    if (
-      property.type !== CHUNK.SHADER_MATERIAL_PROPERTY ||
-      property.payload.length < 12
-    ) {
-      continue;
-    }
-
-    const view = createView(property.payload);
-    const type = view.getUint32(0, true);
-    const nameLength = view.getUint32(4, true);
-    const name = readName(property.payload, 8, nameLength);
-    const valueAt = 8 + nameLength;
-
-    if (type === 7 && valueAt < property.payload.length) {
-      if (name === "AlphaTestEnable") {
-        alphaTest = property.payload[valueAt] !== 0;
-      }
-      continue;
-    }
-    if (type !== 1 || valueAt + 4 > property.payload.length) {
-      continue;
-    }
-
-    const value = readName(
-      property.payload,
-      valueAt + 4,
-      view.getUint32(valueAt, true),
-    );
-
-    if (name === "DiffuseTexture") {
-      texture = value;
-    } else if (name === "Texture_0") {
-      fallback = value;
-    }
-  }
-
-  return { texture: texture ?? fallback, alphaTest };
-};
-
-/** Reads the little-endian 32-bit values of a payload */
-const readIds = (bytes: Uint8Array): number[] => {
-  const view = createView(bytes);
-
-  return Array.from({ length: Math.floor(bytes.length / 4) }, (_, index) =>
-    view.getUint32(index * 4, true),
-  );
-};
-
-/** Classifies a `SHADERS` entry's blend from its source and destination factors */
-const classifyBlend = (shader: Uint8Array): W3dBlend => {
-  const [, depthMask, , destBlend, , , , srcBlend, , , , , alphaTest] = shader;
-
-  // Alpha-blended but writing depth and alpha-testing is a cutout
-  if (alphaTest && depthMask && destBlend === 5) {
-    return "opaque";
-  }
-  if (destBlend === 1) {
-    return "additive";
-  }
-  if (destBlend === 4 || destBlend === 5) {
-    return "alpha";
-  }
-  if (destBlend === 2 && srcBlend === 0) {
-    return "multiply";
-  }
-  return "opaque";
-};
-
-/** Additive wins over alpha over the rest, as a glow must never turn solid */
-const BLEND_RANK: W3dBlend[] = ["opaque", "multiply", "alpha", "additive"];
-
-/**
- * Reads the first material pass, the one a single-pass renderer draws (mint's
- * `Mesh::texcoords`, `texture_name` and `drawn_shaders`): its first stage's
- * texture and coordinates, or the coordinates a shader-material mesh keeps
- * on the pass itself, and the shaders it names
- */
-const readFirstPass = (payload: Uint8Array) => {
-  let uvs: Float32Array | undefined;
-  let stageUvs: Float32Array | undefined;
-  let textureId: number | undefined;
-  let shaderIds: number[] = [];
-  let stages = 0;
-
-  for (const part of readChunks(payload)) {
-    if (part.type === CHUNK.SHADER_IDS) {
-      shaderIds = readIds(part.payload);
-    } else if (part.type === CHUNK.STAGE_TEXCOORDS) {
-      uvs = readFloats(part.payload);
-    } else if (part.type === CHUNK.TEXTURE_STAGE && stages++ === 0) {
-      for (const stagePart of readChunks(part.payload)) {
-        if (stagePart.type === CHUNK.TEXTURE_IDS) {
-          textureId = readIds(stagePart.payload)[0];
-        } else if (stagePart.type === CHUNK.STAGE_TEXCOORDS) {
-          stageUvs = readFloats(stagePart.payload);
-        }
-      }
-    }
-  }
-  return {
-    uvs: stageUvs?.length ? stageUvs : uvs,
-    textureId,
-    shaderIds,
-  };
-};
 
 /** Copies the values into an array of `length`, cut short or zero filled */
 const padTo = (values: Float32Array | undefined, length: number) => {
@@ -350,6 +170,9 @@ const padTo = (values: Float32Array | undefined, length: number) => {
   return out;
 };
 
+/** Whether a mesh's name marks it as a stand-in for mouse picking: mint's `is_pick_proxy` */
+const isPickProxy = (name: string) => name.slice(0, 4).toUpperCase() === "PICK";
+
 const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   let header: Uint8Array | undefined;
   let positions: Float32Array | undefined;
@@ -359,12 +182,9 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   let weights: Uint16Array | undefined;
   let secondPositions: Float32Array | undefined;
   let secondNormals: Float32Array | undefined;
-  const textures: string[] = [];
-  let pass: ReturnType<typeof readFirstPass> | undefined;
-  let shaders: Uint8Array[] = [];
-  const materials: { texture?: string; alphaTest: boolean }[] = [];
+  const chunks = readChunks(payload);
 
-  for (const chunk of readChunks(payload)) {
+  for (const chunk of chunks) {
     const view = createView(chunk.payload);
 
     switch (chunk.type) {
@@ -411,33 +231,6 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
       case CHUNK.VERTEX_NORMALS_2:
         secondNormals = readFloats(chunk.payload);
         break;
-      case CHUNK.TEXTURES:
-        for (const texture of readChunks(chunk.payload)) {
-          const name = readChunks(texture.payload).find(
-            (part) => part.type === CHUNK.TEXTURE_NAME,
-          );
-
-          if (texture.type === CHUNK.TEXTURE && name) {
-            textures.push(readName(name.payload, 0, name.payload.length));
-          }
-        }
-        break;
-      case CHUNK.MATERIAL_PASS:
-        pass ??= readFirstPass(chunk.payload);
-        break;
-      case CHUNK.SHADERS:
-        shaders = Array.from(
-          { length: Math.floor(chunk.payload.length / 16) },
-          (_, index) => chunk.payload.subarray(index * 16, index * 16 + 16),
-        );
-        break;
-      case CHUNK.SHADER_MATERIALS:
-        for (const material of readChunks(chunk.payload)) {
-          if (material.type === CHUNK.SHADER_MATERIAL) {
-            materials.push(readShaderMaterial(material.payload));
-          }
-        }
-        break;
     }
   }
 
@@ -450,11 +243,6 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
   // A short or missing second copy drops the copy, as mint's `second_bone_space`
   const hasSecondCopy =
     hasInfluences && vertexCount > 0 && secondPositions?.length === positions.length;
-  // Only the drawn pass's shaders: the table is shared by every pass
-  const drawn = (pass?.shaderIds ?? []).flatMap((id) =>
-    shaders[id] ? [shaders[id]] : [],
-  );
-
   // An index past the vertices would draw from memory that is not the mesh
   if (indices.some((index) => index >= vertexCount)) {
     throw new Error(
@@ -462,16 +250,25 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
     );
   }
 
+  const attributes = createView(header).getUint32(4, true);
+  const name = readName(header, 8, 16);
+  const draws = resolveMaterialDraws(readMeshMaterials(chunks), {
+    indices,
+    vertexCount,
+    twoSided: (attributes & MESH_FLAG_TWO_SIDED) !== 0,
+    sortLevel: createView(header).getInt32(MESH_HEADER_SORT_LEVEL, true),
+  });
+  // A single-pass renderer's view of the mesh: its first pass
+  const firstPass = draws.filter((draw) => draw.pass === 0);
+
   return {
-    name: readName(header, 8, 16),
+    name,
     container: readName(header, 24, 16),
-    isSkin:
-      (createView(header).getUint32(4, true) & GEOMETRY_TYPE_MASK) ===
-      GEOMETRY_TYPE_SKIN,
-    hidden: (createView(header).getUint32(4, true) & MESH_FLAG_HIDDEN) !== 0,
+    isSkin: (attributes & GEOMETRY_TYPE_MASK) === GEOMETRY_TYPE_SKIN,
+    hidden: (attributes & MESH_FLAG_HIDDEN) !== 0,
     positions,
     normals: normals?.length === positions.length ? normals : undefined,
-    uvs: pass?.uvs?.length === vertexCount * 2 ? pass.uvs : undefined,
+    uvs: firstPass[0]?.uvs,
     indices,
     bones: hasInfluences ? bones : undefined,
     weights: hasInfluences ? weights : undefined,
@@ -479,22 +276,11 @@ const readMesh = (payload: Uint8Array): W3dMesh | undefined => {
     secondNormals: hasSecondCopy
       ? padTo(secondNormals, positions.length)
       : undefined,
-    // The stage's own texture first, then a shader material's (mint's
-    // `Mesh::texture_name`); the first texture of the table is not
-    // necessarily the one the pass draws with
-    texture:
-      (pass?.textureId !== undefined ? textures[pass.textureId] : undefined) ??
-      materials.find((material) => material.texture)?.texture,
-    alphaTest:
-      drawn.some((shader) => shader[12] !== 0) ||
-      materials.some((material) => material.alphaTest),
-    blend: drawn
-      .map(classifyBlend)
-      .reduce<W3dBlend>(
-        (best, each) =>
-          BLEND_RANK.indexOf(each) > BLEND_RANK.indexOf(best) ? each : best,
-        "opaque",
-      ),
+    texture: firstPass.find((draw) => draw.texture)?.texture?.name,
+    alphaTest: firstPass.some((draw) => draw.surface.alphaTest),
+    blend: pickMeshBlend(firstPass.map((draw) => draw.surface)),
+    pickProxy: isPickProxy(name),
+    draws,
   };
 };
 
