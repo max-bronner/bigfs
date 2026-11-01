@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { getContextValue } from '../../features/explorer/rowContext';
-import type { RowContextKind } from '../../features/explorer/rowContext';
+import { getContextValue } from '../../features/explorer/getContextValue';
+import type { RowContextKind } from '../../features/explorer/getContextValue';
 
 interface MenuItem {
   command: string;

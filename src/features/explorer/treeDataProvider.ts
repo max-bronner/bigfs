@@ -22,7 +22,7 @@ import {
 import type { ExplorerRow, FolderRow, GameRow } from '../../services/archives/explorerRow';
 import { GameViewModel } from '../../services/archives/gameViewModel';
 import { getGameFiles } from '../../game/install/gameView';
-import { getContextValue } from './rowContext';
+import { getContextValue } from './getContextValue';
 import { isReadOnlySource } from '../../services/archives/sourceAccess';
 
 /** Compares names as an explorer does: `a2` before `a10`, casing ignored */

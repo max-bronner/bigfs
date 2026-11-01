@@ -116,7 +116,7 @@ modules it registers. From there:
 
 | symptom in | start at | then |
 | --- | --- | --- |
-| archive explorer, the `bigfs:` file system, drag and drop, extract, copy paths, new archives, row menus (`rowContext.ts` names what `viewItem` holds) | `features/explorer/` | `core/entryName.ts` (name, path and move rules), `formats/big/emptyArchive.ts`, `node/createArchiveFile.ts`, `services/archives/archiveModel.ts` and its `archiveScanner`, `archiveRegistry`, `archivePolicy`, `archiveOperations`; `node/archiveFile.ts`; `formats/big/bigFormat.ts` |
+| archive explorer, the `bigfs:` file system, drag and drop, extract, copy paths, new archives, row menus (`getContextValue.ts` names what `viewItem` holds) | `features/explorer/` | `core/entryName.ts` (name, path and move rules), `formats/big/emptyArchive.ts`, `node/createArchiveFile.ts`, `services/archives/archiveModel.ts` and its `archiveScanner`, `archiveRegistry`, `archivePolicy`, `archiveOperations`; `node/archiveFile.ts`; `formats/big/bigFormat.ts` |
 | the game view (which file wins) | `features/explorer/treeDataProvider.ts` | `services/archives/gameViewModel.ts`, `game/install/gameView.ts` |
 | row commands acting on the wrong rows | `services/archives/nodeCommands.ts` | `services/archives/explorerSelection.ts` |
 | INI highlighting, hover, completion, navigation, rename, diagnostics | `features/iniLanguage/providers/` | `services/ini/sageIniDocuments.ts`, `sageIniIndex.ts`; `formats/ini/` |
