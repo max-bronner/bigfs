@@ -302,7 +302,7 @@ Movie**.
   it: it runs its drag script, not its roll-out; a button hidden by a mask
   takes no pointer. A button that appears under a still pointer rolls over.
 - [ ] **changed** Playing a movie: scripts see clips already on their new frame,
-  a frame's scripts run before what it places loads, so `InitColoredTextString`
+  a frame's scripts take their place among what it places, so `InitColoredTextString`
   and friends are defined when text fields start (`StrategicConflictResults`
   logs no engine call for them), a `gotoAndStop` past the end lands on the last frame, and a clip hidden with
   `_visible` keeps animating when shown again; `_width` and `_height` of a clip

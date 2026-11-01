@@ -118,6 +118,7 @@ export const attachStagePointer = (
 
     const point = host.pointAt(event);
 
+    pointer = point;
     if (host.isInteractive()) {
       updateHover(point);
       isDown = true;
@@ -139,13 +140,11 @@ export const attachStagePointer = (
   window.addEventListener('mouseup', () => {
     holder?.up();
     holder = undefined;
-    isDown = false;
-    if (!host.isInteractive()) {
+    if (!isDown || !host.isInteractive()) {
+      isDown = false;
       return;
     }
-    if (pointer) {
-      updateHover(pointer);
-    }
+    isDown = false;
     if (pressed) {
       host.getPlayer().release(pressed, hovered);
       pressed = undefined;

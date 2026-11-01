@@ -17,6 +17,7 @@ import { createBehaviourRunner } from "./createBehaviourRunner";
 import type { BehaviourRunner } from "./createBehaviourRunner";
 import { SCRIPT_PRIORITY, createScriptQueue } from "./scriptQueue";
 import { buildDisplayList, getFrames } from "./timeline";
+import type { Placement } from "./timeline";
 
 /**
  * A small APT player: every placed character is an instance, every
@@ -591,100 +592,82 @@ export class Player implements StageHost {
   /**
    * Shows a frame. Played in order, its scripts and placements queue as the
    * frame lists them, so a script ahead of a placement runs before the placed
-   * clip's load. A goto queues the frame's scripts first (mint's
+   * clip's load. A goto brings in what skipped frames place, then queues the
+   * frame's scripts, then what the frame itself places (mint's
    * `run_frame_internal` and `run_goto`).
    */
   private enter(timeline: Instance, frame: number, isGoto = false): void {
     const items = timeline.frames[frame]?.items ?? [];
     const vm = this.vm;
-    const runsScripts = !timeline.isHitRecord && this.scriptsRun(timeline);
 
     timeline.frame = frame;
-    if (!vm || !runsScripts) {
+    if (timeline.isHitRecord || !this.scriptsRun(timeline)) {
       this.syncTimeline(timeline);
-      if (!vm && runsScripts) {
-        this.runBehaviours(timeline, items);
+      return;
+    }
+    if (!vm) {
+      this.syncTimeline(timeline);
+      for (const item of items) {
+        if (item.type === "action") {
+          this.runBehaviour(timeline, timeline.movie.behaviours[item.block], "frame");
+        }
       }
       return;
     }
 
-    const firstPlacement = items.findIndex(
-      ({ type }) => type === "placeObject" || type === "removeObject",
-    );
-    const leading =
-      isGoto || firstPlacement < 0 ? items.length : firstPlacement;
+    const queueFrameScript = (block: number) =>
+      this.queue.add(() => {
+        if (!timeline.removed) {
+          vm.runBlock(timeline, block);
+        }
+      });
 
-    items.forEach((item) => this.queueInitAction(vm, timeline.movie, item));
-    this.queueFrameScripts(vm, timeline, items.slice(0, leading));
-    this.syncTimeline(timeline);
-    this.queueFrameScripts(vm, timeline, items.slice(leading));
+    this.queue.hold(() => {
+      items.forEach((item) => this.queueInitAction(vm, timeline.movie, item));
+      this.syncTimeline(timeline, queueFrameScript, isGoto);
+    });
     this.idle();
   }
 
-  private queueFrameScripts(
-    vm: Vm,
+  /**
+   * Brings a timeline's children in line with its frame: keeps a child that
+   * is the same instance, places new ones and drops the rest. `queueScript`
+   * takes the frame's scripts at their turn among its placements.
+   */
+  private syncTimeline(
     timeline: Instance,
-    items: readonly FrameItem[],
+    queueScript?: (block: number) => void,
+    isGoto = false,
   ): void {
-    for (const item of items) {
-      if (item.type === "action") {
-        this.queue.add(() => {
-          if (!timeline.removed) {
-            vm.runBlock(timeline, item.block);
-          }
-        });
-      }
-    }
-  }
-
-  private runBehaviours(timeline: Instance, items: readonly FrameItem[]): void {
-    for (const item of items) {
-      if (item.type === "action") {
-        this.runBehaviour(timeline, timeline.movie.behaviours[item.block], "frame");
-      }
-    }
-  }
-
-  /** Keeps a child that is the same instance, places new ones, drops the rest */
-  private syncTimeline(timeline: Instance): void {
     const kept = new Map<string, Instance>();
+    const items = timeline.frames[timeline.frame]?.items ?? [];
+    const placements = buildDisplayList(timeline.frames, timeline.frame);
+    const placedHere = new Set(
+      items.flatMap((item) => (item.type === "placeObject" ? [item.depth] : [])),
+    );
+    const syncDepth = (depth: number) => {
+      const placement = placements.find((each) => each.depth === depth);
 
-    for (const placement of buildDisplayList(timeline.frames, timeline.frame)) {
-      const key = String(placement.depth);
-      const existing = timeline.children.get(key);
-      if (
-        existing &&
-        !existing.dynamic &&
-        existing.born === placement.born &&
-        existing.placed === placement.character
-      ) {
-        Object.assign(
-          existing,
-          existing.scripted
-            ? {}
-            : {
-                matrix: placement.matrix,
-                translate: placement.translate,
-                alpha: placement.alpha,
-              },
-          {
-            clipDepth: placement.clipDepth,
-            name: existing.scripted ? existing.name : placement.name,
-            matrixItem: placement.matrixItem,
-          },
-        );
-        kept.set(key, existing);
-      } else {
-        kept.set(
-          key,
-          this.create(
-            timeline.movie,
-            placement.character,
-            `${timeline.path}/${placement.depth}`,
-            timeline,
-            placement,
-          ),
-        );
+      if (placement) {
+        kept.set(String(depth), this.syncPlacement(timeline, placement));
+      }
+    };
+
+    placements
+      .filter(({ depth }) => !placedHere.has(depth))
+      .forEach(({ depth }) => syncDepth(depth));
+    if (isGoto) {
+      items.forEach((item) => {
+        if (item.type === "action") {
+          queueScript?.(item.block);
+        }
+      });
+    }
+    for (const item of items) {
+      if (item.type === "placeObject") {
+        syncDepth(item.depth);
+      } else if (item.type === "action" && !isGoto) {
+        queueScript?.(item.block);
       }
     }
     // What scripts made stays until a script removes it
@@ -697,6 +680,42 @@ export class Player implements StageHost {
     }
     timeline.children = new Map(
       [...kept].sort(([a], [b]) => Number(a) - Number(b)),
+    );
+  }
+
+  /** Gets the child a placement shows: the one already there if it is the same instance, or a new one */
+  private syncPlacement(timeline: Instance, placement: Placement): Instance {
+    const existing = timeline.children.get(String(placement.depth));
+
+    if (
+      existing &&
+      !existing.dynamic &&
+      existing.born === placement.born &&
+      existing.placed === placement.character
+    ) {
+      Object.assign(
+        existing,
+        existing.scripted
+          ? {}
+          : {
+              matrix: placement.matrix,
+              translate: placement.translate,
+              alpha: placement.alpha,
+            },
+        {
+          clipDepth: placement.clipDepth,
+          name: existing.scripted ? existing.name : placement.name,
+          matrixItem: placement.matrixItem,
+        },
+      );
+      return existing;
+    }
+    return this.create(
+      timeline.movie,
+      placement.character,
+      `${timeline.path}/${placement.depth}`,
+      timeline,
+      placement,
     );
   }
 

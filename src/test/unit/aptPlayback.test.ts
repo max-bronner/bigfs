@@ -43,6 +43,8 @@ interface Source {
   kidFrame?: string;
   /** Items on the root's second frame */
   nextFrame?: FrameItem[];
+  /** A clip `late` placed on the root's second frame, ahead of its script, with these event scripts */
+  lateEvents?: Record<number, string>;
   /** Whether the button's hit record is the clip rather than a shape */
   hitRecordIsClip?: boolean;
 }
@@ -61,6 +63,7 @@ const start = ({
   kidFrame,
   nextFrame = [],
   hitRecordIsClip = false,
+  lateEvents,
 }: Source) => {
   const image = new AptImage(new Uint8Array(64));
   const code: PageMovie['code'] = {};
@@ -109,6 +112,9 @@ const start = ({
     exports: [],
     frames: root.map((text, index) => ({
       items: [
+        ...(index === 1 && lateEvents
+          ? [place(5, 1, { name: 'late', clipActions: compileEvents(lateEvents) })]
+          : []),
         { offset: 0, type: 'action', block: compile(text) } as FrameItem,
         ...(index === 0
           ? [
@@ -337,19 +343,36 @@ suite('APT playback', () => {
     assert.strictEqual(read('seen'), 1);
   });
 
-  test('a goto runs the frame script before what the frame places loads', () => {
+  test('played in order, a placement ahead of a script loads first', () => {
     const { player, read } = start({
-      root: ['stop(); gotoAndStop(2);', '_root.ready = 1;'],
-      kidEvents: {},
-      nextFrame: [
-        { offset: 0, type: 'removeObject', depth: 1 } as FrameItem,
-        place(1, 1, { name: 'late' }),
-      ],
+      root: ['', '_root.ready = 1; stop();'],
+      lateEvents: { [1 << 0]: '_root.seen = _root.ready;' },
     });
 
     player.tick();
     assert.strictEqual(read('ready'), 1);
-    assert.strictEqual(player.root.children.get('1')!.name, 'late');
+    assert.strictEqual(read('seen'), undefined);
+  });
+
+  test('a goto runs the frame script before what that frame places loads', () => {
+    const { player, read } = start({
+      root: ['stop(); gotoAndStop(2);', '_root.ready = 1;'],
+      lateEvents: { [1 << 0]: '_root.seen = _root.ready;' },
+    });
+
+    player.tick();
+    assert.strictEqual(read('seen'), 1);
+  });
+
+  test('a goto loads what a skipped frame places before the frame script', () => {
+    const { player, read } = start({
+      root: ['stop(); gotoAndStop(3);', '', '_root.ready = 1;'],
+      lateEvents: { [1 << 0]: '_root.seen = _root.ready;' },
+    });
+
+    player.tick();
+    assert.strictEqual(read('ready'), 1);
+    assert.strictEqual(read('seen'), undefined);
   });
 
   test('the newest clip runs first', () => {

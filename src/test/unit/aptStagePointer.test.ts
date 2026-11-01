@@ -121,6 +121,34 @@ suite('APT stage pointer', () => {
     ]);
   });
 
+  test('a release away from the button pressed goes to what is under the pointer', () => {
+    const { fire, hits, calls } = start();
+
+    hits.push(hitAreaOf(instance('a')));
+    fire('mousemove', 5, 5);
+    fire('mousedown', 5, 5);
+    fire('mousemove', 50, 50);
+    fire('mouseup');
+    assert.deepStrictEqual(calls.slice(-2), ['hover a - true', 'release a -']);
+  });
+
+  test('a release that began off the stage does nothing', () => {
+    const { fire, calls } = start();
+
+    fire('mouseup');
+    assert.deepStrictEqual(calls, []);
+  });
+
+  test('a restart forgets a held button', () => {
+    const { stagePointer, fire, hits, calls } = start();
+
+    hits.push(hitAreaOf(instance('a')));
+    fire('mousedown', 5, 5);
+    stagePointer.reset();
+    fire('mouseup');
+    assert.deepStrictEqual(calls, ['hover - a false', 'press a']);
+  });
+
   test('a press picks again where the pointer is', () => {
     const { fire, hits, calls } = start();
 
