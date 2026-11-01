@@ -3,6 +3,10 @@ import {
   BACKDROP_KEY,
   findEngineImage,
 } from '../../game/apt/engineImages';
+import {
+  findImageSuggestion,
+  findParameterSuggestion,
+} from '../../game/apt/engineSuggestions';
 import { toPathKey } from './avm/engine';
 import type { FunctionEntry, ReadValue, Seen } from './avm/engine';
 import { AsObject } from './avm/value';
@@ -15,6 +19,7 @@ import { currentGadgets } from './gadgets';
 import { listBindings, writeBinding } from './gadgetModel';
 import { getImageKey } from './imageSurface';
 import { currentPlayer, render } from './stage';
+import { suggestFrom } from './suggestingInput';
 
 /**
  * The engine panel: the game's side of the shown movie, played by hand,
@@ -81,8 +86,13 @@ const callRow = (entry: FunctionEntry) => {
   const fields = entry.params.map((param) => {
     const field = createInput('', () => {}, 'line');
 
+    const suggestion = findParameterSuggestion(entry.name, param);
+
     field.placeholder = param;
     field.classList.add('short');
+    if (suggestion) {
+      suggestFrom(field, suggestion.kind, suggestion.basis);
+    }
     return field;
   });
 
@@ -169,15 +179,17 @@ const callReturnRow = (seen: Seen) => {
 /** A field for the picture of an engine surface, showing what the game supplies */
 const imageFields = (key: string) => {
   const supplied = findEngineImage(key);
+  const suggestion = findImageSuggestion(key);
+  const field = overrideField(
+    engine.imageOverrides.get(key.toLowerCase()) ?? '',
+    supplied?.image ?? 'MappedImage, or file.tga',
+    (value) => engine.overrideImage(key, value),
+  );
 
-  return [
-    overrideField(
-      engine.imageOverrides.get(key.toLowerCase()) ?? '',
-      supplied?.image ?? 'MappedImage, or file.tga',
-      (value) => engine.overrideImage(key, value),
-    ),
-    text(supplied ? `${key}: ${supplied.basis}` : key, 'muted'),
-  ];
+  if (suggestion) {
+    suggestFrom(field, suggestion.kind, suggestion.basis);
+  }
+  return [field, text(supplied ? `${key}: ${supplied.basis}` : key, 'muted')];
 };
 
 /** Each gadget the movie attached, with the variables it is bound to */

@@ -15,6 +15,7 @@ import { showAtlas } from './atlas';
 import './gadgets';
 import { mappedImagesArrived } from './mappedSurfaces';
 import { renderObjectArrived } from './view3dSurface';
+import { suggestionsArrived } from './suggestingInput';
 import { showIntegrity } from './integrity';
 import { nudge } from './edit';
 import './geometry';
@@ -326,6 +327,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       break;
     case 'renderObject':
       renderObjectArrived(data);
+      break;
+    case 'suggestions':
+      suggestionsArrived(data);
       break;
     case 'mappedImages':
       mappedImagesArrived(data);

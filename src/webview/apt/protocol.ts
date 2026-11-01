@@ -9,6 +9,10 @@ import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import type { Problem } from '../../formats/apt/aptIntegrity';
 import type { ModelScene } from '../../formats/w3d/w3dScene';
+import type {
+  SuggestionKind,
+  SuggestionOption,
+} from '../../game/apt/engineSuggestions';
 
 /**
  * The messages between the APT editor and its page. Shared by both sides,
@@ -115,6 +119,12 @@ export type ToPage =
       /** Textures shipped as JPEG, which the page decodes */
       jpegs?: Record<string, Uint8Array>;
     }
+  /** The answer to `suggestions`: the options the game's INI gives a kind of field */
+  | {
+      kind: 'suggestions';
+      field: SuggestionKind;
+      options: SuggestionOption[];
+    }
   /** The answer to `renderObject`: the model, or why there is none */
   | { kind: 'renderObject'; name: string; scene?: ModelScene; error?: string }
   | { kind: 'select'; character: number }
@@ -138,6 +148,8 @@ export type FromPage =
   | { kind: 'openTextView' }
   /** Image surfaces name `MappedImage`s; the editor finds them in the game's INI */
   | { kind: 'mappedImages'; names: string[] }
+  /** An Engine panel field is focused; the editor lists the INI values it takes */
+  | { kind: 'suggestions'; field: SuggestionKind }
   /** A `View3D` surface is shown; the editor finds the model it names */
   | { kind: 'renderObject'; name: string }
   | { kind: 'script'; block: number }

@@ -7,6 +7,8 @@ import type { ToolBox } from '../../core/toolRegistry';
 import type { EntryLocator } from '../../services/entryLocator';
 import type { FromPage, ToPage } from '../../webview/apt/protocol';
 import { describeError } from '../../core/errors';
+import { SUGGESTION_KINDS } from '../../game/apt/engineSuggestions';
+import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { AptDocument } from './aptDocument';
 import {
   addScript,
@@ -21,6 +23,7 @@ import { resolveMappedImages } from './aptMappedImages';
 import type { AptGameServices, AptMovieImports } from './aptMovieImports';
 import type { AptScripts } from './aptScripts';
 import { resolveRenderObject } from './aptRenderObjects';
+import { resolveSuggestions } from './aptSuggestions';
 import type { AptTextView } from './aptTextView';
 import { APT_VIEW_TYPE } from './viewTypes';
 
@@ -196,6 +199,20 @@ const HANDLERS: {
         sentTextures,
         document.uri,
       )),
+    });
+  },
+
+  async suggestions(message, { post, game }) {
+    const field = message.field;
+
+    if (!SUGGESTION_KINDS.includes(field)) {
+      return;
+    }
+    await game.index.whenReady();
+    await post({
+      kind: 'suggestions',
+      field,
+      options: await resolveSuggestions(field, game.index, readWorkspaceText),
     });
   },
 

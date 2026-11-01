@@ -464,6 +464,14 @@ your mod's archives.
   in place of their magenta squares. The Engine panel shows each with a field to
   change it to any `MappedImage` or texture file, kept per movie with the other
   answers.
+- **new** Engine suggestions: where the engine feeds a movie a value out of the
+  game's INI, the Engine panel field is still plain text but offers the
+  INI's values to pick from. The palantir's `SetPalantirFrameState` offers
+  `_good` and `_evil` with the sides each shows, `SetFaction` (the all-heroes
+  button) and `SetPlayerFaction` offer the player templates' `Side` values, and
+  faction icon, rank icon and command button picture fields offer the
+  `MappedImage`s the game binds there. Nothing is offered without a game
+  loaded. Hovering a field says where the game takes its value from.
 - **new** `View3D` surfaces (ported from mint's `view3d.rs`): a clip naming a W3D
   model in `_RenderObj` draws it, found through the game's load order, through
   the model's own camera and following `_AnimMode` and `_Frame`, in the clip's

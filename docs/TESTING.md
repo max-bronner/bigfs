@@ -494,6 +494,17 @@ Movie**.
   override. A name no install holds is a dashed box saying so; an empty
   `_RenderObj` (`BannerUI`) draws nothing. At most 16 models load at a time,
   only when shown.
+- [ ] **new** Engine suggestions: with the game's INI indexed, open `Palantir`
+  and focus the `state` field of *Called by the engine* `SetPalantirFrameState`:
+  the field is a text box with a drop-down of `_good`, `_evil`, `_goodSingle`
+  and `_evilSingle`, each noting the sides it shows. Pick `_evil`, press
+  **Call**: the palantir changes. Typing any other text still works. In
+  `InGameHeroSelect`, `SetFaction` offers the sides (`Men`, `Mordor`, ...);
+  pick one and press **Call**: the all-heroes button changes colour. In
+  `LoadScreen`, the **Gadgets** rank icons (`UIClip.Level.n`) offer the
+  `AptRankIcon...` images; a pick shows at once. With no game indexed no
+  drop-down is listed. Needs eyes: the drop-down list itself in the real VS Code
+  webview.
 - [ ] **new** Engine images: with the game's INI indexed, open `MainMenu` and
   play: `InstallLoad` fills the screen behind the movie and the logo fades in
   where the magenta square was. The Engine panel's **Gadgets** section gives
