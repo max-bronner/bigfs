@@ -94,6 +94,10 @@ your mod's archives.
   whitespace; embedded scripts stay as written, and formatting again never
   changes the result.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
+- A lens over each `MappedImage` header, **Edit region in texture**, opens the
+  texture with the block's rectangle drawn on it. Drag or resize the box, or
+  type its edges, and the `Coords` line is rewritten as an undoable edit of
+  the INI document.
 - Lua in `BeginScript` regions is checked for syntax errors.
 - **Duplicate Definition…** (refactor menu, editor context menu) copies the
   definition at the cursor under a new name, renaming the game-text labels

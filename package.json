@@ -232,6 +232,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.editMappedImageRegion",
+        "title": "Edit MappedImage Region in Texture",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.newObject",
         "title": "New Unit, Hero or Building…",
         "category": "BIG"

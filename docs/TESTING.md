@@ -677,6 +677,20 @@ Sound is opt-in: opening a view never plays anything.
 
 ## Textures, video & other formats
 
+- [ ] **new** Edit a MappedImage's region: in an INI file with a `MappedImage`
+  block, click **Edit region in texture** above its header (or run **BIG: Edit
+  MappedImage Region in Texture** with the cursor in the block). The texture
+  opens beside it with a References panel and the block's rectangle selected
+  as a blue box. Drag inside the box to move it, drag a corner to resize it, or
+  type the four edges into the panel. Each change is written to the `Coords`
+  line of the INI document as one text edit: **Undo** in the INI editor takes
+  it back and the box follows; nothing is saved until you save the INI. A
+  rotated image (`Status = ROTATED_90_CLOCKWISE`) has a dashed box and the panel
+  says it is the packed rect: the edges you drag are the `Coords`, width and
+  height are not swapped. A texture shipped at another size than the block's
+  `TextureWidth`/`TextureHeight` still writes `Coords` in the stated size. A
+  block in a base game archive shows its box but cannot be dragged; the
+  warning offers **Override in Folder**.
 - [ ] **new** TGA and DDS previews (DXT1/3/5, uncompressed) with zoom,
   channels, mip levels. EAR-compressed textures open (no "TGA image type 82").
 - [ ] **new** **Export as PNG**, **Replace with PNG…** (written back in the
@@ -810,6 +824,7 @@ Previews and editors:
 - [ ] `bigfs.exportCursorPng` Export Cursor as PNG…
 - [ ] `bigfs.convertPngToCursor` Convert to Cursor…
 - [ ] `bigfs.buildAnimatedCursor` Build Animated Cursor…
+- [ ] `bigfs.editMappedImageRegion` Edit MappedImage Region in Texture
 - [ ] `bigfs.convertToVp6` Convert to VP6 Movie…
 - [ ] `bigfs.editW3dAnimation` Edit W3D Animation…
 - [ ] `bigfs.newAptMovie` New APT Movie…

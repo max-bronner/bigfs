@@ -1,5 +1,6 @@
 import { getVsCodeApi } from '../shared/vscodeApi';
 import { showAudio } from './audio';
+import { createRegionEditor } from './createRegionEditor';
 import { showCursor } from './cursor';
 import { showMovie } from './movie';
 import type { MovieControl } from './movie';
@@ -16,7 +17,10 @@ import { createTexturePage } from './texture';
 
 const vscode = getVsCodeApi<FromPreviewPage>();
 const main = document.getElementById('main')!;
-const showTexture = createTexturePage(main);
+const regions = createRegionEditor(document.getElementById('regions')!, (message) =>
+  vscode.postMessage(message),
+);
+const showTexture = createTexturePage(main, regions);
 let modelControl: ModelControl | undefined;
 let movie: MovieControl | undefined;
 
@@ -57,6 +61,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
       break;
     case 'texture':
       showTexture(data);
+      break;
+    case 'regions':
+      regions.show(data);
       break;
     case 'audio':
       showAudio(main, data);

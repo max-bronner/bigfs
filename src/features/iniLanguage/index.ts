@@ -8,6 +8,7 @@ import { registerSageIniValidation } from './sageIniValidation';
 import { createCommandSetPreview } from '../../services/ini/commandSetPreview';
 import { registerAssetLinks } from './assetLinks';
 import { registerFileUses } from './fileUses';
+import { registerMappedImageLens } from './mappedImageLens';
 import { registerUnusedDefinitions } from './unusedDefinitions';
 import { watchHotkeyClashes } from './hotkeyDiagnostics';
 import {
@@ -59,6 +60,7 @@ export const registerIniLanguage = (
     ...registerFileUses(documents, index),
     ...registerUnusedDefinitions(index),
     watchHotkeyClashes(documents, index),
+    registerMappedImageLens(selector),
     languages.registerCallHierarchyProvider(
       selector,
       createCallHierarchyProvider(documents, index),

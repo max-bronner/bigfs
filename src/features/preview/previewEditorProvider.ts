@@ -19,6 +19,7 @@ import { parseCursorFile } from '../../formats/cursor/parseCursorFile';
 import { decodePng } from '../../node/png';
 import { Vp6Movie } from '../../formats/vp6/container';
 import type { EntryLocator } from '../../services/entryLocator';
+import type { TextureRegions } from './createTextureRegions';
 import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import type {
   FromPreviewPage,
@@ -161,8 +162,18 @@ export const renderHtml = (
   button, select { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: none; padding: 3px 8px; border-radius: 2px; font: inherit; cursor: pointer; }
   button[aria-pressed="true"] { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
   .status { margin-left: auto; opacity: 0.8; }
-  main { padding: 12px; }
-  .stage { display: inline-block; line-height: 0; }
+  .content { display: flex; align-items: flex-start; }
+  main { flex: 1; min-width: 0; padding: 12px; }
+  aside { flex: none; width: 260px; box-sizing: border-box; padding: 12px; max-height: calc(100vh - 44px); overflow-y: auto; position: sticky; top: 44px; border-left: 1px solid var(--vscode-panel-border); }
+  aside[hidden] { display: none; }
+  aside h3, aside h4 { margin: 0 0 6px; }
+  aside h4 { margin-top: 10px; opacity: 0.8; }
+  aside .detail { margin-bottom: 8px; }
+  aside .detail p { margin: 6px 0; opacity: 0.8; }
+  aside .edges { display: grid; grid-template-columns: max-content 1fr; gap: 4px 8px; margin-top: 6px; }
+  aside input { width: 100%; box-sizing: border-box; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); padding: 2px 4px; }
+  aside .item { display: block; width: 100%; text-align: left; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stage { display: inline-block; line-height: 0; position: relative; }
   .stage.checker { background: repeating-conic-gradient(#808080 0 25%, #c0c0c0 0 50%) 0 0 / 16px 16px; }
   .stage.black { background: #000; }
   .stage.white { background: #fff; }
@@ -195,7 +206,10 @@ export const renderHtml = (
   <select id="level" title="Mip level"></select>
   <span class="status" id="status"></span>
 </header>
-<main id="main"></main>`,
+<div class="content">
+  <main id="main"></main>
+  <aside id="regions" hidden></aside>
+</div>`,
   });
 
 /** Custom editor provider behind `bigfs.preview` */
@@ -206,6 +220,7 @@ export class PreviewEditorProvider
     private readonly tools: ToolBox,
     private readonly locator: EntryLocator,
     private readonly extensionUri: vscode.Uri,
+    private readonly regions: TextureRegions,
   ) {}
 
   /** Registers the provider under `PREVIEW_VIEW_TYPE` */
@@ -213,10 +228,11 @@ export class PreviewEditorProvider
     tools: ToolBox,
     locator: EntryLocator,
     extensionUri: vscode.Uri,
+    regions: TextureRegions,
   ): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       PREVIEW_VIEW_TYPE,
-      new PreviewEditorProvider(tools, locator, extensionUri),
+      new PreviewEditorProvider(tools, locator, extensionUri, regions),
       { supportsMultipleEditorsPerDocument: true },
     );
   }
@@ -271,6 +287,7 @@ export class PreviewEditorProvider
     // Decoding starts at once; the page asks for the result when its script
     // has loaded, so the message cannot arrive before anything listens
     let movie: Vp6Movie | undefined;
+    let attached: vscode.Disposable | undefined;
     const message = buildMessage(
       document.uri,
       this.tools,
@@ -286,6 +303,13 @@ export class PreviewEditorProvider
 
           await panel.webview.postMessage(built);
 
+          if (built.kind === 'texture' && built.levels[0]) {
+            attached = this.regions.attach(
+              document.uri,
+              [built.levels[0].width, built.levels[0].height],
+              (regionsMessage) => void panel.webview.postMessage(regionsMessage),
+            );
+          }
           if (built.kind === 'model' && built.skeleton) {
             await panel.webview.postMessage({
               kind: 'animations',
@@ -305,6 +329,8 @@ export class PreviewEditorProvider
                 ),
             });
           }
+        } else if (received.kind === 'editRegion') {
+          await this.regions.edit(document.uri, received.id, received.rect);
         } else if (received.kind === 'reveal') {
           const position = new vscode.Position(received.line || 0, 0);
 
@@ -363,6 +389,9 @@ export class PreviewEditorProvider
       },
     );
 
-    panel.onDidDispose(() => subscription.dispose());
+    panel.onDidDispose(() => {
+      subscription.dispose();
+      attached?.dispose();
+    });
   }
 }

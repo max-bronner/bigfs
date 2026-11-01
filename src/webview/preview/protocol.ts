@@ -28,6 +28,35 @@ export interface TextureMessage {
   levels: { width: number; height: number; pixels: Uint8Array }[];
 }
 
+/** A part of a texture something else uses, drawn as a box over it */
+export interface TextureRegion {
+  /** Names the region in the messages about it */
+  id: string;
+  label: string;
+  /** What uses the region, to group the list */
+  group: string;
+  /** In pixels of the finest level: left, top, right, bottom */
+  rect: [number, number, number, number];
+  /** Whether the image is packed turned a quarter turn clockwise, so its box is the packed one */
+  rotated: boolean;
+  /** Whether dragging the box writes the change back */
+  editable: boolean;
+  /** Why it cannot be edited, or anything else worth showing next to it */
+  note?: string;
+  /** The text the region is defined in, to jump to */
+  source?: { uri: string; line: number };
+}
+
+/** Message carrying the regions of the shown texture that other files use */
+export interface RegionsMessage {
+  kind: 'regions';
+  regions: TextureRegion[];
+  /** The region to show selected */
+  selected?: string;
+  /** Whether more regions are still being found */
+  loading?: boolean;
+}
+
 /** Message carrying a sound decoded to WAV, with the facts of the original */
 export interface AudioMessage {
   kind: 'audio';
@@ -61,6 +90,7 @@ export interface CursorMessage {
 /** Messages the extension sends the preview page: what to draw or play, then the answers to what it asks */
 export type ToPreviewPage =
   | TextureMessage
+  | RegionsMessage
   | AudioMessage
   | VideoMessage
   | CursorMessage
@@ -79,9 +109,14 @@ export type ToPreviewPage =
   | { kind: 'videoFrame'; index: number; pixels: Uint8Array }
   | { kind: 'videoError'; message: string };
 
-/** Messages the preview page sends: ready, a link followed, an animation or a movie frame asked for */
+/** Messages the preview page sends: ready, a link followed, a region edited, an animation or a movie frame asked for */
 export type FromPreviewPage =
   | { kind: 'ready' }
+  | {
+      kind: 'editRegion';
+      id: string;
+      rect: [number, number, number, number];
+    }
   | { kind: 'reveal'; uri: string; line: number }
   | { kind: 'animation'; file: string }
   | { kind: 'videoFrame'; index: number };

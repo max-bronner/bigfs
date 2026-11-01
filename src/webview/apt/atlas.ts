@@ -1,6 +1,10 @@
 import { fitRunTo, getRunBounds } from '../../formats/apt/aptGeometry';
 import type { RuRun } from '../../formats/apt/aptGeometry';
 import type { Character } from '../../formats/apt/aptMovie';
+import { HANDLE_RADIUS, drawBoxHandles } from '../shared/drawBoxHandles';
+import { getResizeScale } from '../shared/getResizeScale';
+import { pickBox } from '../shared/pickBox';
+import type { BoxGrab } from '../shared/pickBox';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import { createButton, byId, createHeading, createRow } from './dom';
 import type { FromPage, PageMovie } from './protocol';
@@ -23,7 +27,6 @@ const vscode = getVsCodeApi<FromPage>();
  */
 
 const panel = byId('atlas');
-const HANDLE = 5;
 const WIDTH = 360;
 
 interface Target {
@@ -34,7 +37,7 @@ interface Target {
 
 interface Drag {
   run: number;
-  mode: 'move' | { anchor: [number, number]; handle: [number, number] };
+  mode: BoxGrab;
   start: [number, number];
   transform: Affine;
   original: RuRun[];
@@ -170,21 +173,7 @@ const draw = (shape: Target) => {
 
       ctx.strokeStyle = 'rgba(30,140,255,1)';
       ctx.strokeRect(l, t, r - l, b - t);
-      ctx.fillStyle = 'white';
-      for (const [x, y] of corners([l, t, r, b])) {
-        ctx.fillRect(
-          x - HANDLE / scale,
-          y - HANDLE / scale,
-          (2 * HANDLE) / scale,
-          (2 * HANDLE) / scale,
-        );
-        ctx.strokeRect(
-          x - HANDLE / scale,
-          y - HANDLE / scale,
-          (2 * HANDLE) / scale,
-          (2 * HANDLE) / scale,
-        );
-      }
+      drawBoxHandles(ctx, [l, t, r, b], scale);
     }
   }
 };
@@ -209,14 +198,6 @@ const mappedBox = (run: RuRun): [number, number, number, number] => {
   ];
 };
 
-const corners = ([l, t, r, b]: [number, number, number, number]) =>
-  [
-    [l, t],
-    [r, t],
-    [r, b],
-    [l, b],
-  ] as [number, number][];
-
 const pointOn = (event: MouseEvent): [number, number] => [
   event.offsetX / scale,
   event.offsetY / scale,
@@ -229,31 +210,18 @@ const pressAt = (shape: Target, point: [number, number]): Drag | undefined => {
     return undefined;
   }
 
-  const box = mappedBox(run);
-  const handles = corners(box);
-  const near = handles.findIndex(
-    ([x, y]) => Math.hypot(x - point[0], y - point[1]) <= (HANDLE + 2) / scale,
-  );
-  const base = {
-    run: shownRun,
-    start: point,
-    transform: [...run.style.transform] as Affine,
-    original: structuredClone(runsOf(shape)),
-    moved: false,
-  };
+  const mode = pickBox(mappedBox(run), point, (HANDLE_RADIUS + 2) / scale);
 
-  if (near >= 0) {
-    return {
-      ...base,
-      mode: { anchor: handles[(near + 2) % 4], handle: handles[near] },
-    };
-  }
-  return point[0] >= box[0] &&
-    point[0] <= box[2] &&
-    point[1] >= box[1] &&
-    point[1] <= box[3]
-    ? { ...base, mode: 'move' }
-    : undefined;
+  return (
+    mode && {
+      mode,
+      run: shownRun,
+      start: point,
+      transform: [...run.style.transform] as Affine,
+      original: structuredClone(runsOf(shape)),
+      moved: false,
+    }
+  );
 };
 
 const dragTo = (shape: Target, point: [number, number], uniform: boolean) => {
@@ -265,13 +233,8 @@ const dragTo = (shape: Target, point: [number, number], uniform: boolean) => {
     next = [a, b, c, d, e + point[0] - start[0], f + point[1] - start[1]];
   } else {
     const [ax, ay] = mode.anchor;
-    const [hx, hy] = mode.handle;
-    let sx = (point[0] - ax) / (hx - ax || 1);
-    let sy = (point[1] - ay) / (hy - ay || 1);
+    const [sx, sy] = getResizeScale(mode, point, uniform);
 
-    if (uniform) {
-      sx = sy = Math.max(Math.abs(sx), Math.abs(sy));
-    }
     // Scaled about the opposite corner, in the texture's pixels
     next = [
       sx * a,
