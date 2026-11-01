@@ -1,50 +1,54 @@
 import { getEffectStateAt } from '../../formats/particles/fxEffects';
 import { scaleEffect } from '../../formats/particles/particleScale';
 import { STEP_HZ } from '../../formats/particles/particleSimulation';
-import {
-  attachCamera,
-  attachment,
-  computeCameraBasis,
-  getModelOrigin,
-  getRootOrigin,
-  computeViewProjection,
-} from './camera';
+import { attachment, getModelOrigin, getRootOrigin } from './emitterOrigin';
 import { renderCurves } from './curves';
 import { renderFields } from './fields';
 import { attachHandles, drawHandles } from './handles';
 import { resetStats, sampleStats, showStats } from './stats';
-import { drawTimeline, listEffects, renderTimeline } from './timeline';
 import {
-  beginFrame,
-  canvas,
-  drawLines,
-  drawSystems,
-  hasGraphics,
-  loadTextures,
-  model,
-} from './graphics';
-import { $, library, post, state, world } from './page';
+  drawTimeline,
+  getTimelineSeconds,
+  listEffects,
+  renderTimeline,
+} from './timeline';
+import { drawSystems, hasGraphics, loadTextures } from './graphics';
+import { $, library, post, state, viewer, world } from './page';
 import {
-  advanceAnimation,
-  setLoadedAnimation,
-  attachObjectPanel,
   getBonePosition,
   listEnabledEffects,
-  setShownModel,
   objectView,
+  refreshShownModel,
+  setLoadedAnimation,
   showObject,
 } from './objectPanel';
 import { poseAt } from '../../formats/w3d/w3dPose';
 import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
+import type { ViewerCamera } from '../shared/viewer/createViewer';
 import type { ToPage } from './protocol';
-import { GRID, pushRing, estimateReach, pushVolumeLines } from './volume';
+import { pushRing, estimateReach, pushVolumeLines } from './volume';
 
 /**
- * The particle preview page: runs the simulation at 30 Hz, draws it, and
- * turns every number of the previewed block into a slider. The extension
- * owns the definitions; the page sends slider values and gets the scene
- * back.
+ * The particle preview page: a layer on the shared viewer that runs the
+ * simulation at 30 Hz on the viewer's clock, draws it, and turns every number
+ * of the previewed block into a slider. The extension owns the definitions;
+ * the page sends slider values and gets the scene back.
  */
+
+/** Most steps one frame catches up on, so a slow simulation never stalls the page */
+const MAX_FRAME_STEPS = 8;
+/** Most steps a drag of the time slider runs at once */
+const MAX_SEEK_STEPS = 1800;
+/** Seconds the view stays empty after the last system ends before the loop goes round */
+const LOOP_PAUSE = 0.6;
+/** Length of an effect that does not say, as one that runs until stopped: four seconds */
+const OPEN_ENDED_FRAMES = STEP_HZ * 4;
+/** The shortest time slider an effect gets */
+const MIN_EFFECT_FRAMES = STEP_HZ * 2;
+/** Distance from the emitter to frame an effect at, in reaches, and in orbit radii */
+const REACH_DISTANCE = 2.2;
+const DISTANCE_RADII = 2.6;
+const DEFAULT_DISTANCE = 260;
 
 const hud = $('hud');
 const isChecked = (id: string) => $<HTMLInputElement>(id).checked;
@@ -60,12 +64,13 @@ let attached: { id: number; bone?: string }[] = [];
 
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
+/** Last time on the clock a system was alive */
+let lastBusyTime = 0;
+
 /** Starts the previewed block over */
-const start = () => {
+const startEffects = () => {
   world.clear();
-  state.time = 0;
-  state.accumulator = 0;
-  state.idle = 0;
+  lastBusyTime = 0;
   resetStats();
 
   const scene = state.scene;
@@ -118,19 +123,49 @@ const stepOnce = () => {
   }
   world.step();
   sampleStats();
-  state.time += 1 / STEP_HZ;
+};
+
+/** Runs the simulation up to a time on the clock, at most `maxSteps` steps */
+const stepTo = (time: number, maxSteps: number) => {
+  const due = Math.floor(time * STEP_HZ);
+
+  for (let steps = 0; world.frame < due && steps < maxSteps; steps++) {
+    stepOnce();
+  }
+  if (world.systems.length) {
+    lastBusyTime = time;
+  }
+};
+
+/** Gets the seconds the time slider spans for the effects on show */
+const getEffectSeconds = (): number => {
+  const scene = state.scene;
+
+  if (!scene || !state.roots.length) {
+    return 0;
+  }
+
+  const def =
+    scene.root?.kind === 'system'
+      ? library.systems.get(scene.root.name.toLowerCase())
+      : undefined;
+  const frames =
+    def && def.systemLifetime > 0
+      ? def.systemLifetime + Math.max(def.lifetime.low, def.lifetime.high)
+      : OPEN_ENDED_FRAMES;
+
+  return getTimelineSeconds() ?? Math.max(frames, MIN_EFFECT_FRAMES) / STEP_HZ;
 };
 
 const flash = $('flash');
 
-const draw = () => {
-  beginFrame(getSelectedValue('sky'));
+/** LightPulse, ViewShake and TerrainScorch nuggets, approximated */
+let effects = getEffectStateAt([], 0, STEP_HZ);
 
-  // LightPulse, ViewShake and TerrainScorch nuggets, approximated
-  const effects = objectView.scene
+const prepareFrame = () => {
+  effects = objectView.scene
     ? getEffectStateAt([], 0, STEP_HZ)
     : getEffectStateAt(listEffects(), world.frame, STEP_HZ);
-  const swing = (effects.shake * Math.PI) / 180;
 
   if (effects.flash) {
     const [red, green, blue] = effects.flash.color.map((channel) =>
@@ -141,41 +176,19 @@ const draw = () => {
   } else {
     flash.style.background = 'transparent';
   }
+  return {
+    shake: (effects.shake * Math.PI) / 180,
+    modelOffset: getModelOrigin(),
+  };
+};
 
-  state.yaw += swing;
-  state.pitch += swing * 0.6;
+const draw = ({ matrix, basis }: ViewerCamera) => {
+  const between = viewer.getTime() * STEP_HZ - world.frame;
 
-  const basis = computeCameraBasis();
-
-  state.yaw -= swing;
-  state.pitch -= swing * 0.6;
-  const matrix = computeViewProjection(basis, canvas);
-
-  if (isChecked('showGrid')) {
-    drawLines(GRID, matrix, true);
-  }
-  model?.draw(matrix, {
-    offset: getModelOrigin(),
-    light: basis.forward.map((value) => -value) as Vec3,
-    showBones: !!objectView.scene && objectView.showBones,
-    showMeshes: !objectView.scene || objectView.showModel,
-    showHidden: objectView.showHiddenParts,
-    subObjectRules: objectView.subObjectRules,
-    seconds: state.time,
-    camera: {
-      eye: basis.eye,
-      // prettier-ignore
-      rotation: [
-        basis.right[0], basis.up[0], -basis.forward[0],
-        basis.right[1], basis.up[1], -basis.forward[1],
-        basis.right[2], basis.up[2], -basis.forward[2],
-      ],
-    },
-  });
   drawSystems(
     matrix,
     basis,
-    state.playing ? Math.min(1, state.accumulator * STEP_HZ) : 1,
+    viewer.isPlaying() ? Math.max(0, Math.min(1, between)) : 1,
     isChecked('keys'),
   );
   if (effects.scorches.length) {
@@ -185,7 +198,7 @@ const draw = () => {
     for (const radius of effects.scorches) {
       pushRing(lines, [x, y, z], radius, [0.85, 0.5, 0.2, 1]);
     }
-    drawLines(lines, matrix, false);
+    viewer.drawLines(lines, matrix, false);
   }
   if (isChecked('showVolume')) {
     const lines: number[] = [];
@@ -197,38 +210,14 @@ const draw = () => {
         pushVolumeLines(lines, def, system.origin);
       }
     }
-    drawLines(lines, matrix, false);
+    viewer.drawLines(lines, matrix, false);
   }
+  drawHandles();
 };
 
-let last = performance.now();
 let lastStatus = 0;
 
-const frame = (now: number) => {
-  const seconds = Math.min(0.25, (now - last) / 1000);
-
-  last = now;
-  if (state.playing && state.scene) {
-    state.accumulator += seconds * state.speed;
-    advanceAnimation(seconds * state.speed);
-
-    let steps = 0;
-
-    while (state.accumulator >= 1 / STEP_HZ && steps++ < 8) {
-      state.accumulator -= 1 / STEP_HZ;
-      stepOnce();
-    }
-    if (!world.systems.length) {
-      state.idle += seconds;
-      if (isChecked('loop') && state.idle > 0.6) {
-        start();
-      }
-    }
-  }
-  if (hasGraphics) {
-    draw();
-    drawHandles();
-  }
+const onFrame = (now: number) => {
   drawTimeline();
   showStats(now);
   hud.textContent = [
@@ -237,7 +226,7 @@ const frame = (now: number) => {
     `${world.systems.length} systems  ${world.liveParticles} particles` +
       (world.dropped ? `  dropped ${world.dropped}` : ''),
     `wind ${world.options.wind}  hollow box ${world.options.hollowBox}`,
-    ...(state.scene?.comparing ? ['showing the block as written (B)'] : []),
+    ...(state.scene?.comparing ? ['showing the block as written (C)'] : []),
   ].join('\n');
   if (now - lastStatus > 1000) {
     lastStatus = now;
@@ -248,15 +237,10 @@ const frame = (now: number) => {
       particles: world.liveParticles,
     });
   }
-  requestAnimationFrame(frame);
 };
 
 // ---- Controls
 
-const setPlaying = (playing: boolean) => {
-  state.playing = playing;
-  $('play').textContent = playing ? 'Pause' : 'Play';
-};
 const syncOptions = () => {
   world.options.wind = getSelectedValue('wind') as typeof world.options.wind;
   world.options.hollowBox = getSelectedValue(
@@ -273,22 +257,10 @@ const cycle = (id: string) => {
 };
 
 attachHandles();
-attachObjectPanel(
-  () => start(),
-  (pose) => model?.setPose(pose),
-);
-attachCamera(canvas);
-$('play').onclick = () => setPlaying(!state.playing);
-$('restart').onclick = () => start();
-$('step').onclick = () => {
-  setPlaying(false);
-  stepOnce();
-};
-$('speed').onchange = () => (state.speed = Number(getSelectedValue('speed')));
 for (const id of ['wind', 'hollowBox', 'compound', 'batchLimit']) {
   $(id).onchange = () => {
     syncOptions();
-    start();
+    viewer.restart();
   };
 }
 $('apply').onclick = () => post({ kind: 'apply' });
@@ -344,32 +316,18 @@ $('scale').onclick = () => {
 };
 $('reset').onclick = () => post({ kind: 'reset' });
 
-window.addEventListener('keydown', (event) => {
-  if (
-    event.target instanceof HTMLInputElement ||
-    event.target instanceof HTMLSelectElement
-  ) {
-    return;
-  }
-
-  const key = event.key.toLowerCase();
-
-  if (key === ' ') {
-    event.preventDefault();
-    setPlaying(!state.playing);
-  } else if (key === 'r') {
-    start();
-  } else if (key === '.') {
-    setPlaying(false);
-    stepOnce();
-  } else if (key === 'w') {
+const onKey = (key: string): boolean => {
+  if (key === 'w') {
     cycle('wind');
   } else if (key === 'h') {
     cycle('hollowBox');
-  } else if (key === 'b') {
+  } else if (key === 'c') {
     compare();
+  } else {
+    return false;
   }
-});
+  return true;
+};
 
 const bones = $<HTMLSelectElement>('bone');
 let pose: Pose | undefined;
@@ -381,8 +339,8 @@ bones.onchange = () => {
 
   attachment.bone = at ? [...at.t] : [0, 0, 0];
   // Looks at where the effect now starts
-  state.target = [...attachment.bone];
-  start();
+  viewer.orbit.setTarget([...attachment.bone]);
+  viewer.restart();
 };
 $('pickModel').onclick = () => post({ kind: 'pickModel' });
 
@@ -403,7 +361,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     const shown = data.model;
     const skeleton = shown?.scene.skeleton;
 
-    model?.setModel(shown?.scene);
+    viewer.setModel(shown?.scene);
     pose = skeleton && poseAt(skeleton);
     bones.replaceChildren(
       new Option('origin', ''),
@@ -413,13 +371,12 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
     );
     bones.hidden = !shown || !!objectView.scene;
     attachment.bone = [0, 0, 0];
-    attachment.hasModel = !!shown;
     $('pickModel').textContent = shown ? shown.name : 'On a model…';
     if (objectView.scene) {
-      setShownModel(shown?.scene);
+      refreshShownModel();
       return;
     }
-    start();
+    viewer.restart();
     return;
   }
 
@@ -445,21 +402,46 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
   renderFields(data);
   $('compare').classList.toggle('on', data.comparing);
   $('compare').textContent = data.comparing
-    ? 'A/B: as written (B)'
-    : 'A/B: with changes (B)';
+    ? 'A/B: as written (C)'
+    : 'A/B: with changes (C)';
   renderCurves();
-  renderTimeline(start);
-  if (first) {
+  renderTimeline(viewer.restart);
+  if (first && !viewer.getModel()) {
     const def = data.root && library.systems.get(data.root.name.toLowerCase());
+    const reach = def ? estimateReach(def) : 0;
 
-    state.distance = def ? estimateReach(def) * 2.2 : 260;
-    state.target = [0, 0, def ? Math.min(80, estimateReach(def) / 3) : 20];
+    viewer.orbit.frame(
+      [0, 0, def ? Math.min(80, reach / 3) : 20],
+      (def ? reach * REACH_DISTANCE : DEFAULT_DISTANCE) / DISTANCE_RADII,
+    );
   }
   if (data.restart || first) {
-    start();
+    viewer.restart();
   }
 });
 
+viewer.addLayer({
+  getLength: getEffectSeconds,
+  isBusy: () =>
+    !!state.scene &&
+    state.roots.length > 0 &&
+    viewer.getTime() - lastBusyTime <= LOOP_PAUSE,
+  onAdvance: (time) => {
+    if (state.scene) {
+      stepTo(time, MAX_FRAME_STEPS);
+    }
+  },
+  onSeek: (time) => {
+    if (time * STEP_HZ < world.frame) {
+      startEffects();
+    }
+    stepTo(time, MAX_SEEK_STEPS);
+  },
+  onRestart: startEffects,
+  onFrame,
+  prepareFrame,
+  draw,
+  onKey,
+});
 syncOptions();
-requestAnimationFrame(frame);
 post({ kind: 'ready' });

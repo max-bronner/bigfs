@@ -134,15 +134,25 @@ export const showModel = (
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.16, 0.17, 0.19, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    renderer.draw(orbit.viewProjection(canvas.width / canvas.height), {
-      light: orbit.towardsEye(),
+    const basis = orbit.getBasis();
+
+    renderer.draw(orbit.getViewProjection(basis, canvas.width / canvas.height), {
+      light: basis.forward.map((axis) => -axis) as Vec3,
       showBones: player.showBones,
       lod: player.lod,
       showHidden: player.showHidden,
       partOverrides: player.partOverrides,
       showBoxes: player.showBoxes,
       seconds: player.seconds,
-      camera: orbit.camera(),
+      camera: {
+        eye: basis.eye,
+        // prettier-ignore
+        rotation: [
+          basis.right[0], basis.up[0], -basis.forward[0],
+          basis.right[1], basis.up[1], -basis.forward[1],
+          basis.right[2], basis.up[2], -basis.forward[2],
+        ],
+      },
     });
   };
   const orbit = createOrbit(canvas, centre, radius, draw);

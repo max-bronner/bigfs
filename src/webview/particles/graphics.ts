@@ -1,14 +1,12 @@
-import { createModelRenderer } from '../shared/modelRenderer';
 import type { ParticleDef } from '../../formats/particles/particleDef';
 import type { Particle } from '../../formats/particles/particleSimulation';
-import type { Basis } from './camera';
-import { dot } from './camera';
-import { $, library, world } from './page';
+import type { CameraBasis } from '../shared/orbitBasis';
+import { library, viewer, world } from './page';
 
 /**
  * WebGL drawing: particles as camera-facing billboards with the game's
- * four blend states, and coloured lines for the grid and volumes. Without
- * WebGL the simulation still runs and reports; only drawing stops.
+ * four blend states, on the viewer's context. Without WebGL the simulation
+ * still runs and reports; only drawing stops.
  */
 
 /** Floats per billboard vertex: position, corner, size, angle, colour and flipbook rect */
@@ -37,19 +35,7 @@ void main() {
   if (uAlphaTest > 0.5 && color.a < 0.5) discard;
   gl_FragColor = color;
 }`;
-const LINE_VERTEX = `
-attribute vec3 aPos; attribute vec4 aColor; uniform mat4 uViewProj; varying vec4 vColor;
-void main() { gl_Position = uViewProj * vec4(aPos, 1.0); vColor = aColor; }`;
-const LINE_FRAGMENT = `
-precision mediump float; varying vec4 vColor; void main() { gl_FragColor = vColor; }`;
-
-/** Canvas the particle preview draws on */
-export const canvas = $<HTMLCanvasElement>('canvas');
-
-const gl = canvas.getContext('webgl', {
-  antialias: true,
-  premultipliedAlpha: false,
-});
+const { canvas, gl } = viewer;
 
 const setUp = (gl: WebGLRenderingContext) => {
   const compile = (vertex: string, fragment: string) => {
@@ -121,12 +107,9 @@ const setUp = (gl: WebGLRenderingContext) => {
 
   return {
     spriteProgram: compile(SPRITE_VERTEX, SPRITE_FRAGMENT),
-    lineProgram: compile(LINE_VERTEX, LINE_FRAGMENT),
-    model: createModelRenderer(gl),
     spriteBuffer,
     spriteData,
     indexBuffer,
-    lineBuffer: gl.createBuffer()!,
     makeTexture: (source: TexImageSource) =>
       texture(() =>
         gl.texImage2D(
@@ -189,50 +172,6 @@ export const loadTextures = (sources: Record<string, string | null>): void => {
     image.onload = () => textures.set(name, graphics.makeTexture(image));
     image.src = uri;
   }
-};
-
-/** The model the effect is shown on, drawn as the W3D viewer draws it */
-export const model = graphics?.model;
-
-/** Draws line vertices, xyz rgba each; without `depthTest` they show through everything */
-export const drawLines = (
-  lines: number[],
-  matrix: Float32Array,
-  depthTest: boolean,
-): void => {
-  if (!graphics || !lines.length) {
-    return;
-  }
-
-  const { gl, lineProgram, lineBuffer } = graphics;
-
-  gl.useProgram(lineProgram);
-  gl.bindBuffer(gl.ARRAY_BUFFER, lineBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
-
-  const position = gl.getAttribLocation(lineProgram, 'aPos');
-  const color = gl.getAttribLocation(lineProgram, 'aColor');
-
-  gl.enableVertexAttribArray(position);
-  gl.enableVertexAttribArray(color);
-  gl.vertexAttribPointer(position, 3, gl.FLOAT, false, 28, 0);
-  gl.vertexAttribPointer(color, 4, gl.FLOAT, false, 28, 12);
-  gl.uniformMatrix4fv(
-    gl.getUniformLocation(lineProgram, 'uViewProj'),
-    false,
-    matrix,
-  );
-  if (depthTest) {
-    gl.enable(gl.DEPTH_TEST);
-  } else {
-    gl.disable(gl.DEPTH_TEST);
-  }
-  gl.depthMask(true);
-  gl.enable(gl.BLEND);
-  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  gl.drawArrays(gl.LINES, 0, lines.length / 7);
-  gl.disableVertexAttribArray(position);
-  gl.disableVertexAttribArray(color);
 };
 
 /**
@@ -300,7 +239,7 @@ const CORNERS = [
 /** Draws every live system back to front, `blend` of the way to the next step */
 export const drawSystems = (
   matrix: Float32Array,
-  basis: Basis,
+  basis: CameraBasis,
   blend: number,
   colourKeys: boolean,
 ): void => {
@@ -320,7 +259,7 @@ export const drawSystems = (
       return {
         system,
         def: library.systems.get(system.name.toLowerCase()),
-        distance: dot(d, d),
+        distance: d[0] * d[0] + d[1] * d[1] + d[2] * d[2],
       };
     })
     .filter((entry) => entry.def && entry.system.particles.length)
@@ -451,29 +390,4 @@ export const drawSystems = (
   gl.depthMask(true);
   drawStats.drawn = drawn;
   drawStats.fill = covered / Math.max(1, canvas.width * canvas.height);
-};
-
-/** Sizes the canvas to its box and clears it to the sky */
-export const beginFrame = (sky: string): void => {
-  if (!graphics) {
-    return;
-  }
-
-  const { gl } = graphics;
-  const ratio = window.devicePixelRatio || 1;
-  const width = Math.round(canvas.clientWidth * ratio);
-  const height = Math.round(canvas.clientHeight * ratio);
-
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.clearColor(
-    parseInt(sky.slice(1, 3), 16) / 255,
-    parseInt(sky.slice(3, 5), 16) / 255,
-    parseInt(sky.slice(5, 7), 16) / 255,
-    1,
-  );
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 };

@@ -81,7 +81,8 @@ export const applyMuting = (): void => {
   }
 };
 
-const getSpanFrames = (list: FxListDef): number => {
+/** Counts the frames a list is planned to take, however long it has really run */
+const getPlannedFrames = (list: FxListDef): number => {
   const ends = list.nuggets.map((nugget) => {
     const end = getDurationFrames(nugget.system);
 
@@ -98,11 +99,17 @@ const getSpanFrames = (list: FxListDef): number => {
 
   return Math.max(
     STEP_HZ * 2,
-    world.frame + STEP_HZ / 2,
     ...finite,
     ...(finite.length < ends.length ? [STEP_HZ * 4] : []),
   );
 };
+
+const getSpanFrames = (list: FxListDef): number =>
+  Math.max(getPlannedFrames(list), world.frame + STEP_HZ / 2);
+
+/** Gets the seconds the FX list on show is planned to take; undefined without one */
+export const getTimelineSeconds = (): number | undefined =>
+  original && getPlannedFrames(original) / STEP_HZ;
 
 /** Lists the non-particle nuggets of the FX list on show, which the page approximates */
 export const listEffects = (): readonly FxEffect[] => original?.effects ?? [];

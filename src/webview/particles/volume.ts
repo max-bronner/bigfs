@@ -1,18 +1,8 @@
 import type { ParticleDef, Vec3 } from '../../formats/particles/particleDef';
+import { pushLine } from '../shared/viewer/pushLine';
+import type { LineColor as Color } from '../shared/viewer/pushLine';
 
-/** Lines for the ground grid and emitter volumes: xyz rgba per vertex */
-
-type Color = [number, number, number, number];
-
-/** Appends a line's two vertices, xyz rgba each */
-export const pushLine = (
-  out: number[],
-  a: Vec3,
-  b: Vec3,
-  color: Color,
-): void => {
-  out.push(...a, ...color, ...b, ...color);
-};
+/** Lines for emitter volumes: xyz rgba per vertex */
 
 /** Appends a circle flat on the ground around a point */
 export const pushRing = (
@@ -134,18 +124,3 @@ export const pushVolumeLines = (
   pushLine(out, at([0, -s, 0]), at([0, s, 0]), color);
   pushLine(out, at([0, 0, -s]), at([0, 0, s]), color);
 };
-
-/** Line vertices of the ground grid and the red, green and blue axes */
-export const GRID: number[] = (() => {
-  const out: number[] = [];
-  const color: Color = [1, 1, 1, 0.12];
-
-  for (let i = -200; i <= 200; i += 20) {
-    pushLine(out, [i, -200, 0], [i, 200, 0], color);
-    pushLine(out, [-200, i, 0], [200, i, 0], color);
-  }
-  pushLine(out, [0, 0, 0], [40, 0, 0], [1, 0.3, 0.3, 0.8]);
-  pushLine(out, [0, 0, 0], [0, 40, 0], [0.3, 1, 0.3, 0.8]);
-  pushLine(out, [0, 0, 0], [0, 0, 40], [0.4, 0.6, 1, 0.8]);
-  return out;
-})();

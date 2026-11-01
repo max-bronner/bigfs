@@ -1,17 +1,7 @@
-import {
-  describeForeignClip,
-  isOwnClip,
-  poseAt,
-} from '../../formats/w3d/w3dPose';
-import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
+import type { Vec3 } from '../../formats/w3d/w3dPose';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import { findHidingSources } from '../../formats/w3d/w3dScene';
-import type {
-  ModelScene,
-  SceneMesh,
-  SceneSkeleton,
-  SubObjectRule,
-} from '../../formats/w3d/w3dScene';
+import type { SceneSkeleton } from '../../formats/w3d/w3dScene';
 import type {
   ObjectScene,
   SceneFocus,
@@ -21,14 +11,14 @@ import {
   listConditionalSubObjects,
   listSubObjectRules,
 } from '../../game/objects/subObjectRules';
-import { $, post } from './page';
+import { $, post, viewer } from './page';
 
 /**
  * The object a preview shows: its states to pick from, the animations the
- * picked state plays, and every element on it - the model, its bones, the
- * FX the state starts and the particle systems it keeps on bones - each
- * with a toggle. What the preview was asked from is on; the rest of the
- * level it sits on is shown too, and the object's other FX are listed off.
+ * picked state plays in the viewer's list, and the FX the state starts and
+ * the particle systems it keeps on bones, each with a toggle. What the
+ * preview was asked from is on; the rest of the level it sits on is shown
+ * too, and the object's other FX are listed off.
  * The parts the object's INI and scripts hide in the state are not drawn,
  * and the panel names them with what hides them.
  */
@@ -46,38 +36,11 @@ interface Element extends Effect {
   on: boolean;
 }
 
-/** State of the object panel: the object, its picked state, the toggles and the model's pose */
+/** State of the object panel: the object, its picked state and its effects */
 export const objectView = {
   scene: undefined as ObjectScene | undefined,
   state: undefined as SceneState | undefined,
-  showModel: true,
-  showBones: false,
-  showHiddenParts: false,
-  subObjectRules: [] as SubObjectRule[],
   elements: [] as Element[],
-  skeleton: undefined as SceneSkeleton | undefined,
-  meshes: [] as SceneMesh[],
-  animation: undefined as W3dAnimation | undefined,
-  frame: 0,
-  pose: undefined as Pose | undefined,
-};
-
-/** The animation last loaded, kept so its notice can follow the model */
-let loaded:
-  | { name: string; animation?: W3dAnimation; skeleton?: SceneSkeleton }
-  | undefined;
-
-/** Restarts the effects, and poses the model; set by the page */
-let restart = () => {};
-let showPose = (_pose: Pose | undefined) => {};
-
-/** Attaches the page's callbacks for restarting the effects and posing the model */
-export const attachObjectPanel = (
-  onRestart: () => void,
-  onPose: (pose: Pose | undefined) => void,
-): void => {
-  restart = onRestart;
-  showPose = onPose;
 };
 
 const element = <K extends keyof HTMLElementTagNameMap>(
@@ -95,7 +58,8 @@ export const listEnabledEffects = (): Effect[] =>
 
 /** Gets where a bone of the shown model stands now, relative to the model; the origin for an unknown bone */
 export const getBonePosition = (name: string | undefined): Vec3 => {
-  const { skeleton, pose } = objectView;
+  const skeleton = viewer.getModel()?.skeleton;
+  const pose = viewer.getPose();
   const at = name
     ? (skeleton?.names.findIndex((each) => isSameName(each, name)) ?? -1)
     : -1;
@@ -103,46 +67,16 @@ export const getBonePosition = (name: string | undefined): Vec3 => {
   return at >= 0 && pose ? ([...pose.world[at].t] as Vec3) : [0, 0, 0];
 };
 
-const setPose = () => {
-  const { skeleton, animation, frame } = objectView;
-
-  objectView.pose = skeleton && poseAt(skeleton, animation, frame);
-  showPose(objectView.pose);
-};
-
-/** Moves the animation on by `seconds` of playback */
-export const advanceAnimation = (seconds: number): void => {
-  const animation = objectView.animation;
-
-  if (!animation) {
-    return;
-  }
-  objectView.frame =
-    (objectView.frame + seconds * animation.frameRate) %
-    Math.max(1, animation.frameCount - 1);
-  setPose();
-};
-
-/** Plays the loaded animation on the shown model, saying so when it was made for another skeleton */
-const bindLoadedAnimation = () => {
-  const { skeleton } = objectView;
-  const animation = loaded?.animation;
-  const isForeign =
-    animation && skeleton && !isOwnClip(skeleton, animation, loaded?.skeleton);
-
-  objectView.animation = animation;
-  $('objectNotice').textContent = isForeign
-    ? describeForeignClip(animation)
-    : loaded && !animation
-      ? `The animation ${loaded.name} was not found or holds no animation`
-      : '';
-  setPose();
-};
-
 /** Says which parts of the shown model are not drawn and why, and what could not be decided */
 const renderHiddenParts = () => {
-  const { scene, state, meshes, skeleton, subObjectRules } = objectView;
-  const hiding = findHidingSources(meshes, subObjectRules, skeleton?.parents);
+  const { scene, state } = objectView;
+  const model = viewer.getModel();
+  const meshes = model?.meshes ?? [];
+  const hiding = findHidingSources(
+    meshes,
+    state && scene ? listSubObjectRules(scene, state) : [],
+    model?.skeleton?.parents,
+  );
   const hidden = meshes.flatMap((mesh, at) =>
     hiding[at] ? [`${mesh.name} (${hiding[at]})`] : [],
   );
@@ -156,13 +90,10 @@ const renderHiddenParts = () => {
   ].join('. ');
 };
 
-/** Takes the model the page now shows, or none, then restarts the effects */
-export const setShownModel = (model: ModelScene | undefined): void => {
-  objectView.skeleton = model?.skeleton;
-  objectView.meshes = model?.meshes ?? [];
-  bindLoadedAnimation();
+/** Takes the model the page now shows, then restarts the effects */
+export const refreshShownModel = (): void => {
   renderHiddenParts();
-  restart();
+  viewer.restart();
 };
 
 /** Takes a loaded animation with the skeleton it names, or none when it was not found */
@@ -171,18 +102,18 @@ export const setLoadedAnimation = (
   animation: W3dAnimation | undefined,
   skeleton?: SceneSkeleton,
 ): void => {
-  loaded = { name, animation, skeleton };
-  objectView.frame = 0;
-  bindLoadedAnimation();
+  if (animation) {
+    viewer.playClip({ id: name, animation, skeleton });
+  } else {
+    viewer.clearClip(`The animation ${name} was not found or holds no animation`);
+  }
 };
 
 const playAnimation = (name: string | undefined) => {
   if (name) {
     post({ kind: 'loadAnimation', name });
   } else {
-    loaded = undefined;
-    objectView.frame = 0;
-    bindLoadedAnimation();
+    viewer.clearClip();
   }
 };
 
@@ -249,17 +180,10 @@ const renderElements = () => {
   };
 
   list.replaceChildren(
-    toggle('Model', objectView.showModel, (on) => (objectView.showModel = on)),
-    toggle('Bones', objectView.showBones, (on) => (objectView.showBones = on)),
-    toggle(
-      'Hidden parts',
-      objectView.showHiddenParts,
-      (on) => (objectView.showHiddenParts = on),
-    ),
     ...objectView.elements.map((each) =>
       toggle(each.label, each.on, (on) => {
         each.on = on;
-        restart();
+        viewer.restart();
       }),
     ),
   );
@@ -297,7 +221,6 @@ const pickState = (focus: SceneFocus) => {
     state ??
     scene.states.find((each) => each.kind === 'model' && each.model) ??
     scene.states[0];
-  const animations = $<HTMLSelectElement>('objectAnimation');
   // A state of its own plays its animation; the object as a whole idles
   const choices = state
     ? state.animations
@@ -309,13 +232,12 @@ const pickState = (focus: SceneFocus) => {
       : scene.states.find((each) => /idle/i.test(each.label))?.animations[0]);
 
   objectView.state = shown;
-  objectView.subObjectRules = listSubObjectRules(scene, shown);
+  viewer.setSubObjectRules(listSubObjectRules(scene, shown));
   objectView.elements = listElements(scene, state ?? shown, focus);
-  animations.replaceChildren(
-    new Option('Bind pose', ''),
-    ...[...new Set(choices)].map((name) => new Option(name, name)),
-  );
-  animations.value = first ?? '';
+  viewer.setClips({
+    own: [...new Set(choices)].map((name) => ({ id: name, label: name })),
+  });
+  viewer.showClipChoice(first);
   if (shown?.model) {
     post({ kind: 'loadModel', name: shown.model });
   }
@@ -351,7 +273,5 @@ export const showObject = (scene: ObjectScene, focus: SceneFocus): void => {
     pickState({
       state: states.value === '' ? undefined : Number(states.value),
     });
-  $<HTMLSelectElement>('objectAnimation').onchange = (event) =>
-    playAnimation((event.target as HTMLSelectElement).value || undefined);
   pickState(focus);
 };

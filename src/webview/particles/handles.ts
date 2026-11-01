@@ -1,8 +1,6 @@
 import type { NumericField } from '../../formats/particles/particleValueEdits';
 import type { ParticleDef, Vec3 } from '../../formats/particles/particleDef';
-import { computeCameraBasis, computeViewProjection } from './camera';
-import { canvas } from './graphics';
-import { $, library, post, state, world } from './page';
+import { $, library, post, state, viewer, world } from './page';
 
 /**
  * Handles on the emission volume of the previewed system, drawn over the
@@ -25,6 +23,7 @@ interface Handle {
   label: string;
 }
 
+const { canvas } = viewer;
 const overlay = $<HTMLCanvasElement>('handles');
 const RADIUS = 6;
 
@@ -222,7 +221,7 @@ export const drawHandles = (): void => {
     return;
   }
 
-  const matrix = computeViewProjection(computeCameraBasis(), canvas);
+  const { matrix } = viewer.getCamera();
 
   ctx.font = '10px sans-serif';
   for (const handle of listHandles(found.def)) {
@@ -277,7 +276,7 @@ export const attachHandles = (): void => {
         event.clientX - box.left,
         event.clientY - box.top,
       ];
-      const matrix = computeViewProjection(computeCameraBasis(), canvas);
+      const { matrix, basis } = viewer.getCamera();
       const handle = listHandles(found.def).find((each) => {
         const at = project(matrix, add(found.origin, each.at));
 
@@ -304,7 +303,7 @@ export const attachHandles = (): void => {
           along: [to[0] - from[0], to[1] - from[1]],
         };
       } else {
-        const { right, up } = computeCameraBasis();
+        const { right, up } = basis;
         const step = project(matrix, add(base, right)) ?? from;
 
         drag = {
