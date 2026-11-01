@@ -327,6 +327,9 @@ your mod's archives.
   texture's own format, mipmaps included) and **Convert to Game Texture…**
   for PNGs (TGA 24/32-bit, DDS DXT1/3/5 or uncompressed).
 - Sounds: WAV, including IMA ADPCM, which VS Code's own audio preview cannot play. MP3 opens in VS Code's own preview.
+- **new** Cursors: `.cur` and `.ani` open in the preview with every image,
+  its size and its hotspot (outlined in red); an animated cursor plays its own
+  sequence and rates, with play, pause and a step slider.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
   pause and seeking (dragging the slider follows the pointer and lands on
   the frame you let go on); alpha movies show over a checkerboard.
@@ -499,7 +502,7 @@ row, file or editor they act on.
 
 | Editor | Opens |
 | --- | --- |
-| bigFS Preview | `.tga`, `.dds`, `.wav`, `.w3d`, `.vp6` |
+| bigFS Preview | `.tga`, `.dds`, `.wav`, `.w3d`, `.vp6`, `.cur`, `.ani` |
 | bigFS APT Movie | `.apt` |
 | bigFS String Table, bigFS CSF String Table | `.str`, `.csf` |
 | bigFS Create-a-Hero | `.cah` |

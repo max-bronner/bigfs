@@ -1,5 +1,6 @@
 import { getVsCodeApi } from '../shared/vscodeApi';
 import { showAudio } from './audio';
+import { showCursor } from './cursor';
 import { showMovie } from './movie';
 import type { MovieControl } from './movie';
 import type { FromPreviewPage, ToPreviewPage } from './protocol';
@@ -59,6 +60,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
       break;
     case 'audio':
       showAudio(main, data);
+      break;
+    case 'cursor':
+      showCursor(main, data);
       break;
     case 'error': {
       const error = document.createElement('p');

@@ -1,3 +1,7 @@
+import type {
+  AnimationStep,
+  CursorFrame,
+} from '../../formats/cursor/cursorFrame';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { ForeignClip } from '../../formats/w3d/w3dModelFinder';
 import type { ModelScene, SceneSkeleton } from '../../formats/w3d/w3dScene';
@@ -47,11 +51,19 @@ export interface VideoMessage {
   hasAlpha: boolean;
 }
 
+/** Message carrying a cursor file's images, with the steps that play them when it is animated */
+export interface CursorMessage {
+  kind: 'cursor';
+  frames: CursorFrame[];
+  steps?: AnimationStep[];
+}
+
 /** Messages the extension sends the preview page: what to draw or play, then the answers to what it asks */
 export type ToPreviewPage =
   | TextureMessage
   | AudioMessage
   | VideoMessage
+  | CursorMessage
   | ({ kind: 'model' } & ModelMessage)
   | { kind: 'error'; message: string }
   | { kind: 'animations'; own: string[]; foreign: ForeignClip[] }

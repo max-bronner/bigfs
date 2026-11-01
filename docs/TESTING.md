@@ -690,6 +690,14 @@ Sound is opt-in: opening a view never plays anything.
   frame the label names), the thumb does not jump back under the pointer, and
   after letting go the movie stays on that frame; Play continues from it.
   Dragging to a frame far from a key frame is slower but the last stop wins.
+- [ ] **new** Cursor preview: open a `.cur` from the install's `data/cursors`
+  (copied out, or a loose file in the install opened read-only). The image
+  shows on a checkerboard with its size and hotspot, and the hotspot pixel is
+  outlined in red and white. Open an `.ani` (for example `Beam.ani`): it
+  plays by itself at its own speed, Pause stops it, the slider steps through
+  the sequence and the label names the step, the frame and its duration. Every
+  distinct frame is listed below with its hotspot. A broken or truncated cursor
+  shows an error, not a blank page.
 - [ ] **new** **Convert to VP6 Movie…** from a video, an image or a folder of
   numbered frames: size, frame rate, quality asked; the result is decoded
   before saving and plays in the game. `bigfs.vp6.keyFrameSeconds` = 0 makes

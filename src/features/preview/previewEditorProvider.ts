@@ -15,6 +15,8 @@ import {
 import type { SkeletonClips } from '../../formats/w3d/w3dModelFinder';
 import type { SceneSkeleton } from '../../formats/w3d/w3dScene';
 import { decompressEar, isEarWrapped } from '../../formats/refpack/refpack';
+import { parseCursorFile } from '../../formats/cursor/parseCursorFile';
+import { decodePng } from '../../node/png';
 import { Vp6Movie } from '../../formats/vp6/container';
 import type { EntryLocator } from '../../services/entryLocator';
 import { renderWebviewPage } from '../../platform/webview/webviewPage';
@@ -43,7 +45,7 @@ const getFileName = (uri: vscode.Uri) =>
 type PreviewMessage = Extract<
   ToPreviewPage,
   {
-    kind: 'texture' | 'audio' | 'video' | 'model' | 'error';
+    kind: 'texture' | 'audio' | 'video' | 'cursor' | 'model' | 'error';
   }
 >;
 
@@ -70,6 +72,12 @@ const buildMessage = async (
         return {
           kind: 'audio',
           ...(await tools.use(playableAudioTool)(bytes)),
+        };
+      case '.cur':
+      case '.ani':
+        return {
+          kind: 'cursor',
+          ...parseCursorFile(bytes, { decodePng }),
         };
       case '.vp6': {
         const movie = new Vp6Movie(bytes);
