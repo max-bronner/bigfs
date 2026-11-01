@@ -2,11 +2,11 @@ import * as assert from "assert";
 import { parseW3d } from "../../formats/w3d/w3dTools";
 import { createToolRegistry } from "../../core/toolRegistry";
 import {
-  DEFAULT_SURFACE,
   MAX_DRAWS_PER_MESH,
   MAX_PASSES_PER_MESH,
   resolveMaterialDraws,
-} from "../../formats/w3d/w3dMaterial";
+} from "../../formats/w3d/resolveMaterialDraws";
+import { DEFAULT_SURFACE } from "../../formats/w3d/w3dMaterialTypes";
 import { loadSceneDraws, MAX_TEXTURE_NAMES } from "../../formats/w3d/w3dSceneDraws";
 import type { W3dMesh } from "../../formats/w3d/w3dTools";
 import type { W3dMeshMaterials, W3dShader } from "../../formats/w3d/w3dMaterialChunks";

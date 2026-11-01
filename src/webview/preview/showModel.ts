@@ -6,7 +6,7 @@ import {
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import type { W3dAnimation } from "../../formats/w3d/w3dAnimation";
 import type { ForeignClip } from "../../formats/w3d/w3dModelFinder";
-import { isSurfaceAnimated } from "../../formats/w3d/w3dMaterial";
+import { isSurfaceAnimated } from "../../formats/w3d/isSurfaceAnimated";
 import { findHidingSources, getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { SceneSkeleton } from "../../formats/w3d/w3dScene";
 import { createModelRenderer } from "../shared/modelRenderer";

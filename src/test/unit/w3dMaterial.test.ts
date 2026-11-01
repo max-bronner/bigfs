@@ -4,12 +4,10 @@ import { buildBumpOffsets } from "../../formats/w3d/w3dBumpMap";
 import { parseHouseColours } from "../../formats/w3d/w3dHouseColour";
 import { buildW3dScene } from "../../formats/w3d/w3dScene";
 import { createToolRegistry } from "../../core/toolRegistry";
-import {
-  classifyBlend,
-  DEFAULT_SURFACE,
-  isSurfaceAnimated,
-  resolveVertexColour,
-} from "../../formats/w3d/w3dMaterial";
+import { classifyBlend } from "../../formats/w3d/classifyBlend";
+import { isSurfaceAnimated } from "../../formats/w3d/isSurfaceAnimated";
+import { resolveVertexColour } from "../../formats/w3d/resolveVertexColour";
+import { DEFAULT_SURFACE } from "../../formats/w3d/w3dMaterialTypes";
 import {
   parseUvMapper,
   sampleBumpMatrix,

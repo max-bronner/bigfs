@@ -8,19 +8,23 @@ import {
 import type { Pose, Vec3 } from "../../formats/w3d/w3dPose";
 import { getMeshVisibility } from "../../formats/w3d/w3dScene";
 import type { VisibilityOptions } from "../../formats/w3d/w3dScene";
-import type { ModelScene, SceneDraw, SceneMesh } from "../../formats/w3d/w3dScene";
-import { DEFAULT_SURFACE } from "../../formats/w3d/w3dMaterial";
-import type { W3dBlend, W3dSurface } from "../../formats/w3d/w3dMaterial";
-import {
-  IDENTITY_UV_TRANSFORM,
-  parseUvMapper,
-  sampleBumpMatrix,
-  sampleUvTransform,
-  UV_MAPPER,
-} from "../../formats/w3d/w3dUvMapper";
-import type { W3dUvMapper } from "../../formats/w3d/w3dUvMapper";
+import type { ModelScene, SceneMesh } from "../../formats/w3d/w3dScene";
+import type { SceneDraw } from "../../formats/w3d/w3dSceneDraws";
+import { DEFAULT_SURFACE } from "../../formats/w3d/w3dMaterialTypes";
+import type { W3dBlend, W3dSurface } from "../../formats/w3d/w3dMaterialTypes";
+import { parseUvMapper, sampleBumpMatrix, UV_MAPPER } from "../../formats/w3d/w3dUvMapper";
 import { DEFAULT_HOUSE_COLOUR } from "../../formats/w3d/w3dHouseColour";
+import { applyBlend } from "./applyBlend";
+import { applyMapper, DETAIL_UV_UNIFORMS, UV_UNIFORMS } from "./applyMapper";
+import { applySurface } from "./applySurface";
+import { bindAttribute } from "./bindAttribute";
+import { bindColors } from "./bindColors";
+import { drawModelLines } from "./drawModelLines";
+import type { BoneLines } from "./drawModelLines";
+import type { ModelAttributes } from "./modelLocations";
 import { buildFragmentShader, VERTEX_SHADER } from "./modelShaders";
+import { orderDraws } from "./orderDraws";
+import { uploadTextures } from "./uploadTextures";
 
 /**
  * Draws a W3D model with WebGL: every material draw of every mesh textured
@@ -31,12 +35,10 @@ import { buildFragmentShader, VERTEX_SHADER } from "./modelShaders";
  * the same in both. WebGL 1, which the particle preview draws with.
  */
 
-const BONE_COLOUR = [1, 0.75, 0.2, 1];
 /** What a draw shows in place of a texture that was not found */
 const MISSING_TEXTURE = [0.7, 0.7, 0.7, 1];
 /** What a draw that names no texture shows: its lit colour alone */
 const NO_TEXTURE = [1, 1, 1, 1];
-const BOX_COLOUR = [0.3, 0.9, 0.5, 1];
 
 /** Settings for one `ModelRenderer.draw` call: where the model stands, the light, and what to show */
 export interface DrawOptions {
@@ -95,8 +97,8 @@ interface DrawablePart {
   surface: W3dSurface;
   indexType: number;
   texture?: WebGLTexture;
-  /** The draw names a texture that was not found */
-  missingTexture: boolean;
+  /** The draw names a texture, found or not; without one found it shows grey */
+  namesTexture: boolean;
   detailTexture?: WebGLTexture;
   houseMask?: WebGLTexture;
   normalMap?: WebGLTexture;
@@ -116,18 +118,6 @@ interface Drawable {
   parts: DrawablePart[];
   posed?: { positions: Float32Array; normals?: Float32Array };
 }
-
-/** The factors of each blended operation, source then destination */
-const BLEND_FACTORS = (
-  gl: WebGLRenderingContext,
-): Record<Exclude<W3dBlend, "opaque">, [number, number]> => ({
-  alpha: [gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA],
-  additive: [gl.ONE, gl.ONE],
-  multiply: [gl.ZERO, gl.SRC_COLOR],
-  addScaledByAlpha: [gl.ONE, gl.SRC_ALPHA],
-  addScaledByColor: [gl.ONE, gl.SRC_COLOR],
-  addInverseScaledByColor: [gl.ONE, gl.ONE_MINUS_SRC_COLOR],
-});
 
 const NO_MAPPER = parseUvMapper(UV_MAPPER.UV);
 
@@ -179,8 +169,6 @@ const poseAtBind = (skeleton: NonNullable<ModelScene["skeleton"]>): Pose => {
   return pose;
 };
 
-const isPowerOfTwo = (value: number) => (value & (value - 1)) === 0;
-
 /** Creates a model renderer on a WebGL 1 context that other programs may share */
 export const createModelRenderer = (
   gl: WebGLRenderingContext,
@@ -206,7 +194,7 @@ export const createModelRenderer = (
     }
     return uniforms.get(name)!;
   };
-  const attributes = {
+  const attributes: ModelAttributes = {
     position: gl.getAttribLocation(program, "position"),
     normal: gl.getAttribLocation(program, "normal"),
     uv: gl.getAttribLocation(program, "uv"),
@@ -274,38 +262,7 @@ export const createModelRenderer = (
       return;
     }
 
-    textures = next.textures.map(({ width, height, pixels }, at) => {
-      const texture = gl.createTexture()!;
-      const tiles = isPowerOfTwo(width) && isPowerOfTwo(height);
-      const addressing = next.addressing?.[at];
-
-      gl.bindTexture(gl.TEXTURE_2D, texture);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA,
-        width,
-        height,
-        0,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength),
-      );
-      if (tiles) {
-        gl.generateMipmap(gl.TEXTURE_2D);
-      }
-      gl.texParameteri(
-        gl.TEXTURE_2D,
-        gl.TEXTURE_MIN_FILTER,
-        tiles ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR,
-      );
-      const wrapOf = (clamped?: boolean) =>
-        tiles && !clamped ? gl.REPEAT : gl.CLAMP_TO_EDGE;
-
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapOf(addressing?.clampU));
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapOf(addressing?.clampV));
-      return texture;
-    });
+    textures = uploadTextures(gl, next);
 
     const boxLines = Float32Array.from(
       next.boxes.flatMap((box) => Array.from(box.lines)),
@@ -324,6 +281,19 @@ export const createModelRenderer = (
       }
 
       const usage = mesh.local ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW;
+      const uploadIndices = (indices: Uint32Array) =>
+        uploadBuffer(
+          gl.ELEMENT_ARRAY_BUFFER,
+          narrow ? Uint16Array.from(indices) : indices,
+        );
+      let wholeMeshIndex: WebGLBuffer | undefined;
+      const getIndexBuffer = (indices?: Uint32Array) => {
+        if (indices) {
+          return uploadIndices(indices);
+        }
+        wholeMeshIndex ??= uploadIndices(mesh.indices);
+        return wholeMeshIndex;
+      };
 
       return [
         {
@@ -331,35 +301,28 @@ export const createModelRenderer = (
           hasNormals: !!mesh.normals,
           position: uploadBuffer(gl.ARRAY_BUFFER, mesh.positions, usage),
           normal: mesh.normals && uploadBuffer(gl.ARRAY_BUFFER, mesh.normals, usage),
-          parts: getDraws(mesh).map((draw): DrawablePart => {
-            const indices = draw.indices ?? mesh.indices;
-
-            return {
-              count: indices.length,
-              surface: draw.surface,
-              indexType: narrow ? gl.UNSIGNED_SHORT : gl.UNSIGNED_INT,
-              texture:
-                draw.uvs && draw.texture !== undefined
-                  ? textures[draw.texture]
-                  : undefined,
-              detailTexture:
-                draw.detailUvs && draw.detailTexture !== undefined
-                  ? textures[draw.detailTexture]
-                  : undefined,
-              houseMask:
-                draw.uvs && draw.houseMask !== undefined ? textures[draw.houseMask] : undefined,
-              normalMap:
-                draw.uvs && draw.normalMap !== undefined ? textures[draw.normalMap] : undefined,
-              uv: draw.uvs && uploadOnce(draw.uvs),
-              detailUv: draw.detailUvs && uploadOnce(draw.detailUvs),
-              color: draw.colors && uploadOnce(draw.colors),
-              index: uploadBuffer(
-                gl.ELEMENT_ARRAY_BUFFER,
-                narrow ? Uint16Array.from(indices) : indices,
-              ),
-              missingTexture: draw.textured,
-            };
-          }),
+          parts: getDraws(mesh).map((draw): DrawablePart => ({
+            count: (draw.indices ?? mesh.indices).length,
+            surface: draw.surface,
+            indexType: narrow ? gl.UNSIGNED_SHORT : gl.UNSIGNED_INT,
+            texture:
+              draw.uvs && draw.texture !== undefined
+                ? textures[draw.texture]
+                : undefined,
+            detailTexture:
+              draw.detailUvs && draw.detailTexture !== undefined
+                ? textures[draw.detailTexture]
+                : undefined,
+            houseMask:
+              draw.uvs && draw.houseMask !== undefined ? textures[draw.houseMask] : undefined,
+            normalMap:
+              draw.uvs && draw.normalMap !== undefined ? textures[draw.normalMap] : undefined,
+            uv: draw.uvs && uploadOnce(draw.uvs),
+            detailUv: draw.detailUvs && uploadOnce(draw.detailUvs),
+            color: draw.colors && uploadOnce(draw.colors),
+            index: getIndexBuffer(draw.indices),
+            namesTexture: draw.textured,
+          })),
           posed: mesh.local && {
             positions: new Float32Array(mesh.positions.length),
             normals: mesh.normals && new Float32Array(mesh.normals.length),
@@ -400,113 +363,12 @@ export const createModelRenderer = (
     }
   };
 
-  const bindAttribute = (
-    location: number,
-    data: WebGLBuffer | undefined,
-    size: number,
-  ) => {
-    if (location < 0) {
-      return;
-    }
-    if (!data) {
-      gl.disableVertexAttribArray(location);
-      return;
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, data);
-    gl.enableVertexAttribArray(location);
-    gl.vertexAttribPointer(location, size, gl.FLOAT, false, 0, 0);
-  };
-
-  const blendFactors = BLEND_FACTORS(gl);
-
-  // Blended materials test against the depth buffer but do not write to it.
-  // Only an alpha blend covers what is behind, in the buffer's alpha too, so a
-  // model drawn over a clear background keeps its picture: light that adds or
-  // multiplies covers nothing
-  const applyBlend = (blend: W3dBlend, writesDepth: boolean) => {
-    gl.depthMask(writesDepth);
-    if (blend === "opaque") {
-      gl.disable(gl.BLEND);
-      return;
-    }
-
-    const [source, destination] = blendFactors[blend];
-
-    gl.enable(gl.BLEND);
-    gl.blendFuncSeparate(
-      source,
-      destination,
-      blend === "alpha" ? gl.ONE : gl.ZERO,
-      blend === "alpha" ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE,
-    );
-  };
-
-  const applySurface = (surface: W3dSurface) => {
-    const { vertexColour } = surface;
-
-    gl.depthFunc(gl.NEVER + surface.depthCompare);
-    if (surface.twoSided) {
-      gl.disable(gl.CULL_FACE);
-    } else {
-      gl.enable(gl.CULL_FACE);
-      gl.frontFace(gl.CCW);
-      gl.cullFace(gl.BACK);
-    }
-    gl.uniform3fv(uniform("materialAmbient"), surface.ambient);
-    gl.uniform3fv(uniform("materialDiffuse"), surface.diffuse);
-    gl.uniform3fv(uniform("materialEmissive"), surface.emissive);
-    gl.uniform1i(uniform("unlit"), surface.unlit ? 1 : 0);
-    gl.uniform1i(uniform("modulate2x"), surface.modulate2x ? 1 : 0);
-    gl.uniform1i(uniform("ambientFromVertex"), vertexColour?.ambient ? 1 : 0);
-    gl.uniform1i(uniform("diffuseFromVertex"), vertexColour?.diffuse ? 1 : 0);
-    gl.uniform1i(uniform("vertexIsLit"), vertexColour?.replacesLighting ? 1 : 0);
-    gl.uniform1i(uniform("vertexMultiplies"), vertexColour?.multipliesResult ? 1 : 0);
-    gl.uniform3fv(uniform("vertexScale"), vertexColour?.scale ?? DEFAULT_SURFACE.diffuse);
-    gl.uniform1f(uniform("vertexAlphaScale"), vertexColour?.alphaScale ?? 1);
-    gl.uniform1i(uniform("detailColor"), surface.detailColor);
-    gl.uniform1i(uniform("detailAlpha"), surface.detailAlpha);
-    gl.uniform1i(uniform("bumpOffset"), surface.bumpOffset ? 1 : 0);
-    gl.uniform3fv(uniform("specularColour"), surface.specular);
-    gl.uniform1f(uniform("shininess"), surface.shininess);
-    gl.uniform1f(uniform("bumpScale"), surface.bumpScale);
-  };
-
-  /** Sets a stage's coordinate transform and its generated coordinates at `seconds` */
-  const applyMapper = (
-    prefix: string,
-    mapper: W3dUvMapper | undefined,
-    seconds: number,
-    hasNormals: boolean,
-  ) => {
-    const { linear, offset } = mapper
-      ? sampleUvTransform(mapper, seconds)
-      : IDENTITY_UV_TRANSFORM;
-
-    gl.uniform4fv(uniform(`${prefix}Linear`), linear);
-    gl.uniform2fv(uniform(`${prefix}Offset`), offset);
-    gl.uniform1i(uniform(`${prefix}Generated`), hasNormals && mapper ? mapper.type : 0);
-  };
-
   const bindTexture = (texture: WebGLTexture | undefined, name: string, unit: number) => {
     if (texture) {
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.uniform1i(uniform(name), unit);
     }
-  };
-
-  const bindColors = (data: WebGLBuffer | undefined) => {
-    if (attributes.color < 0) {
-      return;
-    }
-    if (!data) {
-      gl.disableVertexAttribArray(attributes.color);
-      gl.vertexAttrib4f(attributes.color, 1, 1, 1, 1);
-      return;
-    }
-    gl.bindBuffer(gl.ARRAY_BUFFER, data);
-    gl.enableVertexAttribArray(attributes.color);
-    gl.vertexAttribPointer(attributes.color, 4, gl.UNSIGNED_BYTE, true, 0, 0);
   };
 
   const draw = (
@@ -557,7 +419,7 @@ export const createModelRenderer = (
       pose ? getMeshOpacity(meshes[each.mesh], pose) : 1;
     // WW3D's mesh alpha override, mint's `faded`: below 1 an opaque mesh draws
     // blended, and a mesh that ignores its own alpha fades by its colour
-    const blendOf = (drawable: Drawable, { surface }: DrawablePart) =>
+    const blendOf = (drawable: Drawable, { surface }: DrawablePart): W3dBlend =>
       surface.blend === "opaque" && opacityOf(drawable) < 1 ? "alpha" : surface.blend;
     const shown = showMeshes
       ? drawables
@@ -565,26 +427,32 @@ export const createModelRenderer = (
             (each) =>
               visible[each.mesh] && (!pose || isMeshShown(meshes[each.mesh], pose)),
           )
-          .flatMap((drawable) => drawable.parts.map((part) => ({ drawable, part })))
+          .flatMap((drawable) =>
+            drawable.parts.map((part) => ({
+              drawable,
+              part,
+              blend: blendOf(drawable, part),
+              sortLevel: part.surface.sortLevel,
+            })),
+          )
       : [];
-    // Opaque first, so what blends over it finds it in the depth buffer
-    const ordered = [
-      ...shown.filter((each) => blendOf(each.drawable, each.part) === "opaque"),
-      ...shown
-        .filter((each) => blendOf(each.drawable, each.part) !== "opaque")
-        .sort((a, b) => a.part.surface.sortLevel - b.part.surface.sortLevel),
-    ];
 
-    for (const { drawable, part } of ordered) {
-      const blend = blendOf(drawable, part);
-
+    for (const { drawable, part, blend } of orderDraws(shown)) {
       applyBlend(
+        gl,
         blend,
         blend === "opaque" || (part.surface.blend !== "opaque" && part.surface.depthWrite),
       );
-      applySurface(part.surface);
-      applyMapper("uv", part.surface.mappers?.[0], seconds, drawable.hasNormals);
-      applyMapper("detailUv", part.surface.mappers?.[1], seconds, drawable.hasNormals);
+      applySurface(gl, uniform, part.surface);
+      applyMapper(gl, uniform, UV_UNIFORMS, part.surface.mappers?.[0], seconds, drawable.hasNormals);
+      applyMapper(
+        gl,
+        uniform,
+        DETAIL_UV_UNIFORMS,
+        part.surface.mappers?.[1],
+        seconds,
+        drawable.hasNormals,
+      );
       gl.uniform4fv(
         uniform("bumpMatrix"),
         sampleBumpMatrix(part.surface.mappers?.[0] ?? NO_MAPPER, seconds),
@@ -600,12 +468,12 @@ export const createModelRenderer = (
       gl.uniform1i(uniform("hasTexture"), part.texture ? 1 : 0);
       gl.uniform4fv(
         uniform("untextured"),
-        part.missingTexture ? MISSING_TEXTURE : NO_TEXTURE,
+        part.namesTexture ? MISSING_TEXTURE : NO_TEXTURE,
       );
       gl.uniform1i(uniform("hasNormals"), drawable.hasNormals && !unlit ? 1 : 0);
       bindTexture(part.texture, "tex", 0);
-      bindAttribute(attributes.position, drawable.position, 3);
-      bindAttribute(attributes.normal, drawable.normal, 3);
+      bindAttribute(gl, attributes.position, drawable.position, 3);
+      bindAttribute(gl, attributes.normal, drawable.normal, 3);
       // The mask replaces the mesh's own second stage
       const detail = part.houseMask ? undefined : part.detailTexture;
 
@@ -615,49 +483,30 @@ export const createModelRenderer = (
       bindTexture(part.houseMask, "houseMaskTex", 2);
       gl.uniform1i(uniform("hasNormalMap"), part.normalMap && drawable.hasNormals ? 1 : 0);
       bindTexture(part.normalMap, "normalTex", 3);
-      bindAttribute(attributes.uv, part.uv, 2);
-      bindAttribute(attributes.detailUv, part.detailUv ?? part.uv, 2);
-      bindColors(part.color);
+      bindAttribute(gl, attributes.uv, part.uv, 2);
+      bindAttribute(gl, attributes.detailUv, part.detailUv ?? part.uv, 2);
+      bindColors(gl, attributes.color, part.color);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.index);
       gl.drawElements(gl.TRIANGLES, part.count, part.indexType, 0);
     }
 
-    applyBlend("opaque", true);
+    applyBlend(gl, "opaque", true);
     gl.depthFunc(gl.LESS);
     gl.disable(gl.CULL_FACE);
 
-    if (showBoxes && boxVertices) {
-      gl.uniform1i(uniform("useSolid"), 1);
-      gl.uniform4fv(uniform("solid"), BOX_COLOUR);
-      bindAttribute(attributes.normal, undefined, 3);
-      bindAttribute(attributes.uv, undefined, 2);
-      bindAttribute(attributes.detailUv, undefined, 2);
-      bindColors(undefined);
-      bindAttribute(attributes.position, boxBuffer, 3);
-      gl.drawArrays(gl.LINES, 0, boxVertices);
-    }
-
     const skeleton = scene.skeleton;
-    const lines =
+    const boneVertices =
       showBones && skeleton
         ? buildBoneLines(skeleton, pose ?? poseAtBind(skeleton))
         : [];
+    const bones: BoneLines = { buffer: boneBuffer, vertices: boneVertices };
 
-    if (lines.length) {
-      gl.disable(gl.DEPTH_TEST);
-      gl.uniform1i(uniform("useSolid"), 1);
-      gl.uniform4fv(uniform("solid"), BONE_COLOUR);
-      gl.bindBuffer(gl.ARRAY_BUFFER, boneBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
-      bindAttribute(attributes.normal, undefined, 3);
-      bindAttribute(attributes.uv, undefined, 2);
-      bindAttribute(attributes.detailUv, undefined, 2);
-      bindColors(undefined);
-      bindAttribute(attributes.position, boneBuffer, 3);
-      gl.drawArrays(gl.LINES, 0, lines.length / 3);
-      gl.drawArrays(gl.POINTS, 0, lines.length / 3);
-      gl.enable(gl.DEPTH_TEST);
-    }
+    drawModelLines(
+      gl,
+      { uniform, attributes },
+      showBoxes ? { buffer: boxBuffer, vertexCount: boxVertices } : undefined,
+      bones,
+    );
     // The other programs on this context set their own attributes
     for (const location of Object.values(attributes)) {
       if (location >= 0) {

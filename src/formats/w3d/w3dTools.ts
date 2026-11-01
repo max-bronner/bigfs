@@ -1,8 +1,9 @@
 import type { Tool } from "../../core/toolRegistry";
 import { createView, readChunks, readFloats, readName } from "./w3dChunks";
 import { readMeshMaterials } from "./w3dMaterialChunks";
-import { pickMeshBlend, resolveMaterialDraws } from "./w3dMaterial";
-import type { W3dBlend, W3dMaterialDraw } from "./w3dMaterial";
+import { pickMeshBlend } from "./pickMeshBlend";
+import { resolveMaterialDraws } from "./resolveMaterialDraws";
+import type { W3dBlend, W3dMaterialDraw } from "./w3dMaterialTypes";
 
 /**
  * Parser for the parts of a W3D model a preview draws: meshes with their

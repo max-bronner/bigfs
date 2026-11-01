@@ -3,7 +3,8 @@ import { readAnimationHierarchyName } from './w3dAnimation';
 import { isOwnClip } from './w3dPose';
 import type { SkeletonBones } from './w3dPose';
 import { buildW3dScene, loadSkeleton } from './w3dScene';
-import type { LoadFile, ModelScene, SceneSkeleton } from './w3dScene';
+import type { ModelScene, SceneSkeleton } from './w3dScene';
+import type { LoadFile } from './w3dSceneDraws';
 import { parseW3dTool } from './w3dTools';
 
 /**

@@ -4,7 +4,7 @@ import * as vm from 'vm';
 import { buildSync } from 'esbuild';
 import type { ModelScene, SceneMesh } from '../../formats/w3d/w3dScene';
 import type { Pose } from '../../formats/w3d/w3dPose';
-import { DEFAULT_SURFACE } from '../../formats/w3d/w3dMaterial';
+import { DEFAULT_SURFACE } from '../../formats/w3d/w3dMaterialTypes';
 
 /** The surface of `modelRenderer.ts` these tests drive */
 interface RendererModule {

@@ -469,8 +469,12 @@ Movie**.
   when the movie is reopened and **Clear overrides** drops it. In `Palantir` the
   faction icon is `AptIconMen` and the portrait black. A disabled button's
   picture is grey. A surface only the live game fills is a labelled dashed box.
-- Known gaps: `View3D` models do not run their UV mappers or take the clip's red,
-  green and blue tint.
+- [ ] **new** View3D materials move: a `View3D` model whose materials scroll,
+  rotate or step through a flipbook (a glow or water model named by a
+  `_RenderObj`) animates while the stage plays and holds still when it is
+  paused, instead of showing its first picture for ever. A model with no moving
+  material is drawn once and not redrawn.
+- Known gaps: `View3D` models do not take the clip's red, green and blue tint.
 - Known gaps: pointer events on plain clips (`onPress` on a sprite) are only
   delivered to buttons; a movie loaded into `_level0` is refused; a mounted
   movie's own `onLoad` clip events do not run.

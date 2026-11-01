@@ -443,7 +443,8 @@ your mod's archives.
   model in `_RenderObj` draws it, found through the game's load order, through
   the model's own camera and following `_AnimMode` and `_Frame`, in the clip's
   place in paint order, so masks and fades apply. Models load when shown, at most
-  16 at a time; a missing one is a labelled box.
+  16 at a time; a missing one is a labelled box. Scrolling, rotating and
+  flipbook materials of the model move with the stage's clock.
 - **new** Engine gadgets (ported from mint's apt-player and apt-viewer): a clip
   whose `_type` (or `_Load` template) names a slider, check box, list box,
   combo box, text entry, scroll bar or progress bar gets a working control

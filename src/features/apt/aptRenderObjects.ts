@@ -4,7 +4,7 @@ import { toRenderObjectFile } from '../../formats/apt/aptView3d';
 import { decompressEar, isEarWrapped } from '../../formats/refpack/refpack';
 import { buildW3dScene } from '../../formats/w3d/w3dScene';
 import { decodePng } from '../../node/png';
-import type { LoadFile } from '../../formats/w3d/w3dScene';
+import type { LoadFile } from '../../formats/w3d/w3dSceneDraws';
 import type { ToPage } from '../../webview/apt/protocol';
 
 type RenderObjectAnswer = Omit<Extract<ToPage, { kind: 'renderObject' }>, 'kind'>;

@@ -3,7 +3,7 @@ import { createView, readChunks, readFloats, readIds, readName } from "./w3dChun
 /**
  * Reader for the material tables of a W3D mesh, as stored: the shaders, the
  * vertex materials, the textures, the shader materials and the passes that
- * index them. What these mean for a draw is `w3dMaterial.ts`'s to decide.
+ * index them. What these mean for a draw is `resolveMaterialDraws.ts`'s to decide.
  * Layouts are EA's `w3d_file.h`; the shader material chunks are mint's
  * `material.rs`, derived from the shipped files.
  */

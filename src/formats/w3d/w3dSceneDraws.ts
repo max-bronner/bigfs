@@ -4,7 +4,7 @@ import type { RgbaImage } from "../texture/textureTools";
 import { buildBumpOffsets } from "./w3dBumpMap";
 import { HOUSE_COLOR_INI, parseHouseColours } from "./w3dHouseColour";
 import type { W3dTexture } from "./w3dMaterialChunks";
-import type { W3dMaterialDraw } from "./w3dMaterial";
+import type { W3dMaterialDraw } from "./w3dMaterialTypes";
 import type { W3dMesh } from "./w3dTools";
 
 /** One draw of a scene mesh: `W3dMaterialDraw` with its textures found and V flipped */

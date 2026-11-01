@@ -12,11 +12,14 @@ import { parseW3dAnimations } from "./w3dAnimation";
 import type { W3dAnimation } from "./w3dAnimation";
 import { skinVertices, toBoneMatrix } from "./w3dSkin";
 import type { BoneSpaceMesh, Matrix } from "./w3dSkin";
-import type { W3dBlend } from "./w3dMaterial";
+import type { W3dBlend } from "./w3dMaterialTypes";
 import { loadSceneDraws } from "./w3dSceneDraws";
-import type { DecodePng, LoadFile, SceneDraw, SceneTextureAddressing } from "./w3dSceneDraws";
-
-export type { LoadFile, SceneDraw };
+import type {
+  DecodePng,
+  LoadFile,
+  SceneDraw,
+  SceneTextureAddressing,
+} from "./w3dSceneDraws";
 
 /**
  * Builds what a model preview draws from a W3D file: every mesh in model

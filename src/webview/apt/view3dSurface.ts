@@ -4,7 +4,7 @@ import {
   getRestingFrame,
   parsePlayback,
 } from '../../formats/apt/aptView3d';
-import { isSurfaceAnimated } from '../../formats/w3d/w3dMaterial';
+import { isSurfaceAnimated } from '../../formats/w3d/isSurfaceAnimated';
 import { poseAt } from '../../formats/w3d/w3dPose';
 import { createModelRenderer } from '../shared/modelRenderer';
 import type { ModelRenderer } from '../shared/modelRenderer';
