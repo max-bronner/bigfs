@@ -681,6 +681,11 @@ Sound is opt-in: opening a view never plays anything.
 - [ ] **new** VP6 playback with seeking, alpha over a checkerboard. Seek to the
   end of a movie with alpha (for example a credits movie): no "inter frame
   without a preceding key frame". A 0-byte `.vp6` says "The file is empty".
+- [ ] **new** VP6 slider: drag it across a long movie, forwards and back, while
+  playing and while paused. The picture follows the thumb (each stop is the
+  frame the label names), the thumb does not jump back under the pointer, and
+  after letting go the movie stays on that frame; Play continues from it.
+  Dragging to a frame far from a key frame is slower but the last stop wins.
 - [ ] **new** **Convert to VP6 Movie…** from a video, an image or a folder of
   numbered frames: size, frame rate, quality asked; the result is decoded
   before saving and plays in the game. `bigfs.vp6.keyFrameSeconds` = 0 makes

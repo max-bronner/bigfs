@@ -1,5 +1,6 @@
 import { Vp6Decoder } from './decoder';
 import type { Picture } from './dsp';
+import { planSeek } from './planSeek';
 
 /**
  * EA's VP6 movie container, after mint's `crates/sage/vp6`:
@@ -211,36 +212,15 @@ export class Vp6Movie {
   public decodeFrame(index: number): Uint8ClampedArray {
     const target = Math.max(0, Math.min(this.frames.length - 1, index));
 
-    // Going back, or far ahead, starts again from key frames before it. The
-    // colour and alpha streams key independently, so decode forward from the
-    // earlier of the two, each decoder skipping frames before its own key.
-    if (target < this.next || target - this.next > 60) {
-      let colourKey = target;
+    const restart = planSeek(this.frames, this.hasAlpha, this.next, target);
 
-      while (colourKey > 0 && !this.frames[colourKey].isKey) {
-        colourKey--;
-      }
-
-      let alphaKey = this.hasAlpha ? target : colourKey;
-
-      while (
-        this.hasAlpha &&
-        alphaKey > 0 &&
-        !(this.frames[alphaKey].alpha && this.frames[alphaKey].isAlphaKey)
-      ) {
-        alphaKey--;
-      }
-
-      const start = Math.min(colourKey, alphaKey);
-
-      if (start >= this.next || target < this.next) {
-        this.colour = new Vp6Decoder();
-        this.alpha = new Vp6Decoder();
-        this.lastAlpha = undefined;
-        this.next = start;
-        this.colourFrom = colourKey;
-        this.alphaFrom = alphaKey;
-      }
+    if (restart) {
+      this.colour = new Vp6Decoder();
+      this.alpha = new Vp6Decoder();
+      this.lastAlpha = undefined;
+      this.next = restart.start;
+      this.colourFrom = restart.colourFrom;
+      this.alphaFrom = restart.alphaFrom;
     }
 
     let picture: Picture | undefined;
@@ -300,12 +280,7 @@ export const writeVp6 = (movie: Vp6Output): Uint8Array => {
   };
   const body = movie.frames.flatMap((frame) => [
     ...(frame.alpha
-      ? [
-          chunk(
-            (frame.isAlphaKey ?? frame.isKey) ? 'AV0K' : 'AV0F',
-            frame.alpha,
-          ),
-        ]
+      ? [chunk(frame.isAlphaKey ?? frame.isKey ? 'AV0K' : 'AV0F', frame.alpha)]
       : []),
     chunk(frame.isKey ? 'MV0K' : 'MV0F', frame.colour),
   ]);

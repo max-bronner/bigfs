@@ -328,7 +328,8 @@ your mod's archives.
   for PNGs (TGA 24/32-bit, DDS DXT1/3/5 or uncompressed).
 - Sounds: WAV, including IMA ADPCM, and MP3.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
-  pause and seeking; alpha movies show over a checkerboard.
+  pause and seeking (dragging the slider follows the pointer and lands on
+  the frame you let go on); alpha movies show over a checkerboard.
 - **Convert to VP6 Movie…** on a video, an image or a folder of numbered
   PNG/TGA/DDS frames writes an EA VP6 movie the games play: size, frame rate
   and quality are asked for, transparency is kept as an alpha stream, and the

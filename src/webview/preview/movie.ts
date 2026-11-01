@@ -1,3 +1,4 @@
+import { createFrameRequests } from './createFrameRequests';
 import type { FromPreviewPage, VideoMessage } from './protocol';
 
 /** Plays a VP6 movie: the extension decodes, the page asks frame by frame */
@@ -6,7 +7,6 @@ interface Movie {
   info: VideoMessage;
   frame: number;
   playing: boolean;
-  pending: boolean;
   last: number;
   show(index: number, pixels: Uint8Array): void;
 }
@@ -53,21 +53,21 @@ export const showMovie = (
     info,
     frame: 0,
     playing: true,
-    pending: false,
     last: 0,
     show: () => {},
   };
-  const request = (index: number) => {
-    if (movie.pending) {
-      return;
-    }
-
-    movie.pending = true;
-    post({ kind: 'videoFrame', index });
-  };
+  const requests = createFrameRequests((index) =>
+    post({ kind: 'videoFrame', index }),
+  );
+  const request = requests.want;
   const update = () => {
     play.textContent = movie.playing ? 'Pause' : 'Play';
-    slider.value = String(movie.frame);
+
+    // The thumb follows the pointer while it is held, not the frames coming back
+    if (!slider.matches(':active')) {
+      slider.value = String(movie.frame);
+    }
+
     label.textContent = `frame ${movie.frame + 1} / ${info.frameCount}`;
   };
 
@@ -90,7 +90,6 @@ export const showMovie = (
     request(Number(slider.value));
   };
   movie.show = (index, pixels) => {
-    movie.pending = false;
     movie.frame = index;
     context.putImageData(
       new ImageData(
@@ -106,6 +105,7 @@ export const showMovie = (
       0,
     );
     update();
+    requests.settle();
 
     if (movie.playing && index < info.frameCount - 1) {
       const wait = Math.max(
@@ -114,8 +114,11 @@ export const showMovie = (
       );
 
       setTimeout(() => {
-        movie.last = performance.now();
-        request(index + 1);
+        // A seek or pause meanwhile has moved the movie on
+        if (movie.playing && movie.frame === index) {
+          movie.last = performance.now();
+          request(index + 1);
+        }
       }, wait);
     } else if (index >= info.frameCount - 1) {
       movie.playing = false;
@@ -127,8 +130,6 @@ export const showMovie = (
 
   return {
     show: (index, pixels) => movie.show(index, pixels),
-    reportFrameError: () => {
-      movie.pending = false;
-    },
+    reportFrameError: requests.settle,
   };
 };
