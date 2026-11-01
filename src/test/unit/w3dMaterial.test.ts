@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import { parseW3d } from "../../formats/w3d/w3dTools";
-import { classifyBlend } from "../../formats/w3d/w3dMaterial";
+import { classifyBlend, DEFAULT_SURFACE, resolveVertexColour } from "../../formats/w3d/w3dMaterial";
 import type { W3dShader } from "../../formats/w3d/w3dMaterialChunks";
 import { buildChunk, concatBytes, encodeFloats, encodeName, encodeUints } from "./w3d.test";
 
@@ -79,6 +79,29 @@ const fxMaterial = (effect: string, ...properties: [number, string, Uint8Array][
 /** A texture-valued parameter's bytes: a length, then the NUL-ended name */
 const fxText = (text: string) =>
   concatBytes(encodeUints(text.length + 1), encodeName(text, text.length + 1));
+
+/** A `VERTEX_MATERIALS` table of identical materials, colours as 0-255 bytes */
+const vertexMaterials = (
+  attributes: number,
+  ambient: number[],
+  diffuse: number[],
+  emissive: number[],
+  opacity: number,
+  count = 2,
+) => {
+  const info = new Uint8Array(32);
+  const view = new DataView(info.buffer);
+
+  view.setUint32(0, attributes, true);
+  info.set(ambient, 4);
+  info.set(diffuse, 8);
+  info.set(emissive, 16);
+  view.setFloat32(24, opacity, true);
+
+  const material = buildChunk(0x02b, buildChunk(0x02d, info), true);
+
+  return buildChunk(0x02a, concatBytes(...Array<Uint8Array>(count).fill(material)), true);
+};
 
 /** Builds a file of one two-triangle mesh with the material chunks given */
 const buildMesh = (attributes: number, name: string, ...chunks: Uint8Array[]) => {
@@ -220,6 +243,102 @@ suite("W3D materials", () => {
     assert.strictEqual(mesh.draws[0].surface.twoSided, true);
     assert.strictEqual(mesh.pickProxy, true);
     assert.strictEqual(parseMesh().pickProxy, false);
+  });
+
+  test("a vertex material's colours and opacity reach the surface", () => {
+    const { surface } = parseMesh(
+      vertexMaterials(0, [255, 0, 0], [0, 255, 0], [0, 0, 255], 0.5),
+      buildChunk(0x029, shaderBytes()),
+      buildChunk(0x038, concatBytes(buildChunk(0x039, encodeUints(0)), buildChunk(0x03a, encodeUints(0))), true),
+    ).draws[0];
+
+    assert.deepStrictEqual(surface.ambient, [1, 0, 0]);
+    assert.deepStrictEqual(surface.diffuse, [0, 1, 0]);
+    assert.deepStrictEqual(surface.emissive, [0, 0, 1]);
+    assert.strictEqual(surface.opacity, 0.5);
+  });
+
+  test("a vertex takes the material its table names, and a triangle its first vertex's", () => {
+    const mesh = parseMesh(
+      vertexMaterials(0, [255, 255, 255], [255, 255, 255], [0, 0, 0], 1),
+      buildChunk(
+        0x038,
+        buildChunk(0x039, encodeUints(0, 1, 1, 1)),
+        true,
+      ),
+    );
+
+    assert.deepStrictEqual(
+      mesh.draws.map((draw) => Array.from(draw.indices ?? [])),
+      [[0, 1, 2], [1, 3, 2]],
+    );
+  });
+
+  test("an emissive-only material with vertex colours turns the lights off", () => {
+    const use = resolveVertexColour(false, {
+      ...DEFAULT_SURFACE,
+      ambient: [0, 0, 0],
+      diffuse: [0, 0, 0],
+      emissive: [0.5, 0.5, 0.5],
+      opacity: 0.25,
+    });
+
+    assert.strictEqual(use.replacesLighting, true);
+    assert.deepStrictEqual(use.scale, [0.5, 0.5, 0.5]);
+    assert.strictEqual(use.alphaScale, 0.25);
+  });
+
+  test("a black material with vertex colours lights them, unscaled, rather than drawing black", () => {
+    const use = resolveVertexColour(false, {
+      ...DEFAULT_SURFACE,
+      ambient: [0, 0, 0],
+      diffuse: [0, 0, 0],
+      emissive: [0, 0, 0],
+    });
+
+    assert.strictEqual(use.diffuse, true);
+    assert.strictEqual(use.replacesLighting, false);
+    assert.deepStrictEqual(use.scale, [1, 1, 1]);
+  });
+
+  test("on the effect path vertex colours multiply the result and stand for no colour", () => {
+    const mesh = parseMesh(
+      vertexMaterials(0, [255, 255, 255], [255, 255, 255], [0, 0, 0], 1, 1),
+      buildChunk(0x029, shaderBytes()),
+      textureTable("A.tga"),
+      pass([0], [0], buildChunk(0x039, encodeUints(0)), buildChunk(0x03b, new Uint8Array(16).fill(255))),
+    );
+
+    assert.strictEqual(mesh.draws[0].surface.vertexColour?.multipliesResult, true);
+    assert.strictEqual(mesh.draws[0].surface.vertexColour?.diffuse, false);
+    assert.strictEqual(mesh.draws[0].colors?.length, 16);
+  });
+
+  test("a vertex colour array that does not fit the vertices is dropped", () => {
+    const mesh = parseMesh(pass([0], [0], buildChunk(0x03b, new Uint8Array(8))));
+
+    assert.strictEqual(mesh.draws[0].colors, undefined);
+    assert.strictEqual(mesh.draws[0].surface.vertexColour, undefined);
+  });
+
+  test("the shader byte and Simple.fx turn a draw unlit, and slot five doubles a textured fixed-function stage", () => {
+    const unlit = parseMesh(
+      buildChunk(0x029, shaderBytes({ primaryGradient: 0 })),
+      pass([0], [0]),
+    );
+    const sky = parseMesh(
+      buildChunk(0x050, fxMaterial("Simple.fx", [1, "Texture_0", fxText("Sky.tga")]), true),
+      buildChunk(0x038, buildChunk(0x03f, encodeUints(0)), true),
+    );
+    const doubled = parseMesh(
+      buildChunk(0x029, shaderBytes({ primaryGradient: 5 })),
+      textureTable("A.tga"),
+      pass([0], [0]),
+    );
+
+    assert.strictEqual(unlit.draws[0].surface.unlit, true);
+    assert.strictEqual(sky.draws[0].surface.unlit, true);
+    assert.strictEqual(doubled.draws[0].surface.modulate2x, true);
   });
 
   test("the sort level of a mesh reaches its surface, and an out of range one is none", () => {

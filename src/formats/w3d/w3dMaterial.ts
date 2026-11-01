@@ -1,9 +1,11 @@
 import type {
+  Rgb,
   W3dFxMaterial,
   W3dMaterialPass,
   W3dMeshMaterials,
   W3dShader,
   W3dTexture,
+  W3dVertexMaterial,
 } from "./w3dMaterialChunks";
 
 /**
@@ -24,6 +26,27 @@ export type W3dBlend =
   | "addScaledByColor"
   | "addInverseScaledByColor";
 
+/**
+ * How a draw uses its `DCG` vertex colours. On the fixed-function path they
+ * replace the material's colours as a lighting source; on the effect path they
+ * multiply the shaded result instead, never both (`w3d-shading.md` section
+ * 1.3, `w3d-fx-shading.md`).
+ */
+export interface W3dVertexColourUse {
+  /** The colours stand for the material's ambient */
+  ambient: boolean;
+  /** The colours stand for the material's diffuse, and give the alpha */
+  diffuse: boolean;
+  /** The colours are the lit result: an emissive-only material turns lighting off */
+  replacesLighting: boolean;
+  /** The colours multiply the shaded result, and give the alpha */
+  multipliesResult: boolean;
+  /** What the colours are multiplied by when loaded */
+  scale: Rgb;
+  /** What their alpha is multiplied by when loaded */
+  alphaScale: number;
+}
+
 /** What one draw asks of the renderer, apart from its textures and arrays */
 export interface W3dSurface {
   /** How the draw meets what is behind it */
@@ -36,6 +59,17 @@ export interface W3dSurface {
   twoSided: boolean;
   /** Draw-order bin among blended draws, 1 to 32; 0 for none */
   sortLevel: number;
+  ambient: Rgb;
+  diffuse: Rgb;
+  emissive: Rgb;
+  /** Alpha the material multiplies in; only an alpha blend reads it */
+  opacity: number;
+  /** The texture shows as stored, without the lights: `GRADIENT_DISABLE` and `Simple.fx` */
+  unlit: boolean;
+  /** Stage 0's `MODULATE2X`: the lit texture doubles and saturates */
+  modulate2x: boolean;
+  /** Absent when the draw has no vertex colours */
+  vertexColour?: W3dVertexColourUse;
 }
 
 /** One draw of a mesh, in the order the game draws them */
@@ -49,6 +83,8 @@ export interface W3dMaterialDraw {
   texture?: W3dTexture;
   /** Two per vertex, as stored: V measured from the bottom */
   uvs?: Float32Array;
+  /** `DCG`: RGBA a vertex */
+  colors?: Uint8Array;
 }
 
 /** A mesh's geometry, as much of it as its materials depend on */
@@ -67,10 +103,27 @@ export const DEFAULT_SURFACE: W3dSurface = {
   depthCompare: 3,
   twoSided: false,
   sortLevel: 0,
+  ambient: [1, 1, 1],
+  diffuse: [1, 1, 1],
+  emissive: [0, 0, 0],
+  opacity: 1,
+  unlit: false,
+  modulate2x: false,
 };
+
+const isBlack = ([red, green, blue]: Rgb) => red === 0 && green === 0 && blue === 0;
 
 /** `MAX_SORT_LEVEL` of `w3d_file.h`; past it a mesh sorts as if it named none, as in mint */
 const MAX_SORT_LEVEL = 32;
+
+/** The factor pairs W3DView's converter can express */
+const EFFECT_BLENDS = new Set(["1,0", "2,5", "1,1"]);
+/** The detail functions W3DView's converter can express */
+const EFFECT_DETAIL_COLORS = new Set([0, 2, 8, 11, 12]);
+/** `GRADIENT_DISABLE`, the shader byte that throws the lighting away */
+const GRADIENT_DISABLE = 0;
+/** The slot ROTWK's `ShaderClass::Apply` runs as `MODULATE2X` */
+const GRADIENT_MODULATE2X = 5;
 
 /** The id a per-triangle table stores for a triangle it says nothing about */
 const NO_ID = 0xffffffff;
@@ -80,6 +133,7 @@ interface MaterialGroup {
   texture?: number;
   shader?: number;
   fxMaterial?: number;
+  vertexMaterial?: number;
   triangles: number[];
 }
 
@@ -155,9 +209,13 @@ const groupTriangles = (
   { indices }: W3dMaterialGeometry,
 ): MaterialGroup[] => {
   const textureIds = pass.stages[0]?.textureIds ?? [];
-  const perTriangle = [textureIds, pass.shaderIds, pass.fxMaterialIds].some(
-    (ids) => ids.length > 1,
-  );
+  const vertexMaterialIds = pass.vertexMaterialIds;
+  const perTriangle = [
+    textureIds,
+    pass.shaderIds,
+    pass.fxMaterialIds,
+    vertexMaterialIds,
+  ].some((ids) => ids.length > 1);
 
   if (!perTriangle) {
     return [
@@ -165,6 +223,7 @@ const groupTriangles = (
         texture: pickId(textureIds, 0),
         shader: pickId(pass.shaderIds, 0),
         fxMaterial: pickId(pass.fxMaterialIds, 0),
+        vertexMaterial: pickId(vertexMaterialIds, 0),
         triangles: [],
       },
     ];
@@ -176,11 +235,13 @@ const groupTriangles = (
     const texture = pickId(textureIds, triangle);
     const shader = pickId(pass.shaderIds, triangle);
     const fxMaterial = pickId(pass.fxMaterialIds, triangle);
-    const key = `${texture}|${shader}|${fxMaterial}`;
+    // That table is per vertex, and a triangle takes its first vertex's material
+    const vertexMaterial = pickId(vertexMaterialIds, indices[triangle * 3]);
+    const key = `${texture}|${shader}|${fxMaterial}|${vertexMaterial}`;
     let group = groups.get(key);
 
     if (!group) {
-      group = { texture, shader, fxMaterial, triangles: [] };
+      group = { texture, shader, fxMaterial, vertexMaterial, triangles: [] };
       groups.set(key, group);
     }
     group.triangles.push(triangle);
@@ -213,6 +274,66 @@ const resolveFxSurface = (material: W3dFxMaterial | undefined) => ({
   alphaTest: readFxBool(material, "alphatestenable"),
 });
 
+/**
+ * Whether a pass takes the shader-material path W3DView's converter allows,
+ * rather than the fixed-function one. A conjunction: the converter refuses on
+ * any one mismatch (`w3d-fx-shading.md`, "The legacy-to-effect conversion").
+ */
+const isEffectPath = (materials: W3dMeshMaterials, shader: W3dShader | undefined) =>
+  shader !== undefined &&
+  materials.passes.length === 1 &&
+  materials.vertexMaterials.length === 1 &&
+  EFFECT_BLENDS.has(`${shader.srcBlend},${shader.destBlend}`) &&
+  shader.detailAlpha === 0 &&
+  shader.primaryGradient <= 1 &&
+  EFFECT_DETAIL_COLORS.has(shader.detailColor) &&
+  shader.depthCompare === 3;
+
+/**
+ * Resolves what a draw's vertex colours stand for: on the fixed-function path
+ * by which of the material's colours are in use, the four branches of
+ * `Post_Load_Process`. Any other mix leaves the colours as loaded, as diffuse.
+ */
+export const resolveVertexColour = (
+  isEffect: boolean,
+  { ambient, diffuse, emissive, opacity }: Pick<W3dSurface, "ambient" | "diffuse" | "emissive" | "opacity">,
+): W3dVertexColourUse => {
+  const unscaled: W3dVertexColourUse = {
+    ambient: false,
+    diffuse: true,
+    replacesLighting: false,
+    multipliesResult: false,
+    scale: [1, 1, 1],
+    alphaScale: 1,
+  };
+
+  if (isEffect) {
+    return { ...unscaled, diffuse: false, multipliesResult: true };
+  }
+
+  const uses = [!isBlack(diffuse), !isBlack(ambient), !isBlack(emissive)].join();
+
+  switch (uses) {
+    case "true,false,false":
+      return { ...unscaled, scale: diffuse, alphaScale: opacity };
+    case "true,true,false":
+      return { ...unscaled, ambient: true, scale: diffuse, alphaScale: opacity };
+    case "false,true,false":
+      return { ...unscaled, ambient: true, diffuse: false, scale: ambient, alphaScale: opacity };
+    case "false,false,true":
+      return { ...unscaled, replacesLighting: true, scale: emissive, alphaScale: opacity };
+    default:
+      return unscaled;
+  }
+};
+
+const resolveColours = ({ ambient, diffuse, emissive, opacity }: W3dVertexMaterial) => ({
+  ambient,
+  diffuse,
+  emissive,
+  opacity,
+});
+
 const resolveDraw = (
   materials: W3dMeshMaterials,
   pass: W3dMaterialPass,
@@ -228,13 +349,28 @@ const resolveDraw = (
   const uvs = stage?.uvs?.length ? stage.uvs : pass.uvs;
   const legacyTexture = materials.textures[group.texture ?? -1];
   const fxTexture = fxMaterial && readFxDiffuseTexture(fxMaterial);
+  const texture =
+    legacyTexture ??
+    (fxTexture ? { name: fxTexture, clampU: false, clampV: false } : undefined);
+  const vertexMaterial = materials.vertexMaterials[group.vertexMaterial ?? -1];
+  const colours = vertexMaterial ? resolveColours(vertexMaterial) : DEFAULT_SURFACE;
+  const isEffect = isEffectPath(materials, shader);
+  const colors =
+    pass.colors?.length === geometry.vertexCount * 4 ? pass.colors : undefined;
 
   return {
     pass: passIndex,
     indices: getIndices(group, geometry.indices),
     surface: {
       ...DEFAULT_SURFACE,
+      ...colours,
       twoSided: geometry.twoSided,
+      unlit:
+        shader?.primaryGradient === GRADIENT_DISABLE ||
+        fxMaterial?.shaderName.toLowerCase() === "simple.fx",
+      modulate2x:
+        !isEffect && !!texture && shader?.primaryGradient === GRADIENT_MODULATE2X,
+      vertexColour: colors && resolveVertexColour(isEffect, colours),
       sortLevel:
         geometry.sortLevel > 0 && geometry.sortLevel <= MAX_SORT_LEVEL ? geometry.sortLevel : 0,
       ...(shader
@@ -245,10 +381,9 @@ const resolveDraw = (
           }
         : resolveFxSurface(fxMaterial)),
     },
-    texture:
-      legacyTexture ??
-      (fxTexture ? { name: fxTexture, clampU: false, clampV: false } : undefined),
+    texture,
     uvs: uvs?.length === geometry.vertexCount * 2 ? uvs : undefined,
+    colors,
   };
 };
 

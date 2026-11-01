@@ -11,6 +11,7 @@ import type { VisibilityOptions } from "../../formats/w3d/w3dScene";
 import type { ModelScene, SceneDraw, SceneMesh } from "../../formats/w3d/w3dScene";
 import { DEFAULT_SURFACE } from "../../formats/w3d/w3dMaterial";
 import type { W3dBlend, W3dSurface } from "../../formats/w3d/w3dMaterial";
+import { FRAGMENT_SHADER, VERTEX_SHADER } from "./modelShaders";
 
 /**
  * Draws a W3D model with WebGL: every material draw of every mesh textured
@@ -20,45 +21,6 @@ import type { W3dBlend, W3dSurface } from "../../formats/w3d/w3dMaterial";
  * renderer serves the W3D viewer and the particle preview, so a model looks
  * the same in both. WebGL 1, which the particle preview draws with.
  */
-
-const VERTEX_SHADER = `
-attribute vec3 position;
-attribute vec3 normal;
-attribute vec2 uv;
-uniform mat4 viewProjection;
-uniform vec3 offset;
-varying vec3 vNormal;
-varying vec2 vUv;
-void main() {
-  vNormal = normal;
-  vUv = uv;
-  gl_Position = viewProjection * vec4(position + offset, 1.0);
-}`;
-
-const FRAGMENT_SHADER = `
-precision mediump float;
-varying vec3 vNormal;
-varying vec2 vUv;
-uniform sampler2D tex;
-uniform bool hasTexture;
-uniform bool hasNormals;
-uniform vec3 lightDirection;
-uniform float alphaCutoff;
-uniform bool useSolid;
-uniform vec4 solid;
-uniform float opacity;
-uniform bool fadesColour;
-uniform vec4 untextured;
-void main() {
-  if (useSolid) { gl_FragColor = solid; return; }
-  vec4 base = hasTexture ? texture2D(tex, vUv) : untextured;
-  if (base.a < alphaCutoff) discard;
-  float light = hasNormals ? abs(dot(normalize(vNormal), lightDirection)) : 1.0;
-  vec3 lit = base.rgb * (0.35 + 0.65 * light);
-  gl_FragColor = fadesColour
-    ? vec4(lit * opacity, base.a)
-    : vec4(lit, base.a * opacity);
-}`;
 
 const BONE_COLOUR = [1, 0.75, 0.2, 1];
 /** What a draw shows in place of a texture that was not found */
@@ -108,6 +70,7 @@ interface DrawablePart {
   /** The draw names a texture that was not found */
   missingTexture: boolean;
   uv?: WebGLBuffer;
+  color?: WebGLBuffer;
   index: WebGLBuffer;
 }
 
@@ -133,6 +96,10 @@ const BLEND_FACTORS = (
   addScaledByColor: [gl.ONE, gl.SRC_COLOR],
   addInverseScaledByColor: [gl.ONE, gl.ONE_MINUS_SRC_COLOR],
 });
+
+/** The material's own opacity reaches only an alpha blend taking its alpha from the material: mint's `material_alpha` */
+const getMaterialAlpha = ({ blend, opacity, vertexColour }: W3dSurface) =>
+  blend === "alpha" && !vertexColour?.diffuse ? opacity : 1;
 
 /** The draws of a mesh a scene gave none: one over all of it, from the mesh's own fields */
 const getDraws = (mesh: SceneMesh): SceneDraw[] =>
@@ -202,6 +169,7 @@ export const createModelRenderer = (
     position: gl.getAttribLocation(program, "position"),
     normal: gl.getAttribLocation(program, "normal"),
     uv: gl.getAttribLocation(program, "uv"),
+    color: gl.getAttribLocation(program, "color"),
   };
   const boneBuffer = gl.createBuffer()!;
   const boxBuffer = gl.createBuffer()!;
@@ -212,7 +180,7 @@ export const createModelRenderer = (
   let textures: WebGLTexture[] = [];
   let pose: Pose | undefined;
   let buffers = new Set<WebGLBuffer>();
-  let arrayBuffers = new Map<Float32Array, WebGLBuffer>();
+  let arrayBuffers = new Map<Float32Array | Uint8Array, WebGLBuffer>();
 
   const uploadBuffer = (
     target: number,
@@ -240,7 +208,7 @@ export const createModelRenderer = (
   };
 
   /** Uploads an array the first time a draw uses it: a mesh's passes often share one */
-  const uploadOnce = (data: Float32Array) => {
+  const uploadOnce = (data: Float32Array | Uint8Array) => {
     let made = arrayBuffers.get(data);
 
     if (!made) {
@@ -325,6 +293,7 @@ export const createModelRenderer = (
                   ? textures[draw.texture]
                   : undefined,
               uv: draw.uvs && uploadOnce(draw.uvs),
+              color: draw.colors && uploadOnce(draw.colors),
               index: uploadBuffer(
                 gl.ELEMENT_ARRAY_BUFFER,
                 narrow ? Uint16Array.from(indices) : indices,
@@ -406,13 +375,40 @@ export const createModelRenderer = (
     gl.blendFuncSeparate(source, destination, gl.ZERO, gl.ONE);
   };
 
-  const applySurface = ({ depthCompare, twoSided }: W3dSurface) => {
-    gl.depthFunc(gl.NEVER + depthCompare);
-    if (twoSided) {
+  const applySurface = (surface: W3dSurface) => {
+    const { vertexColour } = surface;
+
+    gl.depthFunc(gl.NEVER + surface.depthCompare);
+    if (surface.twoSided) {
       gl.disable(gl.CULL_FACE);
     } else {
       gl.enable(gl.CULL_FACE);
     }
+    gl.uniform3fv(uniform("materialAmbient"), surface.ambient);
+    gl.uniform3fv(uniform("materialDiffuse"), surface.diffuse);
+    gl.uniform3fv(uniform("materialEmissive"), surface.emissive);
+    gl.uniform1i(uniform("unlit"), surface.unlit ? 1 : 0);
+    gl.uniform1i(uniform("modulate2x"), surface.modulate2x ? 1 : 0);
+    gl.uniform1i(uniform("ambientFromVertex"), vertexColour?.ambient ? 1 : 0);
+    gl.uniform1i(uniform("diffuseFromVertex"), vertexColour?.diffuse ? 1 : 0);
+    gl.uniform1i(uniform("vertexIsLit"), vertexColour?.replacesLighting ? 1 : 0);
+    gl.uniform1i(uniform("vertexMultiplies"), vertexColour?.multipliesResult ? 1 : 0);
+    gl.uniform3fv(uniform("vertexScale"), vertexColour?.scale ?? DEFAULT_SURFACE.diffuse);
+    gl.uniform1f(uniform("vertexAlphaScale"), vertexColour?.alphaScale ?? 1);
+  };
+
+  const bindColors = (data: WebGLBuffer | undefined) => {
+    if (attributes.color < 0) {
+      return;
+    }
+    if (!data) {
+      gl.disableVertexAttribArray(attributes.color);
+      gl.vertexAttrib4f(attributes.color, 1, 1, 1, 1);
+      return;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, data);
+    gl.enableVertexAttribArray(attributes.color);
+    gl.vertexAttribPointer(attributes.color, 4, gl.UNSIGNED_BYTE, true, 0, 0);
   };
 
   const draw = (
@@ -477,6 +473,8 @@ export const createModelRenderer = (
       applySurface(part.surface);
       gl.uniform1f(uniform("opacity"), opacityOf(drawable));
       gl.uniform1i(uniform("fadesColour"), blend === "alpha" ? 0 : 1);
+      gl.uniform1i(uniform("writesOpaque"), blend === "opaque" ? 1 : 0);
+      gl.uniform1f(uniform("materialAlpha"), getMaterialAlpha(part.surface));
       gl.uniform1f(
         uniform("alphaCutoff"),
         part.surface.alphaTest ? ALPHA_CUTOFF : -1,
@@ -495,6 +493,7 @@ export const createModelRenderer = (
       bindAttribute(attributes.position, drawable.position, 3);
       bindAttribute(attributes.normal, drawable.normal, 3);
       bindAttribute(attributes.uv, part.uv, 2);
+      bindColors(part.color);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.index);
       gl.drawElements(gl.TRIANGLES, part.count, part.indexType, 0);
     }
@@ -508,6 +507,7 @@ export const createModelRenderer = (
       gl.uniform4fv(uniform("solid"), BOX_COLOUR);
       bindAttribute(attributes.normal, undefined, 3);
       bindAttribute(attributes.uv, undefined, 2);
+      bindColors(undefined);
       bindAttribute(attributes.position, boxBuffer, 3);
       gl.drawArrays(gl.LINES, 0, boxVertices);
     }
@@ -526,6 +526,7 @@ export const createModelRenderer = (
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
       bindAttribute(attributes.normal, undefined, 3);
       bindAttribute(attributes.uv, undefined, 2);
+      bindColors(undefined);
       bindAttribute(attributes.position, boneBuffer, 3);
       gl.drawArrays(gl.LINES, 0, lines.length / 3);
       gl.drawArrays(gl.POINTS, 0, lines.length / 3);

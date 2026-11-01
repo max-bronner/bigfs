@@ -468,6 +468,11 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   each shader's blend pair and depth test are honoured: look through a one-sided
   glow plane from behind and it is gone; `gbhseheal` and `ebfcmoat` blend as
   light, not as flat alpha. Meshes named `PICK…` are off, and **Parts** says why.
+- [ ] **new** Material colours show: a mesh glows by its emissive colour, a tinted
+  material tints, vertex colours paint or shade a mesh instead of it drawing
+  flat or black (`sfe_menuspells`'s cylinders, trees and banners with `DCG`),
+  an alpha material fades by its opacity, and skies and other meshes that switch
+  the lights off show their texture as stored, whatever the angle.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.
