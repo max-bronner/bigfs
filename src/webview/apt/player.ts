@@ -1,4 +1,4 @@
-import { AsObject, toBoolean } from "./avm/value";
+import { AsObject } from "./avm/value";
 import { Vm } from "./avm/vm";
 import type { EngineHooks } from "./avm/vmState";
 import type { StageHost } from "./avm/value";
@@ -9,13 +9,11 @@ import type {
 import { isTimeline } from "./instance";
 import type { Instance } from "./instance";
 import type { PageMovie } from "./protocol";
-import { getMovieName } from "./avm/movieLoad";
 import { HIT, UP } from "./buttonState";
+import { createMovieLoader } from "./movieLoader";
+import { createPointerDispatcher } from "./pointerDispatcher";
 import { createBehaviourRunner } from "./createBehaviourRunner";
 import type { BehaviourRunner } from "./createBehaviourRunner";
-import { describeInstance } from "./describeInstance";
-import { POINTER_CLIP_EVENTS, POINTER_GESTURES } from "./pointerGestures";
-import type { PointerGesture } from "./pointerGestures";
 import { SCRIPT_PRIORITY, createScriptQueue } from "./scriptQueue";
 import { buildDisplayList, getFrames } from "./timeline";
 
@@ -32,8 +30,6 @@ import { buildDisplayList, getFrames } from "./timeline";
  */
 
 const MAX_DEPTH = 12;
-/** The depth of `_level0`'s next sibling: a level sits above every placed depth */
-const LEVEL_DEPTH = 1_000_000;
 
 /** A character a placeholder resolves to, with the movie and id it lives at */
 export interface Resolved {
@@ -94,6 +90,44 @@ export class Player implements StageHost {
   );
   /** Clips to run each frame, newest first (Ruffle's execution list) */
   private clips: Instance[] = [];
+  private readonly pointer = createPointerDispatcher({
+    queue: this.queue,
+    getVm: () => this.vm,
+    getRoot: () => this.root,
+    log: (line) => this.options.log?.(line),
+    isAttached: (instance) => this.attached(instance),
+    syncButton: (button) => this.syncButton(button),
+    queueClipEvent: (instance, event) => this.clipEvent(instance, event),
+    queueMethod: (instance, name) => this.queueMethod(instance, name),
+    hasHandler: (instance, name) => !!this.findHandler(instance, name),
+    runBehaviour: (...args) => this.runBehaviour(...args),
+    drainScripts: () => this.idle(),
+  });
+  /** Moves the pointer from one target to another, see `PointerDispatcher` */
+  public readonly hover = this.pointer.hover;
+  /** Presses the pointer on a target */
+  public readonly press = this.pointer.press;
+  /** Lets the pointer go on a target, or over `hovered` or nothing */
+  public readonly release = this.pointer.release;
+  /** Whether a clip takes the pointer itself */
+  public readonly takesPointer = this.pointer.takesPointer;
+  /** Loads into a clip or level for `loadMovie`/`unloadMovie`; no URL empties it */
+  public readonly loadMovie = createMovieLoader({
+    queue: this.queue,
+    getVm: () => this.vm,
+    getRoot: () => this.root,
+    log: (line) => this.options.log?.(line),
+    fetchMovie: (name, done) =>
+      this.options.fetchMovie
+        ? this.options.fetchMovie(name, done)
+        : this.options.log?.(`loadMovie: ${name} cannot be loaded here`),
+    createEmpty: (parent, name, depth) => this.createEmpty(parent, name, depth),
+    remove: (clip) => this.remove(clip),
+    retire: (instance) => this.retire(instance),
+    queueInitActions: (movie, on) => this.queueInitActions(movie, on),
+    enter: (timeline, frame) => this.enter(timeline, frame),
+    drainScripts: () => this.idle(),
+  });
 
   public constructor(
     movie: PageMovie,
@@ -155,119 +189,6 @@ export class Player implements StageHost {
         }
       }
     }
-  }
-
-  // ---- loadMovie
-
-  /**
-   * Loads into a clip, or into a level (a number), for `loadMovie`/`unloadMovie`:
-   * the movie a URL names replaces the clip's content, once it is found, and no
-   * URL empties it. Nothing here throws; a movie that cannot be had is a line
-   * in the log.
-   */
-  public loadMovie(into: Instance | number, url: string | undefined): void {
-    const log = (line: string) => this.options.log?.(`loadMovie: ${line}`);
-
-    if (typeof into !== "number" && !into.parent) {
-      log("the movie shown cannot be replaced or emptied");
-      return;
-    }
-    if (url === undefined) {
-      this.queue.add(() => this.unload(into));
-      this.idle();
-      return;
-    }
-
-    const name = getMovieName(url);
-
-    if (!name) {
-      log(`${JSON.stringify(url)} names no movie`);
-      return;
-    }
-    if (into === 0) {
-      log(`${name} cannot replace _level0, the movie shown`);
-      return;
-    }
-    if (!this.options.fetchMovie) {
-      log(`${name} cannot be loaded here`);
-      return;
-    }
-    this.options.fetchMovie(name, (found) => {
-      if (typeof found === "string") {
-        log(`${name} not loaded: ${found}`);
-        return;
-      }
-      // After the script that asked has finished, as Flash loads on the
-      // next frame; a clip gone meanwhile loads nothing
-      this.queue.add(() => this.mount(into, found));
-      this.idle();
-    });
-  }
-
-  private levelClip(level: number): Instance | undefined {
-    return [...this.root.children.values()].find(
-      (child) => child.name?.toLowerCase() === `_level${level}`,
-    );
-  }
-
-  /** Puts a movie's root timeline in a clip or level, playing from frame 0 */
-  private mount(into: Instance | number, movie: PageMovie): void {
-    const rootId = movie.characters.findIndex(
-      (character) => character?.type === "movie",
-    );
-    const clip =
-      typeof into === "number"
-        ? (this.levelClip(into) ??
-          this.createEmpty(this.root, `_level${into}`, LEVEL_DEPTH + into))
-        : into;
-
-    if (rootId < 0 || clip.removed) {
-      this.options.log?.(
-        `loadMovie: ${movie.name} ${rootId < 0 ? "has no root timeline" : "was unloaded before it arrived"}`,
-      );
-      return;
-    }
-    clip.children.forEach((child) => this.retire(child));
-    clip.children = new Map();
-    clip.hits = [];
-    clip.movie = movie;
-    clip.id = rootId;
-    clip.character = movie.characters[rootId];
-    clip.missing = undefined;
-    clip.frames = getFrames(movie, clip.character);
-    clip.frame = 0;
-    clip.playing = true;
-    clip.visible = true;
-
-    // A movie loaded again runs its init actions again
-    this.vm?.initialised.forEach((key) => {
-      if (key.startsWith(`${movie.name}#`)) {
-        this.vm!.initialised.delete(key);
-      }
-    });
-    // Runs inside the drain of the script queue: what these queue follows
-    this.queueInitActions(movie, clip);
-    this.enter(clip, 0);
-    this.options.log?.(`loadMovie: ${movie.name} is in ${describeInstance(clip)}`);
-    this.idle();
-  }
-
-  /** `unloadMovie`: the clip stays, empty and stopped; a level goes */
-  private unload(into: Instance | number): void {
-    const clip = typeof into === "number" ? this.levelClip(into) : into;
-
-    if (!clip || clip.removed) {
-      return;
-    }
-    if (typeof into === "number") {
-      this.remove(clip);
-      return;
-    }
-    clip.children.forEach((child) => this.retire(child));
-    clip.children = new Map();
-    clip.frames = [];
-    clip.frame = 0;
-    clip.playing = false;
   }
 
   /**
@@ -524,58 +445,6 @@ export class Player implements StageHost {
   public force(button: Instance, state: number | undefined): void {
     button.forced = state;
     this.syncButton(button);
-  }
-
-  /**
-   * Moves the pointer from one target to another. While a target is held
-   * down the others get drag events, never roll events (mint's
-   * `update_mouse`, after Ruffle).
-   */
-  public hover(
-    previous: Instance | undefined,
-    next: Instance | undefined,
-    held?: Instance,
-  ): void {
-    if (previous === next) {
-      return;
-    }
-    if (previous && this.attached(previous)) {
-      this.sendGesture(previous, held ? POINTER_GESTURES.dragOut : POINTER_GESTURES.rollOut);
-    }
-    if (next) {
-      this.sendGesture(next, held ? POINTER_GESTURES.dragOver : POINTER_GESTURES.rollOver);
-    }
-  }
-
-  /** Presses the pointer on a target */
-  public press(target: Instance): void {
-    this.sendGesture(target, POINTER_GESTURES.press);
-  }
-
-  /** Lets the pointer go: over the target pressed, or over `hovered` or nothing */
-  public release(target: Instance, hovered: Instance | undefined): void {
-    if (target === hovered) {
-      this.sendGesture(target, POINTER_GESTURES.release);
-      return;
-    }
-    this.sendGesture(target, POINTER_GESTURES.releaseOutside);
-    if (hovered) {
-      this.sendGesture(hovered, POINTER_GESTURES.rollOver);
-    }
-  }
-
-  /**
-   * Whether a clip takes the pointer itself, by a mouse clip event or a
-   * mouse handler property (mint's `button_mode`, after Ruffle)
-   */
-  public takesPointer(instance: Instance): boolean {
-    if (instance.clipActions?.some(({ events }) => events & POINTER_CLIP_EVENTS)) {
-      return true;
-    }
-
-    return Object.values(POINTER_GESTURES).some(
-      ({ handler }) => !!this.findHandler(instance, handler),
-    );
   }
 
   /** Lists every instance, root first, depth first */
@@ -840,68 +709,6 @@ export class Player implements StageHost {
         .filter((record) => record.flags & HIT)
         .map((record) => place(record, true));
     }
-  }
-
-  /** Sends a pointer gesture to a button or a clip that takes the pointer */
-  private sendGesture(target: Instance, gesture: PointerGesture): void {
-    this.queue.hold(() => {
-      if (target.character?.type === "button") {
-        this.sendButtonGesture(target, gesture);
-      } else {
-        this.clipEvent(target, gesture.clipEvent);
-        this.queueMethod(target, gesture.handler);
-      }
-    });
-    this.idle();
-  }
-
-  /** Whether a script has turned a button off; absent means on */
-  private isDisabled(button: Instance): boolean {
-    const enabled = this.vm?.peekObject(button)?.get("enabled");
-
-    return enabled !== undefined && !toBoolean(enabled);
-  }
-
-  private sendButtonGesture(button: Instance, gesture: PointerGesture): void {
-    if (button.character?.type !== "button") {
-      return;
-    }
-    if (this.isDisabled(button)) {
-      // A disabled button changes state but runs nothing
-      if (gesture.state !== POINTER_GESTURES.rollOver.state) {
-        button.buttonState = UP;
-        this.syncButton(button);
-      }
-      return;
-    }
-
-    button.buttonState = gesture.state;
-    this.syncButton(button);
-
-    // A button's actions run on the timeline it is placed in
-    const owner = button.parent ?? this.root;
-    const name =
-      Object.entries(POINTER_GESTURES).find(([, each]) => each === gesture)?.[0] ??
-      "event";
-    const vm = this.vm;
-
-    for (const action of button.character.actions) {
-      if (action.condition & gesture.condition) {
-        if (vm) {
-          this.options.log?.(`${name} on ${describeInstance(button)}`);
-          this.queue.add(() => vm.runBlock(owner, action.block, button));
-        } else {
-          this.runBehaviour(
-            owner,
-            button.movie.behaviours[action.block],
-            `${name} on ${describeInstance(button)}`,
-          );
-        }
-      }
-    }
-
-    // A handler a script gave the button (`btn.onRelease = function () {}`)
-    this.queueMethod(button, gesture.handler);
   }
 
   /** Gets a text field's text: set by a script, else its bound variable's value */

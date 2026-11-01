@@ -9,14 +9,14 @@ import { resolve } from "./resolve";
 import {
   getLeafBounds,
   collect,
-  findPointerTargetAt,
-  isInBounds,
   getLocalBounds,
-  toLeafSpace,
   transformRect,
   union,
 } from "./scene";
 import { growExtent } from "./stageExtent";
+import { attachStagePointer } from "./stagePointer";
+import type { StageTool } from "./stagePointer";
+import { isDrawnAt } from "./hitTest";
 import type { Affine, HitArea, Leaf } from "./scene";
 import { movie, state } from "./state";
 
@@ -90,19 +90,7 @@ export const setInspectorView = (
   onRendered = update;
 };
 
-/** A tool that can take the pointer before the stage picks, and draw on top */
-export interface StageTool {
-  /** Takes a press; false lets the stage pick as usual */
-  down(point: [number, number], event: MouseEvent): boolean;
-  /** Takes a move while it holds the pointer */
-  move(point: [number, number], event: MouseEvent): boolean;
-  /** Ends the drag the tool holds the pointer for */
-  up(): void;
-  /** Draws in the shown character's space, `pixel` wide lines */
-  draw(ctx: CanvasRenderingContext2D, pixel: number): void;
-  /** The cursor over a point, when the tool has one */
-  cursor(point: [number, number]): string | undefined;
-}
+export type { StageTool };
 
 /** Tools in the order they are offered the pointer */
 const tools: StageTool[] = [];
@@ -112,17 +100,11 @@ export const addTool = (next: StageTool): void => {
   tools.unshift(next);
 };
 
-/** The tool that holds the pointer, while a drag lasts */
-let holder: StageTool | undefined;
 
 let player: Player | undefined;
 let extent: Rect | undefined;
 let scene: { leaves: Leaf[]; hits: HitArea[] } = { leaves: [], hits: [] };
 let base: Affine = [1, 0, 0, 1, 0, 0];
-let hovered: Instance | undefined;
-/** Where the pointer last was on the stage, in the shown character's space */
-let pointer: [number, number] | undefined;
-let pressed: Instance | undefined;
 const log: string[] = [];
 /** What other frames of the shown timeline draw, for onion skinning */
 const ghosts = new Map<number, Leaf[]>();
@@ -194,8 +176,7 @@ export const restart = (): void => {
   player = undefined;
   ghosts.clear();
   extent = undefined;
-  hovered = undefined;
-  pressed = undefined;
+  stagePointer.reset();
   state.inspected = undefined;
 };
 
@@ -522,7 +503,7 @@ const overlays = (
 
   ctx.setLineDash([]);
   for (const [instance, colour, width] of [
-    [hovered, "rgba(255,0,255,0.6)", 1],
+    [stagePointer.getHovered(), "rgba(255,0,255,0.6)", 1],
     [getInspectedInstance(), "rgba(255,0,255,1)", 2],
   ] as const) {
     const rect = instance && measureInstanceBox(instance);
@@ -562,171 +543,33 @@ export const pointAt = (event: MouseEvent): [number, number] => {
   ];
 };
 
-/** Whether a leaf covers a point: a shape by its triangles, the rest by their box */
-const covers = (leaf: Leaf, point: [number, number]): boolean => {
-  const local = toLeafSpace(leaf, point);
-
-  if (!local) {
-    return false;
-  }
-
-  const [lx, ly] = local;
-
-  if (leaf.character?.type === "shape") {
-    return (leaf.movie.shapes[leaf.id] ?? []).some((run) => {
-      const t = run.triangles;
-
-      for (let i = 0; i < t.length; i += 6) {
-        if (
-          inTriangle(
-            lx,
-            ly,
-            t[i],
-            t[i + 1],
-            t[i + 2],
-            t[i + 3],
-            t[i + 4],
-            t[i + 5],
-          )
-        ) {
-          return true;
-        }
-      }
-      return false;
-    });
-  }
-
-  return isInBounds(leaf, point);
-};
-
-const inTriangle = (
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number,
-): boolean => {
-  const d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
-  const d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
-  const d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
-
-  return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
-};
-
-/**
- * Moves the pointer's hover to the target under it, returning whether it
- * changed.
- */
-const updateHover = (point: [number, number]): boolean => {
-  const next = findPointerTargetAt(scene.hits, point);
-
-  stage.style.cursor = next ? "pointer" : "default";
-  if (next === hovered) {
-    return false;
-  }
-  currentPlayer().hover(hovered, next, pressed);
-  hovered = next;
-  return true;
-};
-
-/**
- * Whether a still pointer needs a new pick: only when nothing stays hovered,
- * so a button appearing over the hovered one waits for the pointer to move
- * (mint's `idle_pointer`).
- */
-const isHoverLost = (): boolean =>
-  !hovered || !!hovered.removed || hovered.visible === false;
-
 /** The topmost instance worth inspecting under the point */
 const findInstanceAt = (
   point: [number, number],
   deep = false,
 ): Instance | undefined => {
   for (let index = scene.leaves.length - 1; index >= 0; index--) {
-    if (covers(scene.leaves[index], point)) {
+    if (isDrawnAt(scene.leaves[index], point)) {
       return inspectable(scene.leaves[index], deep);
     }
   }
   return undefined;
 };
 
-stage.addEventListener("mousemove", (event) => {
-  if (!state.movie) {
-    return;
-  }
-
-  const point = pointAt(event);
-
-  if (!view.interact && holder?.move(point, event)) {
-    return;
-  }
-
-  pointer = point;
-  if (view.interact) {
-    if (updateHover(point)) {
-      render();
-    }
-  } else {
-    const next = findInstanceAt(point);
-
-    stage.style.cursor =
-      tools.map((each) => each.cursor(point)).find(Boolean) ?? "default";
-    if (next !== hovered) {
-      hovered = next;
-      stage.title = next ? next.path || "the shown character" : "";
-      render();
-    }
-  }
-});
-
-stage.addEventListener("mouseleave", () => {
-  if (view.interact && hovered) {
-    currentPlayer().hover(hovered, undefined);
-  }
-  hovered = undefined;
-  pointer = undefined;
-  if (state.movie) {
+const stagePointer = attachStagePointer(stage, {
+  tools,
+  isInteractive: () => view.interact,
+  hasMovie: () => !!state.movie,
+  getPlayer: currentPlayer,
+  getHits: () => scene.hits,
+  pointAt,
+  findInstanceAt,
+  inspect: (instance) => {
+    state.inspected = instance?.path;
+    onInspect();
     render();
-  }
-});
-
-stage.addEventListener("mousedown", (event) => {
-  if (!state.movie) {
-    return;
-  }
-  if (view.interact) {
-    if (hovered) {
-      pressed = hovered;
-      currentPlayer().press(hovered);
-      render();
-    }
-    return;
-  }
-
-  holder = tools.find((each) => each.down(pointAt(event), event));
-  if (holder) {
-    return;
-  }
-
-  // A click picks what the shown timeline places; a double click reaches inside
-  const picked = findInstanceAt(pointAt(event), event.detail >= 2);
-
-  state.inspected = picked?.path;
-  onInspect();
-  render();
-});
-
-window.addEventListener("mouseup", () => {
-  holder?.up();
-  holder = undefined;
-  if (view.interact && pressed) {
-    currentPlayer().release(pressed, hovered);
-    pressed = undefined;
-    render();
-  }
+  },
+  render,
 });
 
 let lastTime: number | undefined;
@@ -754,7 +597,7 @@ const loop = (time: number) => {
     }
     state.frame = currentPlayer().root.frame;
     render();
-    if (view.interact && pointer && isHoverLost() && updateHover(pointer)) {
+    if (stagePointer.updateAfterFrame()) {
       render();
     }
   }

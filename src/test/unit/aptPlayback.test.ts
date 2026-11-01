@@ -8,7 +8,8 @@ import { Engine } from '../../webview/apt/avm/engine';
 import { DOWN, OVER, UP } from '../../webview/apt/buttonState';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
-import { collect, findPointerTargetAt } from '../../webview/apt/scene';
+import { findPointerTargetAt } from '../../webview/apt/hitTest';
+import { collect } from '../../webview/apt/scene';
 import type { Leaf } from '../../webview/apt/scene';
 
 const place = (

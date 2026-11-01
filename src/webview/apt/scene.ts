@@ -251,60 +251,6 @@ export const getLocalBounds = (leaf: Leaf): Rect => {
   return [0, 0, texture?.width ?? 64, texture?.height ?? 64];
 };
 
-/** Gets a point in a leaf's own space, or nothing when its matrix has collapsed */
-export const toLeafSpace = (
-  { matrix: [a, b, c, d, tx, ty] }: Pick<Leaf, 'matrix'>,
-  [x, y]: [number, number],
-): [number, number] | undefined => {
-  const det = a * d - b * c;
-
-  return det
-    ? [(d * (x - tx) - c * (y - ty)) / det, (a * (y - ty) - b * (x - tx)) / det]
-    : undefined;
-};
-
-/** Whether a point is in a leaf's bounds */
-export const isInBounds = (leaf: Leaf, point: [number, number]): boolean => {
-  const local = toLeafSpace(leaf, point);
-
-  if (!local) {
-    return false;
-  }
-
-  const [left, top, right, bottom] = getLocalBounds(leaf);
-
-  return (
-    local[0] >= left &&
-    local[0] <= right &&
-    local[1] >= top &&
-    local[1] <= bottom
-  );
-};
-
-/**
- * Finds the topmost button or clip whose hit area is under a point, and not
- * masked away there. A hit area is its record's bounds: the shipped hit
- * shapes are bounds around empty geometry.
- */
-export const findPointerTargetAt = (
-  hits: readonly HitArea[],
-  point: [number, number],
-): Instance | undefined => {
-  for (let index = hits.length - 1; index >= 0; index--) {
-    const { leaf, target } = hits[index];
-
-    if (
-      isInBounds(leaf, point) &&
-      (leaf.masks ?? []).every((mask) =>
-        mask.some((each) => isInBounds(each, point)),
-      )
-    ) {
-      return target;
-    }
-  }
-  return undefined;
-};
-
 /** Transforms a rectangle, giving the box around the result */
 export const transformRect = (m: Affine, [l, t, r, b]: Rect): Rect => {
   const xs = [l, r, l, r].map(
