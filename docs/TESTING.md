@@ -473,6 +473,11 @@ Open a `.w3d` from an archive or folder (**bigFS Preview**).
   flat or black (`sfe_menuspells`'s cylinders, trees and banners with `DCG`),
   an alpha material fades by its opacity, and skies and other meshes that switch
   the lights off show their texture as stored, whatever the angle.
+- [ ] **new** A second texture stage shows, combined as the shader says: lightmaps
+  and detail textures darken or colour the first (`gbmintmnt_a`, `armyantsglow`,
+  building windows), textures marked clamped no longer repeat past their edge
+  (`ch_staff04`), and bump water (`ebfcmoat`) ripples what is under it instead of
+  showing the height map as a colour.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.

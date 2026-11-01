@@ -1,5 +1,4 @@
 import type { ToolBox } from "../../core/toolRegistry";
-import { decodeDdsTool, decodeTgaTool } from "../texture/textureTools";
 import type { RgbaImage } from "../texture/textureTools";
 import { parseW3dTool } from "./w3dTools";
 import type {
@@ -13,7 +12,11 @@ import { parseW3dAnimations } from "./w3dAnimation";
 import type { W3dAnimation } from "./w3dAnimation";
 import { skinVertices, toBoneMatrix } from "./w3dSkin";
 import type { BoneSpaceMesh, Matrix } from "./w3dSkin";
-import type { W3dBlend, W3dMaterialDraw } from "./w3dMaterial";
+import type { W3dBlend } from "./w3dMaterial";
+import { loadSceneDraws } from "./w3dSceneDraws";
+import type { LoadFile, SceneDraw, SceneTextureAddressing } from "./w3dSceneDraws";
+
+export type { LoadFile, SceneDraw };
 
 /**
  * Builds what a model preview draws from a W3D file: every mesh in model
@@ -25,14 +28,6 @@ import type { W3dBlend, W3dMaterialDraw } from "./w3dMaterial";
  * and a mesh names `GUArcher.tga`, which the game loads as `guarcher.dds`
  * when there is one. `loadFile` finds an entry by file name wherever it is.
  */
-
-/** One draw of a scene mesh: `W3dMaterialDraw` with its texture found and V flipped */
-export interface SceneDraw extends Omit<W3dMaterialDraw, "texture"> {
-  /** Index into `ModelScene.textures`, when the texture was found */
-  texture?: number;
-  /** The draw names a texture, so without one it shows that one is missing */
-  textured: boolean;
-}
 
 /** One mesh ready to draw: positions and normals in model space */
 export interface SceneMesh {
@@ -108,6 +103,8 @@ export interface ModelScene {
   boxes: SceneBox[];
   hlod?: SceneHlod;
   textures: RgbaImage[];
+  /** How each of `textures` is sampled, by index; repeating where absent */
+  addressing?: SceneTextureAddressing[];
   /** Texture names no archive or folder holds, which a preview reports */
   missing: string[];
   /** Name of the skeleton, when the model has one */
@@ -119,9 +116,6 @@ export interface ModelScene {
   animationSkeleton?: SceneSkeleton;
   bounds: { min: [number, number, number]; max: [number, number, number] };
 }
-
-/** Finds an entry by file name, matched without casing, wherever it lives */
-export type LoadFile = (fileName: string) => Promise<Uint8Array | undefined>;
 
 const multiply = (a: Matrix, b: Matrix): Matrix => {
   const out = new Float64Array(16);
@@ -156,43 +150,6 @@ const computeBoneMatrices = (hierarchy: W3dHierarchy | undefined): Matrix[] => {
   });
 
   return matrices;
-};
-
-/**
- * Flips texture coordinates so V runs from the top, as WebGL samples an image
- * uploaded top row first. W3D measures V from the bottom (mint's
- * `convert::flip_v`, `w3d-format.md` "Texture coordinate origin"); the
- * textures are atlases, so without it each face samples another part of
- * the atlas rather than a mirrored picture.
- */
-const flipV = (uvs: Float32Array): Float32Array =>
-  uvs.map((value, index) => (index % 2 ? 1 - value : value));
-
-/** Strips a file name's extension */
-const removeExtension = (fileName: string): string => fileName.replace(/\.[^.]*$/, "");
-
-/** Finds and decodes a texture, preferring a DDS over the TGA a mesh names */
-const loadTexture = async (
-  name: string,
-  loadFile: LoadFile,
-  tools: ToolBox,
-): Promise<RgbaImage | undefined> => {
-  for (const [extension, tool] of [
-    [".dds", decodeDdsTool],
-    [".tga", decodeTgaTool],
-  ] as const) {
-    const bytes = await loadFile(`${removeExtension(name)}${extension}`);
-
-    if (bytes) {
-      try {
-        return (await tools.use(tool)(bytes)).levels[0];
-      } catch {
-        // A texture that does not decode draws untextured, like a missing one
-      }
-    }
-  }
-
-  return undefined;
 };
 
 const formatSubObjectName = (container: string, name: string) =>
@@ -546,32 +503,15 @@ export const buildW3dScene = async (
   }
 
   const matrices = computeBoneMatrices(hierarchy);
-  const textureNames = [
-    ...new Set(
-      file.meshes.flatMap((mesh) =>
-        mesh.draws.flatMap(({ texture }) => (texture ? [texture.name] : [])),
-      ),
-    ),
-  ];
-  const decoded = await Promise.all(
-    textureNames.map((name) => loadTexture(name, loadFile, tools)),
+  const { textures, addressing, missing, draws, uvs } = await loadSceneDraws(
+    file.meshes,
+    loadFile,
+    tools,
   );
-  const textures: RgbaImage[] = [];
-  const textureIndex = new Map<string, number>();
-
-  textureNames.forEach((name, index) => {
-    const image = decoded[index];
-
-    if (image) {
-      textureIndex.set(name, textures.length);
-      textures.push(image);
-    }
-  });
-
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
 
-  const meshes = file.meshes.map((mesh): SceneMesh => {
+  const meshes = file.meshes.map((mesh, at): SceneMesh => {
     const local = bindToBones(mesh, file, matrices.length);
     const positions = mesh.positions.slice();
     const normals = mesh.normals?.slice();
@@ -580,39 +520,26 @@ export const buildW3dScene = async (
       skinVertices(local, matrices, positions, normals);
     }
 
-    for (let at = 0; at < positions.length; at += 3) {
+    for (let vertex = 0; vertex < positions.length; vertex += 3) {
       for (let axis = 0; axis < 3; axis++) {
-        min[axis] = Math.min(min[axis], positions[at + axis]);
-        max[axis] = Math.max(max[axis], positions[at + axis]);
+        min[axis] = Math.min(min[axis], positions[vertex + axis]);
+        max[axis] = Math.max(max[axis], positions[vertex + axis]);
       }
     }
-
-    const flipped = new Map<Float32Array, Float32Array>();
-    const flipOnce = (uvs: Float32Array | undefined) => {
-      if (uvs && !flipped.has(uvs)) {
-        flipped.set(uvs, flipV(uvs));
-      }
-      return uvs && flipped.get(uvs);
-    };
 
     return {
       name: mesh.name,
       container: mesh.container,
       positions,
       normals,
-      uvs: flipOnce(mesh.uvs),
+      uvs: uvs[at],
       indices: mesh.indices,
-      texture: mesh.texture ? textureIndex.get(mesh.texture) : undefined,
+      texture: draws[at].find((draw) => draw.pass === 0 && draw.texture !== undefined)?.texture,
       alphaTest: mesh.alphaTest,
       blend: mesh.blend,
       hidden: mesh.hidden,
       pickProxy: mesh.pickProxy || undefined,
-      draws: mesh.draws.map((draw) => ({
-        ...draw,
-        uvs: flipOnce(draw.uvs),
-        texture: draw.texture && textureIndex.get(draw.texture.name),
-        textured: !!draw.texture,
-      })),
+      draws: draws[at],
       local,
       bone: mesh.isSkin ? undefined : local?.bones[0],
     };
@@ -645,7 +572,8 @@ export const buildW3dScene = async (
     boxes,
     hlod: sceneHlod,
     textures,
-    missing: textureNames.filter((name) => !textureIndex.has(name)),
+    addressing,
+    missing,
     hierarchy: hierarchy?.name,
     skeleton: hierarchy && toSceneSkeleton(hierarchy),
     animation,

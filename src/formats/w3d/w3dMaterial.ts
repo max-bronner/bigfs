@@ -70,6 +70,12 @@ export interface W3dSurface {
   modulate2x: boolean;
   /** Absent when the draw has no vertex colours */
   vertexColour?: W3dVertexColourUse;
+  /** How the second stage's colour combines with the first's: `DetailColorFuncType`, 0 for none */
+  detailColor: number;
+  /** How the second stage's alpha combines with the first's: `DetailAlphaFuncType`, 0 for none */
+  detailAlpha: number;
+  /** `GRADIENT_BUMPENVMAP`: the first stage is no colour, but offsets the second's coordinates */
+  bumpOffset: boolean;
 }
 
 /** One draw of a mesh, in the order the game draws them */
@@ -81,8 +87,12 @@ export interface W3dMaterialDraw {
   surface: W3dSurface;
   /** The first stage's texture */
   texture?: W3dTexture;
+  /** The second stage's texture */
+  detailTexture?: W3dTexture;
   /** Two per vertex, as stored: V measured from the bottom */
   uvs?: Float32Array;
+  /** The second stage's own coordinates, else the first stage's */
+  detailUvs?: Float32Array;
   /** `DCG`: RGBA a vertex */
   colors?: Uint8Array;
 }
@@ -109,6 +119,9 @@ export const DEFAULT_SURFACE: W3dSurface = {
   opacity: 1,
   unlit: false,
   modulate2x: false,
+  detailColor: 0,
+  detailAlpha: 0,
+  bumpOffset: false,
 };
 
 const isBlack = ([red, green, blue]: Rgb) => red === 0 && green === 0 && blue === 0;
@@ -124,6 +137,12 @@ const EFFECT_DETAIL_COLORS = new Set([0, 2, 8, 11, 12]);
 const GRADIENT_DISABLE = 0;
 /** The slot ROTWK's `ShaderClass::Apply` runs as `MODULATE2X` */
 const GRADIENT_MODULATE2X = 5;
+/** The primary gradient that makes the first stage a bump map */
+const GRADIENT_BUMPENVMAP = 3;
+/** The largest `DetailColorFuncType` Zero Hour defines; past it a stage draws as disabled */
+const MAX_DETAIL_COLOR = 12;
+/** The largest `DetailAlphaFuncType` */
+const MAX_DETAIL_ALPHA = 3;
 
 /** The id a per-triangle table stores for a triangle it says nothing about */
 const NO_ID = 0xffffffff;
@@ -131,6 +150,7 @@ const NO_ID = 0xffffffff;
 /** The ids of one set of triangles that draw alike */
 interface MaterialGroup {
   texture?: number;
+  detailTexture?: number;
   shader?: number;
   fxMaterial?: number;
   vertexMaterial?: number;
@@ -209,9 +229,11 @@ const groupTriangles = (
   { indices }: W3dMaterialGeometry,
 ): MaterialGroup[] => {
   const textureIds = pass.stages[0]?.textureIds ?? [];
+  const detailTextureIds = pass.stages[1]?.textureIds ?? [];
   const vertexMaterialIds = pass.vertexMaterialIds;
   const perTriangle = [
     textureIds,
+    detailTextureIds,
     pass.shaderIds,
     pass.fxMaterialIds,
     vertexMaterialIds,
@@ -221,6 +243,7 @@ const groupTriangles = (
     return [
       {
         texture: pickId(textureIds, 0),
+        detailTexture: pickId(detailTextureIds, 0),
         shader: pickId(pass.shaderIds, 0),
         fxMaterial: pickId(pass.fxMaterialIds, 0),
         vertexMaterial: pickId(vertexMaterialIds, 0),
@@ -233,15 +256,16 @@ const groupTriangles = (
 
   for (let triangle = 0; triangle * 3 < indices.length; triangle++) {
     const texture = pickId(textureIds, triangle);
+    const detailTexture = pickId(detailTextureIds, triangle);
     const shader = pickId(pass.shaderIds, triangle);
     const fxMaterial = pickId(pass.fxMaterialIds, triangle);
     // That table is per vertex, and a triangle takes its first vertex's material
     const vertexMaterial = pickId(vertexMaterialIds, indices[triangle * 3]);
-    const key = `${texture}|${shader}|${fxMaterial}|${vertexMaterial}`;
+    const key = `${texture}|${detailTexture}|${shader}|${fxMaterial}|${vertexMaterial}`;
     let group = groups.get(key);
 
     if (!group) {
-      group = { texture, shader, fxMaterial, vertexMaterial, triangles: [] };
+      group = { texture, detailTexture, shader, fxMaterial, vertexMaterial, triangles: [] };
       groups.set(key, group);
     }
     group.triangles.push(triangle);
@@ -345,8 +369,12 @@ const resolveDraw = (
     materials.shaders[group.shader ?? -1] ??
     materials.shaders[pass.shaderIds.find((id) => id !== NO_ID) ?? -1];
   const fxMaterial = materials.fxMaterials[group.fxMaterial ?? 0];
-  const stage = pass.stages[0];
+  const [stage, detailStage] = pass.stages;
   const uvs = stage?.uvs?.length ? stage.uvs : pass.uvs;
+  const detailUvs = detailStage?.uvs?.length ? detailStage.uvs : uvs;
+  const detailTexture = materials.textures[group.detailTexture ?? -1];
+  const fitsVertices = (array: Float32Array | undefined) =>
+    array?.length === geometry.vertexCount * 2 ? array : undefined;
   const legacyTexture = materials.textures[group.texture ?? -1];
   const fxTexture = fxMaterial && readFxDiffuseTexture(fxMaterial);
   const texture =
@@ -371,6 +399,11 @@ const resolveDraw = (
       modulate2x:
         !isEffect && !!texture && shader?.primaryGradient === GRADIENT_MODULATE2X,
       vertexColour: colors && resolveVertexColour(isEffect, colours),
+      detailColor:
+        detailTexture && shader && shader.detailColor <= MAX_DETAIL_COLOR ? shader.detailColor : 0,
+      detailAlpha:
+        detailTexture && shader && shader.detailAlpha <= MAX_DETAIL_ALPHA ? shader.detailAlpha : 0,
+      bumpOffset: shader?.primaryGradient === GRADIENT_BUMPENVMAP,
       sortLevel:
         geometry.sortLevel > 0 && geometry.sortLevel <= MAX_SORT_LEVEL ? geometry.sortLevel : 0,
       ...(shader
@@ -382,7 +415,9 @@ const resolveDraw = (
         : resolveFxSurface(fxMaterial)),
     },
     texture,
-    uvs: uvs?.length === geometry.vertexCount * 2 ? uvs : undefined,
+    detailTexture,
+    uvs: fitsVertices(uvs),
+    detailUvs: fitsVertices(detailUvs),
     colors,
   };
 };

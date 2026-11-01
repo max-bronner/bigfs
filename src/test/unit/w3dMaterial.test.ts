@@ -1,5 +1,8 @@
 import * as assert from "assert";
 import { parseW3d } from "../../formats/w3d/w3dTools";
+import { buildBumpOffsets } from "../../formats/w3d/w3dBumpMap";
+import { buildW3dScene } from "../../formats/w3d/w3dScene";
+import { createToolRegistry } from "../../core/toolRegistry";
 import { classifyBlend, DEFAULT_SURFACE, resolveVertexColour } from "../../formats/w3d/w3dMaterial";
 import type { W3dShader } from "../../formats/w3d/w3dMaterialChunks";
 import { buildChunk, concatBytes, encodeFloats, encodeName, encodeUints } from "./w3d.test";
@@ -101,6 +104,17 @@ const vertexMaterials = (
   const material = buildChunk(0x02b, buildChunk(0x02d, info), true);
 
   return buildChunk(0x02a, concatBytes(...Array<Uint8Array>(count).fill(material)), true);
+};
+
+/** A one-pixel uncompressed 32-bit TGA */
+const tgaOf = (value: number) => {
+  const bytes = new Uint8Array(18 + 4).fill(value, 18);
+
+  bytes[2] = 2;
+  bytes[12] = 1;
+  bytes[14] = 1;
+  bytes[16] = 32;
+  return bytes;
 };
 
 /** Builds a file of one two-triangle mesh with the material chunks given */
@@ -339,6 +353,80 @@ suite("W3D materials", () => {
     assert.strictEqual(unlit.draws[0].surface.unlit, true);
     assert.strictEqual(sky.draws[0].surface.unlit, true);
     assert.strictEqual(doubled.draws[0].surface.modulate2x, true);
+  });
+
+  test("a second stage brings its texture, coordinates and the shader's combine", () => {
+    const stage = (id: number, uvs: number[]) =>
+      buildChunk(
+        0x048,
+        concatBytes(buildChunk(0x049, encodeUints(id)), buildChunk(0x04a, encodeFloats(...uvs))),
+        true,
+      );
+    const [draw] = parseMesh(
+      buildChunk(0x029, shaderBytes({ detailColor: 11, detailAlpha: 2 })),
+      textureTable("A.tga", "B.tga"),
+      buildChunk(
+        0x038,
+        concatBytes(
+          buildChunk(0x03a, encodeUints(0)),
+          stage(0, [0, 0, 0, 0, 0, 0, 0, 0]),
+          stage(1, [1, 1, 1, 1, 1, 1, 1, 1]),
+        ),
+        true,
+      ),
+    ).draws;
+
+    assert.strictEqual(draw.detailTexture?.name, "B.tga");
+    assert.strictEqual(draw.detailUvs?.[0], 1);
+    assert.strictEqual(draw.surface.detailColor, 11);
+    assert.strictEqual(draw.surface.detailAlpha, 2);
+  });
+
+  test("a combine with no second stage, or past the defined range, is off", () => {
+    const alone = parseMesh(
+      buildChunk(0x029, shaderBytes({ detailColor: 11 })),
+      textureTable("A.tga"),
+      pass([0], [0]),
+    );
+
+    assert.strictEqual(alone.draws[0].surface.detailColor, 0);
+  });
+
+  test("clamp bits of a texture reach the scene, and each use uploads its own", async () => {
+    const info = new Uint8Array(12);
+
+    info[0] = 0x08;
+
+    const table = buildChunk(
+      0x030,
+      buildChunk(
+        0x031,
+        concatBytes(buildChunk(0x032, encodeName("A.tga", 6)), buildChunk(0x033, info)),
+        true,
+      ),
+      true,
+    );
+    const image = tgaOf(1);
+    const scene = await buildW3dScene(
+      buildMesh(0, "BODY", table, pass([0], [])),
+      async (name) => (name === "A.tga" ? image : undefined),
+      createToolRegistry(),
+    );
+
+    assert.deepStrictEqual(scene.addressing, [{ clampU: true, clampV: false }]);
+    assert.strictEqual(scene.meshes[0].draws?.[0].texture, 0);
+  });
+
+  test("a bump stage's height map becomes slopes, with EA's valley rule", () => {
+    const grey = (value: number) => [value, value, value, 255];
+    const { pixels } = buildBumpOffsets({
+      width: 3,
+      height: 1,
+      pixels: Uint8Array.from([...grey(100), ...grey(50), ...grey(100)]),
+    });
+
+    // Luminance rounds down, so 100 and 50 read 99 and 49 in EA's fixed point
+    assert.deepStrictEqual(Array.from(pixels.slice(4, 8)), [50 + 128, 128, 0, 255]);
   });
 
   test("the sort level of a mesh reaches its surface, and an out of range one is none", () => {

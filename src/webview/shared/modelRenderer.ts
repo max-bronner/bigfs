@@ -69,7 +69,9 @@ interface DrawablePart {
   texture?: WebGLTexture;
   /** The draw names a texture that was not found */
   missingTexture: boolean;
+  detailTexture?: WebGLTexture;
   uv?: WebGLBuffer;
+  detailUv?: WebGLBuffer;
   color?: WebGLBuffer;
   index: WebGLBuffer;
 }
@@ -169,6 +171,7 @@ export const createModelRenderer = (
     position: gl.getAttribLocation(program, "position"),
     normal: gl.getAttribLocation(program, "normal"),
     uv: gl.getAttribLocation(program, "uv"),
+    detailUv: gl.getAttribLocation(program, "detailUv"),
     color: gl.getAttribLocation(program, "color"),
   };
   const boneBuffer = gl.createBuffer()!;
@@ -226,9 +229,10 @@ export const createModelRenderer = (
       return;
     }
 
-    textures = next.textures.map(({ width, height, pixels }) => {
+    textures = next.textures.map(({ width, height, pixels }, at) => {
       const texture = gl.createTexture()!;
       const tiles = isPowerOfTwo(width) && isPowerOfTwo(height);
+      const addressing = next.addressing?.[at];
 
       gl.bindTexture(gl.TEXTURE_2D, texture);
       gl.texImage2D(
@@ -250,10 +254,11 @@ export const createModelRenderer = (
         gl.TEXTURE_MIN_FILTER,
         tiles ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR,
       );
-      const wrap = tiles ? gl.REPEAT : gl.CLAMP_TO_EDGE;
+      const wrapOf = (clamped?: boolean) =>
+        tiles && !clamped ? gl.REPEAT : gl.CLAMP_TO_EDGE;
 
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapOf(addressing?.clampU));
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapOf(addressing?.clampV));
       return texture;
     });
 
@@ -292,7 +297,12 @@ export const createModelRenderer = (
                 draw.uvs && draw.texture !== undefined
                   ? textures[draw.texture]
                   : undefined,
+              detailTexture:
+                draw.detailUvs && draw.detailTexture !== undefined
+                  ? textures[draw.detailTexture]
+                  : undefined,
               uv: draw.uvs && uploadOnce(draw.uvs),
+              detailUv: draw.detailUvs && uploadOnce(draw.detailUvs),
               color: draw.colors && uploadOnce(draw.colors),
               index: uploadBuffer(
                 gl.ELEMENT_ARRAY_BUFFER,
@@ -395,6 +405,9 @@ export const createModelRenderer = (
     gl.uniform1i(uniform("vertexMultiplies"), vertexColour?.multipliesResult ? 1 : 0);
     gl.uniform3fv(uniform("vertexScale"), vertexColour?.scale ?? DEFAULT_SURFACE.diffuse);
     gl.uniform1f(uniform("vertexAlphaScale"), vertexColour?.alphaScale ?? 1);
+    gl.uniform1i(uniform("detailColor"), surface.detailColor);
+    gl.uniform1i(uniform("detailAlpha"), surface.detailAlpha);
+    gl.uniform1i(uniform("bumpOffset"), surface.bumpOffset ? 1 : 0);
   };
 
   const bindColors = (data: WebGLBuffer | undefined) => {
@@ -492,7 +505,15 @@ export const createModelRenderer = (
       }
       bindAttribute(attributes.position, drawable.position, 3);
       bindAttribute(attributes.normal, drawable.normal, 3);
+      gl.uniform1i(uniform("hasDetail"), part.detailTexture ? 1 : 0);
+      if (part.detailTexture) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, part.detailTexture);
+        gl.uniform1i(uniform("detailTex"), 1);
+        gl.activeTexture(gl.TEXTURE0);
+      }
       bindAttribute(attributes.uv, part.uv, 2);
+      bindAttribute(attributes.detailUv, part.detailUv ?? part.uv, 2);
       bindColors(part.color);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, part.index);
       gl.drawElements(gl.TRIANGLES, part.count, part.indexType, 0);
@@ -507,6 +528,7 @@ export const createModelRenderer = (
       gl.uniform4fv(uniform("solid"), BOX_COLOUR);
       bindAttribute(attributes.normal, undefined, 3);
       bindAttribute(attributes.uv, undefined, 2);
+      bindAttribute(attributes.detailUv, undefined, 2);
       bindColors(undefined);
       bindAttribute(attributes.position, boxBuffer, 3);
       gl.drawArrays(gl.LINES, 0, boxVertices);
@@ -526,6 +548,7 @@ export const createModelRenderer = (
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.DYNAMIC_DRAW);
       bindAttribute(attributes.normal, undefined, 3);
       bindAttribute(attributes.uv, undefined, 2);
+      bindAttribute(attributes.detailUv, undefined, 2);
       bindColors(undefined);
       bindAttribute(attributes.position, boneBuffer, 3);
       gl.drawArrays(gl.LINES, 0, lines.length / 3);

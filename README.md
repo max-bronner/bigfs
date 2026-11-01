@@ -340,7 +340,8 @@ your mod's archives.
 - Models: W3D in 3D, with their skeleton and textures found in any archive,
   drawn pass by pass with each triangle's own texture, shader, blend and
   depth test, and with the material's colours: emissive glow, tints, vertex
-  colours, opacity and unlit surfaces.
+  colours, opacity, unlit surfaces, second texture stages with every detail
+  combine, clamped textures and bump offsets.
   Any animation plays on any model, by bone number as the game applies it;
   the list shows the skeleton's own clips first and the ones made for other
   skeletons in their own group, and playing one of those says so.
