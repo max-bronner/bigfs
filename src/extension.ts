@@ -23,6 +23,8 @@ import { registerW3d } from './features/w3d';
 import { registerVideo } from './features/video';
 import { registerInstalls } from './features/installs';
 import { registerMods } from './features/mods';
+import { registerArchiveSearch } from './features/archiveSearch';
+import { registerFileFinder } from './features/fileFinder';
 import { registerExplorer } from './features/explorer';
 
 /**
@@ -54,6 +56,8 @@ const FEATURES: ((context: ExtensionContext, services: Services) => void)[] = [
   registerVideo,
   registerInstalls,
   registerMods,
+  registerArchiveSearch,
+  registerFileFinder,
   registerExplorer,
 ];
 

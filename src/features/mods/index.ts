@@ -6,7 +6,7 @@ import { registerModDiffCommands } from './modDiffCommands';
 
 /**
  * Registers the mod commands: overriding rows in a folder, packing a folder,
- * searching the archives, the mod diff against the base game and packaging
+ * the mod diff against the base game and packaging
  */
 export const registerMods = (
   context: ExtensionContext,

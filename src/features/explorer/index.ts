@@ -1,5 +1,6 @@
 import { ConfigurationTarget, window, workspace } from 'vscode';
-import type { ExtensionContext } from 'vscode';
+import type { ExtensionContext, Uri } from 'vscode';
+import { revealEntry } from './revealEntry';
 import type { Services } from '../../services/createServices';
 import type { ExplorerRow } from '../../services/archives/explorerRow';
 import { SCHEME } from '../../constants';
@@ -76,6 +77,9 @@ export const registerExplorer = (
   registerExtractCommands(registerNodeCommand, archives);
   registerClipboardCommands(registerNodeCommand, archives);
   context.subscriptions.push(
+    registerCommand('bigfs.revealEntry', (uri: Uri) =>
+      revealEntry(uri, treeView, archives, gameView),
+    ),
     // A source or a folder on disk is not a node, so this skips the node registrar
     registerCommand('bigfs.newArchive', (row?: ExplorerRow) =>
       row ? createArchive(archives, row) : undefined,

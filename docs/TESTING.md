@@ -130,8 +130,167 @@ tables, `.cah`) deserves one load in the game as well.
   not defaulted into the base game folder.
 - [ ] **new** **Override in Folder…** on an archive file or folder (including
   one from the base game): copies it into a mod folder at the same path.
-- [ ] **new** **Search in BIG Archives…** (view title bar): text found inside
-  every archive, results open at the match.
+- [ ] **changed** **Search in BIG Archives…** (view title bar, or Command
+  Palette) now focuses the **Search in Archives** view under the archive tree
+  instead of a quick pick. With text selected in an editor it becomes the query.
+  Type `GondorFighter`: results stream in grouped by archive, then file, with a
+  count and a badge per group; each hit is highlighted with two lines of
+  context either side (change **Context lines** and search again); a click on
+  a line opens that entry with the match selected, on the right line.
+- [ ] **new** In the search view: **Aa** (match case), **ab** (whole word) and
+  **.\*** (regular expression) each re-run the search; `Armor\s*=\s*\w+Armor`
+  with regex on finds lines, a broken pattern such as `(` shows the error
+  under the box instead of results. **files to include** `*.ini` or
+  `data/ini` and **files to exclude** `data/lang/**` narrow the entries
+  (comma separated; `{a,b}` works). Cancel stops a running search. A very common
+  word stops at 5000 matches and the note under the count says so. A pattern
+  like `(\w+\s?)+X# Manual test guide
+
+Everything `dev/next` adds or changes over `master`, written so it can be
+ticked off by hand against a real install and a throwaway mod. Each item says
+what it is, the steps, and what should happen. Items are marked **new** (does
+not exist on `master`) or **changed** (exists on `master`, behaves differently
+now). The automated gate (`npm ci && npm run check-types && npm run lint &&
+npm run test:unit`, plus `xvfb-run -a npm test` for the integration suite)
+covers the logic with synthetic files; this guide covers what only eyes, a
+real window and the game can show.
+
+Nothing here has been verified in the game itself. Anything that writes game
+files (archives, W3D animations, APT movies, maps, VP6, textures, string
+tables, `.cah`) deserves one load in the game as well.
+
+## Test data you need
+
+- **Game installs, read-only.** One or more of BFME, BFME II and The Rise of
+  the Witch-king (ROTWK). Never open an install as your workspace to edit it,
+  never edit an archive in it, and never save a file from it. bigFS treats
+  `bigfs.baseGameFolder` and `bigfs.underlyingGameFolder` as read-only; the
+  only thing to do with them is read, extract or copy out.
+- **A test mod folder.** Make an empty folder (for example `~/bigfs-test-mod`)
+  and open it as the VS Code workspace. Put into it, by copying out of the
+  install (Extract… or Override in Folder…):
+  - two or three small `.big` archives of your own (use **Pack into BIG
+    Archive…** on a folder of copied files, or copy small archives such as an
+    INI or `lang/` one), at least two writable ones;
+  - loose INI files (`data/ini/object/*.ini`, `fxlist.ini`,
+    `particlesystem.ini`, `commandset.ini`, `commandbutton.ini`,
+    `weapon.ini`, `armor.ini`), a few `.str` / `.csf` tables, a `.wnd`;
+  - `.apt` movies with their `.const` and `.dat` (MainMenu, Palantir, Options,
+    LoadScreen), a few `.w3d` models and animations (a hero such as Aragorn),
+    `.tga` / `.dds`, `.wav` /
+    `.mp3`, `.vp6`;
+  - maps (`.map`, `.bse`, a `.scb`) and one `MyHero_*.cah`.
+- **A second mod folder** and, optionally, a second install, to check load
+  order (mod over ROTWK over BFME II).
+- **Settings to set first** (Settings → Extensions → bigFS): `bigfs.baseGameFolder`
+  to the ROTWK install, `bigfs.underlyingGameFolder` to BFME II, `bigfs.ini.game`
+  to match. See *Settings* at the end for every setting.
+- **FFmpeg** on the PATH (or `bigfs.ffmpegPath`) and a short video, an image
+  and a folder of numbered PNG frames for the VP6 conversion.
+- Install the `.vsix` from the latest CI run of `dev/next`, or run
+  `npm ci && npm run compile` and launch the extension host (F5).
+- Keep a clean copy of the test mod to start from: several steps write files.
+
+## Explorer & archives
+
+- [ ] **changed** **BIG Archives view.** Open the test mod folder. The
+  *BIG Archives* view in the Explorer lists every `.big` in the workspace as
+  folders. Expect: an archive is read only when expanded or opened; the empty
+  folder shows "Open a folder…" and a folder without archives shows "No BIG
+  archives were found" with a Refresh link.
+- [ ] **changed** **Edit in place.** In a writable archive: New File…, New
+  Folder…, Rename… (F2), Delete (Del), Cut / Copy / Paste (Ctrl+X/C/V),
+  Duplicate, drag and drop, Copy Path, Copy Relative Path, Add Files…,
+  Extract… (file, folder, whole archive). Expect: each works and saves;
+  names, duplicates, header and trailer stay as shipped; the game still loads
+  the archive. A save shows a brief status bar message, not a toast. An
+  extract name that would escape the target folder is refused.
+- [ ] **changed** **Commands act on the row you click.** Right-click a
+  `.tga`/`.dds` in an archive while a different file is open in the editor:
+  Export as PNG and Replace with PNG… act on the clicked file. Same for a
+  `.png` (Convert to Game Texture…), a `.str`/`.csf` (Convert String Table),
+  a folder or archive (New APT Movie…, no picker), an `.apt` (Rename APT
+  Movie…, Delete APT Movie…), a video (Convert to VP6 Movie…) and a `.w3d`
+  (Edit W3D Animation…). In the game view the winning copy is used.
+- [ ] **changed** **Tree keys leave text fields alone.** Focus the tree's
+  find box and press F2, Delete, Ctrl+X/C/V: the text field handles them, not
+  the tree. Source and disk-folder rows do not offer New File, Add Files and
+  the other archive-only entries.
+- [ ] **new** **Copy and move between archives.** With two writable archives
+  A and B: copy a file and a folder in A, paste on B or a folder in B; then
+  cut and paste; then drag. Expect: a name already there asks Replace, Skip or
+  Keep Both (Keep Both adds ` copy`); Esc cancels and changes nothing; the
+  target archive is saved once; a cut removes the files from the source
+  archive afterwards.
+- [ ] **new** **Base game as a source.** Copy a file out of a base game
+  archive (in `bigfs.baseGameFolder`) into a writable archive: works. Cut or
+  drag it: the file stays in the base game and the message says Copied. Paste,
+  rename, delete or save into a base game archive: refused with a message that
+  says what to do instead (Override in Folder). A workspace folder that is
+  also the base game stays writable.
+- [ ] **new** **Loose folder into an archive.** Drag a folder from the VS Code
+  Explorer into an archive holding some of the same files: the same Replace,
+  Skip, Keep Both prompt.
+- [ ] **new** **Archive root holds its own folders.** Select an archive and
+  some of its folders together and run Extract (or Delete): the archive is
+  handled once. Drag an archive onto one of its own folders: refused.
+- [ ] **new** **New Archive… and archive rows.** Right-click a folder row (or
+  the workspace row when there is one source) in *BIG Archives*: **New
+  Archive…** is offered, and not on a base game source. Type `mod`: `mod.big`
+  appears (add `.big` yourself and it is not doubled). Try `con`, `a:b`, a
+  name with `/`, an empty name and `MOD` when `mod.big` exists: each is refused
+  in the input box before anything is written. Right-click the new archive:
+  New File…, New Folder…, Add Files…, **Rename…** and **Delete** (moves to the
+  trash after a confirmation) are all there; rename it and it keeps its place.
+  Expect the empty archive to open with no entries and to take its first file.
+  Not yet seen in a running VS Code by the author.
+- [ ] **new** **Entry names are checked.** New File… / New Folder… / Rename…
+  inside an archive refuse an empty or blank name, `.`, `..`, names with a
+  trailing dot (spaces around a typed name are trimmed), `\`, `/`, `con`, `aux.txt`,
+  `<>:"|?*`, `€` or Japanese letters, and a name that matches an existing one
+  in any casing. Dragging a folder holding such a file in from the OS skips
+  just those files with one warning and adds the rest.
+- [ ] **new** **Menus on read-only rows.** In a base game archive (not in the
+  workspace) right-click an archive, folder and file: Extract…, Copy, Copy Path
+  and Override in Folder… are offered; New File, Cut, Rename, Delete, Paste are
+  not. In *Show What the Game Loads*, a folder offers Extract… and Override in
+  Folder….
+- [ ] **new** **Drag and drop, all directions.** Drag a file and a folder from
+  the OS file manager, and from the VS Code Explorer, onto an archive, a
+  folder in an archive and a file (its folder is used). Drag within an archive
+  and between two archives; a folder onto itself or its own child is refused;
+  onto its own folder does nothing. Drag a `.big` from the OS onto a folder row:
+  it is copied there, and a name already present (any casing) is left alone.
+  Dragging an entry **out** to the OS or the Explorer cannot be done by the
+  extension (VS Code gives a tree no way to hand over files): use Extract….
+  An entry open with unsaved edits cannot be moved, renamed or deleted until it
+  is saved or closed.
+- [ ] **new** **Find Game Installs.** Run **BIG: Find Game Installs** (also
+  offered once on first start when `bigfs.baseGameFolder` and
+  `bigfs.underlyingGameFolder` are empty). Expect a quick pick of installs
+  found through the registry, Program Files, EA app, Origin, and Wine / Proton
+  / CrossOver prefixes (Linux, macOS). Picking ROTWK also sets BFME II beneath
+  it. Dismissing changes no setting and the start-up offer does not return.
+- [ ] **new** **Pack into BIG Archive…** on a folder in the Explorer: a `.big`
+  with the folder's files, hidden files and archives left out; the output is
+  not defaulted into the base game folder.
+- [ ] **new** **Override in Folder…** on an archive file or folder (including
+  one from the base game): copies it into a mod folder at the same path.
+ with regex on gives up with a message after a few
+  seconds instead of freezing VS Code. Binary entries are never opened by it.
+  Line numbers and columns in the editor agree with the highlighted match
+  (check on a file with accented characters).
+- [ ] **new** **Go to File in Archives…** (`Ctrl+Alt+P`, `Cmd+Alt+P`; also in
+  the archive tree's title menu): type `gondorf` or `data/ini/obj`; rows show
+  the file name with the folder and archive beside it, matches are
+  highlighted, a match at the start of a name ranks first, and the list
+  updates without lag on a full install. Empty box: files opened this way
+  before, newest first. A path held by several archives (try `object.ini`
+  with a mod folder open) is listed once per archive; the copy the game loads
+  says so and the others say which archive overrides them. Loose files of the
+  mod folder are listed too. Enter opens the entry; the **Reveal in BIG
+  Archives** button selects it in the tree, in both views. Check the key does not
+  clash in **Keyboard Shortcuts** (search for `ctrl+alt+p`).
 - [ ] **new** **Show What the Game Loads** / **Show Every Archive** (title bar
   button; same as `bigfs.explorer.view`): the merged tree lists only the
   winning file for each path; the per-archive tree lists everything.
@@ -963,6 +1122,7 @@ Explorer view and rows:
 
 - [ ] `bigfs.refreshArchives` Refresh (view title)
 - [ ] `bigfs.searchArchives` Search in BIG Archives… (title)
+- [ ] `bigfs.goToFile` Go to File in Archives… (title, `Ctrl+Alt+P`)
 - [ ] `bigfs.validateIni` Validate INI Files (title)
 - [ ] `bigfs.showGameView` Show What the Game Loads (title)
 - [ ] `bigfs.showArchiveView` Show Every Archive (title)

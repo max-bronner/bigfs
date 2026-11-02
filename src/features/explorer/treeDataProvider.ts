@@ -23,6 +23,7 @@ import type { ExplorerRow, FolderRow, GameRow } from '../../services/archives/ex
 import { GameViewModel } from '../../services/archives/gameViewModel';
 import { getGameFiles } from '../../game/install/gameView';
 import { getContextValue } from './getContextValue';
+import { getParentRow } from './getParentRow';
 import { isReadOnlySource } from '../../services/archives/sourceAccess';
 
 /** Compares names as an explorer does: `a2` before `a10`, casing ignored */
@@ -253,6 +254,11 @@ export class BigTreeDataProvider implements TreeDataProvider<ExplorerRow> {
       !isArchiveRoot(element) || this.archiveModel.isLoaded(element),
       this.archiveModel.isReadOnly(element.archive),
     );
+  }
+
+  /** Gets the row a row sits below, so the view can reveal a row it has not expanded to */
+  getParent(element: ExplorerRow): Promise<ExplorerRow | undefined> {
+    return getParentRow(element, this.archiveModel, this.gameView);
   }
 
   /** Lists the rows below a row, reading an archive the first time it is expanded */

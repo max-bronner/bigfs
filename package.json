@@ -45,6 +45,13 @@
           "id": "bigArchiveExplorer",
           "name": "BIG Archives",
           "icon": "$(archive)"
+        },
+        {
+          "id": "bigfs.search",
+          "name": "Search in Archives",
+          "type": "webview",
+          "icon": "$(search)",
+          "visibility": "collapsed"
         }
       ]
     },
@@ -148,6 +155,11 @@
         "command": "bigfs.searchArchives",
         "title": "Search in BIG Archives...",
         "category": "BIG"
+      },
+      {
+        "command": "bigfs.goToFile",
+        "title": "Go to File in Archives...",
+        "category": "bigFS"
       },
       {
         "command": "bigfs.validateIni",
@@ -363,8 +375,13 @@
           "when": "view == bigArchiveExplorer"
         },
         {
-          "command": "bigfs.validateIni",
+          "command": "bigfs.goToFile",
           "group": "1_search@2",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.validateIni",
+          "group": "1_search@3",
           "when": "view == bigArchiveExplorer"
         },
         {
@@ -754,6 +771,11 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "bigfs.goToFile",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p"
+      },
       {
         "command": "bigfs.rename",
         "key": "f2",

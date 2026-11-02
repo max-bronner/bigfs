@@ -3,7 +3,7 @@
  * so a burst of changes costs one run. `cancel` drops a pending run.
  */
 export const createDebouncer = (action: () => void, wait: number) => {
-  let handle: NodeJS.Timeout | undefined;
+  let handle: ReturnType<typeof setTimeout> | undefined;
 
   const cancel = (): void => {
     if (handle) {

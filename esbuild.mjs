@@ -72,6 +72,8 @@ const PAGES = [
   { name: 'cursors', entry: 'src/webview/cursors/main.ts' },
   // The map script viewer's page
   { name: 'scripts', entry: 'src/webview/scripts/main.ts' },
+  // The search view's page: text search across the archives
+  { name: 'archiveSearch', entry: 'src/webview/archiveSearch/main.ts' },
 ];
 
 /** Options every bundle shares */

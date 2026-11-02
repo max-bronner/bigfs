@@ -137,6 +137,8 @@ modules it registers. From there:
 | textures and W3D animation commands | `features/textures/`, `features/w3d/` | `formats/texture/`, `formats/w3d/` |
 | installs and launching | `features/installs/` | `node/installDiscovery.ts`, `node/launchPlan.ts`, `game/install/installLayers.ts` |
 | mod diff, packaging, override in folder | `features/mods/` | `node/modDiff.ts`, `node/modPackage.ts` |
+| text search across archives (the `bigfs.search` webview view) | `features/archiveSearch/` | `webview/archiveSearch/`, `core/buildSearchPattern.ts`, `core/collectLineMatches.ts`, `core/compilePathFilter.ts`, `node/createMatchScanner.ts` (the regex runs in a `vm` sandbox with a time limit) |
+| go to file in archives (the quick pick), reveal in the tree | `features/fileFinder/`, `features/explorer/revealEntry.ts` | `core/matchFuzzy.ts`, `core/scoreFilePath.ts`, `core/rankFiles.ts`, `game/install/listFileCopies.ts` |
 
 Errors from a command are written to the `bigFS` output channel by
 `platform/commands.ts`, which is the first place to look when a command

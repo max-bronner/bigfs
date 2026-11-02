@@ -55,7 +55,24 @@ your mod's archives.
   arguments in `bigfs.game.arguments`).
 - **Override in Folder** copies archive files into a mod folder at the same
   path.
-- **Search in BIG Archives** finds text inside every archive.
+- **Search in BIG Archives** (the *Search in Archives* view under the
+  archive tree, or the command, which takes the selected text as the query)
+  finds text inside every archive the way VS Code's search does: results grouped
+  by archive and file, each match highlighted with the lines around it
+  (adjustable), toggles for case, whole word and regular expression, include
+  and exclude globs on entry paths, a live count, results streaming in while
+  it runs, and Cancel. A click opens the entry at the match. It reads text
+  entries only (INI, STR, WND, Lua, XML and the like) and stops at 5000
+  matches, saying so. VS Code's own search and Ctrl+P cannot see inside a
+  `bigfs:` folder (their extension points are closed to published
+  extensions), which is why this exists.
+- **Go to File in Archives…** (`Ctrl+Alt+P`, `Cmd+Alt+P` on a Mac, or the
+  title bar of the archive tree) is Ctrl+P for the archives: type part of a file
+  name or path, with fuzzy matching that prefers the start of the name, and
+  open it. Archives, loose files of every install and mod are listed from the
+  index tables alone, recent files come first, and a path several archives hold
+  is listed once per archive with the copy the game loads marked. The button on
+  a row reveals it in the archive tree.
 - **Load order** follows the game: a loose file beats every archive of its
   install, archives go by their path below it (`___a.big` before `b.big`, the
   first holding a file wins), and installs are layered by the marker file in
@@ -553,7 +570,7 @@ row, file or editor they act on.
 
 | Command | Where | Does |
 | --- | --- | --- |
-| Refresh, Search in BIG Archives…, Validate INI Files, Show What the Game Loads, Show Every Archive | BIG Archives title bar | Rescan, search, validate, switch view |
+| Refresh, Search in BIG Archives…, Go to File in Archives…, Validate INI Files, Show What the Game Loads, Show Every Archive | BIG Archives title bar | Rescan, search, validate, switch view |
 | New File…, New Folder…, Add Files…, Extract…, Rename…, Delete, Cut, Copy, Paste, Duplicate, Copy Path, Copy Relative Path, Override in Folder… | archive row context menu | Edit archives |
 | Pack into BIG Archive…, Launch Game with Mod | Explorer folder menu | Build and run a mod |
 | Find Game Installs, Choose Game Language, Compare with Base Game, Package Mod…, Check Translations, Open Balance Sheet, Armor Table, Find Unused Definitions, Clear Unused Definitions, Check APT Movies | Command Palette | Workspace tools |
