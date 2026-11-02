@@ -72,6 +72,14 @@ export class SageIniIndex implements Disposable {
   private indexed = new Set<string>();
 
   private building?: Promise<void>;
+
+  /**
+   * Whether something may be unread: set at the start, when another game is
+   * picked, and when the archives change or are found again. A lookup with
+   * nothing unread skips the build, which otherwise searches the workspace
+   * for loose files every time a hover or a check asks.
+   */
+  private needsBuild = true;
   private readonly subscriptions: Disposable[];
 
   public constructor(
@@ -93,8 +101,13 @@ export class SageIniIndex implements Disposable {
     this.subscriptions = [
       // An archive that changed on disk has to be read again, and one that was
       // removed has to stop answering lookups
-      archiveModel.onDidChangeArchive(({ rootPath }) => {
+      archiveModel.onDidChangeArchive(({ rootPath, loaded }) => {
         this.forget(rootPath.toLowerCase());
+        // Reading an archive's table for the first time adds no archive
+        this.needsBuild ||= !loaded;
+      }),
+      archiveModel.onDidScan(() => {
+        this.needsBuild = true;
       }),
       watcher,
       watcher.onDidChange(reindexLooseFile),
@@ -126,6 +139,7 @@ export class SageIniIndex implements Disposable {
     this.openVersions.clear();
     this.activeStrings = undefined;
     this.indexed.clear();
+    this.needsBuild = true;
   }
 
   /**
@@ -306,12 +320,17 @@ export class SageIniIndex implements Disposable {
    * progress notification up rather than leaving the editor looking idle.
    */
   public whenReady(): Promise<void> {
-    this.building ??= this.buildWithProgress();
+    if (!this.building && this.needsBuild) {
+      this.building = this.buildWithProgress();
+    }
 
-    return this.building;
+    return this.building ?? Promise.resolve();
   }
 
   private async buildWithProgress(): Promise<void> {
+    // A change that lands during the build sets this again, and is read by the next
+    this.needsBuild = false;
+
     try {
       await window.withProgress(
         {
@@ -323,6 +342,7 @@ export class SageIniIndex implements Disposable {
     } catch (error) {
       // A failed index leaves navigation empty rather than breaking the editor
       this.log.error("Failed to index INI definitions", error);
+      this.needsBuild = true;
     } finally {
       this.building = undefined;
     }
