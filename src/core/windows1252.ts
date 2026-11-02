@@ -26,8 +26,26 @@ const UPPER_HALF = new Map(
 /** Bytes decoded per `String.fromCharCode` call, which takes them as arguments and so cannot take a whole file */
 const CHUNK = 0x8000;
 
+/** Whether every byte is ASCII, which decodes to the same text in UTF-8 and Windows-1252 */
+const isAscii = (bytes: Uint8Array): boolean => {
+  for (let at = 0; at < bytes.length; at += 1) {
+    if (bytes[at] > 0x7f) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const asciiDecoder = new TextDecoder('utf-8');
+
 /** Decodes Windows-1252 bytes, one character per byte */
 export const decodeWindows1252 = (bytes: Uint8Array): string => {
+  // Most files are plain ASCII, which the native decoder reads many times
+  // faster than the character table below
+  if (isAscii(bytes)) {
+    return asciiDecoder.decode(bytes);
+  }
+
   let text = '';
 
   for (let at = 0; at < bytes.length; at += CHUNK) {
