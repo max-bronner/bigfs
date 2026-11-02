@@ -478,7 +478,7 @@ The INI language follows the same layers as the rest of the extension:
 | folder | holds | knows about |
 | --- | --- | --- |
 | `formats/ini/` | the dialect itself: lexer, parser, schema, symbol resolution, problems, the audio field tables | nothing outside the dialect, no `vscode` import |
-| `services/ini/` | `sageIniDocuments` (per-document parse and schema, cached), `sageIniIndex` (cross-archive definitions, references, macros), `sageIniDialect` (`.ini` recognition), `sageIniInclude` (path resolution), and the lookups features share | `vscode`, and for the index, `ArchiveModel` |
+| `services/ini/` | `sageIniDocuments` (per-document parse and schema, cached), `sageIniIndex` (cross-archive definitions, references, macros; reads and re-reads files), `sageIniTables` (its tables and which file wrote each entry, so a purge visits only that file's keys), `sageIniDialect` (`.ini` recognition), `sageIniInclude` (path resolution), and the lookups features share | `vscode`, and for the index, `ArchiveModel` |
 | `features/iniLanguage/providers/` | one VS Code adapter per language feature | the dialect and the two services above |
 
 `features/iniLanguage/index.ts` only wires these together. **Adding a feature

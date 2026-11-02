@@ -142,6 +142,9 @@ your mod's archives.
   links. Every play button in a preview (voices, FX timeline, script
   parameters, the APT Engine panel) plays in place; Ctrl+click (Cmd on macOS)
   opens the sound file instead, and a second press stops it.
+- **new** Indexing the INI files of a full install takes about a third of the time
+  it did, and saving a file inside an archive re-reads that file alone, so
+  hover, go to definition and checks stay current without a long wait.
 - **new** The object preview lists every `Voice*` and `Sound*` field of the
   object, inherited ones included, each with its own **▶** button; the
   preview stays muted otherwise.

@@ -441,6 +441,21 @@ Open any `.ini`, `.inc` or `.bhav` (language `sage-ini`).
   need editing.
 - [ ] **new** **Audio events:** **▶ Play** lens, and play links on hover (see
   *Audio*).
+- [ ] **new** **INI index speed:** open the workspace with a base game folder
+  set and, once the status bar stops showing "bigFS: indexing INI definitions",
+  hover a reference, press F12 on it and open Find References: all answer with
+  the same results as before. The indexing notice appears once after startup,
+  not again on every hover or edit. Indexing a full BFME II plus ROTWK install
+  takes about 4 s of background work instead of about 12 s.
+- [ ] **new** **Typing in a large INI** (for example
+  `data/ini/object/civilian/civilianbuildings.ini`): after each pause the
+  definitions, hover and diagnostics of the file follow your edit without the
+  editor stalling; a definition you rename or delete stops answering and a new
+  one starts answering.
+- [ ] **new** **Saving inside an archive:** edit and save an INI that sits in a
+  writable archive (for example a copy of `INI.big`) and then hover or F12 a
+  name that file defines: the answer is current within a moment, and no
+  indexing notice appears for the rest of the archive.
 
 ## STR, CSF & WND
 
