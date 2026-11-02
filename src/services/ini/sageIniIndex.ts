@@ -95,6 +95,17 @@ const LOOSE_PATTERN = "**/*.{ini,inc,bhav,str,INI,INC,BHAV,STR}";
 const isSageEntry = (node: VirtualNode): boolean =>
   node.type === FileType.File && ENTRY_PATTERN.test(node.entryPath);
 
+/** Appends to the list under a key, starting one when there is none */
+const pushTo = <T>(table: Map<string, T[]>, key: string, value: T): void => {
+  const list = table.get(key);
+
+  if (list) {
+    list.push(value);
+  } else {
+    table.set(key, [value]);
+  }
+};
+
 /** Adds an entry to a namespace keyed table, folding both keys */
 const record = <T>(
   table: Map<string, Map<string, T[]>>,
@@ -102,11 +113,12 @@ const record = <T>(
   name: string,
   value: T,
 ): void => {
-  const byName = table.get(namespace.toLowerCase()) ?? new Map<string, T[]>();
+  const namespaceKey = namespace.toLowerCase();
+  const byName = table.get(namespaceKey) ?? new Map<string, T[]>();
   const key = name.toLowerCase();
 
-  byName.set(key, [...(byName.get(key) ?? []), value]);
-  table.set(namespace.toLowerCase(), byName);
+  pushTo(byName, key, value);
+  table.set(namespaceKey, byName);
 };
 
 /**
@@ -666,10 +678,7 @@ export class SageIniIndex implements Disposable {
   /** Adds the records of one string table, behind those of the tables read before it */
   private indexStrings(uri: Uri, text: string, language?: string): void {
     for (const [key, record] of parseStringTable(text)) {
-      this.strings.set(key, [
-        ...(this.strings.get(key) ?? []),
-        { ...record, uri, language },
-      ]);
+      pushTo(this.strings, key, { ...record, uri, language });
     }
     this.activeStrings = undefined;
   }
@@ -728,10 +737,7 @@ export class SageIniIndex implements Disposable {
     );
 
     entries.constantUses.forEach(({ key, ...use }) =>
-      this.constantUses.set(key, [
-        ...(this.constantUses.get(key) ?? []),
-        { uri, ...use },
-      ]),
+      pushTo(this.constantUses, key, { uri, ...use }),
     );
 
     entries.references.forEach(({ namespace, name, ...place }) =>
