@@ -17,6 +17,7 @@
  * Names are matched without regard to casing, as the shipped data writes them.
  */
 
+import { createReferenceNamespaceCache } from './createReferenceNamespaceCache';
 import {
   getAudioReferenceKind,
   isAudioNamespace,
@@ -470,6 +471,37 @@ export const createSageIniSchema = (
     return data.fields.has(key) || data.accepts ? { kind: 'field' } : undefined;
   };
 
+  const resolveReferenceNamespaces = (
+    field: string,
+    context?: string,
+    tokenIndex?: number,
+  ): readonly string[] => {
+    const contextName =
+      context === undefined ? '' : (contextOf(context)?.name ?? context);
+    const kind = getAudioReferenceKind(contextName, field);
+
+    if (kind) {
+      return getKindNamespaces(kind);
+    }
+
+    if (
+      tokenIndex !== undefined &&
+      !isNameTokenAt(contextName, field, tokenIndex)
+    ) {
+      return [];
+    }
+
+    // The table carries sound fields of its own, which name `AudioEvent`
+    // alone; whatever audioReferenceKind does not recognise is no sound
+    const scoped = getScopedNamespaces(contextName, field);
+
+    return scoped
+      ? toCanonicalNamespaces(scoped)
+      : (references
+          .get(field.toLowerCase())
+          ?.filter((namespace) => !isAudioNamespace(namespace)) ?? []);
+  };
+
   return {
     game,
     isStrict: game !== 'bfme1',
@@ -486,32 +518,9 @@ export const createSageIniSchema = (
 
       return entry && { type: entry.t, used: entry.u === 1 };
     },
-    getReferenceNamespaces: (field, context, tokenIndex) => {
-      const contextName =
-        context === undefined ? '' : (contextOf(context)?.name ?? context);
-      const kind = getAudioReferenceKind(contextName, field);
-
-      if (kind) {
-        return getKindNamespaces(kind);
-      }
-
-      if (
-        tokenIndex !== undefined &&
-        !isNameTokenAt(contextName, field, tokenIndex)
-      ) {
-        return [];
-      }
-
-      // The table carries sound fields of its own, which name `AudioEvent`
-      // alone; whatever audioReferenceKind does not recognise is no sound
-      const scoped = getScopedNamespaces(contextName, field);
-
-      return scoped
-        ? toCanonicalNamespaces(scoped)
-        : (references
-            .get(field.toLowerCase())
-            ?.filter((namespace) => !isAudioNamespace(namespace)) ?? []);
-    },
+    getReferenceNamespaces: createReferenceNamespaceCache(
+      resolveReferenceNamespaces,
+    ),
     isReferenceNamespace: (namespace) =>
       referenceNamespaces.has(toCanonicalNamespace(namespace).toLowerCase()),
     getContextKeywords: (context) => {

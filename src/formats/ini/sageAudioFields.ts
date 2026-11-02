@@ -17,6 +17,11 @@
  * This file knows nothing of the editor, so it runs in the unit tests.
  */
 
+import { memoizeBounded } from '../../core/memoizeBounded';
+
+/** How many context names are remembered; the schema names a few hundred */
+const CONTEXT_MEMO_LIMIT = 4096;
+
 /** The definition kinds a sound name may be declared as */
 export const AUDIO_NAMESPACES = [
   'AudioEvent',
@@ -196,8 +201,11 @@ const SCOPED_AUDIO_FIELDS: Record<string, readonly string[] | '*'> = {
 };
 
 /** Gets the last segment of a context's path name, lowercased */
-export const getLastContextSegment = (contextName: string): string =>
-  contextName.split('>').pop()?.trim().toLowerCase() ?? '';
+export const getLastContextSegment = memoizeBounded(
+  (contextName: string): string =>
+    contextName.split('>').pop()?.trim().toLowerCase() ?? '',
+  CONTEXT_MEMO_LIMIT,
+);
 
 /**
  * Classifies a field of a block as naming a sound, an announcer event, or neither.

@@ -21,6 +21,7 @@
  */
 
 import { getLastContextSegment } from './sageAudioFields';
+import { memoizeBounded } from '../../core/memoizeBounded';
 
 /** The namespace the three object-defining keywords share */
 export const OBJECT_NAMESPACE = 'Object';
@@ -128,6 +129,12 @@ const REFERENCE_TOKENS: Record<string, readonly number[]> = {
   particlesysbone: [1],
 };
 
+/** Folds a context name, remembered because every field of a block asks again */
+const foldContext = memoizeBounded(
+  (contextName) => contextName.toLowerCase(),
+  4096,
+);
+
 /** Looks a field up by the full context name, then by its last segment */
 const scoped = <T>(
   table: Record<string, T>,
@@ -137,7 +144,7 @@ const scoped = <T>(
   const name = field.toLowerCase();
 
   return (
-    table[`${contextName.toLowerCase()}/${name}`] ??
+    table[`${foldContext(contextName)}/${name}`] ??
     table[`${getLastContextSegment(contextName)}/${name}`]
   );
 };
