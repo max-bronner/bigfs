@@ -472,6 +472,12 @@ your mod's archives.
   faction icon, rank icon and command button picture fields offer the
   `MappedImage`s the game binds there. Nothing is offered without a game
   loaded. Hovering a field says where the game takes its value from.
+  The same goes for create-a-hero power, class and type icons, hero-row and
+  unit portraits, spell book pictures and the `MultiplayerColor` swatches of
+  the score and loading screens' colour externs. Values the engine itself fixes
+  are offered too, with the evidence in the tooltip: power cell, icon slot and
+  show/hide states, the score screen's mode, save/load mode, game types, true
+  and false externs and a view's `_AnimMode`.
 - **new** `View3D` surfaces (ported from mint's `view3d.rs`): a clip naming a W3D
   model in `_RenderObj` draws it, found through the game's load order, through
   the model's own camera and following `_AnimMode` and `_Frame`, in the clip's

@@ -8,7 +8,7 @@ import { registerRuRegionLens } from './ruRegionLens';
 /** Registers the APT movie editor, its text view and the APT commands */
 export const registerApt = (
   context: ExtensionContext,
-  { tools, locator, archives, gameLanguage, iniIndex }: Services,
+  { tools, locator, archives, gameLanguage, iniIndex, iniDocuments }: Services,
 ): void => {
   const editor = AptEditorProvider.register(
     tools,
@@ -18,6 +18,7 @@ export const registerApt = (
     {
       gameLanguage,
       index: iniIndex,
+      documents: iniDocuments,
       state: context.workspaceState,
     },
   );

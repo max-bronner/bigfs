@@ -510,6 +510,17 @@ Movie**.
   `AptRankIcon...` images; a pick shows at once. With no game indexed no
   drop-down is listed. Needs eyes: the drop-down list itself in the real VS Code
   webview.
+- [ ] **new** More engine suggestions: in `InGameHeroSelect` the hero picture
+  fields (`_level0_Hero2Image`) offer the hero portraits (objects with
+  `KindOf HERO`); pick `HIAragorn` and slot 2 shows him. In
+  `StrategicDetailsArmies` the `IconSlotPortrait` fields offer `SelectPortrait`
+  images, and `SetIconSlotState` offers `_empty`, `_selected`, `_up`: call it
+  with slot 0 and `_selected`, the slot gets its frame. In `CahClass` the
+  `Cah::ClassIcon` and `Cah::TypeIcon` fields offer the create-a-hero icons, in
+  `CahPowers` the power icon fields offer the power buttons' pictures, and the
+  externs `TimeLine:PlayerColor:n` and `GameLoading:PlayerColor:n` offer the
+  colours. Hovering a field says whether mint binds the set. Needs eyes: the
+  lists in the real webview, and that the class icons paint on `CahClass`.
 - [ ] **new** Engine images: with the game's INI indexed, open `MainMenu` and
   play: `InstallLoad` fills the screen behind the movie and the logo fades in
   where the magenta square was. The Engine panel's **Gadgets** section gives

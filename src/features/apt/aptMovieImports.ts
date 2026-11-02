@@ -6,6 +6,7 @@ import type {
 } from '../../webview/apt/protocol';
 import { collectTextKeys, resolveAptText } from '../../formats/apt/aptText';
 import type { GameLanguage } from '../../services/ini/gameLanguage';
+import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import type { AptDocument, BuiltMovie } from './aptDocument';
 import type { AptLibrary, MovieLocation } from './aptLibrary';
@@ -18,6 +19,8 @@ export interface AptGameServices {
   /** Settles the language `$KEY` text is read in */
   gameLanguage: GameLanguage;
   index: SageIniIndex;
+  /** The INI schema and parses the lookups of the Engine panel's suggestions read through */
+  documents: SageIniDocuments;
   /** Where the Engine panel's answers are kept, per movie */
   state: vscode.Memento;
 }

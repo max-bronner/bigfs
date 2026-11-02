@@ -151,6 +151,8 @@ export interface HeroAttribute {
 export interface HeroSubclass {
   upgrade?: string;
   nameTag?: string;
+  /** The `MappedImage` of its icon on the class screen */
+  iconImage?: string;
   points?: number;
   colors: (number | undefined)[];
   /** Upgrade names of every `BlingUpgrades` line, `@` marks removed */
@@ -162,6 +164,8 @@ export interface HeroSubclass {
 export interface HeroClass {
   upgrade?: string;
   nameTag?: string;
+  /** The `MappedImage` of its icon on the class screen */
+  iconImage?: string;
   subclasses: HeroSubclass[];
 }
 
@@ -175,6 +179,7 @@ export interface HeroSystem {
 const readSubclass = (block: IniBlock): HeroSubclass => ({
   upgrade: readFirstValue(block, "UpgradeName"),
   nameTag: readFirstValue(block, "NameTag"),
+  iconImage: readFirstValue(block, "IconImage"),
   points: Number.isInteger(Number(readFirstValue(block, "SpendableAttributePoints")))
     ? Number(readFirstValue(block, "SpendableAttributePoints"))
     : undefined,
@@ -229,6 +234,7 @@ export const readHeroSystem = (systems: IniBlock[]): HeroSystem => {
           system.classes.push({
             upgrade: readFirstValue(child, "UpgradeName"),
             nameTag: readFirstValue(child, "NameTag"),
+            iconImage: readFirstValue(child, "IconImage"),
             subclasses: child.children
               .filter((sub) => sub.keyword.toLowerCase() === "subclass")
               .map(readSubclass),

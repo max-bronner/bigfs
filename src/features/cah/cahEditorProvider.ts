@@ -9,17 +9,14 @@ import {
 } from "../../formats/cah/cah";
 import type { CahRecord, ParsedCah } from "../../formats/cah/cah";
 import type { EntryLocator } from "../../services/entryLocator";
-import { decodeIniText } from "../../core/windows1252";
 import type { GameLanguage } from "../../services/ini/gameLanguage";
 import {
   listBlingOptions,
   readBlockAtLine,
-  readHeroSystem,
   countSpentPoints,
-  readTopBlocks,
 } from "../../game/objects/cahSystem";
 import type { HeroSystem } from "../../game/objects/cahSystem";
-import { isFragmentPath, parseSageIni } from "../../formats/ini/sageIniParser";
+import { readInstalledHeroSystem } from "../../services/ini/readInstalledHeroSystem";
 import type { SageIniDocuments } from "../../services/ini/sageIniDocuments";
 import type { SageIniIndex } from "../../services/ini/sageIniIndex";
 import { createParseCache } from "../../services/ini/workspaceText";
@@ -219,31 +216,10 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     return this.system;
   }
 
-  private async readSystem(): Promise<HeroSystem | undefined> {
+  private readSystem(): Promise<HeroSystem | undefined> {
     const { locator, documents } = this.services;
-    const schema = await documents.getSchema();
-    const names = await locator.findNames(
-      (name) => /^createahero.*\.ini$/.test(name),
-      "**/[Cc]reate[Aa][Hh]ero*.ini",
-    );
 
-    for (const name of names) {
-      const bytes = await locator.read(name, vscode.Uri.file("/"));
-
-      if (!bytes) {
-        continue;
-      }
-
-      const parsed = parseSageIni(decodeIniText(bytes).split(/\r?\n/), schema, {
-        isFragment: isFragmentPath(name),
-      });
-      const blocks = readTopBlocks(parsed, "CreateAHeroSystem");
-
-      if (blocks.length) {
-        return readHeroSystem(blocks);
-      }
-    }
-    return undefined;
+    return readInstalledHeroSystem(locator, documents);
   }
 
   /** Reads the fields of a definition the index knows, if its file can be read */

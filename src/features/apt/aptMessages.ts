@@ -7,7 +7,9 @@ import type { ToolBox } from '../../core/toolRegistry';
 import type { EntryLocator } from '../../services/entryLocator';
 import type { FromPage, ToPage } from '../../webview/apt/protocol';
 import { describeError } from '../../core/errors';
-import { SUGGESTION_KINDS } from '../../game/apt/engineSuggestions';
+import { SUGGESTION_KINDS } from '../../game/apt/suggestionKinds';
+import { composeEffectiveObject } from '../../services/ini/effectiveObject';
+import { readInstalledHeroSystem } from '../../services/ini/readInstalledHeroSystem';
 import { readWorkspaceText } from '../../services/ini/workspaceText';
 import type { AptDocument } from './aptDocument';
 import {
@@ -202,7 +204,7 @@ const HANDLERS: {
     });
   },
 
-  async suggestions(message, { post, game }) {
+  async suggestions(message, { post, game, locator }) {
     const field = message.field;
 
     if (!SUGGESTION_KINDS.includes(field)) {
@@ -212,7 +214,13 @@ const HANDLERS: {
     await post({
       kind: 'suggestions',
       field,
-      options: await resolveSuggestions(field, game.index, readWorkspaceText),
+      options: await resolveSuggestions(field, {
+        index: game.index,
+        read: readWorkspaceText,
+        readHeroSystem: () => readInstalledHeroSystem(locator, game.documents),
+        composeObject: (uri, line) =>
+          composeEffectiveObject(game.documents, game.index, uri, line),
+      }),
     });
   },
 

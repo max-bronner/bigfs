@@ -12,7 +12,7 @@ import type { ModelScene } from '../../formats/w3d/w3dScene';
 import type {
   SuggestionKind,
   SuggestionOption,
-} from '../../game/apt/engineSuggestions';
+} from '../../game/apt/suggestionKinds';
 
 /**
  * The messages between the APT editor and its page. Shared by both sides,

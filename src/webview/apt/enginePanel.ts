@@ -4,6 +4,8 @@ import {
   findEngineImage,
 } from '../../game/apt/engineImages';
 import {
+  findBindingSuggestion,
+  findExternSuggestion,
   findImageSuggestion,
   findParameterSuggestion,
 } from '../../game/apt/engineSuggestions';
@@ -103,7 +105,7 @@ const callRow = (entry: FunctionEntry) => {
     field.placeholder = param;
     field.classList.add('short');
     if (suggestion) {
-      suggestFrom(field, suggestion.kind, suggestion.basis);
+      suggestFrom(field, suggestion);
     }
     return field;
   });
@@ -159,13 +161,27 @@ const valueRow = (read: ReadValue) =>
     ),
   );
 
+/** A field for an extern's value, offering the set the extern takes when it is a known one */
+const externField = (name: string, placeholder: string) => {
+  const field = overrideField(
+    engine.externOverrides.get(name.toLowerCase()) ?? '',
+    placeholder,
+    (value) => engine.overrideExtern(name, value),
+  );
+  const suggestion = findExternSuggestion(name);
+
+  if (suggestion) {
+    suggestFrom(field, suggestion);
+  }
+  return field;
+};
+
 const externRow = (seen: Seen) =>
   createRow(
     seen.name,
-    overrideField(
-      engine.externOverrides.get(seen.name.toLowerCase()) ?? '',
+    externField(
+      seen.name,
       engine.externWrites.get(seen.name.toLowerCase())?.value ?? 'not set',
-      (value) => engine.overrideExtern(seen.name, value),
     ),
     text(`extern · read ${seen.count}×`, 'muted'),
   );
@@ -204,7 +220,7 @@ const imageFields = (key: string) => {
   );
 
   if (suggestion) {
-    suggestFrom(field, suggestion.kind, suggestion.basis);
+    suggestFrom(field, suggestion);
   }
   return [field, text(supplied ? `${key}: ${supplied.basis}` : key, 'muted')];
 };
@@ -244,7 +260,12 @@ const gadgetRows = () => {
                   writeBinding(currentPlayer(), engine, gadget, binding.name, typed),
               );
 
+              const suggestion = findBindingSuggestion(binding.name);
+
               field.title = binding.name;
+              if (suggestion) {
+                suggestFrom(field, suggestion);
+              }
               return field;
             }),
             ...(gadget.kind === 'image' ? imageFields(getImageKey(gadget)) : []),
@@ -416,13 +437,7 @@ export const showEngine = (): void => {
       ),
     ),
     ...unseenExterns.map((key) =>
-      createRow(
-        key,
-        overrideField(engine.externOverrides.get(key) ?? '', '', (value) =>
-          engine.overrideExtern(key, value),
-        ),
-        text('extern · not read yet', 'muted'),
-      ),
+      createRow(key, externField(key, ''), text('extern · not read yet', 'muted')),
     ),
     ...limited(externs, externRow),
     ...limited(written, (each) =>
