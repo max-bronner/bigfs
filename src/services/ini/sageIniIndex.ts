@@ -2,7 +2,7 @@ import { FileType, ProgressLocation, Uri, window, workspace } from "vscode";
 import type { Disposable, LogOutputChannel, TextDocument } from "vscode";
 import type { ArchiveModel } from "../archives/archiveModel";
 import type { VirtualNode } from "../archives/virtualNode";
-import { getFileNodes } from "../archives/virtualTree";
+import { findChild, getFileNodes } from "../archives/virtualTree";
 import { getNodeUri } from "../archives/nodeAddress";
 import type { SageIniSchema } from "../../formats/ini/sageIniSchema";
 import { getArchiveLanguage } from "../../game/text/gameLanguage";
@@ -73,6 +73,9 @@ export class SageIniIndex implements Disposable {
 
   private building?: Promise<void>;
 
+  /** The last re-read of saved entries, which a lookup waits for */
+  private refreshing: Promise<void> = Promise.resolve();
+
   /**
    * Whether something may be unread: set at the start, when another game is
    * picked, and when the archives change or are found again. A lookup with
@@ -101,11 +104,22 @@ export class SageIniIndex implements Disposable {
     this.subscriptions = [
       // An archive that changed on disk has to be read again, and one that was
       // removed has to stop answering lookups
-      archiveModel.onDidChangeArchive(({ rootPath, loaded }) => {
-        this.forget(rootPath.toLowerCase());
-        // Reading an archive's table for the first time adds no archive
-        this.needsBuild ||= !loaded;
-      }),
+      archiveModel.onDidChangeArchive(
+        ({ rootPath, archivePath, loaded, entries }) => {
+          const rootKey = rootPath.toLowerCase();
+
+          // A save that names its entries only changes those, so the rest of
+          // the archive keeps the entries it has
+          if (entries && !this.building && this.indexed.has(rootKey)) {
+            this.refreshEntries(archivePath, rootKey, entries);
+            return;
+          }
+
+          this.forget(rootKey);
+          // Reading an archive's table for the first time adds no archive
+          this.needsBuild ||= !loaded;
+        },
+      ),
       archiveModel.onDidScan(() => {
         this.needsBuild = true;
       }),
@@ -324,7 +338,7 @@ export class SageIniIndex implements Disposable {
       this.building = this.buildWithProgress();
     }
 
-    return this.building ?? Promise.resolve();
+    return (this.building ?? Promise.resolve()).then(() => this.refreshing);
   }
 
   private async buildWithProgress(): Promise<void> {
@@ -346,6 +360,61 @@ export class SageIniIndex implements Disposable {
     } finally {
       this.building = undefined;
     }
+  }
+
+  /**
+   * Reads the entries a save changed again, in place of what the index held
+   * for them: the ones written are read, and the ones removed or moved away
+   * stop answering
+   */
+  private refreshEntries(
+    archivePath: string,
+    rootKey: string,
+    entries: readonly string[],
+  ): void {
+    entries.forEach((entry) =>
+      this.purge(`${rootKey}/${entry.toLowerCase()}`),
+    );
+    this.openVersions.clear();
+    this.refreshing = this.refreshing
+      .then(() => this.readEntries(archivePath, entries))
+      .catch((error: unknown) =>
+        this.log.error(`Failed to index ${archivePath}`, error),
+      );
+  }
+
+  private async readEntries(
+    archivePath: string,
+    entries: readonly string[],
+  ): Promise<void> {
+    const archive = this.archiveModel.getArchiveByPath(archivePath);
+
+    if (archive) {
+      const schema = await this.getSchema();
+      const nodes = new Set(
+        entries.flatMap((entry) => {
+          const found = findChild(archive.root, entry);
+
+          return found ? getFileNodes(found).filter(isSageEntry) : [];
+        }),
+      );
+
+      await this.archiveModel.readFiles(
+        [...nodes].map((node) => ({ node })),
+        async ({ node }, content) => {
+          this.indexContent(
+            getNodeUri(node),
+            node.entryPath,
+            content,
+            schema,
+            getArchiveLanguage(archive.archivePath),
+          );
+        },
+      );
+    }
+
+    // What is open and unsaved is newer than anything read from the archive
+    await this.syncOpenDocuments();
   }
 
   private forget(rootKey: string): void {

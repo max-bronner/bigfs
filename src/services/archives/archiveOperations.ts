@@ -8,6 +8,7 @@ import { findConflicts, planTransfer } from '../../core/transferPlan';
 import type { ConflictChoice, TransferItem } from '../../core/transferPlan';
 import type { Archive, EntryChange, EntrySource } from './archive';
 import type { ArchivePolicy } from './archivePolicy';
+import { getChangedPaths } from './getChangedPaths';
 import type { ArchiveRegistry } from './archiveRegistry';
 import { findBlockingFile, getFileNodes, getRelativeEntryPath, isArchiveRoot } from './virtualTree';
 import { getNodePath } from './nodeAddress';
@@ -178,7 +179,7 @@ export const createArchiveOperations = (
       throw error;
     }
 
-    lookup.fireChanged(archive, 'changed');
+    lookup.fireChanged(archive, 'changed', false, getChangedPaths(changes));
   };
 
   const operations: ArchiveOperations = {

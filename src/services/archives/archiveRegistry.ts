@@ -26,6 +26,12 @@ export interface ArchiveChange {
    * build again.
    */
   loaded?: boolean;
+  /**
+   * The entry paths a save wrote, removed, moved or copied, files or
+   * directories. Absent for a change that says nothing of which entries it
+   * touched, such as one the watcher saw on disk.
+   */
+  entries?: readonly string[];
 }
 
 /**
@@ -65,6 +71,7 @@ export interface ArchiveRegistry {
     archive: Archive,
     kind: ArchiveChange['type'],
     loaded?: boolean,
+    entries?: readonly string[],
   ): void;
   /** Gets the root node of every archive found, for a view that shows them flat */
   getArchiveRoots(): VirtualNode[];
@@ -211,12 +218,13 @@ export const createArchiveRegistry = (
       disposed = true;
     },
 
-    fireChanged(archive, kind, loaded = false) {
+    fireChanged(archive, kind, loaded = false, entries) {
       onDidChangeArchive.fire({
         type: kind,
         archivePath: archive.archivePath,
         rootPath: archive.rootPath,
         ...(loaded && { loaded }),
+        ...(entries && { entries }),
       });
     },
 
