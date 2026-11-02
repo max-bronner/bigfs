@@ -510,6 +510,9 @@ Movie**.
   `AptRankIcon...` images; a pick shows at once. With no game indexed no
   drop-down is listed. Needs eyes: the drop-down list itself in the real VS Code
   webview.
+  The button's colour follows `SetFaction`; whether it shows is the movie's
+  `SetSelectAllHeroesButtonState`, which wants one of the clip's frame labels
+  and has no list yet, so type the state there.
 - [ ] **new** More engine suggestions: in `InGameHeroSelect` the hero picture
   fields (`_level0_Hero2Image`) offer the hero portraits (objects with
   `KindOf HERO`); pick `HIAragorn` and slot 2 shows him. In
@@ -1023,6 +1026,7 @@ Previews and editors:
 - [ ] `bigfs.renameAptMovie` Rename APT Movie…
 - [ ] `bigfs.deleteAptMovie` Delete APT Movie…
 - [ ] `bigfs.checkAptMovies` Check APT Movies
+- [ ] `bigfs.openAptText` Open APT as Text (editor title, `.apt` menu)
 
 Custom editors:
 

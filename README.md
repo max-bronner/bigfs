@@ -538,7 +538,8 @@ your mod's archives.
   **Call** button; every variable it reads, and its `GetExtern` keys, can
   be overridden, winning over what the movie holds; calls into the engine
   (`GameCode`, `FSCommand:`) are counted with their arguments and can be
-  given a return value. Overrides are kept per movie.
+  given a return value. Overrides and the calls you make are kept per movie,
+  and a restarted movie makes those calls again once it has settled.
 - Tweens already baked into a movie are recognised: a run of frames in
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens
