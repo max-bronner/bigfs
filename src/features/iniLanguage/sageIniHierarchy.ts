@@ -3,7 +3,8 @@ import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
 import type { SageBlock, SageDocument } from '../../formats/ini/sageIniParser';
 import { resolveSageSymbol } from '../../formats/ini/sageIniSymbol';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
-import type { SageDefinition, SageIniIndex } from '../../services/ini/sageIniIndex';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import type { SageDefinition } from '../../services/ini/sageIniTables';
 import { createParseCache, readWorkspaceText } from '../../services/ini/workspaceText';
 
 /**

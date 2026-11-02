@@ -12,7 +12,8 @@ import {
   evaluateMacroBody,
   formatValue,
 } from '../../../formats/ini/sageIniPreprocessor';
-import type { SageDefinition, SageIniIndex } from '../../../services/ini/sageIniIndex';
+import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
+import type { SageDefinition } from '../../../services/ini/sageIniTables';
 
 /**
  * Explains what is under the cursor: whether the engine defines it, what type

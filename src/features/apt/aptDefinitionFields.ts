@@ -1,5 +1,6 @@
 import type { Uri } from 'vscode';
-import type { SageDefinition, SageIniIndex } from '../../services/ini/sageIniIndex';
+import type { SageIniIndex } from '../../services/ini/sageIniIndex';
+import type { SageDefinition } from '../../services/ini/sageIniTables';
 
 /** The part of the INI index the lookups read */
 export type SuggestionIndex = Pick<SageIniIndex, 'getNames' | 'findDefinitions'>;

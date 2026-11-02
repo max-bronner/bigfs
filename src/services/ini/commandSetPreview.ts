@@ -1,5 +1,6 @@
 import { readWorkspaceText } from './workspaceText';
-import type { SageDefinition, SageIniIndex } from './sageIniIndex';
+import type { SageIniIndex } from './sageIniIndex';
+import type { SageDefinition } from './sageIniTables';
 import { findHotkeyClashes, readHotkey } from '../../game/ini-tools/hotkeys';
 
 /**

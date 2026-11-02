@@ -6,7 +6,7 @@ import type { MappedImage } from '../formats/mappedImage/mappedImage';
 import { encodePng } from '../node/png';
 import { decodeDds, decodeTga } from '../formats/texture/textureTools';
 import type { RgbaImage } from '../formats/texture/textureTools';
-import type { SageDefinition } from './ini/sageIniIndex';
+import type { SageDefinition } from './ini/sageIniTables';
 
 /**
  * The picture a `MappedImage` names: its texture, cropped to `Coords`, as a

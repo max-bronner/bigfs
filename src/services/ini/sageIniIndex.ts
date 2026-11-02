@@ -10,55 +10,17 @@ import {
   collectEntries,
   reachedThroughMacros,
 } from "../../formats/ini/sageIniEntries";
-import type { EntryBodyToken } from "../../formats/ini/sageIniEntries";
 import { toCanonicalNamespace } from "../../formats/ini/sageReferenceFields";
 import { SAGE_INI_LANGUAGE } from "../../constants";
 import { findString, parseStringTable } from "../../formats/str/sageStringTable";
-import type { SageString } from "../../formats/str/sageStringTable";
+import { createSageIniTables } from "./sageIniTables";
+import type {
+  SageDefinition,
+  SageMacro,
+  SageReference,
+  SageStringPlace,
+} from "./sageIniTables";
 import { decodeIniText } from "../../core/windows1252";
-
-/** Declaration of a name by a block at file scope, and where it sits */
-export interface SageDefinition {
-  uri: Uri;
-  /** Line of the block header, which is what a jump reveals */
-  line: number;
-  /**
-   * Line of the block's closing `End`. Carried so a jump can hand the editor
-   * the whole block as its target range, which is what makes the ctrl-hover
-   * preview show the definition rather than one line of it.
-   */
-  endLine: number;
-  /** The block keyword that declared it, which is the namespace */
-  keyword: string;
-  /** Columns of the name on its line, which a rename replaces */
-  start: number;
-  end: number;
-  /** As written, so a completion offers the corpus's own casing */
-  name: string;
-}
-
-/**
- * A `#define` and where it was written. Macros are a flat global namespace:
- * once any file defines one, every later file sees it, which is why they are
- * indexed alongside definitions rather than per file.
- */
-export interface SageMacro {
-  name: string;
-  /** The replacement text, which a hover shows */
-  value: string;
-  /** Columns of the name on its line, which a rename replaces */
-  start: number;
-  end: number;
-  uri: Uri;
-  line: number;
-}
-
-/** A string table record and the file that holds it */
-export interface SageStringPlace extends SageString {
-  uri: Uri;
-  /** The language of the `lang/<Language>.big` it came from; none for a loose file */
-  language?: string;
-}
 
 /**
  * Whether a string table is a map's own, which the engine searches only after
@@ -66,22 +28,6 @@ export interface SageStringPlace extends SageString {
  */
 const isMapStringTable = (uri: Uri): boolean =>
   uri.path.toLowerCase().endsWith("/map.str");
-
-/** Use of a name as the value of a reference field or a macro, and where it sits */
-export interface SageReference {
-  uri: Uri;
-  line: number;
-  /** Columns of the value token, so the peek view can highlight it */
-  start: number;
-  end: number;
-  /** The field the value sat on, for the peek header */
-  field: string;
-}
-
-/** A token of a macro's body and the file that holds it */
-interface SageBodyToken extends EntryBodyToken {
-  uri: Uri;
-}
 
 /** How long typing has to pause before an open document is read again */
 const OPEN_DOCUMENT_DELAY_MS = 300;
@@ -94,80 +40,6 @@ const LOOSE_PATTERN = "**/*.{ini,inc,bhav,str,INI,INC,BHAV,STR}";
 /** Whether a node is an entry this index reads */
 const isSageEntry = (node: VirtualNode): boolean =>
   node.type === FileType.File && ENTRY_PATTERN.test(node.entryPath);
-
-/** Appends to the list under a key, starting one when there is none */
-const pushTo = <T>(table: Map<string, T[]>, key: string, value: T): void => {
-  const list = table.get(key);
-
-  if (list) {
-    list.push(value);
-  } else {
-    table.set(key, [value]);
-  }
-};
-
-/** Adds an entry to a namespace keyed table, folding both keys */
-const record = <T>(
-  table: Map<string, Map<string, T[]>>,
-  namespace: string,
-  name: string,
-  value: T,
-): void => {
-  const namespaceKey = namespace.toLowerCase();
-  const byName = table.get(namespaceKey) ?? new Map<string, T[]>();
-  const key = name.toLowerCase();
-
-  pushTo(byName, key, value);
-  table.set(namespaceKey, byName);
-};
-
-/**
- * Whether a place was contributed by what a key names: an archive's root,
- * which holds many files, or one loose file
- */
-const isUnderRoot = ({ uri }: { uri: Uri }, rootKey: string): boolean => {
-  const path = uri.path.toLowerCase();
-
-  return path === rootKey || path.startsWith(`${rootKey}/`);
-};
-
-/** Drops the places an archive contributed from a flat name-to-places table */
-const purgeList = <T extends { uri: Uri }>(
-  table: Map<string, T[]>,
-  rootKey: string,
-): void => {
-  for (const [key, places] of table) {
-    const kept = places.filter((place) => !isUnderRoot(place, rootKey));
-
-    if (kept.length) {
-      table.set(key, kept);
-    } else {
-      table.delete(key);
-    }
-  }
-};
-
-/** Drops the entries an archive contributed from a flat single-value table */
-const purgeOne = <T extends { uri: Uri }>(
-  table: Map<string, T>,
-  rootKey: string,
-): void => {
-  for (const [key, value] of table) {
-    if (isUnderRoot(value, rootKey)) {
-      table.delete(key);
-    }
-  }
-};
-
-/** Drops the places an archive contributed from a namespace-keyed table */
-const purgeNamespaced = <T extends { uri: Uri }>(
-  table: Map<string, Map<string, T[]>>,
-  rootKey: string,
-): void => {
-  for (const byName of table.values()) {
-    purgeList(byName, rootKey);
-  }
-};
 
 /**
  * Index of where every definition, reference, macro and string table record
@@ -184,39 +56,13 @@ const purgeNamespaced = <T extends { uri: Uri }>(
  * it, is this a macro - needs exactly the same parse to answer.
  */
 export class SageIniIndex implements Disposable {
-  private definitions = new Map<string, Map<string, SageDefinition[]>>();
-  private references = new Map<string, Map<string, SageReference[]>>();
-
-  /** Every `#define`, folded, since the dialect matches names without casing */
-  private macros = new Map<string, SageMacro>();
-
-  /**
-   * Where every SCREAMING_SNAKE value was written, folded. Whether such a name
-   * is a macro or an enum word depends on files that may not be read yet, so
-   * every candidate is kept and the macro table decides at lookup time.
-   */
-  private constantUses = new Map<string, SageReference[]>();
-
-  /**
-   * Every token of every macro body, by lowercased text. A macro written as a
-   * field's value stands for its body, so what the body spells is used there.
-   */
-  private bodyTokens = new Map<string, SageBodyToken[]>();
-
-  /**
-   * The files whose entries are in the tables, by lowercased address. A file
-   * read twice - by overlapping scans, or from disk and from the editor -
-   * replaces its first entries instead of adding to them.
-   */
-  private indexedFiles = new Set<string>();
+  /** Everything indexed, with the file each entry came from */
+  private readonly tables = createSageIniTables();
 
   /** The version of each open document the index last read, by address */
   private openVersions = new Map<string, number>();
 
   private readonly pendingOpen = new Map<string, NodeJS.Timeout>();
-
-  /** Every string table record of every language, by lowercased label, in load order */
-  private strings = new Map<string, SageStringPlace[]>();
 
   /** The records of the chosen language, built when first asked for */
   private activeStrings?: Map<string, SageStringPlace>;
@@ -276,14 +122,8 @@ export class SageIniIndex implements Disposable {
    * differently.
    */
   public reset(): void {
-    this.definitions.clear();
-    this.references.clear();
-    this.macros.clear();
-    this.constantUses.clear();
-    this.bodyTokens.clear();
-    this.indexedFiles.clear();
+    this.tables.clear();
     this.openVersions.clear();
-    this.strings.clear();
     this.activeStrings = undefined;
     this.indexed.clear();
   }
@@ -294,7 +134,7 @@ export class SageIniIndex implements Disposable {
    * substitutes the macro before anything else looks at the value.
    */
   public findMacro(name: string): SageMacro | undefined {
-    return this.macros.get(name.toLowerCase());
+    return this.tables.macros.get(name.toLowerCase());
   }
 
   /**
@@ -329,7 +169,7 @@ export class SageIniIndex implements Disposable {
     if (!this.activeStrings) {
       const table = new Map<string, SageStringPlace>();
 
-      for (const [key, places] of this.strings) {
+      for (const [key, places] of this.tables.strings) {
         const usable = places.filter(
           (place) => !place.language || place.language === this.language,
         );
@@ -347,12 +187,12 @@ export class SageIniIndex implements Disposable {
 
   /** Finds every place a macro is used, which is what find references answers with */
   public findMacroUses(name: string): readonly SageReference[] {
-    return this.constantUses.get(name.toLowerCase()) ?? [];
+    return this.tables.constantUses.get(name.toLowerCase()) ?? [];
   }
 
   /** Gets every macro, sorted by name, which completion offers on any field */
   public getMacros(): SageMacro[] {
-    return [...this.macros.values()].sort((a, b) =>
+    return [...this.tables.macros.values()].sort((a, b) =>
       a.name.localeCompare(b.name),
     );
   }
@@ -363,7 +203,7 @@ export class SageIniIndex implements Disposable {
     name: string,
   ): readonly SageDefinition[] {
     return (
-      this.definitions
+      this.tables.definitions
         .get(toCanonicalNamespace(namespace).toLowerCase())
         ?.get(name.toLowerCase()) ?? []
     );
@@ -372,7 +212,7 @@ export class SageIniIndex implements Disposable {
   /** Counts the distinct names a namespace declares across everything indexed */
   public countDefinitions(namespace: string): number {
     return (
-      this.definitions.get(toCanonicalNamespace(namespace).toLowerCase())?.size ??
+      this.tables.definitions.get(toCanonicalNamespace(namespace).toLowerCase())?.size ??
       0
     );
   }
@@ -382,7 +222,7 @@ export class SageIniIndex implements Disposable {
    * This is what completion offers on a reference field's value.
    */
   public getNames(namespace: string): string[] {
-    const byName = this.definitions.get(
+    const byName = this.tables.definitions.get(
       toCanonicalNamespace(namespace).toLowerCase(),
     );
 
@@ -410,12 +250,12 @@ export class SageIniIndex implements Disposable {
   ): SageDefinition[] {
     const unused: SageDefinition[] = [];
 
-    for (const [namespace, byName] of this.definitions) {
-      if (skip.has(namespace) || !this.references.has(namespace)) {
+    for (const [namespace, byName] of this.tables.definitions) {
+      if (skip.has(namespace) || !this.tables.references.has(namespace)) {
         continue;
       }
 
-      const named = this.references.get(namespace)!;
+      const named = this.tables.references.get(namespace)!;
 
       for (const [name, definitions] of byName) {
         if (!named.get(name)?.length) {
@@ -433,9 +273,9 @@ export class SageIniIndex implements Disposable {
   ): readonly SageReference[] {
     const key = toCanonicalNamespace(namespace).toLowerCase();
     const folded = name.toLowerCase();
-    const written = this.references.get(key);
+    const written = this.tables.references.get(key);
     const direct = written?.get(folded) ?? [];
-    const holders = this.bodyTokens.get(folded);
+    const holders = this.tables.bodyTokens.get(folded);
 
     if (!holders?.length || !written) {
       return direct;
@@ -445,7 +285,7 @@ export class SageIniIndex implements Disposable {
     // its body, so the body's spelling of the name is a use of it too
     const viaMacros = reachedThroughMacros(
       holders,
-      this.bodyTokens,
+      this.tables.bodyTokens,
       (macro) => (written.get(macro)?.length ?? 0) > 0,
     ).map(
       (holder): SageReference => ({
@@ -453,7 +293,7 @@ export class SageIniIndex implements Disposable {
         line: holder.line,
         start: holder.start,
         end: holder.end,
-        field: `#define ${this.macros.get(holder.macro)?.name ?? holder.macro}`,
+        field: `#define ${this.tables.macros.get(holder.macro)?.name ?? holder.macro}`,
       }),
     );
 
@@ -496,18 +336,7 @@ export class SageIniIndex implements Disposable {
 
   /** Drops everything a root or a single file contributed */
   private purge(rootKey: string): void {
-    for (const file of this.indexedFiles) {
-      if (file === rootKey || file.startsWith(`${rootKey}/`)) {
-        this.indexedFiles.delete(file);
-      }
-    }
-
-    purgeNamespaced(this.definitions, rootKey);
-    purgeNamespaced(this.references, rootKey);
-    purgeOne(this.macros, rootKey);
-    purgeList(this.constantUses, rootKey);
-    purgeList(this.bodyTokens, rootKey);
-    purgeList(this.strings, rootKey);
+    this.tables.purge(rootKey);
     this.activeStrings = undefined;
   }
 
@@ -677,9 +506,7 @@ export class SageIniIndex implements Disposable {
 
   /** Adds the records of one string table, behind those of the tables read before it */
   private indexStrings(uri: Uri, text: string, language?: string): void {
-    for (const [key, record] of parseStringTable(text)) {
-      pushTo(this.strings, key, { ...record, uri, language });
-    }
+    this.tables.replaceStrings(uri, parseStringTable(text), language);
     this.activeStrings = undefined;
   }
 
@@ -708,40 +535,6 @@ export class SageIniIndex implements Disposable {
       return;
     }
 
-    const fileKey = uri.path.toLowerCase();
-
-    if (this.indexedFiles.has(fileKey)) {
-      this.purge(fileKey);
-    }
-
-    this.indexedFiles.add(fileKey);
-
-    const entries = collectEntries(text, entryPath, schema);
-
-    entries.macros.forEach((macro) => {
-      this.macros.set(macro.name.toLowerCase(), { ...macro, uri });
-    });
-
-    entries.bodyTokens.forEach((token) => {
-      const list = this.bodyTokens.get(token.text) ?? [];
-
-      list.push({ ...token, uri });
-      this.bodyTokens.set(token.text, list);
-    });
-
-    entries.definitions.forEach(({ namespace, ...definition }) =>
-      record(this.definitions, namespace, definition.name, {
-        uri,
-        ...definition,
-      }),
-    );
-
-    entries.constantUses.forEach(({ key, ...use }) =>
-      pushTo(this.constantUses, key, { uri, ...use }),
-    );
-
-    entries.references.forEach(({ namespace, name, ...place }) =>
-      record(this.references, namespace, name, { uri, ...place }),
-    );
+    this.tables.replaceFile(uri, collectEntries(text, entryPath, schema));
   }
 }
