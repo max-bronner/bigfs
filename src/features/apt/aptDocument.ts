@@ -342,9 +342,17 @@ export class AptDocument implements vscode.CustomDocument {
     // Movies drawn together can name the same path; each reads its own
     const textureKey = (path: string) => `${toMovieKey(this.name)}/${path}`;
 
-    for (const path of new Set(Object.values(imageTextures))) {
-      const texture = await this.loadTexture(path, problems);
+    const loadedTextures = await Promise.all(
+      [...new Set(Object.values(imageTextures))].map(async (path) => {
+        const missing: string[] = [];
+        const texture = await this.loadTexture(path, missing);
 
+        return { path, texture, missing };
+      }),
+    );
+
+    for (const { path, texture, missing } of loadedTextures) {
+      problems.push(...missing);
       if (texture) {
         textures[textureKey(path)] = texture;
       }

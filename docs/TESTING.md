@@ -491,6 +491,12 @@ Open any `.ini`, `.inc` or `.bhav` (language `sage-ini`).
 Open an `.apt` (with its `.const` and `.dat` beside it) in **bigFS APT
 Movie**.
 
+- [ ] **new** Opening a big movie right after VS Code starts (MainMenu, Palantir,
+  LoadScreen from `apt/*.big`): a line above the toolbar says what it is doing
+  ("Reading MainMenu…", "Reading imported movies: …", "Checking the movie…")
+  and vanishes when done. The movie itself appears first, then the imported
+  movies fill in; it finishes in a few seconds, not tens of seconds, and the
+  list, stage and Integrity line match what a second open shows.
 - [ ] **new** Characters list, stage, details; sprites play; imports resolve
   across archives in the game's priority (mod, ROTWK, BFME II); a movie
   inside an archive opens with its own `.const` / `.dat` even where casing

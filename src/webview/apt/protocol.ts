@@ -130,6 +130,8 @@ export type ToPage =
   /** The answer to `renderObject`: the model, or why there is none */
   | { kind: 'renderObject'; name: string; scene?: ModelScene; error?: string }
   | { kind: 'select'; character: number }
+  /** What the editor is doing while it prepares the movie; empty once it is done */
+  | { kind: 'progress'; text: string }
   /** What the integrity check found in the movie and the files beside it */
   | { kind: 'integrity'; problems: Problem[] }
   | {

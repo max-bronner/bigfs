@@ -74,6 +74,7 @@ export const renderAptPage = (
     style: STYLE,
     body: /* html */ `<aside><input id="filter" placeholder="Filter characters, exports, text"><div id="list"></div></aside>
 <main>
+  <p id="progress" class="muted">Opening the movie…</p>
   <div class="toolbar">
     <select id="zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select>
     <button id="play" title="Play or pause (Space)">▶</button>

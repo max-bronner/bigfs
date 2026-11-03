@@ -430,6 +430,8 @@ your mod's archives.
 
 **Interface movies (APT)**
 
+- A big movie opens in seconds: the movie is drawn as soon as it is read,
+  its imports fill in after, and a progress line says what it is doing.
 - Every character drawn with its shapes, textures and text; sprites play
   frame by frame.
 - Edit text fields, colours, bounds, exports, imports, placements, frame

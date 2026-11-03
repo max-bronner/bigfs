@@ -51,7 +51,13 @@ export class AptLibrary implements vscode.Disposable {
 
     this.subscriptions = [
       this.onDidChangeEmitter,
-      archiveModel.onDidChangeArchive(forget),
+      // An archive read for the first time holds what it always held, and
+      // locating a movie reads archives in order anyway
+      archiveModel.onDidChangeArchive(({ loaded }) => {
+        if (!loaded) {
+          forget();
+        }
+      }),
       archiveModel.onDidScan(forget),
       watcher,
       watcher.onDidCreate(forget),

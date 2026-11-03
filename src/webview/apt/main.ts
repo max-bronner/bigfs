@@ -339,6 +339,13 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       showList();
       select(data.character);
       break;
+    case 'progress': {
+      const progress = byId('progress');
+
+      progress.textContent = data.text;
+      progress.hidden = !data.text;
+      break;
+    }
     case 'integrity':
       showIntegrity(data.problems, (character) => {
         showList();
