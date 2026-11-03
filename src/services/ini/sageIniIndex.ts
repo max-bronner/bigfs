@@ -91,6 +91,9 @@ export class SageIniIndex implements Disposable {
     private readonly log: LogOutputChannel,
   ) {
     const watcher = workspace.createFileSystemWatcher(LOOSE_PATTERN);
+    // A folder created with files already in it, such as an unpacked mod, is
+    // reported as the folder alone, so the files are left to the next build
+    const creations = workspace.createFileSystemWatcher("**/*", false, true, true);
     const reindexLooseFile = (uri: Uri) => {
       this.forget(uri.path.toLowerCase());
 
@@ -127,6 +130,10 @@ export class SageIniIndex implements Disposable {
         this.needsBuild = true;
       }),
       watcher,
+      creations,
+      creations.onDidCreate(() => {
+        this.needsBuild = true;
+      }),
       watcher.onDidChange(reindexLooseFile),
       watcher.onDidCreate(reindexLooseFile),
       watcher.onDidDelete((uri) => this.forget(uri.path.toLowerCase())),
