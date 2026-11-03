@@ -13,26 +13,42 @@
 
 import { createByteReader, type ByteReader } from '../../core/byteReader';
 
-export type ChannelKind = 'x' | 'y' | 'z' | 'rotation' | 'visibility' | 'other';
+/** What a channel animates: a translation axis, the rotation, visibility, or opacity */
+export type ChannelKind =
+  | 'x'
+  | 'y'
+  | 'z'
+  | 'rotation'
+  | 'visibility'
+  | 'opacity'
+  | 'other';
 
-/** A channel sampled at every frame; missing frames are `undefined` */
+/** One bone's channel sampled at every frame; `present` marks the frames that have a value */
 export interface SampledChannel {
   pivot: number;
   kind: ChannelKind;
-  /** The channel type as stored (0-2 x y z, 6 a rotation), -1 for visibility */
+  /** The channel type as stored (0-2 x y z, 6 a rotation, 15 opacity), -1 for visibility */
   type: number;
   /** One value a frame, four for a rotation (x, y, z, w) */
   values: Float32Array;
   /** Frames with a value; others leave the bind pose alone */
   present: Uint8Array;
+  /** Frames holding their value up to the next one: a held key follows them */
+  steps?: Uint8Array;
 }
 
+/** One animation of a W3D file, every channel sampled at whole frames */
 export interface W3dAnimation {
   name: string;
   hierarchyName: string;
   frameCount: number;
   frameRate: number;
   channels: SampledChannel[];
+  /**
+   * An uncompressed animation, which the game plays on the nearest whole frame,
+   * past the last of them on frame 0, and never between frames
+   */
+  playsWholeFrames?: boolean;
 }
 
 const CHUNK = {
@@ -50,7 +66,7 @@ const CHUNK = {
 /** Frames refused past this, whatever a header claims */
 const MAX_FRAMES = 100000;
 
-const kindOf = (raw: number): ChannelKind =>
+const toChannelKind = (raw: number): ChannelKind =>
   raw === 0
     ? 'x'
     : raw === 1
@@ -59,9 +75,11 @@ const kindOf = (raw: number): ChannelKind =>
         ? 'z'
         : raw === 6
           ? 'rotation'
-          : 'other';
+          : raw === 15
+            ? 'opacity'
+            : 'other';
 
-const widthOf = (kind: ChannelKind) => (kind === 'rotation' ? 4 : 1);
+const getChannelWidth = (kind: ChannelKind) => (kind === 'rotation' ? 4 : 1);
 
 /** The adaptive-delta step table: powers of ten, then `1 - sin` steps */
 const FILTER_TABLE = (() => {
@@ -108,7 +126,7 @@ const readName = (bytes: Uint8Array, at: number) => {
 };
 
 /** Builds an empty sampled channel */
-const channel = (
+const createChannel = (
   pivot: number,
   kind: ChannelKind,
   frames: number,
@@ -117,29 +135,108 @@ const channel = (
   pivot,
   kind,
   type,
-  values: new Float32Array(frames * widthOf(kind)),
+  values: new Float32Array(frames * getChannelWidth(kind)),
   present: new Uint8Array(frames),
 });
 
-const set = (target: SampledChannel, frame: number, value: number[]) => {
+const setFrameValue = (target: SampledChannel, frame: number, value: number[]) => {
   if (frame >= 0 && frame < target.present.length) {
     target.values.set(value, frame * value.length);
     target.present[frame] = 1;
   }
 };
 
-/** Normalised linear blend; close to a slerp over one frame's step */
-const blend = (a: number[], b: number[], t: number): number[] => {
-  if (a.length === 1) {
-    return [a[0] + (b[0] - a[0]) * t];
+const normaliseQuaternion = (q: number[]): number[] => {
+  const length = Math.hypot(...q) || 1;
+
+  return q.map((value) => value / length);
+};
+
+/**
+ * Interpolates two rotations along the shorter arc, ported from mint's
+ * `quat_slerp`. Rotations from key to key need not share a hemisphere; close
+ * together, where `sin(theta)` nears zero, a normalised blend agrees with it.
+ */
+export const slerp = (from: number[], to: number[], t: number): number[] => {
+  const a = normaliseQuaternion(from);
+  let b = normaliseQuaternion(to);
+  let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+
+  if (dot < 0) {
+    b = b.map((value) => -value);
+    dot = -dot;
+  }
+  dot = Math.min(dot, 1);
+  if (dot > 0.9995) {
+    return normaliseQuaternion(a.map((value, at) => value * (1 - t) + b[at] * t));
   }
 
-  const sign =
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
-  const mixed = a.map((value, index) => value + (b[index] * sign - value) * t);
-  const length = Math.hypot(...mixed) || 1;
+  const arc = Math.acos(dot);
+  const sinTurned = Math.sin(arc * t);
+  const sinArc = Math.sin(arc);
+  const fromShare = Math.cos(arc * t) - (dot * sinTurned) / sinArc;
+  const toShare = sinTurned / sinArc;
 
-  return mixed.map((value) => value / length);
+  return a.map((value, at) => value * fromShare + b[at] * toShare);
+};
+
+/** Blends two values: a straight line for a scalar, an arc for a rotation */
+const blend = (a: number[], b: number[], t: number): number[] =>
+  a.length === 1 ? [a[0] + (b[0] - a[0]) * t] : slerp(a, b, t);
+
+/** Gets what a frame with no value stands for between frames: no change, and fully opaque */
+const getRestValue = (kind: ChannelKind): number[] =>
+  kind === 'rotation' ? [0, 0, 0, 1] : kind === 'opacity' ? [1] : [0];
+
+/** Rounds as the x87 unit does: to the nearest whole number, ties to the even one */
+const roundTiesToEven = (value: number): number => {
+  const whole = Math.floor(value);
+  const rest = value - whole;
+
+  return rest > 0.5 || (rest === 0.5 && whole % 2 === 1) ? whole + 1 : whole;
+};
+
+/**
+ * Samples a channel at a fractional frame as the game does: an uncompressed
+ * animation by `playsWholeFrames`, any other blending its neighbours. There a
+ * frame with no value blends as the rest value, a frame before a held key keeps
+ * its value, and visibility never blends. Undefined where the channel says nothing.
+ */
+export const sampleChannel = (
+  channel: SampledChannel,
+  frame: number,
+  { frameCount, playsWholeFrames }: Pick<W3dAnimation, 'frameCount' | 'playsWholeFrames'>,
+): number[] | undefined => {
+  const width = channel.kind === 'rotation' ? 4 : 1;
+  const read = (index: number) =>
+    channel.present[index]
+      ? Array.from(channel.values.subarray(index * width, index * width + width))
+      : undefined;
+
+  if (playsWholeFrames) {
+    const nearest = roundTiesToEven(frame);
+
+    return read(nearest < frameCount ? nearest : 0);
+  }
+
+  const first = Math.max(0, Math.min(frameCount - 1, Math.floor(frame)));
+  const next = Math.min(frameCount - 1, first + 1);
+  const t = frame - Math.floor(frame);
+  const value = read(first);
+
+  if (t === 0 || channel.kind === 'visibility' || channel.steps?.[first]) {
+    return value;
+  }
+
+  const following = read(next);
+
+  if (!value && !following) {
+    return undefined;
+  }
+
+  const rest = getRestValue(channel.kind);
+
+  return blend(value ?? rest, following ?? rest, t);
 };
 
 /** Samples time-coded keys at every frame: held keys step, others blend */
@@ -153,6 +250,9 @@ const sampleKeys = (
 
   keys.sort((a, b) => a.frame - b.frame);
 
+  const steps = new Uint8Array(target.present.length);
+
+  target.steps = steps;
   for (let frame = 0; frame < target.present.length; frame++) {
     let split = 0;
 
@@ -161,15 +261,16 @@ const sampleKeys = (
     }
 
     if (split === 0) {
-      set(target, frame, keys[0].value);
+      setFrameValue(target, frame, keys[0].value);
     } else if (split === keys.length) {
-      set(target, frame, keys[keys.length - 1].value);
+      setFrameValue(target, frame, keys[keys.length - 1].value);
     } else {
       const earlier = keys[split - 1];
       const later = keys[split];
       const span = later.frame - earlier.frame;
 
-      set(
+      steps[frame] = later.hold ? 1 : 0;
+      setFrameValue(
         target,
         frame,
         later.hold || span <= 0
@@ -225,7 +326,7 @@ const readAdaptiveDelta = (
 /** Sets dense values, holding the last one to the end as the game does */
 const holdLast = (target: SampledChannel, values: number[][]) => {
   for (let frame = 0; frame < target.present.length && values.length; frame++) {
-    set(target, frame, values[Math.min(frame, values.length - 1)]);
+    setFrameValue(target, frame, values[Math.min(frame, values.length - 1)]);
   }
 };
 
@@ -243,7 +344,7 @@ const readBits = (
         ? fallback
         : ((packed[index >> 3] >> (index & 7)) & 1) === 1;
 
-    set(target, frame, [visible ? 1 : 0]);
+    setFrameValue(target, frame, [visible ? 1 : 0]);
   }
 };
 
@@ -265,15 +366,15 @@ const readChannel = (
       reader.u16();
 
       const type = reader.u16();
-      const kind = kindOf(type);
+      const kind = toChannelKind(type);
       const pivot = reader.u16();
 
       reader.u16();
 
-      const target = channel(pivot, kind, frames, type);
+      const target = createChannel(pivot, kind, frames, type);
 
       for (let frame = first; frame <= last; frame++) {
-        set(target, frame, readFloats(reader, widthOf(kind)));
+        setFrameValue(target, frame, readFloats(reader, getChannelWidth(kind)));
       }
 
       return target;
@@ -286,7 +387,7 @@ const readChannel = (
 
       const pivot = reader.u16();
       const fallback = reader.u8() !== 0;
-      const target = channel(pivot, 'visibility', frames);
+      const target = createChannel(pivot, 'visibility', frames);
 
       readBits(target, first, last, fallback, reader.bytes(Math.max(0, Math.ceil((last - first + 1) / 8))));
 
@@ -299,9 +400,9 @@ const readChannel = (
       reader.u8();
 
       const type = reader.u8();
-      const kind = kindOf(type);
-      const width = widthOf(kind);
-      const target = channel(pivot, kind, frames, type);
+      const kind = toChannelKind(type);
+      const width = getChannelWidth(kind);
+      const target = createChannel(pivot, kind, frames, type);
 
       if (flavor === 1) {
         holdLast(
@@ -333,7 +434,7 @@ const readChannel = (
       reader.u8();
 
       const fallback = reader.u8() !== 0;
-      const target = channel(pivot, 'visibility', frames);
+      const target = createChannel(pivot, 'visibility', frames);
       const keys: [number, boolean][] = [];
 
       for (let index = 0; index < Math.min(count, MAX_FRAMES); index++) {
@@ -349,7 +450,7 @@ const readChannel = (
           key++;
         }
 
-        set(target, frame, [(key < 0 ? fallback : keys[key][1]) ? 1 : 0]);
+        setFrameValue(target, frame, [(key < 0 ? fallback : keys[key][1]) ? 1 : 0]);
       }
 
       return target;
@@ -362,11 +463,11 @@ const readChannel = (
       reader.u8();
 
       const type = reader.u8();
-      const kind = kindOf(type);
-      const width = widthOf(kind);
+      const kind = toChannelKind(type);
+      const width = getChannelWidth(kind);
       const count = reader.u16();
       const pivot = reader.u16();
-      const target = channel(pivot, kind, frames, type);
+      const target = createChannel(pivot, kind, frames, type);
 
       if (deltaType === 0) {
         const times = Array.from({ length: count }, () => reader.u16());
@@ -399,7 +500,10 @@ const readChannel = (
   return undefined;
 };
 
-/** Reads every animation in a W3D file */
+/**
+ * Reads every animation in a W3D file.
+ * @throws Error when a chunk runs past its parent or a channel ends early
+ */
 export const parseW3dAnimations = (bytes: Uint8Array): W3dAnimation[] =>
   readChunks(bytes)
     .filter(
@@ -448,12 +552,39 @@ export const parseW3dAnimations = (bytes: Uint8Array): W3dAnimation[] =>
           frameCount,
           frameRate: frameRate || 30,
           channels,
+          playsWholeFrames: !isCompressed,
         },
       ];
     });
 
 /**
- * The animation an INI line names, `SKELETON.CLIP`: the one whose skeleton
+ * Reads the skeleton a file's first animation names, from its header alone, so
+ * many files can be sorted without decoding a channel.
+ * @throws Error when a chunk runs past its parent
+ */
+export const readAnimationHierarchyName = (
+  bytes: Uint8Array,
+): string | undefined => {
+  const animation = readChunks(bytes).find(
+    (chunk) =>
+      chunk.type === CHUNK.ANIMATION ||
+      chunk.type === CHUNK.COMPRESSED_ANIMATION,
+  );
+  const header = animation
+    ? readChunks(animation.payload).find(
+        (child) =>
+          child.type === CHUNK.ANIMATION_HEADER ||
+          child.type === CHUNK.COMPRESSED_ANIMATION_HEADER,
+      )
+    : undefined;
+
+  return header && header.payload.length >= 44
+    ? readName(header.payload, 20)
+    : undefined;
+};
+
+/**
+ * Finds the animation an INI line names, `SKELETON.CLIP`: the one whose skeleton
  * and name are those, else the one named `CLIP`, else the file's first
  */
 export const findAnimation = (

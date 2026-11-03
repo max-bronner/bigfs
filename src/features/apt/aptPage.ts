@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 import { SPEEDS } from '../../webview/apt/protocol';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 
 const STYLE = /* css */ `
   body { margin: 0; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); display: grid; grid-template-columns: 240px 1fr minmax(360px, 42%); height: 100vh; }
@@ -11,7 +11,7 @@ const STYLE = /* css */ `
   .row { padding: 2px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row:hover { background: var(--vscode-list-hoverBackground); }
   .row.selected { color: var(--vscode-list-activeSelectionForeground); background: var(--vscode-list-activeSelectionBackground); }
-  main { overflow: auto; padding: 8px 12px; }
+  main { overflow: auto; scrollbar-gutter: stable; padding: 8px 12px; }
   .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
   #stage { background: repeating-conic-gradient(#808080 0 25%, #a0a0a0 0 50%) 0 0 / 16px 16px; }
   #side { border-left: 1px solid var(--vscode-panel-border); padding: 0 10px; }
@@ -70,10 +70,11 @@ export const renderAptPage = (
   webview: vscode.Webview,
   script: vscode.Uri,
 ): string =>
-  webviewPage({
+  renderWebviewPage({
     style: STYLE,
     body: /* html */ `<aside><input id="filter" placeholder="Filter characters, exports, text"><div id="list"></div></aside>
 <main>
+  <p id="progress" class="muted">Opening the movie…</p>
   <div class="toolbar">
     <select id="zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="1">100%</option><option value="2">200%</option></select>
     <button id="play" title="Play or pause (Space)">▶</button>

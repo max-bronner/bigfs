@@ -2,7 +2,7 @@ import { editCell } from './cellEditor';
 import type { FromStringsPage, StringRow } from './protocol';
 import { ROWS_PER_PAGE, describeCount, filterRows } from './rowFilter';
 
-/** What the table shows: the rows the editor sent, and how much of them */
+/** View state of the string table: the rows the editor sent, the filter, and how many pages are shown */
 export interface TableState {
   rows: StringRow[];
   hasSpeech: boolean;
@@ -11,7 +11,7 @@ export interface TableState {
   page: number;
 }
 
-const cell = (text: string, className?: string): HTMLTableCellElement => {
+const createCell = (text: string, className?: string): HTMLTableCellElement => {
   const element = document.createElement('td');
 
   element.textContent = text;
@@ -21,7 +21,7 @@ const cell = (text: string, className?: string): HTMLTableCellElement => {
   return element;
 };
 
-/** Draws the table body, the count and "Show more" for the current state. */
+/** Renders the table body, the label count and "Show more" for the current state */
 export const renderTable = (
   state: TableState,
   post: (message: FromStringsPage) => void,
@@ -44,7 +44,7 @@ export const renderTable = (
       if (hasProblems) {
         tr.className = 'problem';
       }
-      const label = cell(row.label, 'label');
+      const label = createCell(row.label, 'label');
 
       if (hasProblems) {
         label.title = row.problems!.join('; ');
@@ -58,7 +58,7 @@ export const renderTable = (
             post({ kind: 'setLabel', id: row.id, label: row.label, value }),
           redraw,
         );
-      const textCell = cell(
+      const textCell = createCell(
         row.text,
         `text${row.hasText === false ? ' missing' : ''}`,
       );
@@ -77,7 +77,7 @@ export const renderTable = (
         );
       tr.append(label, textCell);
       if (state.hasSpeech) {
-        const speech = cell(row.speech ?? '', 'speech');
+        const speech = createCell(row.speech ?? '', 'speech');
 
         speech.ondblclick = () =>
           editCell(

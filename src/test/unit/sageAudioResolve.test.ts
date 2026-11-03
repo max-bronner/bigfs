@@ -4,7 +4,7 @@ import { join } from 'path';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import {
-  audioDefinitionOf,
+  readAudioDefinition,
   resolveAudio,
   stripAudioPrefix,
 } from '../../game/audio/sageAudioResolve';
@@ -97,7 +97,7 @@ const lookup: AudioLookup = (name) => {
     (each) => each.name?.toLowerCase() === name.toLowerCase(),
   );
 
-  return block && audioDefinitionOf(parsed, block);
+  return block && readAudioDefinition(parsed, block);
 };
 
 const files = async (name: string) =>

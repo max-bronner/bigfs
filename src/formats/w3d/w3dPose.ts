@@ -1,28 +1,35 @@
+import { sampleChannel } from './w3dAnimation';
 import type { SampledChannel, W3dAnimation } from './w3dAnimation';
 import type { SceneMesh, SceneSkeleton } from './w3dScene';
+import { skinVertices, toBoneMatrix } from './w3dSkin';
 
 /**
  * Poses a skeleton and skins a model on it: every bone's transform is the
  * bind pose composed with the animation's change for that frame (rotation
  * then translation in the bind rotation's frame, as mint's `pose.rs` has
- * it, the root's own channels ignored), and each vertex follows its bone.
+ * it, the root's own channels ignored), and each vertex follows its bones.
  * Pure, so the W3D viewer and the particle preview pose the same way.
  */
 
+/** A 3D vector as `[x, y, z]` */
 export type Vec3 = [number, number, number];
-/** x, y, z, w */
+/** A rotation quaternion as `[x, y, z, w]` */
 export type Quat = [number, number, number, number];
 
+/** A bone's translation and rotation */
 export interface BoneTransform {
   t: Vec3;
   q: Quat;
 }
 
+/** A skeleton posed at one frame: every bone's transform, visibility and opacity */
 export interface Pose {
   /** Every bone in model space */
   world: BoneTransform[];
   /** Whether each bone is shown, from its visibility channel */
   visible: boolean[];
+  /** Each bone's opacity from 0 to 1, from its type 15 channel */
+  opacity: number[];
 }
 
 const multiply = (a: Quat, b: Quat): Quat => [
@@ -45,61 +52,60 @@ export const rotate = ([x, y, z, w]: Quat, v: Vec3): Vec3 => {
   ];
 };
 
-const normalise = <T extends number[]>(q: T): T => {
-  const length = Math.hypot(...q) || 1;
-
-  return q.map((value) => value / length) as T;
-};
-
-/** `outer` after `inner` */
+/**
+ * Composes two transforms, `outer` applied after `inner`. The game normalises
+ * nothing here, so a stored rotation that is not of unit length scales what it
+ * turns and every bone below it.
+ */
 const compose = (outer: BoneTransform, inner: BoneTransform): BoneTransform => {
   const r = rotate(outer.q, inner.t);
 
   return {
     t: [r[0] + outer.t[0], r[1] + outer.t[1], r[2] + outer.t[2]],
-    q: normalise(multiply(outer.q, inner.q)),
+    q: multiply(outer.q, inner.q),
   };
 };
 
-/** One channel's value at a fractional frame, blending its neighbours */
-const sample = (
-  channel: SampledChannel,
-  frame: number,
-  frameCount: number,
-): number[] | undefined => {
-  const width = channel.kind === 'rotation' ? 4 : 1;
-  const first = Math.max(0, Math.min(frameCount - 1, Math.floor(frame)));
-  const second = Math.min(frameCount - 1, first + 1);
-  const t = frame - Math.floor(frame);
-  const at = (index: number) =>
-    Array.from(channel.values.subarray(index * width, index * width + width));
+/** The bones of a skeleton, as two skeletons are compared by */
+export type SkeletonBones = Pick<SceneSkeleton, 'names' | 'parents'>;
 
-  if (!channel.present[first]) {
-    return channel.present[second] ? at(second) : undefined;
-  }
-
-  const a = at(first);
-
-  if (!channel.present[second] || t === 0 || channel.kind === 'visibility') {
-    return a;
-  }
-
-  const b = at(second);
-
-  if (width === 1) {
-    return [a[0] + (b[0] - a[0]) * t];
-  }
-
-  // The shorter way round
-  const sign =
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1;
-
-  return normalise(
-    a.map((value, index) => value + (b[index] * sign - value) * t),
+/** Whether two hierarchies are one skeleton under two names: the same bones, by name and parent, in order */
+const isSameSkeleton = (a: SkeletonBones, b: SkeletonBones): boolean =>
+  a.names.length === b.names.length &&
+  a.names.every(
+    (name, at) =>
+      a.parents[at] === b.parents[at] &&
+      name.toLowerCase() === b.names[at].toLowerCase(),
   );
-};
 
-/** Every bone's model-space transform at `frame`, or the bind pose */
+/**
+ * Whether an animation was made for a skeleton: it names it, or names a
+ * renamed copy of the same rig.
+ * @param clipSkeleton The skeleton the animation names, when it was found
+ */
+export const isOwnClip = (
+  skeleton: SceneSkeleton,
+  animation: Pick<W3dAnimation, 'hierarchyName'>,
+  clipSkeleton: SkeletonBones | undefined,
+): boolean =>
+  animation.hierarchyName.toLowerCase() === skeleton.name.toLowerCase() ||
+  (!!clipSkeleton && isSameSkeleton(skeleton, clipSkeleton));
+
+/**
+ * Creates the notice shown while a clip of another skeleton plays. The game
+ * applies any clip to any model, channel by bone number, without looking at
+ * the skeleton it names, so the clip plays and the notice explains the result.
+ */
+export const describeForeignClip = (
+  animation: Pick<W3dAnimation, 'name' | 'hierarchyName'>,
+): string =>
+  `${animation.name} is made for ${animation.hierarchyName}; retail would apply it by bone number`;
+
+/** Reads a type 15 sample, as mint's `type15_opacity`: below zero or not a number is clear */
+const toOpacity = (raw: number): number =>
+  Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
+
+/** Poses every bone in model space at `frame`, or in the bind pose without an animation */
 export const poseAt = (
   skeleton: SceneSkeleton,
   animation?: W3dAnimation,
@@ -119,13 +125,15 @@ export const poseAt = (
 
   const world: BoneTransform[] = [];
   const visible: boolean[] = [];
+  const opacity: number[] = [];
 
   for (let bone = 0; bone < count; bone++) {
     const delta: BoneTransform = { t: [0, 0, 0], q: [0, 0, 0, 1] };
     let shown = true;
+    let opaqueness = 1;
 
     for (const channel of byBone.get(bone) ?? []) {
-      const value = sample(channel, frame, animation!.frameCount);
+      const value = sampleChannel(channel, frame, animation!);
 
       if (!value) {
         continue;
@@ -146,6 +154,9 @@ export const poseAt = (
         case 'visibility':
           shown = value[0] > 0.5;
           break;
+        case 'opacity':
+          opaqueness = toOpacity(value[0]);
+          break;
       }
     }
 
@@ -153,21 +164,33 @@ export const poseAt = (
       t: skeleton.translations.slice(bone * 3, bone * 3 + 3) as Vec3,
       q: skeleton.rotations.slice(bone * 4, bone * 4 + 4) as Quat,
     };
-    const local = compose(bind, delta);
     const parent = skeleton.parents[bone];
+    const placed =
+      parent >= 0 && parent < bone ? compose(world[parent], bind) : bind;
 
-    world.push(
-      parent >= 0 && parent < bone ? compose(world[parent], local) : local,
-    );
+    world.push(compose(placed, delta));
     visible.push(shown);
+    opacity.push(opaqueness);
   }
 
-  return { world, visible };
+  return { world, visible, opacity };
 };
 
 /**
- * Writes a bound mesh's vertices, and normals, as its bones now stand;
- * a vertex whose bone the pose lacks keeps its bind place
+ * Whether a pose shows a mesh. Visibility and opacity belong to a bone and are
+ * not inherited, and in mint only a rigid mesh answers to them: a skin has no
+ * one bone, so it is always shown and whole.
+ */
+export const isMeshShown = (mesh: SceneMesh, pose: Pose): boolean =>
+  mesh.bone === undefined || (pose.visible[mesh.bone] ?? true);
+
+/** Gets a mesh's opacity in a pose; see `isMeshShown` for which meshes have one */
+export const getMeshOpacity = (mesh: SceneMesh, pose: Pose): number =>
+  mesh.bone === undefined ? 1 : (pose.opacity[mesh.bone] ?? 1);
+
+/**
+ * Writes a mesh's vertices, and normals, as its bones now stand; a vertex
+ * none of whose bones the pose has keeps its bind place
  */
 export const skin = (
   mesh: SceneMesh,
@@ -175,45 +198,22 @@ export const skin = (
   positions: Float32Array,
   normals?: Float32Array,
 ): void => {
-  const local = mesh.local;
-
-  if (!local) {
-    positions.set(mesh.positions);
-    return;
+  positions.set(mesh.positions);
+  if (normals && mesh.normals) {
+    normals.set(mesh.normals);
   }
-  for (let vertex = 0; vertex < local.bones.length; vertex++) {
-    const bone = pose.world[local.bones[vertex]];
-    const at = vertex * 3;
-
-    if (!bone) {
-      positions.set(mesh.positions.subarray(at, at + 3), at);
-      continue;
-    }
-
-    const p = rotate(bone.q, [
-      local.positions[at],
-      local.positions[at + 1],
-      local.positions[at + 2],
-    ]);
-
-    positions[at] = p[0] + bone.t[0];
-    positions[at + 1] = p[1] + bone.t[1];
-    positions[at + 2] = p[2] + bone.t[2];
-    if (normals && local.normals) {
-      normals.set(
-        rotate(bone.q, [
-          local.normals[at],
-          local.normals[at + 1],
-          local.normals[at + 2],
-        ]),
-        at,
-      );
-    }
+  if (mesh.local) {
+    skinVertices(
+      mesh.local,
+      pose.world.map((bone) => toBoneMatrix(bone.t, bone.q)),
+      positions,
+      normals,
+    );
   }
 };
 
-/** Line segments from every bone to its parent, three floats a point */
-export const boneLines = (skeleton: SceneSkeleton, pose: Pose): number[] =>
+/** Builds line segments from every bone to its parent, three floats a point */
+export const buildBoneLines = (skeleton: SceneSkeleton, pose: Pose): number[] =>
   pose.world.flatMap((bone, index) => {
     const parent = pose.world[skeleton.parents[index]];
 

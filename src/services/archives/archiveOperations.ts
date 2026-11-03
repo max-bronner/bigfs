@@ -4,17 +4,13 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import path from 'path';
 import { isContainedPath, isPathBelow } from '../../core/paths';
-import { findConflicts, planTransfer } from '../../game/install/transferPlan';
-import type { ConflictChoice, TransferItem } from '../../game/install/transferPlan';
+import { findConflicts, planTransfer } from '../../core/transferPlan';
+import type { ConflictChoice, TransferItem } from '../../core/transferPlan';
 import type { Archive, EntryChange, EntrySource } from './archive';
 import type { ArchivePolicy } from './archivePolicy';
+import { getChangedPaths } from './getChangedPaths';
 import type { ArchiveRegistry } from './archiveRegistry';
-import {
-  findBlockingFile,
-  getFileNodes,
-  getRelativeEntryPath,
-  isArchiveRoot,
-} from './virtualNode';
+import { findBlockingFile, getFileNodes, getRelativeEntryPath, isArchiveRoot } from './virtualTree';
 import { getNodePath } from './nodeAddress';
 import type { VirtualNode } from './virtualNode';
 
@@ -25,6 +21,7 @@ import type { VirtualNode } from './virtualNode';
 export interface ImportedFile {
   name: string;
   size: number;
+  /** The file on disk to copy in; `content` is written when this is unset */
   sourcePath?: string;
   content?: Uint8Array;
 }
@@ -45,7 +42,7 @@ export interface TransferResult {
 export type ArchiveLookup = Pick<
   ArchiveRegistry,
   | 'fireChanged'
-  | 'getArchiveContext'
+  | 'requireResolvedUri'
   | 'getArchiveOf'
   | 'getNode'
   | 'groupByArchive'
@@ -166,11 +163,9 @@ export const createArchiveOperations = (
   policy: ArchivePolicy,
   log: LogOutputChannel,
 ): ArchiveOperations => {
-  /**
-   * Carries out changes against one archive: the single place that applies a
-   * mutation, reports a failure and tells the view about it, so an operation
-   * only has to say what changes.
-   */
+  // Carries out changes against one archive: the single place that applies a
+  // mutation, reports a failure and tells the view about it, so an operation
+  // only has to say what changes.
   const apply = async (
     archive: Archive,
     changes: readonly EntryChange[],
@@ -184,12 +179,12 @@ export const createArchiveOperations = (
       throw error;
     }
 
-    lookup.fireChanged(archive, 'changed');
+    lookup.fireChanged(archive, 'changed', false, getChangedPaths(changes));
   };
 
   const operations: ArchiveOperations = {
     async writeFile(uri, content) {
-      const { archive, entryPath } = lookup.getArchiveContext(uri);
+      const { archive, entryPath } = lookup.requireResolvedUri(uri);
 
       if (!entryPath) {
         throw FileSystemError.NoPermissions('Cannot write to the archive root');
@@ -210,7 +205,7 @@ export const createArchiveOperations = (
       const byArchive = new Map<Archive, EntryChange[]>();
 
       for (const { uri, content } of files) {
-        const { archive, entryPath } = lookup.getArchiveContext(uri);
+        const { archive, entryPath } = lookup.requireResolvedUri(uri);
 
         if (!entryPath) {
           throw FileSystemError.NoPermissions(
@@ -230,7 +225,7 @@ export const createArchiveOperations = (
     },
 
     async createDirectory(uri) {
-      const { archive, entryPath } = lookup.getArchiveContext(uri);
+      const { archive, entryPath } = lookup.requireResolvedUri(uri);
 
       if (!entryPath) {
         throw FileSystemError.NoPermissions('Cannot create the archive root');
@@ -264,8 +259,8 @@ export const createArchiveOperations = (
     },
 
     async rename(oldUri, newUri) {
-      const source = lookup.getArchiveContext(oldUri);
-      const target = lookup.getArchiveContext(newUri);
+      const source = lookup.requireResolvedUri(oldUri);
+      const target = lookup.requireResolvedUri(newUri);
 
       if (source.archive !== target.archive) {
         throw FileSystemError.NoPermissions('Cannot move between archives');

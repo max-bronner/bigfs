@@ -4,13 +4,13 @@ import type { Placement } from './textModel';
 const F32 = new Float32Array(1);
 const F32_WORD = new Uint32Array(F32.buffer);
 
-/** The bits of a 32-bit float, so -0, 0 and NaN compare the way the file stores them */
-export const f32Bits = (value: number): number => {
+/** Gets the bits of a 32-bit float, so -0, 0 and NaN compare the way the file stores them */
+export const toF32Bits = (value: number): number => {
   F32[0] = value;
   return F32_WORD[0];
 };
 
-/** The shortest decimal that reads back as the same 32-bit float */
+/** Formats a number as the shortest decimal that reads back as the same 32-bit float */
 export const formatF32 = (value: number): string => {
   if (Number.isNaN(value)) {
     return 'nan';
@@ -34,12 +34,12 @@ export const formatF32 = (value: number): string => {
   return String(exact);
 };
 
-/** A word as `0x` and eight hex digits, or as many as `digits` asks for */
-export const hex = (value: number, digits = 8) =>
+/** Formats a word as `0x` and eight hex digits, or as many as `digits` asks for */
+export const formatHex = (value: number, digits = 8) =>
   `0x${(value >>> 0).toString(16).padStart(digits, '0')}`;
 
-/** A byte as two hex digits */
-export const byteHex = (value: number) =>
+/** Formats a byte as two hex digits */
+export const formatByteHex = (value: number) =>
   (value & 255).toString(16).padStart(2, '0');
 
 /** cos and sin of degrees, exact on the quarter turns a float would miss */
@@ -62,7 +62,7 @@ const turn = (degrees: number): [number, number] => {
   return [Math.cos(radians), Math.sin(radians)];
 };
 
-/** The matrix a scale and a rotation in degrees make, as the file stores floats */
+/** Composes the matrix a scale and a rotation in degrees make, as the file stores floats */
 export const composeMatrix = (
   scaleX: number,
   scaleY: number,
@@ -78,15 +78,15 @@ export const composeMatrix = (
   ];
 };
 
-const sameMatrix = (a: Matrix2, b: Matrix2) =>
-  a.every((value, index) => f32Bits(value) === f32Bits(b[index]));
+const isSameMatrix = (a: Matrix2, b: Matrix2) =>
+  a.every((value, index) => toF32Bits(value) === toF32Bits(b[index]));
 
 /** The words after `at x,y` that give a matrix exactly: none, a scale, a rotation, or the four floats */
 const transformWords = (matrix: Matrix2): string[] => {
   const [a, b, c, d] = matrix;
 
   if (Object.is(b, 0) && Object.is(c, 0)) {
-    return f32Bits(a) === f32Bits(1) && f32Bits(d) === f32Bits(1)
+    return toF32Bits(a) === toF32Bits(1) && toF32Bits(d) === toF32Bits(1)
       ? []
       : ['scale', `${formatF32(a)},${formatF32(d)}`];
   }
@@ -116,14 +116,14 @@ const transformWords = (matrix: Matrix2): string[] => {
           const degreesText = Object.is(rotation, -0) ? '-0' : String(rotation);
 
           if (
-            sameMatrix(
+            isSameMatrix(
               composeMatrix(read(x), read(y), Number(degreesText)),
               matrix,
             )
           ) {
             return [
-              ...(f32Bits(read(x)) === f32Bits(1) &&
-              f32Bits(read(y)) === f32Bits(1)
+              ...(toF32Bits(read(x)) === toF32Bits(1) &&
+              toF32Bits(read(y)) === toF32Bits(1)
                 ? []
                 : ['scale', `${x},${y}`]),
               'rot',
@@ -138,8 +138,8 @@ const transformWords = (matrix: Matrix2): string[] => {
   return ['matrix', matrix.map(formatF32).join(',')];
 };
 
-/** The words that give a placement exactly: `at x,y` and the matrix after it */
-export const placementWords = ({ matrix, translate }: Placement): string[] => [
+/** Formats the words that give a placement exactly: `at x,y` and the matrix after it */
+export const formatPlacementWords = ({ matrix, translate }: Placement): string[] => [
   'at',
   translate.map(formatF32).join(','),
   ...transformWords(matrix),

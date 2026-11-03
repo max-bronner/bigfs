@@ -1,12 +1,12 @@
 /** The messages the Create-a-Hero page and its editor exchange */
 
-/** A class or subclass the hero can have, by its position in the INI's list */
+/** One class or subclass choice, by its position in the INI's list */
 export interface ChoiceView {
   index: number;
   label: string;
 }
 
-/** One power slot of the hero */
+/** One power slot of the hero, with its button resolved against the INI */
 export interface PowerView {
   slot: number;
   button: string;
@@ -18,7 +18,7 @@ export interface PowerView {
   buttonKnown?: boolean;
 }
 
-/** One bling choice of the hero */
+/** One bling choice of the hero; `at` is its position in the hero's list */
 export interface BlingView {
   at: number;
   group: string;
@@ -29,7 +29,7 @@ export interface BlingView {
   label?: string;
 }
 
-/** The hero file as the editor sends it: its record with the names resolved */
+/** Message carrying the hero file as the editor sends it: its record with the names resolved */
 export interface HeroView {
   kind: 'hero';
   readOnly: boolean;
@@ -56,15 +56,16 @@ export interface HeroView {
   };
 }
 
-/** What the editor sends besides the hero: a refused edit */
+/** Notice the editor sends when it refuses an edit */
 export interface CahNotice {
   kind: 'notice';
   message: string;
 }
 
+/** Messages the editor sends to the Create-a-Hero page */
 export type CahToPage = HeroView | CahNotice;
 
-/** What the page sends: the field that changed, by its value as typed */
+/** Messages the Create-a-Hero page sends: the field that changed, with its value as typed */
 export type FromCahPage =
   | { kind: 'ready' }
   | {

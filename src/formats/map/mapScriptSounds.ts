@@ -32,24 +32,24 @@ const SOUND_FIRST_PARAMETER: ReadonlySet<string> = new Set([
 /** The call names compared as the table spells them, ignoring case */
 const normal = (name: string) => name.toLowerCase();
 
-/** The indexes of the parameters of a call that name a sound */
-export const soundParameterIndexes = (
+/** Finds the indexes of the parameters of a call that name a sound */
+export const findSoundParameterIndexes = (
   name: string,
   parameters: readonly string[],
 ): number[] =>
   SOUND_FIRST_PARAMETER.has(normal(name)) && parameters[0]?.trim() ? [0] : [];
 
-/** A call with the indexes of its sound parameters, for the page to draw */
+/** Copies a call with the indexes of its sound parameters added, for the page to draw */
 export const withSoundParameters = <
   T extends { name: string; parameters: string[] },
 >(
   call: T,
 ): T & { sounds: number[] } => ({
   ...call,
-  sounds: soundParameterIndexes(call.name, call.parameters),
+  sounds: findSoundParameterIndexes(call.name, call.parameters),
 });
 
-/** Every call of a script tree with the parameters that name a sound marked */
+/** Marks, in every call of a script tree, the parameters that name a sound */
 export const markSounds = (nodes: MapScriptNode[]): MapScriptNode[] =>
   nodes.map((node) =>
     node.kind === 'group'

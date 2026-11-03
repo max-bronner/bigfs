@@ -2,7 +2,7 @@ import { canvas, context } from './elements';
 import {
   isStart,
   isWaypoint,
-  nameOf,
+  getObjectName,
   projectToCanvas,
   shadeRelief,
   unprojectFromCanvas,
@@ -12,7 +12,7 @@ import type { HeightsView } from './protocol';
 import { state } from './state';
 import type { ReliefSurface } from './state';
 
-/** Shades the height map once into an off-screen canvas. */
+/** Shades the height map once into an off-screen canvas */
 export const buildRelief = (heights: HeightsView): ReliefSurface => {
   const { width, height } = heights;
   const { pixels, low, high } = shadeRelief(heights);
@@ -26,11 +26,11 @@ export const buildRelief = (heights: HeightsView): ReliefSurface => {
   return { surface, low, high };
 };
 
-/** World units to canvas pixels */
+/** Converts world units to canvas pixels for the loaded height map */
 export const project = (x: number, y: number): [number, number] =>
   projectToCanvas(state.heights!, canvas, x, y);
 
-/** Canvas pixels to world units */
+/** Converts canvas pixels to world units for the loaded height map */
 export const unproject = (px: number, py: number): [number, number] =>
   unprojectFromCanvas(state.heights!, canvas, px, py);
 
@@ -172,7 +172,7 @@ const drawObjects = () => {
       context.fillStyle = '#fff';
       context.strokeStyle = '#000';
       context.lineWidth = 3;
-      const label = nameOf(object).replace(/^Player_(\d+)_Start$/i, 'P$1');
+      const label = getObjectName(object).replace(/^Player_(\d+)_Start$/i, 'P$1');
 
       context.strokeText(label, px + 6, py + 4);
       context.fillText(label, px + 6, py + 4);
@@ -204,7 +204,7 @@ const drawDraft = () => {
   }
 };
 
-/** Draws the terrain and the layers over it, sized to fit the stage. */
+/** Draws the terrain and the layers over it, sized to fit the stage */
 export const draw = (): void => {
   const heights = state.heights;
   const relief = state.relief;

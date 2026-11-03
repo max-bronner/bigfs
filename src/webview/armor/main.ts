@@ -1,4 +1,4 @@
-import { shownArmor } from '../../game/objects/armorTable';
+import { resolveShownArmor } from '../../game/objects/armorTable';
 import type {
   ArmorTableMessage,
   FromArmorPage,
@@ -17,7 +17,7 @@ const filter = document.getElementById('filter') as HTMLInputElement;
 const summary = document.getElementById('summary')!;
 let data: ArmorTableMessage | undefined;
 
-const percent = (value: string | undefined) =>
+const parsePercent = (value: string | undefined) =>
   value === undefined ? undefined : Number(value.replace('%', ''));
 
 const render = () => {
@@ -55,8 +55,8 @@ const render = () => {
         ...data!.types.map((type) => {
           const cell = document.createElement('td');
           const input = document.createElement('input');
-          const { value: shown, inherited } = shownArmor(row, type);
-          const value = percent(shown);
+          const { value: shown, inherited } = resolveShownArmor(row, type);
+          const value = parsePercent(shown);
 
           input.value = shown;
           input.className = inherited ? 'inherited' : '';

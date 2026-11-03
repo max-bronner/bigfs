@@ -2,78 +2,25 @@ import { FileType, ProgressLocation, Uri, window, workspace } from "vscode";
 import type { Disposable, LogOutputChannel, TextDocument } from "vscode";
 import type { ArchiveModel } from "../archives/archiveModel";
 import type { VirtualNode } from "../archives/virtualNode";
-import { getFileNodes } from "../archives/virtualNode";
+import { findChild, getFileNodes } from "../archives/virtualTree";
 import { getNodeUri } from "../archives/nodeAddress";
 import type { SageIniSchema } from "../../formats/ini/sageIniSchema";
-import { languageOfArchive } from "../../game/text/gameLanguage";
+import { getArchiveLanguage } from "../../game/text/gameLanguage";
 import {
-  FILE_USES,
   collectEntries,
   reachedThroughMacros,
 } from "../../formats/ini/sageIniEntries";
-import type { EntryBodyToken } from "../../formats/ini/sageIniEntries";
-import { canonicalNamespace } from "../../formats/ini/sageReferenceFields";
+import { toCanonicalNamespace } from "../../formats/ini/sageReferenceFields";
 import { SAGE_INI_LANGUAGE } from "../../constants";
 import { findString, parseStringTable } from "../../formats/str/sageStringTable";
-import type { SageString } from "../../formats/str/sageStringTable";
+import { createSageIniTables } from "./sageIniTables";
+import type {
+  SageDefinition,
+  SageMacro,
+  SageReference,
+  SageStringPlace,
+} from "./sageIniTables";
 import { decodeIniText } from "../../core/windows1252";
-
-/**
- * Where every definition, reference and macro in every open archive lives, so
- * a name can be followed in every direction the editor asks for.
- *
- * A reference does not say which archive holds its target, and in a real
- * install it usually is not the one being edited: a mod's `Object` refers to a
- * `Weapon` in the base game's `INI.big`. So the index spans every archive the
- * model knows and a lookup never has to guess which file to open.
- *
- * Everything is recorded in the same pass over an entry, because reading it is
- * the expensive part and every question - where is this declared, what uses
- * it, is this a macro - needs exactly the same parse to answer.
- */
-
-/** Where a name was declared, by a block at file scope */
-export interface SageDefinition {
-  uri: Uri;
-  /** Line of the block header, which is what a jump reveals */
-  line: number;
-  /**
-   * Line of the block's closing `End`. Carried so a jump can hand the editor
-   * the whole block as its target range, which is what makes the ctrl-hover
-   * preview show the definition rather than one line of it.
-   */
-  endLine: number;
-  /** The block keyword that declared it, which is the namespace */
-  keyword: string;
-  /** Columns of the name on its line, which a rename replaces */
-  start: number;
-  end: number;
-  /** As written, so a completion offers the corpus's own casing */
-  name: string;
-}
-
-/**
- * A `#define` and where it was written. Macros are a flat global namespace:
- * once any file defines one, every later file sees it, which is why they are
- * indexed alongside definitions rather than per file.
- */
-export interface SageMacro {
-  name: string;
-  /** The replacement text, which a hover shows */
-  value: string;
-  /** Columns of the name on its line, which a rename replaces */
-  start: number;
-  end: number;
-  uri: Uri;
-  line: number;
-}
-
-/** A string table record and the file that holds it */
-export interface SageStringPlace extends SageString {
-  uri: Uri;
-  /** The language of the `lang/<Language>.big` it came from; none for a loose file */
-  language?: string;
-}
 
 /**
  * Whether a string table is a map's own, which the engine searches only after
@@ -81,24 +28,6 @@ export interface SageStringPlace extends SageString {
  */
 const isMapStringTable = (uri: Uri): boolean =>
   uri.path.toLowerCase().endsWith("/map.str");
-
-/** Where a name was used, as the value of a reference field or a macro */
-export interface SageReference {
-  uri: Uri;
-  line: number;
-  /** Columns of the value token, so the peek view can highlight it */
-  start: number;
-  end: number;
-  /** The field the value sat on, for the peek header */
-  field: string;
-}
-
-export { FILE_USES };
-
-/** A token of a macro's body and the file that holds it */
-interface SageBodyToken extends EntryBodyToken {
-  uri: Uri;
-}
 
 /** How long typing has to pause before an open document is read again */
 const OPEN_DOCUMENT_DELAY_MS = 300;
@@ -112,102 +41,28 @@ const LOOSE_PATTERN = "**/*.{ini,inc,bhav,str,INI,INC,BHAV,STR}";
 const isSageEntry = (node: VirtualNode): boolean =>
   node.type === FileType.File && ENTRY_PATTERN.test(node.entryPath);
 
-/** Adds an entry to a namespace keyed table, folding both keys */
-const record = <T>(
-  table: Map<string, Map<string, T[]>>,
-  namespace: string,
-  name: string,
-  value: T,
-): void => {
-  const byName = table.get(namespace.toLowerCase()) ?? new Map<string, T[]>();
-  const key = name.toLowerCase();
-
-  byName.set(key, [...(byName.get(key) ?? []), value]);
-  table.set(namespace.toLowerCase(), byName);
-};
-
 /**
- * Whether a place was contributed by what a key names: an archive's root,
- * which holds many files, or one loose file
+ * Index of where every definition, reference, macro and string table record
+ * in every archive and loose file lives, so a name can be followed in every
+ * direction the editor asks for.
+ *
+ * A reference does not say which archive holds its target, and in a real
+ * install it usually is not the one being edited: a mod's `Object` refers to a
+ * `Weapon` in the base game's `INI.big`. So the index spans every archive the
+ * model knows and a lookup never has to guess which file to open.
+ *
+ * Everything is recorded in the same pass over an entry, because reading it is
+ * the expensive part and every question - where is this declared, what uses
+ * it, is this a macro - needs exactly the same parse to answer.
  */
-const isUnderRoot = ({ uri }: { uri: Uri }, rootKey: string): boolean => {
-  const path = uri.path.toLowerCase();
-
-  return path === rootKey || path.startsWith(`${rootKey}/`);
-};
-
-/** Drops the places an archive contributed from a flat name-to-places table */
-const purgeList = <T extends { uri: Uri }>(
-  table: Map<string, T[]>,
-  rootKey: string,
-): void => {
-  for (const [key, places] of table) {
-    const kept = places.filter((place) => !isUnderRoot(place, rootKey));
-
-    if (kept.length) {
-      table.set(key, kept);
-    } else {
-      table.delete(key);
-    }
-  }
-};
-
-/** Drops the entries an archive contributed from a flat single-value table */
-const purgeOne = <T extends { uri: Uri }>(
-  table: Map<string, T>,
-  rootKey: string,
-): void => {
-  for (const [key, value] of table) {
-    if (isUnderRoot(value, rootKey)) {
-      table.delete(key);
-    }
-  }
-};
-
-/** Drops the places an archive contributed from a namespace-keyed table */
-const purgeNamespaced = <T extends { uri: Uri }>(
-  table: Map<string, Map<string, T[]>>,
-  rootKey: string,
-): void => {
-  for (const byName of table.values()) {
-    purgeList(byName, rootKey);
-  }
-};
-
 export class SageIniIndex implements Disposable {
-  private definitions = new Map<string, Map<string, SageDefinition[]>>();
-  private references = new Map<string, Map<string, SageReference[]>>();
-
-  /** Every `#define`, folded, since the dialect matches names without casing */
-  private macros = new Map<string, SageMacro>();
-
-  /**
-   * Where every SCREAMING_SNAKE value was written, folded. Whether such a name
-   * is a macro or an enum word depends on files that may not be read yet, so
-   * every candidate is kept and the macro table decides at lookup time.
-   */
-  private constantUses = new Map<string, SageReference[]>();
-
-  /**
-   * Every token of every macro body, by lowercased text. A macro written as a
-   * field's value stands for its body, so what the body spells is used there.
-   */
-  private bodyTokens = new Map<string, SageBodyToken[]>();
-
-  /**
-   * The files whose entries are in the tables, by lowercased address. A file
-   * read twice - by overlapping scans, or from disk and from the editor -
-   * replaces its first entries instead of adding to them.
-   */
-  private indexedFiles = new Set<string>();
+  /** Everything indexed, with the file each entry came from */
+  private readonly tables = createSageIniTables();
 
   /** The version of each open document the index last read, by address */
   private openVersions = new Map<string, number>();
 
   private readonly pendingOpen = new Map<string, NodeJS.Timeout>();
-
-  /** Every string table record of every language, by lowercased label, in load order */
-  private strings = new Map<string, SageStringPlace[]>();
 
   /** The records of the chosen language, built when first asked for */
   private activeStrings?: Map<string, SageStringPlace>;
@@ -217,6 +72,17 @@ export class SageIniIndex implements Disposable {
   private indexed = new Set<string>();
 
   private building?: Promise<void>;
+
+  /** The last re-read of saved entries, which a lookup waits for */
+  private refreshing: Promise<void> = Promise.resolve();
+
+  /**
+   * Whether something may be unread: set at the start, when another game is
+   * picked, and when the archives change or are found again. A lookup with
+   * nothing unread skips the build, which otherwise searches the workspace
+   * for loose files every time a hover or a check asks.
+   */
+  private needsBuild = true;
   private readonly subscriptions: Disposable[];
 
   public constructor(
@@ -225,6 +91,9 @@ export class SageIniIndex implements Disposable {
     private readonly log: LogOutputChannel,
   ) {
     const watcher = workspace.createFileSystemWatcher(LOOSE_PATTERN);
+    // A folder created with files already in it, such as an unpacked mod, is
+    // reported as the folder alone, so the files are left to the next build
+    const creations = workspace.createFileSystemWatcher("**/*", false, true, true);
     const reindexLooseFile = (uri: Uri) => {
       this.forget(uri.path.toLowerCase());
 
@@ -232,16 +101,39 @@ export class SageIniIndex implements Disposable {
         void this.indexLooseFile(uri).catch((error: unknown) =>
           this.log.error(`Failed to index ${uri.fsPath}`, error),
         );
+      } else {
+        // Nothing is indexed yet, so the next lookup's build reads the file
+        this.needsBuild = true;
       }
     };
 
     this.subscriptions = [
       // An archive that changed on disk has to be read again, and one that was
       // removed has to stop answering lookups
-      archiveModel.onDidChangeArchive(({ rootPath }) => {
-        this.forget(rootPath.toLowerCase());
+      archiveModel.onDidChangeArchive(
+        ({ rootPath, archivePath, loaded, entries }) => {
+          const rootKey = rootPath.toLowerCase();
+
+          // A save that names its entries only changes those, so the rest of
+          // the archive keeps the entries it has
+          if (entries && !this.building && this.indexed.has(rootKey)) {
+            this.refreshEntries(archivePath, rootKey, entries);
+            return;
+          }
+
+          this.forget(rootKey);
+          // Reading an archive's table for the first time adds no archive
+          this.needsBuild ||= !loaded;
+        },
+      ),
+      archiveModel.onDidScan(() => {
+        this.needsBuild = true;
       }),
       watcher,
+      creations,
+      creations.onDidCreate(() => {
+        this.needsBuild = true;
+      }),
       watcher.onDidChange(reindexLooseFile),
       watcher.onDidCreate(reindexLooseFile),
       watcher.onDidDelete((uri) => this.forget(uri.path.toLowerCase())),
@@ -255,6 +147,7 @@ export class SageIniIndex implements Disposable {
     ];
   }
 
+  /** Stops watching archives, loose files and open documents */
   public dispose(): void {
     this.pendingOpen.forEach((timeout) => clearTimeout(timeout));
     this.subscriptions.forEach((subscription) => subscription.dispose());
@@ -266,38 +159,33 @@ export class SageIniIndex implements Disposable {
    * differently.
    */
   public reset(): void {
-    this.definitions.clear();
-    this.references.clear();
-    this.macros.clear();
-    this.constantUses.clear();
-    this.bodyTokens.clear();
-    this.indexedFiles.clear();
+    this.tables.clear();
     this.openVersions.clear();
-    this.strings.clear();
     this.activeStrings = undefined;
     this.indexed.clear();
+    this.needsBuild = true;
   }
 
   /**
-   * The macro a name defines, if it is one. Checked before any namespace: a
+   * Finds the macro a name defines, if it is one. Checked before any namespace: a
    * macro reference is written exactly like a cross reference, and the engine
    * substitutes the macro before anything else looks at the value.
    */
   public findMacro(name: string): SageMacro | undefined {
-    return this.macros.get(name.toLowerCase());
+    return this.tables.macros.get(name.toLowerCase());
   }
 
   /**
-   * The string table record an INI value names, such as the text a
+   * Finds the string table record an INI value names, such as the text a
    * `DisplayName = OBJECT:GondorFighter` shows, if it names one
    */
   public findString(value: string): SageStringPlace | undefined {
-    return findString(this.activeTable(), value) as SageStringPlace | undefined;
+    return findString(this.getActiveStringTable(), value) as SageStringPlace | undefined;
   }
 
-  /** How many string table records are indexed in the chosen language */
+  /** Number of string table records indexed in the chosen language */
   public get stringCount(): number {
-    return this.activeTable().size;
+    return this.getActiveStringTable().size;
   }
 
   /**
@@ -312,14 +200,14 @@ export class SageIniIndex implements Disposable {
   }
 
   /**
-   * One record per label: the first in load order that is in the chosen
+   * Gets one record per label: the first in load order that is in the chosen
    * language, a map's own table only when the main tables have none
    */
-  private activeTable(): Map<string, SageStringPlace> {
+  private getActiveStringTable(): Map<string, SageStringPlace> {
     if (!this.activeStrings) {
       const table = new Map<string, SageStringPlace>();
 
-      for (const [key, places] of this.strings) {
+      for (const [key, places] of this.tables.strings) {
         const usable = places.filter(
           (place) => !place.language || place.language === this.language,
         );
@@ -335,45 +223,45 @@ export class SageIniIndex implements Disposable {
     return this.activeStrings;
   }
 
-  /** Every place a macro is used, which is what find references answers with */
+  /** Finds every place a macro is used, which is what find references answers with */
   public findMacroUses(name: string): readonly SageReference[] {
-    return this.constantUses.get(name.toLowerCase()) ?? [];
+    return this.tables.constantUses.get(name.toLowerCase()) ?? [];
   }
 
-  /** Every macro name, which completion offers on any field */
-  public getMacroNames(): SageMacro[] {
-    return [...this.macros.values()].sort((a, b) =>
+  /** Gets every macro, sorted by name, which completion offers on any field */
+  public getMacros(): SageMacro[] {
+    return [...this.tables.macros.values()].sort((a, b) =>
       a.name.localeCompare(b.name),
     );
   }
 
-  /** Every place a name is declared in a namespace */
+  /** Finds every place a name is declared in a namespace */
   public findDefinitions(
     namespace: string,
     name: string,
   ): readonly SageDefinition[] {
     return (
-      this.definitions
-        .get(canonicalNamespace(namespace).toLowerCase())
+      this.tables.definitions
+        .get(toCanonicalNamespace(namespace).toLowerCase())
         ?.get(name.toLowerCase()) ?? []
     );
   }
 
-  /** How many distinct names a namespace declares across everything indexed */
+  /** Counts the distinct names a namespace declares across everything indexed */
   public countDefinitions(namespace: string): number {
     return (
-      this.definitions.get(canonicalNamespace(namespace).toLowerCase())?.size ??
+      this.tables.definitions.get(toCanonicalNamespace(namespace).toLowerCase())?.size ??
       0
     );
   }
 
   /**
-   * Every name declared in a namespace, in the casing it was declared with.
+   * Gets every name declared in a namespace, in the casing it was declared with.
    * This is what completion offers on a reference field's value.
    */
   public getNames(namespace: string): string[] {
-    const byName = this.definitions.get(
-      canonicalNamespace(namespace).toLowerCase(),
+    const byName = this.tables.definitions.get(
+      toCanonicalNamespace(namespace).toLowerCase(),
     );
 
     if (!byName) {
@@ -390,8 +278,9 @@ export class SageIniIndex implements Disposable {
   }
 
   /**
-   * Every definition no reference field anywhere names, in the namespaces
+   * Finds every definition no reference field anywhere names, in the namespaces
    * some reference field can name at all; `include` picks which places count
+   * and `skip` names lowercased namespaces to leave out
    */
   public findUnreferenced(
     include: (definition: SageDefinition) => boolean,
@@ -399,12 +288,12 @@ export class SageIniIndex implements Disposable {
   ): SageDefinition[] {
     const unused: SageDefinition[] = [];
 
-    for (const [namespace, byName] of this.definitions) {
-      if (skip.has(namespace) || !this.references.has(namespace)) {
+    for (const [namespace, byName] of this.tables.definitions) {
+      if (skip.has(namespace) || !this.tables.references.has(namespace)) {
         continue;
       }
 
-      const named = this.references.get(namespace)!;
+      const named = this.tables.references.get(namespace)!;
 
       for (const [name, definitions] of byName) {
         if (!named.get(name)?.length) {
@@ -415,16 +304,16 @@ export class SageIniIndex implements Disposable {
     return unused;
   }
 
-  /** Every place a name is used as a reference value */
+  /** Finds every place a name is used as a reference value, including through a macro's body */
   public findReferences(
     namespace: string,
     name: string,
   ): readonly SageReference[] {
-    const key = canonicalNamespace(namespace).toLowerCase();
+    const key = toCanonicalNamespace(namespace).toLowerCase();
     const folded = name.toLowerCase();
-    const written = this.references.get(key);
+    const written = this.tables.references.get(key);
     const direct = written?.get(folded) ?? [];
-    const holders = this.bodyTokens.get(folded);
+    const holders = this.tables.bodyTokens.get(folded);
 
     if (!holders?.length || !written) {
       return direct;
@@ -434,7 +323,7 @@ export class SageIniIndex implements Disposable {
     // its body, so the body's spelling of the name is a use of it too
     const viaMacros = reachedThroughMacros(
       holders,
-      this.bodyTokens,
+      this.tables.bodyTokens,
       (macro) => (written.get(macro)?.length ?? 0) > 0,
     ).map(
       (holder): SageReference => ({
@@ -442,7 +331,7 @@ export class SageIniIndex implements Disposable {
         line: holder.line,
         start: holder.start,
         end: holder.end,
-        field: `#define ${this.macros.get(holder.macro)?.name ?? holder.macro}`,
+        field: `#define ${this.tables.macros.get(holder.macro)?.name ?? holder.macro}`,
       }),
     );
 
@@ -455,12 +344,17 @@ export class SageIniIndex implements Disposable {
    * progress notification up rather than leaving the editor looking idle.
    */
   public whenReady(): Promise<void> {
-    this.building ??= this.buildWithProgress();
+    if (!this.building && this.needsBuild) {
+      this.building = this.buildWithProgress();
+    }
 
-    return this.building;
+    return (this.building ?? Promise.resolve()).then(() => this.refreshing);
   }
 
   private async buildWithProgress(): Promise<void> {
+    // A change that lands during the build sets this again, and is read by the next
+    this.needsBuild = false;
+
     try {
       await window.withProgress(
         {
@@ -472,9 +366,65 @@ export class SageIniIndex implements Disposable {
     } catch (error) {
       // A failed index leaves navigation empty rather than breaking the editor
       this.log.error("Failed to index INI definitions", error);
+      this.needsBuild = true;
     } finally {
       this.building = undefined;
     }
+  }
+
+  /**
+   * Reads the entries a save changed again, in place of what the index held
+   * for them: the ones written are read, and the ones removed or moved away
+   * stop answering
+   */
+  private refreshEntries(
+    archivePath: string,
+    rootKey: string,
+    entries: readonly string[],
+  ): void {
+    entries.forEach((entry) =>
+      this.purge(`${rootKey}/${entry.toLowerCase()}`),
+    );
+    this.openVersions.clear();
+    this.refreshing = this.refreshing
+      .then(() => this.readEntries(archivePath, entries))
+      .catch((error: unknown) =>
+        this.log.error(`Failed to index ${archivePath}`, error),
+      );
+  }
+
+  private async readEntries(
+    archivePath: string,
+    entries: readonly string[],
+  ): Promise<void> {
+    const archive = this.archiveModel.getArchiveByPath(archivePath);
+
+    if (archive) {
+      const schema = await this.getSchema();
+      const nodes = new Set(
+        entries.flatMap((entry) => {
+          const found = findChild(archive.root, entry);
+
+          return found ? getFileNodes(found).filter(isSageEntry) : [];
+        }),
+      );
+
+      await this.archiveModel.readFiles(
+        [...nodes].map((node) => ({ node })),
+        async ({ node }, content) => {
+          this.indexContent(
+            getNodeUri(node),
+            node.entryPath,
+            content,
+            schema,
+            getArchiveLanguage(archive.archivePath),
+          );
+        },
+      );
+    }
+
+    // What is open and unsaved is newer than anything read from the archive
+    await this.syncOpenDocuments();
   }
 
   private forget(rootKey: string): void {
@@ -485,18 +435,7 @@ export class SageIniIndex implements Disposable {
 
   /** Drops everything a root or a single file contributed */
   private purge(rootKey: string): void {
-    for (const file of this.indexedFiles) {
-      if (file === rootKey || file.startsWith(`${rootKey}/`)) {
-        this.indexedFiles.delete(file);
-      }
-    }
-
-    purgeNamespaced(this.definitions, rootKey);
-    purgeNamespaced(this.references, rootKey);
-    purgeOne(this.macros, rootKey);
-    purgeList(this.constantUses, rootKey);
-    purgeList(this.bodyTokens, rootKey);
-    purgeList(this.strings, rootKey);
+    this.tables.purge(rootKey);
     this.activeStrings = undefined;
   }
 
@@ -658,20 +597,15 @@ export class SageIniIndex implements Disposable {
           node.entryPath,
           content,
           schema,
-          languageOfArchive(root.archive.archivePath),
+          getArchiveLanguage(root.archive.archivePath),
         );
       },
     );
   }
 
-  /** Records the records of one string table, behind the main table's */
+  /** Adds the records of one string table, behind those of the tables read before it */
   private indexStrings(uri: Uri, text: string, language?: string): void {
-    for (const [key, record] of parseStringTable(text)) {
-      this.strings.set(key, [
-        ...(this.strings.get(key) ?? []),
-        { ...record, uri, language },
-      ]);
-    }
+    this.tables.replaceStrings(uri, parseStringTable(text), language);
     this.activeStrings = undefined;
   }
 
@@ -683,8 +617,8 @@ export class SageIniIndex implements Disposable {
     schema: SageIniSchema,
     language?: string,
   ): void {
-    // The WHATWG `latin1` decoder is Windows-1252, which is what the text in
-    // the string tables means: 0x92 is an apostrophe there
+    // Decoded as Windows-1252, which is what the text in the string tables
+    // means: 0x92 is an apostrophe there
     this.indexText(uri, entryPath, decodeIniText(content), schema, language);
   }
 
@@ -700,43 +634,6 @@ export class SageIniIndex implements Disposable {
       return;
     }
 
-    const fileKey = uri.path.toLowerCase();
-
-    if (this.indexedFiles.has(fileKey)) {
-      this.purge(fileKey);
-    }
-
-    this.indexedFiles.add(fileKey);
-
-    const entries = collectEntries(text, entryPath, schema);
-
-    entries.macros.forEach((macro) => {
-      this.macros.set(macro.name.toLowerCase(), { ...macro, uri });
-    });
-
-    entries.bodyTokens.forEach((token) => {
-      const list = this.bodyTokens.get(token.text) ?? [];
-
-      list.push({ ...token, uri });
-      this.bodyTokens.set(token.text, list);
-    });
-
-    entries.definitions.forEach(({ namespace, ...definition }) =>
-      record(this.definitions, namespace, definition.name, {
-        uri,
-        ...definition,
-      }),
-    );
-
-    entries.constantUses.forEach(({ key, ...use }) =>
-      this.constantUses.set(key, [
-        ...(this.constantUses.get(key) ?? []),
-        { uri, ...use },
-      ]),
-    );
-
-    entries.references.forEach(({ namespace, name, ...place }) =>
-      record(this.references, namespace, name, { uri, ...place }),
-    );
+    this.tables.replaceFile(uri, collectEntries(text, entryPath, schema));
   }
 }

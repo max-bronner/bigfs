@@ -11,72 +11,72 @@ import { Image, buildConst } from './aptSynth';
 const SIGNATURE = 0x09876543;
 
 /**
- * A movie with a shape, an image, a sprite placing the shape and an edit
+ * Builds a movie with a shape, an image, a sprite placing the shape and an edit
  * text; one frame placing the sprite, labelled, with an action.
  */
 export const buildMovie = () => {
   const apt = new Image();
 
-  apt.u8(...Array.from('Apt Data:7\x1a\0', (c) => c.charCodeAt(0)));
+  apt.writeU8(...Array.from('Apt Data:7\x1a\0', (c) => c.charCodeAt(0)));
   apt.align();
 
-  const shape = apt.u32(1, SIGNATURE);
-  apt.f32(0, 0, 10, 10);
-  apt.u32(1);
+  const shape = apt.writeU32(1, SIGNATURE);
+  apt.writeF32(0, 0, 10, 10);
+  apt.writeU32(1);
 
-  const image = apt.u32(7, SIGNATURE, 2);
+  const image = apt.writeU32(7, SIGNATURE, 2);
 
   // Sprite: one frame placing character 1 at depth 1
-  const place = apt.u32(3, 0x02 | 0x04, 1, 1);
-  apt.f32(1, 0, 0, 1, 5, 6);
-  apt.u32(0xffffffff, 0);
-  apt.f32(0);
-  apt.u32(0, 0, 0);
-  const spriteItems = apt.u32(place);
-  const spriteFrames = apt.u32(1, spriteItems);
-  const sprite = apt.u32(5, SIGNATURE, 1, spriteFrames, 0);
+  const place = apt.writeU32(3, 0x02 | 0x04, 1, 1);
+  apt.writeF32(1, 0, 0, 1, 5, 6);
+  apt.writeU32(0xffffffff, 0);
+  apt.writeF32(0);
+  apt.writeU32(0, 0, 0);
+  const spriteItems = apt.writeU32(place);
+  const spriteFrames = apt.writeU32(1, spriteItems);
+  const sprite = apt.writeU32(5, SIGNATURE, 1, spriteFrames, 0);
 
-  const text = apt.string('Hello');
-  const variable = apt.string('_parent.label');
-  const editText = apt.u32(2, SIGNATURE);
-  apt.f32(0, 0, 100, 20);
-  apt.u32(0, 1, 0xffffcc00);
-  apt.f32(12);
-  apt.u32(1, 0, 0, text, variable);
+  const text = apt.writeString('Hello');
+  const variable = apt.writeString('_parent.label');
+  const editText = apt.writeU32(2, SIGNATURE);
+  apt.writeF32(0, 0, 100, 20);
+  apt.writeU32(0, 1, 0xffffcc00);
+  apt.writeF32(12);
+  apt.writeU32(1, 0, 0, text, variable);
 
   // Action block: ConstantPool [0, 1]; push "go"; branch over a Stop; End
   apt.align();
-  const poolList = apt.u32(0, 1);
-  const go = apt.string('go');
-  const block = apt.u8(0x88);
+  const poolList = apt.writeU32(0, 1);
+  const go = apt.writeString('go');
+  const block = apt.writeU8(0x88);
   apt.align();
-  apt.u32(2, poolList);
-  const pushAt = apt.u8(0xa1);
+  apt.writeU32(2, poolList);
+  const pushAt = apt.writeU8(0xa1);
   apt.align();
-  apt.u32(go);
-  apt.u8(0x99);
+  apt.writeU32(go);
+  apt.writeU8(0x99);
   apt.align();
-  apt.u32(1);
-  apt.u8(0x07, 0x00);
+  apt.writeU32(1);
+  apt.writeU8(0x07, 0x00);
 
   // Root frame: place the sprite, a label, the action
   apt.align();
-  const label = apt.string('_start');
+  const label = apt.writeString('_start');
   apt.align();
-  const rootPlace = apt.u32(3, 0x02, 2, 3);
-  apt.u32(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-  const rootLabel = apt.u32(2, label, 0, 0);
-  const rootAction = apt.u32(1, block);
-  const rootItems = apt.u32(rootPlace, rootLabel, rootAction);
-  const rootFrames = apt.u32(3, rootItems);
+  const rootPlace = apt.writeU32(3, 0x02, 2, 3);
+  apt.writeU32(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  const rootLabel = apt.writeU32(2, label, 0, 0);
+  const rootAction = apt.writeU32(1, block);
+  const rootItems = apt.writeU32(rootPlace, rootLabel, rootAction);
+  const rootFrames = apt.writeU32(3, rootItems);
 
-  const exportName = apt.string('Label');
+  const exportName = apt.writeString('Label');
   apt.align();
-  const exports = apt.u32(exportName, 4);
-  const characters = apt.u32(0, shape, image, sprite, editText);
+  const exports = apt.writeU32(exportName, 4);
+  const characters = apt.writeU32(0, shape, image, sprite, editText);
 
-  const movie = apt.u32(9, SIGNATURE, 1, rootFrames, 0, 5, characters);
-  apt.u32(1024, 768, 33, 0, 0, 1, exports, 0);
+  const movie = apt.writeU32(9, SIGNATURE, 1, rootFrames, 0, 5, characters);
+  apt.writeU32(1024, 768, 33, 0, 0, 1, exports, 0);
   apt.patch(characters, movie);
 
   return {

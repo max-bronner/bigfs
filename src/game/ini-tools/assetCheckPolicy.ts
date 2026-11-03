@@ -7,13 +7,16 @@
  * word.
  */
 
-/** `.w3d` files the base game alone ships many more of */
+/** Fewest loaded `.w3d` files that show `auto` found the base game, which alone ships many more */
 export const AUTO_MINIMUM_MODELS = 200;
 
+/** The missing-asset check setting: decided from the files loaded, or forced on or off */
 export type AssetCheckMode = 'auto' | 'on' | 'off';
 
+/** Outcome of `decideAssetCheck`: run the check, skip it, or skip it for want of a base game */
 export type AssetCheckDecision = 'check' | 'off' | 'no-base-game';
 
+/** Decides whether the missing-asset check runs, from the setting and what is loaded */
 export const decideAssetCheck = (
   mode: AssetCheckMode,
   hasBaseGameFolder: boolean,

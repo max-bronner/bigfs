@@ -1,28 +1,34 @@
 /** Small DOM builders for the details panel */
 
+/** Gets a page element by id, typed as the caller expects it to be */
 export const byId = <T extends HTMLElement = HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
 
+/** Escapes text for use in HTML markup or a double-quoted attribute */
 export const escapeHtml = (text: string): string =>
   text.replace(
     /[&<>"]/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!,
   );
 
+/** Kind of value an `input` edits: `text` is multi-line, `hex` a 32-bit word */
 export type InputKind = 'number' | 'text' | 'line' | 'hex';
 
-/** An input that commits on change: a number, a text, a line or a hex word */
-export function input(
+/**
+ * Creates an input that commits on change: a number, a text, a line or a hex
+ * word. A number that does not parse marks the input invalid and is not committed.
+ */
+export function createInput(
   value: unknown,
   onCommit: (value: number) => void,
   kind?: 'number' | 'hex',
 ): HTMLInputElement;
-export function input(
+export function createInput(
   value: unknown,
   onCommit: (value: string) => void,
   kind: 'text' | 'line',
 ): HTMLInputElement | HTMLTextAreaElement;
-export function input(
+export function createInput(
   value: unknown,
   onCommit: (value: never) => void,
   kind: InputKind = 'number',
@@ -60,8 +66,8 @@ export function input(
   return element;
 }
 
-/** A labelled row of controls */
-export const row = (label: string, ...controls: Node[]): HTMLDivElement => {
+/** Creates a labelled row of controls */
+export const createRow = (label: string, ...controls: Node[]): HTMLDivElement => {
   const element = document.createElement('div');
   const name = document.createElement('label');
 
@@ -71,7 +77,8 @@ export const row = (label: string, ...controls: Node[]): HTMLDivElement => {
   return element;
 };
 
-export const button = (
+/** Creates a button that runs `onClick` when pressed */
+export const createButton = (
   label: string,
   onClick: () => void,
 ): HTMLButtonElement => {
@@ -82,7 +89,8 @@ export const button = (
   return element;
 };
 
-export const heading = (text: string): HTMLHeadingElement => {
+/** Creates a section heading for the details panel */
+export const createHeading = (text: string): HTMLHeadingElement => {
   const element = document.createElement('h3');
 
   element.textContent = text;

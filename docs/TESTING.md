@@ -30,8 +30,8 @@ tables, `.cah`) deserves one load in the game as well.
     `particlesystem.ini`, `commandset.ini`, `commandbutton.ini`,
     `weapon.ini`, `armor.ini`), a few `.str` / `.csf` tables, a `.wnd`;
   - `.apt` movies with their `.const` and `.dat` (MainMenu, Palantir, Options,
-    LoadScreen), a few `.w3d` models and animations (a hero such as Aragorn,
-    plus a building with several levels of detail), `.tga` / `.dds`, `.wav` /
+    LoadScreen), a few `.w3d` models and animations (a hero such as Aragorn),
+    `.tga` / `.dds`, `.wav` /
     `.mp3`, `.vp6`;
   - maps (`.map`, `.bse`, a `.scb`) and one `MyHero_*.cah`.
 - **A second mod folder** and, optionally, a second install, to check load
@@ -88,6 +88,37 @@ tables, `.cah`) deserves one load in the game as well.
 - [ ] **new** **Archive root holds its own folders.** Select an archive and
   some of its folders together and run Extract (or Delete): the archive is
   handled once. Drag an archive onto one of its own folders: refused.
+- [ ] **new** **New Archive… and archive rows.** Right-click a folder row (or
+  the workspace row when there is one source) in *BIG Archives*: **New
+  Archive…** is offered, and not on a base game source. Type `mod`: `mod.big`
+  appears (add `.big` yourself and it is not doubled). Try `con`, `a:b`, a
+  name with `/`, an empty name and `MOD` when `mod.big` exists: each is refused
+  in the input box before anything is written. Right-click the new archive:
+  New File…, New Folder…, Add Files…, **Rename…** and **Delete** (moves to the
+  trash after a confirmation) are all there; rename it and it keeps its place.
+  Expect the empty archive to open with no entries and to take its first file.
+  Not yet seen in a running VS Code by the author.
+- [ ] **new** **Entry names are checked.** New File… / New Folder… / Rename…
+  inside an archive refuse an empty or blank name, `.`, `..`, names with a
+  trailing dot (spaces around a typed name are trimmed), `\`, `/`, `con`, `aux.txt`,
+  `<>:"|?*`, `€` or Japanese letters, and a name that matches an existing one
+  in any casing. Dragging a folder holding such a file in from the OS skips
+  just those files with one warning and adds the rest.
+- [ ] **new** **Menus on read-only rows.** In a base game archive (not in the
+  workspace) right-click an archive, folder and file: Extract…, Copy, Copy Path
+  and Override in Folder… are offered; New File, Cut, Rename, Delete, Paste are
+  not. In *Show What the Game Loads*, a folder offers Extract… and Override in
+  Folder….
+- [ ] **new** **Drag and drop, all directions.** Drag a file and a folder from
+  the OS file manager, and from the VS Code Explorer, onto an archive, a
+  folder in an archive and a file (its folder is used). Drag within an archive
+  and between two archives; a folder onto itself or its own child is refused;
+  onto its own folder does nothing. Drag a `.big` from the OS onto a folder row:
+  it is copied there, and a name already present (any casing) is left alone.
+  Dragging an entry **out** to the OS or the Explorer cannot be done by the
+  extension (VS Code gives a tree no way to hand over files): use Extract….
+  An entry open with unsaved edits cannot be moved, renamed or deleted until it
+  is saved or closed.
 - [ ] **new** **Find Game Installs.** Run **BIG: Find Game Installs** (also
   offered once on first start when `bigfs.baseGameFolder` and
   `bigfs.underlyingGameFolder` are empty). Expect a quick pick of installs
@@ -99,8 +130,167 @@ tables, `.cah`) deserves one load in the game as well.
   not defaulted into the base game folder.
 - [ ] **new** **Override in Folder…** on an archive file or folder (including
   one from the base game): copies it into a mod folder at the same path.
-- [ ] **new** **Search in BIG Archives…** (view title bar): text found inside
-  every archive, results open at the match.
+- [ ] **changed** **Search in BIG Archives…** (view title bar, or Command
+  Palette) now focuses the **Search in Archives** view under the archive tree
+  instead of a quick pick. With text selected in an editor it becomes the query.
+  Type `GondorFighter`: results stream in grouped by archive, then file, with a
+  count and a badge per group; each hit is highlighted with two lines of
+  context either side (change **Context lines** and search again); a click on
+  a line opens that entry with the match selected, on the right line.
+- [ ] **new** In the search view: **Aa** (match case), **ab** (whole word) and
+  **.\*** (regular expression) each re-run the search; `Armor\s*=\s*\w+Armor`
+  with regex on finds lines, a broken pattern such as `(` shows the error
+  under the box instead of results. **files to include** `*.ini` or
+  `data/ini` and **files to exclude** `data/lang/**` narrow the entries
+  (comma separated; `{a,b}` works). Cancel stops a running search. A very common
+  word stops at 5000 matches and the note under the count says so. A pattern
+  like `(\w+\s?)+X# Manual test guide
+
+Everything `dev/next` adds or changes over `master`, written so it can be
+ticked off by hand against a real install and a throwaway mod. Each item says
+what it is, the steps, and what should happen. Items are marked **new** (does
+not exist on `master`) or **changed** (exists on `master`, behaves differently
+now). The automated gate (`npm ci && npm run check-types && npm run lint &&
+npm run test:unit`, plus `xvfb-run -a npm test` for the integration suite)
+covers the logic with synthetic files; this guide covers what only eyes, a
+real window and the game can show.
+
+Nothing here has been verified in the game itself. Anything that writes game
+files (archives, W3D animations, APT movies, maps, VP6, textures, string
+tables, `.cah`) deserves one load in the game as well.
+
+## Test data you need
+
+- **Game installs, read-only.** One or more of BFME, BFME II and The Rise of
+  the Witch-king (ROTWK). Never open an install as your workspace to edit it,
+  never edit an archive in it, and never save a file from it. bigFS treats
+  `bigfs.baseGameFolder` and `bigfs.underlyingGameFolder` as read-only; the
+  only thing to do with them is read, extract or copy out.
+- **A test mod folder.** Make an empty folder (for example `~/bigfs-test-mod`)
+  and open it as the VS Code workspace. Put into it, by copying out of the
+  install (Extract… or Override in Folder…):
+  - two or three small `.big` archives of your own (use **Pack into BIG
+    Archive…** on a folder of copied files, or copy small archives such as an
+    INI or `lang/` one), at least two writable ones;
+  - loose INI files (`data/ini/object/*.ini`, `fxlist.ini`,
+    `particlesystem.ini`, `commandset.ini`, `commandbutton.ini`,
+    `weapon.ini`, `armor.ini`), a few `.str` / `.csf` tables, a `.wnd`;
+  - `.apt` movies with their `.const` and `.dat` (MainMenu, Palantir, Options,
+    LoadScreen), a few `.w3d` models and animations (a hero such as Aragorn),
+    `.tga` / `.dds`, `.wav` /
+    `.mp3`, `.vp6`;
+  - maps (`.map`, `.bse`, a `.scb`) and one `MyHero_*.cah`.
+- **A second mod folder** and, optionally, a second install, to check load
+  order (mod over ROTWK over BFME II).
+- **Settings to set first** (Settings → Extensions → bigFS): `bigfs.baseGameFolder`
+  to the ROTWK install, `bigfs.underlyingGameFolder` to BFME II, `bigfs.ini.game`
+  to match. See *Settings* at the end for every setting.
+- **FFmpeg** on the PATH (or `bigfs.ffmpegPath`) and a short video, an image
+  and a folder of numbered PNG frames for the VP6 conversion.
+- Install the `.vsix` from the latest CI run of `dev/next`, or run
+  `npm ci && npm run compile` and launch the extension host (F5).
+- Keep a clean copy of the test mod to start from: several steps write files.
+
+## Explorer & archives
+
+- [ ] **changed** **BIG Archives view.** Open the test mod folder. The
+  *BIG Archives* view in the Explorer lists every `.big` in the workspace as
+  folders. Expect: an archive is read only when expanded or opened; the empty
+  folder shows "Open a folder…" and a folder without archives shows "No BIG
+  archives were found" with a Refresh link.
+- [ ] **changed** **Edit in place.** In a writable archive: New File…, New
+  Folder…, Rename… (F2), Delete (Del), Cut / Copy / Paste (Ctrl+X/C/V),
+  Duplicate, drag and drop, Copy Path, Copy Relative Path, Add Files…,
+  Extract… (file, folder, whole archive). Expect: each works and saves;
+  names, duplicates, header and trailer stay as shipped; the game still loads
+  the archive. A save shows a brief status bar message, not a toast. An
+  extract name that would escape the target folder is refused.
+- [ ] **changed** **Commands act on the row you click.** Right-click a
+  `.tga`/`.dds` in an archive while a different file is open in the editor:
+  Export as PNG and Replace with PNG… act on the clicked file. Same for a
+  `.png` (Convert to Game Texture…), a `.str`/`.csf` (Convert String Table),
+  a folder or archive (New APT Movie…, no picker), an `.apt` (Rename APT
+  Movie…, Delete APT Movie…), a video (Convert to VP6 Movie…) and a `.w3d`
+  (Edit W3D Animation…). In the game view the winning copy is used.
+- [ ] **changed** **Tree keys leave text fields alone.** Focus the tree's
+  find box and press F2, Delete, Ctrl+X/C/V: the text field handles them, not
+  the tree. Source and disk-folder rows do not offer New File, Add Files and
+  the other archive-only entries.
+- [ ] **new** **Copy and move between archives.** With two writable archives
+  A and B: copy a file and a folder in A, paste on B or a folder in B; then
+  cut and paste; then drag. Expect: a name already there asks Replace, Skip or
+  Keep Both (Keep Both adds ` copy`); Esc cancels and changes nothing; the
+  target archive is saved once; a cut removes the files from the source
+  archive afterwards.
+- [ ] **new** **Base game as a source.** Copy a file out of a base game
+  archive (in `bigfs.baseGameFolder`) into a writable archive: works. Cut or
+  drag it: the file stays in the base game and the message says Copied. Paste,
+  rename, delete or save into a base game archive: refused with a message that
+  says what to do instead (Override in Folder). A workspace folder that is
+  also the base game stays writable.
+- [ ] **new** **Loose folder into an archive.** Drag a folder from the VS Code
+  Explorer into an archive holding some of the same files: the same Replace,
+  Skip, Keep Both prompt.
+- [ ] **new** **Archive root holds its own folders.** Select an archive and
+  some of its folders together and run Extract (or Delete): the archive is
+  handled once. Drag an archive onto one of its own folders: refused.
+- [ ] **new** **New Archive… and archive rows.** Right-click a folder row (or
+  the workspace row when there is one source) in *BIG Archives*: **New
+  Archive…** is offered, and not on a base game source. Type `mod`: `mod.big`
+  appears (add `.big` yourself and it is not doubled). Try `con`, `a:b`, a
+  name with `/`, an empty name and `MOD` when `mod.big` exists: each is refused
+  in the input box before anything is written. Right-click the new archive:
+  New File…, New Folder…, Add Files…, **Rename…** and **Delete** (moves to the
+  trash after a confirmation) are all there; rename it and it keeps its place.
+  Expect the empty archive to open with no entries and to take its first file.
+  Not yet seen in a running VS Code by the author.
+- [ ] **new** **Entry names are checked.** New File… / New Folder… / Rename…
+  inside an archive refuse an empty or blank name, `.`, `..`, names with a
+  trailing dot (spaces around a typed name are trimmed), `\`, `/`, `con`, `aux.txt`,
+  `<>:"|?*`, `€` or Japanese letters, and a name that matches an existing one
+  in any casing. Dragging a folder holding such a file in from the OS skips
+  just those files with one warning and adds the rest.
+- [ ] **new** **Menus on read-only rows.** In a base game archive (not in the
+  workspace) right-click an archive, folder and file: Extract…, Copy, Copy Path
+  and Override in Folder… are offered; New File, Cut, Rename, Delete, Paste are
+  not. In *Show What the Game Loads*, a folder offers Extract… and Override in
+  Folder….
+- [ ] **new** **Drag and drop, all directions.** Drag a file and a folder from
+  the OS file manager, and from the VS Code Explorer, onto an archive, a
+  folder in an archive and a file (its folder is used). Drag within an archive
+  and between two archives; a folder onto itself or its own child is refused;
+  onto its own folder does nothing. Drag a `.big` from the OS onto a folder row:
+  it is copied there, and a name already present (any casing) is left alone.
+  Dragging an entry **out** to the OS or the Explorer cannot be done by the
+  extension (VS Code gives a tree no way to hand over files): use Extract….
+  An entry open with unsaved edits cannot be moved, renamed or deleted until it
+  is saved or closed.
+- [ ] **new** **Find Game Installs.** Run **BIG: Find Game Installs** (also
+  offered once on first start when `bigfs.baseGameFolder` and
+  `bigfs.underlyingGameFolder` are empty). Expect a quick pick of installs
+  found through the registry, Program Files, EA app, Origin, and Wine / Proton
+  / CrossOver prefixes (Linux, macOS). Picking ROTWK also sets BFME II beneath
+  it. Dismissing changes no setting and the start-up offer does not return.
+- [ ] **new** **Pack into BIG Archive…** on a folder in the Explorer: a `.big`
+  with the folder's files, hidden files and archives left out; the output is
+  not defaulted into the base game folder.
+- [ ] **new** **Override in Folder…** on an archive file or folder (including
+  one from the base game): copies it into a mod folder at the same path.
+ with regex on gives up with a message after a few
+  seconds instead of freezing VS Code. Binary entries are never opened by it.
+  Line numbers and columns in the editor agree with the highlighted match
+  (check on a file with accented characters).
+- [ ] **new** **Go to File in Archives…** (`Ctrl+Alt+P`, `Cmd+Alt+P`; also in
+  the archive tree's title menu): type `gondorf` or `data/ini/obj`; rows show
+  the file name with the folder and archive beside it, matches are
+  highlighted, a match at the start of a name ranks first, and the list
+  updates without lag on a full install. Empty box: files opened this way
+  before, newest first. A path held by several archives (try `object.ini`
+  with a mod folder open) is listed once per archive; the copy the game loads
+  says so and the others say which archive overrides them. Loose files of the
+  mod folder are listed too. Enter opens the entry; the **Reveal in BIG
+  Archives** button selects it in the tree, in both views. Check the key does not
+  clash in **Keyboard Shortcuts** (search for `ctrl+alt+p`).
 - [ ] **new** **Show What the Game Loads** / **Show Every Archive** (title bar
   button; same as `bigfs.explorer.view`): the merged tree lists only the
   winning file for each path; the per-archive tree lists everything.
@@ -251,6 +441,21 @@ Open any `.ini`, `.inc` or `.bhav` (language `sage-ini`).
   need editing.
 - [ ] **new** **Audio events:** **▶ Play** lens, and play links on hover (see
   *Audio*).
+- [ ] **new** **INI index speed:** open the workspace with a base game folder
+  set and, once the status bar stops showing "bigFS: indexing INI definitions",
+  hover a reference, press F12 on it and open Find References: all answer with
+  the same results as before. The indexing notice appears once after startup,
+  not again on every hover or edit. Indexing a full BFME II plus ROTWK install
+  takes about 4 s of background work instead of about 12 s.
+- [ ] **new** **Typing in a large INI** (for example
+  `data/ini/object/civilian/civilianbuildings.ini`): after each pause the
+  definitions, hover and diagnostics of the file follow your edit without the
+  editor stalling; a definition you rename or delete stops answering and a new
+  one starts answering.
+- [ ] **new** **Saving inside an archive:** edit and save an INI that sits in a
+  writable archive (for example a copy of `INI.big`) and then hover or F12 a
+  name that file defines: the answer is current within a moment, and no
+  indexing notice appears for the rest of the archive.
 
 ## STR, CSF & WND
 
@@ -286,13 +491,41 @@ Open any `.ini`, `.inc` or `.bhav` (language `sage-ini`).
 Open an `.apt` (with its `.const` and `.dat` beside it) in **bigFS APT
 Movie**.
 
+- [ ] **new** Opening a big movie right after VS Code starts (MainMenu, Palantir,
+  LoadScreen from `apt/*.big`): a line above the toolbar says what it is doing
+  ("Reading MainMenu…", "Reading imported movies: …", "Checking the movie…")
+  and vanishes when done. The movie itself appears first, then the imported
+  movies fill in; it finishes in a few seconds, not tens of seconds, and the
+  list, stage and Integrity line match what a second open shows.
 - [ ] **new** Characters list, stage, details; sprites play; imports resolve
   across archives in the game's priority (mod, ROTWK, BFME II); a movie
   inside an archive opens with its own `.const` / `.dat` even where casing
   differs.
+- [ ] **changed** Zoom **Fit** fills the column and holds while a movie
+  plays, in Inspect and Interact; it changes only when the window is resized
+  or another character is selected. It no longer shrinks to a speck.
 - [ ] **new** Inspector; picking on the stage (click, double-click goes
   inside); overlays origin (O), boxes (B), wireframe (W); **Interact** (I)
   makes buttons respond.
+- [ ] **changed** **Interact** on `MainMenu`: hover a nav button and its
+  sub-menu rolls out; move away and it closes; move across the nav buttons and
+  they swap. `QuitMainMenu` and `MyHeroes` play their hover effect.
+- [ ] **changed** **Interact**: a button whose over state shows other art
+  changes on hover; a clip that carries mouse handlers responds
+  (`GadgetColorPicker`, the `Strategic…` panels); hold a button and drag off
+  it: it runs its drag script, not its roll-out; a button hidden by a mask
+  takes no pointer. A button that appears under a still pointer rolls over.
+- [ ] **changed** Engine panel on `Palantir`: set `SetPalantirFrameState` to
+  `_evil` and press **Call**. The stage plays on its own and the frame changes.
+  **Restart with these overrides** ends on the same frame, and so does closing
+  and reopening the movie; **Clear overrides** forgets the call. Same with
+  `SetFaction` on `InGameHeroSelect`.
+- [ ] **changed** Playing a movie: scripts see clips already on their new frame,
+  a frame's scripts take their place among what it places, so `InitColoredTextString`
+  and friends are defined when text fields start (`StrategicConflictResults`
+  logs no engine call for them), a `gotoAndStop` past the end lands on the last frame, and a clip hidden with
+  `_visible` keeps animating when shown again; `_width` and `_height` of a clip
+  read what it shows.
 - [ ] **new** Editing with undo: text, colours, bounds, exports, imports,
   placements, frame labels, frames, new text / sprite / shape / image
   characters, geometry and texture import, remove characters.
@@ -426,7 +659,8 @@ Movie**.
 - [ ] **new** Movie sounds: *Sounds the movie asks for* lists each
   `FSCommand:PlaySound` event with count and **▶ Play**; the log says "not
   played, Play movie sounds is off". Tick **Play movie sounds** and hover the
-  menu's buttons: sounds play. The box is off every time and not remembered.
+  menu's buttons: sounds play in the page, no tab opens. The box is off every time
+  and not remembered.
 - [ ] **new** Gadgets and MappedImage surfaces: in a menu with sliders, check
   boxes, list / combo boxes, text entries, scroll bars or progress bars, turn
   on **Interact** and use the controls over the stage (bound to `_value`,
@@ -435,6 +669,57 @@ Movie**.
   `_imageName` / `_imageMap` draws its `MappedImage` (open the game's INI so it
   is indexed); an undefined image or unknown `_type` is a labelled dashed box,
   never an error. The Engine panel loads without a movie.
+- [ ] **new** View3D surfaces: open `MenuFrameAndBg` from an install and select
+  the sprites holding a `View3D` clip (`BackgroundShow`, `MenuFrame`): the
+  game's W3D model fills the clip's box, seen through its own `CAMERA`, in
+  place of the magenta placeholder. Press play: `PLAY_TO_FRAME` runs the model's
+  animation to its `_Frame` and stops; a still stage shows where it comes to
+  rest. Masks, fades and anything drawn above the clip apply to the model. The
+  Engine panel lists each with `_RenderObj`, `_AnimMode` and `_Frame` to
+  override. A name no install holds is a dashed box saying so; an empty
+  `_RenderObj` (`BannerUI`) draws nothing. At most 16 models load at a time,
+  only when shown.
+- [ ] **new** Engine suggestions: with the game's INI indexed, open `Palantir`
+  and focus the `state` field of *Called by the engine* `SetPalantirFrameState`:
+  the field is a text box with a drop-down of `_good`, `_evil`, `_goodSingle`
+  and `_evilSingle`, each noting the sides it shows. Pick `_evil`, press
+  **Call**: the palantir changes. Typing any other text still works. In
+  `InGameHeroSelect`, `SetFaction` offers the sides (`Men`, `Mordor`, ...);
+  pick one and press **Call**: the all-heroes button changes colour. In
+  `LoadScreen`, the **Gadgets** rank icons (`UIClip.Level.n`) offer the
+  `AptRankIcon...` images; a pick shows at once. With no game indexed no
+  drop-down is listed. Needs eyes: the drop-down list itself in the real VS Code
+  webview.
+  The button's colour follows `SetFaction`; whether it shows is the movie's
+  `SetSelectAllHeroesButtonState`, which wants one of the clip's frame labels
+  and has no list yet, so type the state there.
+- [ ] **new** More engine suggestions: in `InGameHeroSelect` the hero picture
+  fields (`_level0_Hero2Image`) offer the hero portraits (objects with
+  `KindOf HERO`); pick `HIAragorn` and slot 2 shows him. In
+  `StrategicDetailsArmies` the `IconSlotPortrait` fields offer `SelectPortrait`
+  images, and `SetIconSlotState` offers `_empty`, `_selected`, `_up`: call it
+  with slot 0 and `_selected`, the slot gets its frame. In `CahClass` the
+  `Cah::ClassIcon` and `Cah::TypeIcon` fields offer the create-a-hero icons, in
+  `CahPowers` the power icon fields offer the power buttons' pictures, and the
+  externs `TimeLine:PlayerColor:n` and `GameLoading:PlayerColor:n` offer the
+  colours. Hovering a field says whether mint binds the set. Needs eyes: the
+  lists in the real webview, and that the class icons paint on `CahClass`.
+- [ ] **new** Engine images: with the game's INI indexed, open `MainMenu` and
+  play: `InstallLoad` fills the screen behind the movie and the logo fades in
+  where the magenta square was. The Engine panel's **Gadgets** section gives
+  `MainMenu.Image`, **Shell background** and every other image surface a field
+  whose placeholder is what the game supplies, saying it is inferred. Type a
+  `MappedImage` name or a texture file (`LoadScreenForeground`, `art.tga`) and
+  the picture changes; `black` fills it, `none` empties it; the choice comes back
+  when the movie is reopened and **Clear overrides** drops it. In `Palantir` the
+  faction icon is `AptIconMen` and the portrait black. A disabled button's
+  picture is grey. A surface only the live game fills is a labelled dashed box.
+- [ ] **new** View3D materials move: a `View3D` model whose materials scroll,
+  rotate or step through a flipbook (a glow or water model named by a
+  `_RenderObj`) animates while the stage plays and holds still when it is
+  paused, instead of showing its first picture for ever. A model with no moving
+  material is drawn once and not redrawn.
+- Known gaps: `View3D` models do not take the clip's red, green and blue tint.
 - Known gaps: pointer events on plain clips (`onPress` on a sprite) are only
   delivered to buttons; a movie loaded into `_level0` is refused; a mounted
   movie's own `onLoad` clip events do not run.
@@ -443,24 +728,142 @@ Movie**.
 
 Open a `.w3d` from an archive or folder (**bigFS Preview**).
 
+- [ ] **new** **One viewer.** Open a `.w3d` (from an archive, or Ctrl-click a model
+  name in an INI), then **▶ Preview object** and an FX **Preview**: all three show
+  the same two bars above the view in the same order: animation list, **Play**,
+  **Stop**, **Restart**, **Step**, time slider, speed, **Loop**, then **Bones**,
+  **Model**, **Show hidden**, **Show boxes**, **Grid**, level of detail, sky. A
+  control that does not apply stays, greyed. The same grid, orbit, right-drag pan,
+  wheel zoom and double-click reset work on all three. A plain `.w3d` has no
+  panel but its facts, **Parts** and **Used in**.
+- [ ] **new** Time: **Stop** goes to the start and stays there. **Step** moves one
+  step. Dragging the slider moves a clip and materials, and on an FX replays to
+  that time, backwards too. With **Loop** off a clip stops on its last frame and
+  **Play** starts it again. Speed works on clips as it does on FX.
 - [ ] **changed** Models are textured as the game draws them (units,
   buildings, props, shader materials): correct V orientation, the drawn pass's
   texture and coordinates, holes from alpha, glows not drawn solid.
+- [ ] **new** A mesh draws every material pass and every texture or shader its
+  triangles name: `eugaldrl_skn` shows its second, additive pass over the first,
+  and `armyantsm_gm01` shows each face with its own texture
+  instead of one texture over the whole mesh.
+- [ ] **changed** Back faces are culled unless a mesh is marked two-sided, and
+  each shader's blend pair and depth test are honoured: look through a one-sided
+  glow plane from behind and it is gone; `gbhseheal` and `ebfcmoat` blend as
+  light, not as flat alpha. Meshes named `PICK…` are off, and **Parts** says why.
+- [ ] **new** Material colours show: a mesh glows by its emissive colour, a tinted
+  material tints, vertex colours paint or shade a mesh instead of it drawing
+  flat or black (`sfe_menuspells`'s cylinders, trees and banners with `DCG`),
+  an alpha material fades by its opacity, and skies and other meshes that switch
+  the lights off show their texture as stored, whatever the angle.
+- [ ] **new** A second texture stage shows, combined as the shader says: lightmaps
+  and detail textures darken or colour the first (`aubomcat`, `armyantsglow`), textures marked clamped no longer repeat past their edge
+  (`ch_staff04`), and bump water (`ebfcmoat`) ripples what is under it instead of
+  showing the height map as a colour.
+- [ ] **new** Texture animation runs: torch and fire flipbooks step through their
+  sheet (`bb_torch`), water and glows scroll (`armyantsglow`), rings rotate
+  (`ch_staff04`, `sfe_armydecal`) and metal shows a reflection that slides as you
+  orbit (`exwatersphere`, `sfe_menuspells`). Such a model has a **Play**/**Pause**
+  button even with no skeleton. Pausing, Space and dragging the frame slider stop
+  or move the effects with the clip, and the particle preview's **On a model…**
+  runs them on its own clock and stops with its pause.
+- [ ] **new** House colour: a unit whose texture `housecolor.ini` lists wears the
+  default blue on its masked parts (`guarcher_skn`, `muorcwar_skn`, shields on
+  `gb` buildings), with no prompt. Only the masked parts change, not the face. It
+  needs `housecolor.ini` in the game view or workspace; a normal-mapped mesh never
+  takes it.
+- [ ] **new** Normal-mapped meshes show their relief and highlight: stone joints
+  and carved trim on buildings and heroes (`gbfortress`, `gbfarm_a`) stand out
+  and catch the light as you orbit, and a posed or animated model keeps them.
+  The info line's "textures not found" names a normal map no archive holds.
 - [ ] **new** Opening an animation (`X_ATKA.w3d`) plays it on its model: the
   one an object's INI plays it on, else found by skeleton name; the info line
   says which. A skeleton or animation with no model shows its bones.
+- [ ] **changed** The animation list holds a skeleton's own clips first, then a
+  group "Made for other skeletons" with the files that share the stem but
+  animate another rig, each with that rig's name (open `dugloin_skl`). Files
+  with no animation are not listed. Picking one plays it, as the game applies
+  any clip by bone number, and the line under the model says
+  "… is made for X; retail would apply it by bone number".
+- [ ] **changed** An animation file whose object INI names a model plays on that
+  model even across rigs, with the same line under the model.
+- [ ] **changed** In the object preview an INI-named clip of another skeleton
+  plays on the INI's model, with the same words as the notice.
+- [ ] **changed** A skeleton is found by the name inside its file, as the game
+  looks it up: `rupsnt_2_skn` names `RUPSNT_2_SKL`, whose file holds a hierarchy
+  called `RUPSNT_1_SKL`, so the info line shows no skeleton and no Bones toggle
+  or animations, instead of the other rig.
 - [ ] **new** Bones are off when meshes exist; **B** toggles them.
 - [ ] **new** "Used in" under the model lists INI lines naming the file, each
   a link to the line.
 - [ ] **new** Meshes with the HIDDEN attribute are not drawn; **Show hidden**
   (offered only if the model has one) draws them.
-- [ ] **new** HLOD: one level of detail at a time, finest first; the dropdown
-  lists each with mesh count and max screen size; the aggregate and proxy lists
-  are named under the model.
+- [ ] **changed** Under the model, **Parts** opens a list of its meshes with a
+  checkbox each. The heading counts what is drawn and says how many the W3D
+  HIDDEN flag turns off. A file alone has no INI, so everything else starts on;
+  the list says so. Untick a part and it goes; tick a hidden one and it shows.
+- [ ] **changed** Object preview hides parts as the game does. **Preview object**
+  on `GoblinCaveTroll` (`cavetroll.ini`): no `TRUNK01` or `ROCK` on the troll,
+  and the panel says "Hidden parts:" with what hid each (`OnTrollCreated in
+  scripts.lua`, `IdleAnimationState script`). Pick `AnimationState = WEAPONSTATE_ONE`
+  and the trunk appears. The **Hidden parts** checkbox draws them all. Scripts
+  are read, never run: a call under a condition or chance is listed as "Not
+  applied, depends on the running game". This needs `scripts.lua` and
+  `scriptevents.xml` in the game view; without them only the INI's part applies.
+- [ ] **changed** A `SubObjectsUpgrade` hides nothing before it fires, as in the
+  game: on a building with upgrades (`MordorTrollCage`) the `V2` parts now draw
+  unless a script or the HIDDEN flag hides them, and the panel names the
+  upgrade only when it starts active or `OnCreated` grants it. Hiding a part also
+  hides the parts on bones below it: pick a part that carries another on a child
+  bone and see both go. Plain script hides carry from the idle state into the
+  state you pick, and a permanent write always beats a plain one. A state naming
+  `DAMAGED`, `REALLYDAMAGED` or `RUBBLE` applies that `TransitionDamageFX` list.
+- [ ] **changed** A script's test of `CurDrawablePrevAnimationState()` is decided
+  for the object preview, which enters a state from idle: the block runs when it
+  names the idle state's `StateName`. Pick a state with such a test (search the
+  INI for `Prev ==`): its calls leave "Not applied, depends on the running game",
+  and a call under chance or `CurDrawableAllowToContinue` stays listed there.
+- [ ] **changed** HLOD: only the levels of detail the HLOD header counts are
+  read, as the game reads them. Every retail model counts one, so the level
+  dropdown is gone there and the line under the model says "1 level of detail";
+  a file with more counted levels still gets the dropdown, each with mesh count
+  and max screen size, drawn one at a time. `mugrond_diea` draws its 42 meshes
+  (43 HLOD sub-objects, one a box), and the line says 1 more LOD array is in the
+  file, which the game does not read. The aggregate and proxy lists are named
+  under the model.
 - [ ] **new** **Show boxes** (offered only with `BOX` chunks): green
   wireframe collision boxes in the bind pose, off by default.
 - [ ] **new** Animation list of the skeleton plays on the model: play, pause,
   frame slider.
+- [ ] **changed** A clip's visibility and fade channels work: a prop or rigid
+  part a clip hides disappears for those frames, and one it fades goes
+  see-through. Find one with a building's construction or a death clip. A skin
+  is never hidden this way, as in mint.
+- [ ] **changed** Motion between frames is even: scrub the frame slider of a
+  compressed clip with a wide swing and the limb turns steadily, with no one-frame jump
+  where a bone's channel starts or ends.
+- [ ] **changed** Skins bend on both of a vertex's bones: play a unit or hero
+  (`mugothmog_skn`, `eulorwar_skn`) and look at the joints; a death or
+  attack clip no longer tears a shoulder, shield or hip into long spikes. The
+  bind pose changes too: a mod's skin whose bone number runs past its skeleton
+  keeps its place instead of dropping onto the root.
+- [ ] **changed** A skin with one vertex stream follows each vertex's first bone
+  only, its weights ignored, as the game does. No shipped model is known to look
+  different; a mod's skin with weights but no `VERTICES_2` may.
+- [ ] **changed** Between frames a channel follows the game's rule: an uncompressed
+  clip snaps to the nearest whole frame and never blends, and in a compressed clip
+  a key marked as held steps instead of easing, type 15 opacity included. Scrub the
+  frame slider slowly on an uncompressed clip: it should move in steps.
+- [ ] **changed** A clip's rotations are used as stored, not normalised, as the
+  game does: a bone with a rotation that is not of unit length scales what hangs
+  from it. Play `mucavtroll_skn` with its clips: limbs may sit up to about 0.3
+  units from before, and should match the game.
+- [ ] **changed** A skin with two vertex streams uses its stored weights raw, as
+  the game does: no shipped model is known to look different, and a mod's skin
+  whose two percentages do not sum to 100 draws nearer the origin.
+- [ ] **changed** **Edit W3D Animation…** reads channels as playback does: a held
+  key stays held when a clip is retimed instead of easing, and a channel eases to
+  no change past its range. Retime a clip and compare it with the original.
 - [ ] **new** **Edit W3D Animation…** (`.w3d` menu): retime, reverse, ease,
   trim, change rate; written as a new file. Rate must be a whole number from 1
   to 1000 (`12.5`, `0.4`, `0` rejected; `24` works). Load one in the game.
@@ -499,13 +902,29 @@ File**.
 
 Sound is opt-in: opening a view never plays anything.
 
-- [ ] **new** WAV (including IMA ADPCM) and MP3 playback in **bigFS Preview**.
+- [ ] **new** WAV (including IMA ADPCM) playback in **bigFS Preview**. Open an
+  IMA ADPCM one (about half of BFME II's sounds, for example from `Audio.big`):
+  it plays. **Changed:** an `.mp3` (a `Music.big` track, also from a link in an
+  INI file) opens in VS Code's own audio preview, from inside the archive too,
+  and plays from its controls only.
 - [ ] **new** **▶ Play** lens on audio event blocks (AudioEvent, Multisound,
   EVA headers; not `AudioEvent = X` fields), and play links on hover of a
-  sound or event name. One click plays one file; several variants (role,
-  subsound or side) ask which; an attack is never chained to its body. A name
-  with several variants in a map script or voice asks which. **Play Audio
-  Event** is the command behind them.
+  sound or event name. One click plays one file at once, in the **Sound**
+  panel (it opens beside the editor; if the panel says to press ▶, press its
+  button once and later sounds play by themselves). An event plays its
+  `Sounds` entry, never its attack chained to its body; the hover lists the
+  other variants. The **Open file** lens and the hover's open link open the
+  sound file instead. **Play Audio Event** is the command behind them.
+- [ ] **new** Play buttons in pages play in place and open no tab: the Preview
+  object **Voices** ▶, the FX **Timeline** sound row ▶, the ▶ after a sound
+  parameter in map and `.scb` script trees, and the APT Engine panel ▶. The
+  button shows ■ while its sound plays; pressing it again stops it; pressing
+  another sound replaces it. Ctrl+click (Cmd on macOS) opens the sound file
+  instead and plays nothing; the tooltip says so. A sound with no file in any
+  archive gives one warning and the tooltip says why.
+- [ ] **new** APT **Play movie sounds**: ticked, a `PlaySound` plays in the
+  page the moment the script runs it; unticked, nothing plays and the log says
+  so. Ticking the box is the click that lets the browser start audio.
 - [ ] **new** Resolution: Multisound subsounds to a depth of four (no loop on a
   cycle), EVA events one per side, DialogEvent / MusicTrack / AmbientStream /
   StreamedSound to their `Filename`, Video to `<stem>_Music` and `<stem>`.
@@ -520,10 +939,15 @@ Sound is opt-in: opening a view never plays anything.
 
 ## FX, particles & objects
 
+- **changed** A cylinder emission volume keeps its own running radius, as the game does. Preview `FireFlies02` (a mallorn tree's fireflies): it should be a cloud of dots with `IsParticleUpTowardsEmitter` on, and thin columns with it off.
+
+- **changed** A particle with `IsParticleUpTowardsEmitter` level with its emitter uses the game's `FLT_EPSILON` band, as the game does. This is an offset far below what the eye can see: a preview with the flag on should look as it did.
+
 - [ ] **new** **Particle preview** (Preview lens on `FXParticleSystem`,
   `ParticleSystem`, `FXList`; command **Preview Particle System**): orbit, pan,
   zoom; play, pause, step, restart, speed 0.1× to 4×; moving emitter; hotkeys
-  Space, R, `.`, W (wind), H (hollow box), B (A/B).
+  Space, R, `.`, W (wind), H (hollow box), C (A/B), B (bones).
+- [ ] **changed** A/B moved from `B` to `C`, since `B` is bones in every preview.
 - [ ] **new** A slider per value; **Apply to INI** writes one undoable edit,
   **Reset** drops them; typing in the block updates the preview.
 - [ ] **new** Emission volume handles: drag to size a sphere, cylinder or box;
@@ -537,7 +961,7 @@ Sound is opt-in: opening a view never plays anything.
   fire, smoke, sparks, dust cloud, magic glow, flash; name and texture as tab
   stops.
 - [ ] **new** **On a model…** picks any W3D and a bone, drawn textured and
-  lit, the same as in the W3D viewer.
+  lit, the same as in the W3D viewer, and framed in the view.
 - [ ] **new** FX list **Timeline**: a bar per nugget; mute (click), solo
   (shift-click), drag a delay. `Sound` rows have a ▶ and a **Play sounds** box
   (off); nothing plays by itself.
@@ -556,8 +980,9 @@ Sound is opt-in: opening a view never plays anything.
   `AnimationState`, `IdleAnimationState`: that state's model and first
   animation. Lightbulb **Preview on the object** on an `AnimationName` (plays
   it, `SKELETON.CLIP` names too), an FX line (runs it on the model) and a
-  `ParticleSysBone` line (follows the bone). Toggles for Model, Bones (off) and
-  every effect; State and Animation pickers; a `ChildObject` shows what it
+  `ParticleSysBone` line (follows the bone). Model, Bones (off) and Show hidden are
+  the viewer's buttons and Animation its list; a toggle for every effect; a State
+  picker; the first model is framed in the view; a `ChildObject` shows what it
   inherits; previewing an FX from `fxlist.ini` shows no model.
 - [ ] **changed** The object preview tracks its object by definition name:
   edit the INI; the panel redraws (debounced) and stays on the same object
@@ -582,6 +1007,63 @@ Sound is opt-in: opening a view never plays anything.
 
 ## Textures, video & other formats
 
+- [ ] **new** Edit a MappedImage's region: in an INI file with a `MappedImage`
+  block, click **Edit region in texture** above its header (or run **BIG: Edit
+  MappedImage Region in Texture** with the cursor in the block). The texture
+  opens beside it with a References panel and the block's rectangle selected
+  as a blue box. Drag inside the box to move it, drag a corner to resize it, or
+  type the four edges into the panel. Each change is written to the `Coords`
+  line of the INI document as one text edit: **Undo** in the INI editor takes
+  it back and the box follows; nothing is saved until you save the INI. A
+  rotated image (`Status = ROTATED_90_CLOCKWISE`) has a dashed box and the panel
+  says it is the packed rect: the edges you drag are the `Coords`, width and
+  height are not swapped. A texture shipped at another size than the block's
+  `TextureWidth`/`TextureHeight` still writes `Coords` in the stated size. A
+  block in a base game archive shows its box but cannot be dragged; the
+  warning offers **Override in Folder**.
+- [ ] **new** References panel of a texture: open any `.tga`/`.dds` from the
+  explorer (for example `aptcomponents_001`, or a UI atlas such as
+  `scgameuserinterface512_001`). Beside the image a panel lists, under
+  "References (n) · searching…" while it works, every `MappedImage` whose
+  `Texture` names the file and, for an `apt_<movie>_<n>` texture, every shape
+  of that movie that samples it; all their boxes are drawn on the image.
+  Click a name or a box to select it (blue, with corner handles); with more
+  than a dozen a filter box appears. Selecting one shows its edges: drag it,
+  resize it by a corner or type the numbers, as for **Edit region in
+  texture**, and **Open definition** jumps to its INI block or `.ru` line. The
+  list appears after the preview, never before it; closing the preview stops
+  the search. With no game or no INI loaded the panel simply does not show;
+  a texture nothing uses shows no panel.
+- [ ] **changed** Texture editor layout and scale. Open a UI atlas such as
+  `aptcomponents_001` or `apt_cahpowers_1` with its References panel showing.
+  **Fit** must leave the whole image visible left of the panel, never under
+  it, and keep doing so when the panel appears after the search finds
+  references, when you drag the bar between image and panel (the panel
+  resizes, Fit follows) and when you resize the window. Press **+** until 800%
+  or more: the image scrolls inside its own area, the References list stays
+  put, and every box stays exactly on its image while you scroll, at any
+  zoom, on a screen with display scaling (125%, 150%) too; box edges stay
+  sharp and boxes do not disappear at the highest zoom. Select a reference
+  and zoom to a small icon: the box frames the icon's tile.
+- [ ] **new** **Pop out** (toolbar of a texture). Click it: the editor moves
+  to its own window (the same as **Move Editor into New Window**), where the
+  image and the References list fill the window side by side. The zoom you set
+  and the width you gave the panel are kept; check that the references list
+  returns, a reference you select again can still be dragged and an edit still shows in
+  the INI or `.ru` file's editor. Drag the editor back into the main window
+  and check again. Needs VS Code 1.85 or later.
+- [ ] **new** `.ru` geometry texture regions: open a shape's
+  `<movie>_geometry/<n>.ru` from the explorer (it opens as plain text, as
+  before). Each `s tc:` line has a lens saying which image it samples and the
+  box on that image, for example "Samples image #3, 12,40 to 88,120
+  (76×80)". Click it (or run **BIG: Show APT Geometry Texture Region** with the
+  cursor in the style): the movie's texture opens beside it with that box
+  selected. The texture is found through the movie beside the geometry folder
+  (its Image character and `.dat`); with no movie there you get a message
+  saying so. Drag or resize the box: only that `s tc:` line is rewritten, as
+  an undoable edit, a turned mapping keeps its turn, and the triangles are
+  untouched. Close the movie in the APT editor first, which holds its own copy
+  of the `.ru`. In a base game archive the box is shown but locked.
 - [ ] **new** TGA and DDS previews (DXT1/3/5, uncompressed) with zoom,
   channels, mip levels. EAR-compressed textures open (no "TGA image type 82").
 - [ ] **new** **Export as PNG**, **Replace with PNG…** (written back in the
@@ -590,6 +1072,43 @@ Sound is opt-in: opening a view never plays anything.
 - [ ] **new** VP6 playback with seeking, alpha over a checkerboard. Seek to the
   end of a movie with alpha (for example a credits movie): no "inter frame
   without a preceding key frame". A 0-byte `.vp6` says "The file is empty".
+- [ ] **new** VP6 slider: drag it across a long movie, forwards and back, while
+  playing and while paused. The picture follows the thumb (each stop is the
+  frame the label names), the thumb does not jump back under the pointer, and
+  after letting go the movie stays on that frame; Play continues from it.
+  Dragging to a frame far from a key frame is slower but the last stop wins.
+- [ ] **new** Cursor preview: open a `.cur` from the install's `data/cursors`
+  (copied out, or a loose file in the install opened read-only). The image
+  shows on a checkerboard with its size and hotspot, and the hotspot pixel is
+  outlined in red and white. Open an `.ani` (for example `Beam.ani`): it
+  plays by itself at its own speed, Pause stops it, the slider steps through
+  the sequence and the label names the step, the frame and its duration. Every
+  distinct frame is listed below with its hotspot. A broken or truncated cursor
+  shows an error, not a blank page.
+- [ ] **new** **Export Cursor as PNG…** on a `.cur` (archive explorer or file
+  explorer): a save dialog opens in the workspace, the PNG keeps the shape and
+  transparency, and the message names the hotspot. On an `.ani` a pick list
+  offers all frames or one; all frames asks for a folder and writes
+  `name_01.png`, `name_02.png`, … Nothing is written beside the source.
+- [ ] **new** **Convert to Cursor…** on a PNG: asks for the hotspot (`4,2`; a
+  value outside the image or text is refused in the box), then a save dialog.
+  The `.cur` opens in the preview with the hotspot where typed, and an image
+  over 256 pixels a side says so instead of writing.
+- [ ] **new** **Build Animated Cursor…** (palette): the panel opens empty and
+  says to add images, with Save disabled. **Add Images…** takes several
+  `.png`, `.tga`, `.cur` or `.ani` files at once (an `.ani` adds every frame);
+  each becomes a row with a thumbnail, size, hotspot and duration in ms, and
+  the loop below plays them at those times. Check: the arrows reorder (first
+  up and last down are disabled), duplicate and remove work, a hotspot edit
+  moves the red outline on the thumbnail and the loop, Set All Durations
+  changes every row, Pause stops the loop. Add an image of another size: the
+  message names the frame and Save stays disabled until it is removed. Select
+  several images in the file explorer and run it from their menu: they arrive
+  already added. **Save as .ani…** opens a save dialog in the workspace; the
+  file opens in the preview with the same order, hotspots and timing,. Also pick it
+  in Windows (Mouse settings, Pointers, Browse) to see it animate there, and
+  once in the game via `mouse.ini` in a test mod. Nothing is written until the
+  dialog is confirmed.
 - [ ] **new** **Convert to VP6 Movie…** from a video, an image or a folder of
   numbered frames: size, frame rate, quality asked; the result is decoded
   before saving and plays in the game. `bigfs.vp6.keyFrameSeconds` = 0 makes
@@ -624,9 +1143,11 @@ Explorer view and rows:
 
 - [ ] `bigfs.refreshArchives` Refresh (view title)
 - [ ] `bigfs.searchArchives` Search in BIG Archives… (title)
+- [ ] `bigfs.goToFile` Go to File in Archives… (title, `Ctrl+Alt+P`)
 - [ ] `bigfs.validateIni` Validate INI Files (title)
 - [ ] `bigfs.showGameView` Show What the Game Loads (title)
 - [ ] `bigfs.showArchiveView` Show Every Archive (title)
+- [ ] `bigfs.newArchive` New Archive…
 - [ ] `bigfs.newFile` New File…
 - [ ] `bigfs.newFolder` New Folder…
 - [ ] `bigfs.addFiles` Add Files…
@@ -675,16 +1196,22 @@ Previews and editors:
 - [ ] `bigfs.exportPng` Export as PNG
 - [ ] `bigfs.importImage` Replace with PNG…
 - [ ] `bigfs.convertPng` Convert to Game Texture…
+- [ ] `bigfs.exportCursorPng` Export Cursor as PNG…
+- [ ] `bigfs.convertPngToCursor` Convert to Cursor…
+- [ ] `bigfs.buildAnimatedCursor` Build Animated Cursor…
+- [ ] `bigfs.editMappedImageRegion` Edit MappedImage Region in Texture
+- [ ] `bigfs.showRuRegion` Show APT Geometry Texture Region
 - [ ] `bigfs.convertToVp6` Convert to VP6 Movie…
 - [ ] `bigfs.editW3dAnimation` Edit W3D Animation…
 - [ ] `bigfs.newAptMovie` New APT Movie…
 - [ ] `bigfs.renameAptMovie` Rename APT Movie…
 - [ ] `bigfs.deleteAptMovie` Delete APT Movie…
 - [ ] `bigfs.checkAptMovies` Check APT Movies
+- [ ] `bigfs.openAptText` Open APT as Text (editor title, `.apt` menu)
 
 Custom editors:
 
-- [ ] `bigfs.preview` bigFS Preview (`.tga`, `.dds`, `.wav`, `.mp3`, `.w3d`, `.vp6`)
+- [ ] `bigfs.preview` bigFS Preview (`.tga`, `.dds`, `.wav`, `.w3d`, `.vp6`)
 - [ ] `bigfs.aptEditor` bigFS APT Movie (`.apt`)
 - [ ] `bigfs.strTable` bigFS String Table (`.str`)
 - [ ] `bigfs.csfEditor` bigFS CSF String Table (`.csf`)

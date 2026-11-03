@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import {
-  cahRecordProblem,
+  describeCahRecordProblem,
   cloneCahRecord,
   computeCahCrc,
   parseCah,
@@ -9,24 +9,21 @@ import {
 } from "../../formats/cah/cah";
 import type { CahRecord, ParsedCah } from "../../formats/cah/cah";
 import type { EntryLocator } from "../../services/entryLocator";
-import { decodeIniText } from "../../core/windows1252";
 import type { GameLanguage } from "../../services/ini/gameLanguage";
 import {
-  blingOptions,
-  blockAtLine,
-  readHeroSystem,
-  spentPoints,
-  topBlocks,
+  listBlingOptions,
+  readBlockAtLine,
+  countSpentPoints,
 } from "../../game/objects/cahSystem";
 import type { HeroSystem } from "../../game/objects/cahSystem";
-import { isFragmentPath, parseSageIni } from "../../formats/ini/sageIniParser";
+import { readInstalledHeroSystem } from "../../services/ini/readInstalledHeroSystem";
 import type { SageIniDocuments } from "../../services/ini/sageIniDocuments";
 import type { SageIniIndex } from "../../services/ini/sageIniIndex";
 import { createParseCache } from "../../services/ini/workspaceText";
-import { webviewPage } from "../../platform/webview/webviewPage";
+import { renderWebviewPage } from "../../platform/webview/webviewPage";
 import {
-  pageBundle,
-  pageBundleFolder,
+  getPageBundleOptions,
+  getPageBundleFolder,
 } from "../../platform/webview/pageBundle";
 import type {
   CahNotice,
@@ -58,11 +55,12 @@ import { describeError } from '../../core/errors';
  * recomputes the trailer checksum exactly as mint does (`formats/cah.ts`).
  */
 
+/** View type the Create-a-Hero editor is registered under */
 export const CAH_VIEW_TYPE = "bigfs.cahEditor";
 
 const MAX_U32 = 0xffffffff;
 
-/** What the page sends */
+/** Message from the hero page, with the fields any of its kinds may carry */
 interface PageMessage {
   kind: FromCahPage["kind"];
   index?: number;
@@ -70,7 +68,7 @@ interface PageMessage {
   value?: string;
 }
 
-/** The services the editor resolves names with */
+/** Services the Create-a-Hero editor resolves names and reads files with */
 export interface CahServices {
   documents: SageIniDocuments;
   index: SageIniIndex;
@@ -85,7 +83,7 @@ type CahDocument = SnapshotDocument<CahRecord> & { original: ParsedCah };
 const CAH_FORMAT: SnapshotFormat<CahRecord> = {
   read: (bytes) => parseCah(bytes).record,
   write: (record) => {
-    const problem = cahRecordProblem(record);
+    const problem = describeCahRecordProblem(record);
 
     if (problem) {
       throw new Error(problem);
@@ -94,7 +92,7 @@ const CAH_FORMAT: SnapshotFormat<CahRecord> = {
   },
 };
 
-const whole = (text: string | undefined, what: string): number => {
+const parseWholeNumber = (text: string | undefined, what: string): number => {
   const value = Number(text);
 
   if (!/^\d+$/.test((text ?? "").trim()) || value > MAX_U32) {
@@ -123,8 +121,8 @@ const toPacked = (previous: number, hex: string): number => {
 };
 
 const renderHtml = (webview: vscode.Webview, extensionUri: vscode.Uri): string =>
-  webviewPage({
-    ...pageBundle(extensionUri, webview, "cah"),
+  renderWebviewPage({
+    ...getPageBundleOptions(extensionUri, webview, "cah"),
     style: `
   body { margin: 0; padding: 8px 14px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   h2 { margin: 16px 0 6px; font-size: 1.1em; }
@@ -153,7 +151,7 @@ const renderHtml = (webview: vscode.Webview, extensionUri: vscode.Uri): string =
 <div id="notice" hidden></div>`,
   });
 
-/** The hero file editor: the binary file as a form, saved whole */
+/** Custom editor for Create-a-Hero files: the binary file as a form, saved whole */
 export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocument> {
   private readonly changes = new vscode.EventEmitter<
     vscode.CustomDocumentEditEvent<CahDocument>
@@ -166,6 +164,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     this.parses = createParseCache(services.documents);
   }
 
+  /** Registers the editor for `.cah` files */
   public static register(services: CahServices): vscode.Disposable {
     return vscode.window.registerCustomEditorProvider(
       CAH_VIEW_TYPE,
@@ -174,6 +173,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     );
   }
 
+  /** Reads a hero file into an editable snapshot, keeping the parsed original for its checksum report */
   public async openCustomDocument(
     uri: vscode.Uri,
     context: vscode.CustomDocumentOpenContext,
@@ -205,7 +205,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     redrawSnapshotViews(document);
   }
 
-  /** The create-a-hero tables, read once from the first INI that holds a `CreateAHeroSystem` */
+  /** Reads the create-a-hero tables from the first INI that holds a `CreateAHeroSystem`, once; a miss is retried next time */
   private loadSystem(): Promise<HeroSystem | undefined> {
     this.system ??= this.readSystem().then((system) => {
       if (!system) {
@@ -216,42 +216,21 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     return this.system;
   }
 
-  private async readSystem(): Promise<HeroSystem | undefined> {
+  private readSystem(): Promise<HeroSystem | undefined> {
     const { locator, documents } = this.services;
-    const schema = await documents.getSchema();
-    const names = await locator.findNames(
-      (name) => /^createahero.*\.ini$/.test(name),
-      "**/[Cc]reate[Aa][Hh]ero*.ini",
-    );
 
-    for (const name of names) {
-      const bytes = await locator.read(name, vscode.Uri.file("/"));
-
-      if (!bytes) {
-        continue;
-      }
-
-      const parsed = parseSageIni(decodeIniText(bytes).split(/\r?\n/), schema, {
-        isFragment: isFragmentPath(name),
-      });
-      const blocks = topBlocks(parsed, "CreateAHeroSystem");
-
-      if (blocks.length) {
-        return readHeroSystem(blocks);
-      }
-    }
-    return undefined;
+    return readInstalledHeroSystem(locator, documents);
   }
 
-  /** The fields of a definition the index knows, if its file can be read */
-  private async fieldsOf(namespace: string, name: string) {
+  /** Reads the fields of a definition the index knows, if its file can be read */
+  private async readFields(namespace: string, name: string) {
     const [definition] = this.services.index.findDefinitions(namespace, name);
     const parsed = definition && (await this.parses.get(definition.uri));
 
-    return parsed && blockAtLine(parsed, definition.line)?.fields;
+    return parsed && readBlockAtLine(parsed, definition.line)?.fields;
   }
 
-  private async view(document: CahDocument): Promise<Omit<HeroView, "kind">> {
+  private async buildView(document: CahDocument): Promise<Omit<HeroView, "kind">> {
     const { index, gameLanguage } = this.services;
     const record = document.snapshot;
 
@@ -264,7 +243,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
 
     for (const upgrade of system?.blings.flatMap((b) => b.upgrade ?? []) ??
       []) {
-      const value = (await this.fieldsOf("Upgrade", upgrade))?.get(
+      const value = (await this.readFields("Upgrade", upgrade))?.get(
         "grouporder",
       )?.[0]?.[0];
 
@@ -281,7 +260,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
         (entry) => entry.group?.toLowerCase() === bling.group.toLowerCase(),
       );
       const upgrade = system
-        ? blingOptions(system, chosenSubclass, bling.group, groupOrder)[
+        ? listBlingOptions(system, chosenSubclass, bling.group, groupOrder)[
             bling.index
           ]
         : undefined;
@@ -304,7 +283,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
 
     for (const [slot, power] of record.powers.entries()) {
       const fields = power.button
-        ? await this.fieldsOf("CommandButton", power.button)
+        ? await this.readFields("CommandButton", power.button)
         : undefined;
       const specialPower = fields?.get("specialpower")?.[0]?.[0];
 
@@ -351,7 +330,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
       points: chosenSubclass
         ? {
             total: chosenSubclass.points,
-            spent: spentPoints(
+            spent: countSpentPoints(
               system!,
               chosenSubclass,
               record.blings,
@@ -370,6 +349,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     };
   }
 
+  /** Shows the hero as a form and applies the page's edits as undoable steps */
   public resolveCustomEditor(
     document: CahDocument,
     panel: vscode.WebviewPanel,
@@ -378,14 +358,14 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
 
     panel.webview.options = {
       enableScripts: true,
-      localResourceRoots: [pageBundleFolder(extensionUri)],
+      localResourceRoots: [getPageBundleFolder(extensionUri)],
     };
     panel.webview.html = renderHtml(panel.webview, extensionUri);
 
     const send = async () => {
       const hero: HeroView = {
         kind: "hero",
-        ...(await this.view(document)),
+        ...(await this.buildView(document)),
       };
 
       await panel.webview.postMessage(hero);
@@ -436,7 +416,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
         });
       }
       case "setClass": {
-        const classIndex = whole(value, "The class");
+        const classIndex = parseWholeNumber(value, "The class");
 
         return this.change(document, "Change class", (record) => {
           record.classIndex = classIndex;
@@ -444,7 +424,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
         });
       }
       case "setSubclass": {
-        const subclassIndex = whole(value, "The subclass");
+        const subclassIndex = parseWholeNumber(value, "The subclass");
 
         return this.change(document, "Change subclass", (record) => {
           record.subclassIndex = subclassIndex;
@@ -468,7 +448,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
           field === "button" ? checkName(value.trim(), "The button") : "";
         const number =
           field === "level" || field === "slot"
-            ? whole(value, "The power field")
+            ? parseWholeNumber(value, "The power field")
             : 0;
 
         if (field !== "button" && field !== "level" && field !== "slot") {
@@ -516,7 +496,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
             ? checkName(value.trim(), "The bling group")
             : "";
         const index =
-          message.field === "index" ? whole(value, "The bling index") : 0;
+          message.field === "index" ? parseWholeNumber(value, "The bling index") : 0;
 
         if (message.field === "group" && !group) {
           throw new Error("A bling needs a group name");
@@ -532,6 +512,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     }
   }
 
+  /** Writes the hero back with a recomputed checksum; a read-only file throws */
   public async saveCustomDocument(document: CahDocument): Promise<void> {
     if (document.isReadOnly) {
       throw new Error(
@@ -541,6 +522,7 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     await saveSnapshot(document, CAH_FORMAT);
   }
 
+  /** Writes the hero to another file */
   public saveCustomDocumentAs(
     document: CahDocument,
     destination: vscode.Uri,
@@ -548,10 +530,12 @@ export class CahEditorProvider implements vscode.CustomEditorProvider<CahDocumen
     return saveSnapshot(document, CAH_FORMAT, destination);
   }
 
+  /** Rereads the hero from disk, dropping unsaved edits */
   public revertCustomDocument(document: CahDocument): Promise<void> {
     return revertSnapshot(document, CAH_FORMAT);
   }
 
+  /** Backs up the unsaved hero so it survives a reload */
   public backupCustomDocument(
     document: CahDocument,
     context: vscode.CustomDocumentBackupContext,

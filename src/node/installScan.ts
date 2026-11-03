@@ -29,7 +29,9 @@ export const GAME_FOLDERS: readonly string[] = [
   'fonts',
 ];
 
+/** Folder depth the archive search descends to, so a looping or very deep tree ends */
 const MAX_DEPTH = 8;
+/** Folder depth the loose file walk descends to below the top folders */
 const MAX_LOOSE_DEPTH = 24;
 
 /** Where a scanned file is, to read it */
@@ -37,9 +39,10 @@ export type ScanRef =
   | { kind: 'loose'; path: string; size: number }
   | { kind: 'archive'; path: string; offset: number; size: number };
 
+/** A file a scan found, with where to read it */
 export type ScanFile = GameFile<ScanRef>;
 
-/** Every archive below a folder, found by extension at any depth up to eight */
+/** Finds every archive below a folder by extension, at most eight folders deep */
 export const findArchives = async (
   folder: string,
   depth = 0,
@@ -64,7 +67,7 @@ export const findArchives = async (
 };
 
 /**
- * Entry paths, '/' separated and as written on disk, of the files loose below
+ * Lists the entry paths, '/' separated and as written on disk, of the files loose below
  * the named top folders of an install. Folders are matched without casing;
  * hidden folders and archives are left out.
  */
@@ -114,10 +117,11 @@ export const listLooseFiles = async (
 /** One install: its loose files and its archives, each with the files it holds */
 export interface ScannedInstall extends InstallFiles<ScanRef> {
   folder: string;
+  /** Archives whose index table could not be read, by path below the install */
   unreadable: string[];
 }
 
-/** What a scan leaves out */
+/** Options of a scan, which say what it leaves out */
 export interface ScanOptions {
   /** Archives to ignore, by lowercased path on disk: what bigFS packed itself */
   exclude?: ReadonlySet<string>;

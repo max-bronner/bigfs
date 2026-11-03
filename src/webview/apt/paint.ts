@@ -1,6 +1,6 @@
 import type { Character } from '../../formats/apt/aptMovie';
 import { localise } from './gameText';
-import { UNRESOLVED, localBounds, textureOf } from './scene';
+import { UNRESOLVED, getLocalBounds, getImageTexture } from './scene';
 import type { Leaf } from './scene';
 import { isPlainColor, type ColorTransform } from './timeline';
 
@@ -22,7 +22,7 @@ const MAX_TINTS = 16;
  * A texture drawn through a colour transform's red, green and blue terms,
  * on an offscreen canvas (alpha stays with the caller's `globalAlpha`)
  */
-const tinted = (
+const tintTexture = (
   texture: HTMLCanvasElement,
   { mult, add }: ColorTransform,
 ): HTMLCanvasElement => {
@@ -65,9 +65,9 @@ const tinted = (
   return out;
 };
 
-/** A leaf's texture, tinted when its colour transform asks */
-const shown = (texture: HTMLCanvasElement, leaf: Leaf): HTMLCanvasElement =>
-  isPlainColor(leaf.color) ? texture : tinted(texture, leaf.color);
+/** Gets a leaf's texture, tinted when its colour transform asks */
+export const getTintedTexture = (texture: HTMLCanvasElement, leaf: Leaf): HTMLCanvasElement =>
+  isPlainColor(leaf.color) ? texture : tintTexture(texture, leaf.color);
 
 /** Flash's `TextField` gutter: 2 units of padding inside the box on every side */
 export const TEXT_GUTTER = 2;
@@ -75,18 +75,18 @@ export const TEXT_GUTTER = 2;
 /** The fonts the retail movies name, then the fallbacks to try after them */
 const FONT_FALLBACKS = ['Albertus MT', 'Omnia LT Std'];
 
-/** The CSS font stack of a text field: its own font by name, then the shipped ones */
-export const fontStack = (name?: string): string =>
+/** Builds the CSS font stack of a text field: its own font by name, then the shipped ones */
+export const getFontStack = (name?: string): string =>
   [...new Set([...(name ? [name] : []), ...FONT_FALLBACKS])]
     .map((family) => `'${family.replace(/'/g, '')}'`)
     .concat('sans-serif')
     .join(', ');
 
 /**
- * The text a field shows. The one place the string comes from: a `$KEY`
+ * Gets the text a field shows. The one place the string comes from: a `$KEY`
  * string is read in the game's language here.
  */
-export const textOf = (
+export const getFieldText = (
   leaf: Pick<Leaf, 'text'>,
   character: Extract<Character, { type: 'editText' }>,
 ): string =>
@@ -177,7 +177,7 @@ const leafArea = (leaf: Leaf): Path2D => {
     }
   }
   if (!runs.length) {
-    const [left, top, right, bottom] = localBounds(leaf);
+    const [left, top, right, bottom] = getLocalBounds(leaf);
 
     path.rect(left, top, right - left, bottom - top);
   }
@@ -187,10 +187,10 @@ const leafArea = (leaf: Leaf): Path2D => {
 const areas = new WeakMap<Leaf[], Path2D>();
 
 /**
- * A mask's area in stage space, the union of what its leaves draw: a
+ * Builds a mask's area in stage space, the union of what its leaves draw: a
  * mask's shapes count by where they are, not their colour or alpha
  */
-export const maskArea = (mask: Leaf[]): Path2D => {
+export const buildMaskArea = (mask: Leaf[]): Path2D => {
   let area = areas.get(mask);
 
   if (!area) {
@@ -237,7 +237,7 @@ export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
           ctx.fillStyle = rgba(style.color, leaf.color);
           ctx.fill(path);
         } else if (style.kind === 'texture') {
-          const texture = textureOf(movie, style.character);
+          const texture = getImageTexture(movie, style.character);
 
           ctx.save();
           ctx.clip(path);
@@ -255,7 +255,7 @@ export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
               (m01 * tx - m00 * ty) / det,
             );
             ctx.globalAlpha *= style.color[3] / 255;
-            ctx.drawImage(shown(texture, leaf), 0, 0);
+            ctx.drawImage(getTintedTexture(texture, leaf), 0, 0);
           } else {
             ctx.fillStyle = 'rgba(255,0,255,0.35)';
             ctx.fill(path);
@@ -274,10 +274,10 @@ export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
       }
       break;
     case 'image': {
-      const texture = textureOf(movie, leaf.id);
+      const texture = getImageTexture(movie, leaf.id);
 
       if (texture) {
-        ctx.drawImage(shown(texture, leaf), 0, 0);
+        ctx.drawImage(getTintedTexture(texture, leaf), 0, 0);
       }
       break;
     }
@@ -294,12 +294,12 @@ export const paintLeaf = (ctx: CanvasRenderingContext2D, leaf: Leaf): void => {
         [(color >> 16) & 255, (color >> 8) & 255, color & 255, color >>> 24],
         leaf.color,
       );
-      ctx.font = `${Math.max(1, character.fontHeight)}px ${fontStack(font?.type === 'font' ? font.name : undefined)}`;
+      ctx.font = `${Math.max(1, character.fontHeight)}px ${getFontStack(font?.type === 'font' ? font.name : undefined)}`;
       ctx.textAlign = 'left';
 
       const { lines, baseline } = layoutText(
         character,
-        textOf(leaf, character),
+        getFieldText(leaf, character),
         (line) => ctx.measureText(line).width,
       );
 

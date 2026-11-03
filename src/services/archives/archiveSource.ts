@@ -9,9 +9,9 @@ import type { InstallKind } from '../../game/install/installLayers';
 import { findBaseGameFolders } from './baseGameFolders';
 
 /**
- * A place archives come from. Today that is a folder of the workspace; later
- * it can be a folder added by hand, which is why an archive is identified by
- * its source and its path inside it rather than by the workspace.
+ * A place archives come from: a folder of the workspace, or a base game folder
+ * the settings name. An archive is identified by its source and its path
+ * inside it rather than by the workspace.
  */
 export interface ArchiveSource {
   /** First segment of every uri into this source, stable across sessions */

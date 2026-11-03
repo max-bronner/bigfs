@@ -1,7 +1,7 @@
 import { checkScript } from '../../../formats/apt/aptScript';
 import type { ConstItem } from '../../../formats/apt/aptMovie';
 import { movie, state } from '../state';
-import { errorSpan, segmentScript } from './scriptHighlight';
+import { findErrorSpan, segmentScript } from './scriptHighlight';
 
 /**
  * A script shown as code: highlighted text edited in place. The text is a
@@ -11,6 +11,7 @@ import { errorSpan, segmentScript } from './scriptHighlight';
  * it one undoable change.
  */
 
+/** Options for `scriptField`: the text, how it can be edited and where a change goes */
 export interface ScriptFieldOptions {
   block: number;
   /** The text as the extension decoded it */
@@ -50,6 +51,7 @@ const paintInto = (
   );
 };
 
+/** Creates a script field; a text that does not compile is underlined and not committed */
 export const scriptField = (options: ScriptFieldOptions): HTMLElement => {
   const wrapper = document.createElement('div');
   const code = document.createElement('div');
@@ -123,7 +125,7 @@ export const scriptField = (options: ScriptFieldOptions): HTMLElement => {
 
     if (problem) {
       error = problem.line
-        ? errorSpan(area.value, problem.line, problem.column ?? 1)
+        ? findErrorSpan(area.value, problem.line, problem.column ?? 1)
         : { start: 0, end: Math.min(area.value.length, 1) };
       show(
         problem.line

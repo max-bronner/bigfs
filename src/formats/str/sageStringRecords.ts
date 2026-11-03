@@ -10,6 +10,7 @@ export interface Span {
   end: number;
 }
 
+/** One `.str` record with where its label, text and whole extent sit in the source */
 export interface StringRecord {
   label: string;
   /** The text as the game shows it, or nothing when the record has none */
@@ -41,7 +42,7 @@ export const finishText = (raw: string): string =>
     .replace(/ +(?=[\n\t])/g, '')
     .trim();
 
-/** The quoted form of a text, so that reading it gives the text back */
+/** Quotes and escapes a text so that reading it gives the text back */
 export const quoteStringText = (text: string): string =>
   `"${text
     .replace(/\\/g, '\\\\')
@@ -49,15 +50,15 @@ export const quoteStringText = (text: string): string =>
     .replace(/\r?\n/g, '\\n')
     .replace(/\t/g, '\\t')}"`;
 
-/** One `.str` record, as the string reader reads it back */
-export const strRecord = (label: string, text: string, eol: string): string =>
+/** Formats one `.str` record so the string reader reads it back as written */
+export const formatStrRecord = (label: string, text: string, eol: string): string =>
   `${label}${eol}${quoteStringText(text)}${eol}END${eol}`;
 
 /**
- * Where the text ends: the first quote no backslash escapes. A backslash
+ * Finds where the text ends: the first quote no backslash escapes. A backslash
  * escapes the character after it, itself included, so `\\"` closes the text.
  */
-const closingQuote = (raw: string): number => {
+const findClosingQuote = (raw: string): number => {
   for (let at = 0; at < raw.length; at++) {
     if (raw[at] === '\\') {
       at += 1;
@@ -96,7 +97,7 @@ const splitLines = (source: string) => {
   return lines;
 };
 
-/** Every record in the order written, duplicates included */
+/** Reads every record in the order written, duplicates included */
 export const parseStringRecords = (source: string): StringRecord[] => {
   const lines = splitLines(source);
   const records: StringRecord[] = [];
@@ -142,7 +143,7 @@ export const parseStringRecords = (source: string): StringRecord[] => {
         // has to, and the rest of the closing line is discarded
         const open = current.start + current.text.indexOf('"');
         let raw = trimmed.slice(1);
-        let close = closingQuote(raw);
+        let close = findClosingQuote(raw);
         let closeLine = current;
         let closeOffset = close < 0 ? -1 : open + 1 + close;
 
@@ -154,7 +155,7 @@ export const parseStringRecords = (source: string): StringRecord[] => {
           const part = closeLine.text.trim();
 
           raw += ` ${part}`;
-          close = closingQuote(raw);
+          close = findClosingQuote(raw);
 
           if (close >= 0) {
             const lead =

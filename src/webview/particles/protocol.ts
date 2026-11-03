@@ -1,15 +1,15 @@
-import type {
-  FxListDef,
-  NumericField,
-  ParticleDef,
-} from '../../formats/particles/particleIni';
+import type { PlaySoundRequest, SoundReply } from '../../core/soundClip';
+import type { FxListDef } from '../../formats/particles/particleIni';
+import type { NumericField } from '../../formats/particles/particleValueEdits';
+import type { ParticleDef } from '../../formats/particles/particleDef';
 import type { KeyKind, KeyValue } from '../../formats/particles/particleKeys';
-import type { ModelScene } from '../../formats/w3d/w3dScene';
+import type { ModelScene, SceneSkeleton } from '../../formats/w3d/w3dScene';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
 import type { ObjectScene, SceneFocus } from '../../game/objects/objectScene';
 
 /** Messages between the particle preview and its page */
 
+/** Message carrying the previewed effect: its definitions, textures, slider fields and pending values */
 export interface SceneMessage {
   kind: 'scene';
   /** Whether the page starts the effect over */
@@ -31,15 +31,24 @@ export interface SceneMessage {
   budgets: { lod: string; max: number }[];
 }
 
+/** Messages the particle preview sends its page */
 export type ToPage =
+  | SoundReply
   | SceneMessage
   | { kind: 'notice'; message: string }
   /** A model to show the effect on, or none */
   | { kind: 'model'; model?: { name: string; scene: ModelScene } }
   /** An object to preview, opened on what the preview was asked from */
   | { kind: 'object'; object: ObjectScene; focus: SceneFocus }
-  | { kind: 'animation'; name: string; animation?: W3dAnimation };
+  | {
+      kind: 'animation';
+      name: string;
+      animation?: W3dAnimation;
+      /** The skeleton the animation names, when it was found */
+      skeleton?: SceneSkeleton;
+    };
 
+/** Messages the particle page sends the preview: status, slider values and requests */
 export type FromPage =
   | { kind: 'ready' }
   | { kind: 'status'; frame: number; systems: number; particles: number }
@@ -58,4 +67,4 @@ export type FromPage =
   | { kind: 'keys'; keyKind: KeyKind; keys: KeyValue[] }
   | { kind: 'reveal'; line: number }
   /** An FX list's `Sound` nugget played from a click; by audio event name */
-  | { kind: 'playSound'; name: string };
+  | PlaySoundRequest;

@@ -4,9 +4,9 @@ import { compileScript } from '../../formats/apt/aptCompiler';
 import {
   classifySurface,
   clamp,
-  fraction,
-  itemsOf,
-  rangeOf,
+  getFillFraction,
+  splitItems,
+  getRange,
   valueAt,
 } from '../../formats/apt/aptGadgets';
 import type { FrameItem } from '../../formats/apt/aptMovie';
@@ -14,7 +14,7 @@ import { parseScript } from '../../formats/apt/aptScriptParser';
 import { AptImage } from '../../formats/apt/writer/aptImage';
 import { Engine } from '../../webview/apt/avm/engine';
 import {
-  bindingsOf,
+  listBindings,
   findGadgets,
   readBinding,
   writeBinding,
@@ -110,16 +110,16 @@ suite('APT gadgets', () => {
   });
 
   test('values clamp, map from pointer position and read items', () => {
-    assert.deepStrictEqual(rangeOf(10, 0), [0, 10]);
-    assert.deepStrictEqual(rangeOf('x', undefined), [0, 100]);
+    assert.deepStrictEqual(getRange(10, 0), [0, 10]);
+    assert.deepStrictEqual(getRange('x', undefined), [0, 100]);
     assert.strictEqual(clamp(7, [0, 5]), 5);
     assert.strictEqual(valueAt(50, 100, [0, 10]), 5);
     assert.strictEqual(valueAt(-9, 100, [0, 10]), 0);
     assert.strictEqual(valueAt(9, 0, [3, 10]), 3);
-    assert.strictEqual(fraction(25, [0, 100]), 0.25);
-    assert.strictEqual(fraction(1, [5, 5]), 0);
-    assert.deepStrictEqual(itemsOf('a|b|c'), ['a', 'b', 'c']);
-    assert.deepStrictEqual(itemsOf(undefined), []);
+    assert.strictEqual(getFillFraction(25, [0, 100]), 0.25);
+    assert.strictEqual(getFillFraction(1, [5, 5]), 0);
+    assert.deepStrictEqual(splitItems('a|b|c'), ['a', 'b', 'c']);
+    assert.deepStrictEqual(splitItems(undefined), []);
   });
 
   test('a running movie lists the clips that set a surface type', () => {
@@ -146,7 +146,7 @@ suite('APT gadgets', () => {
       movieWith(['volume'], 'volume._type = "HorzSlider"; volume._max = 10;'),
     );
     const gadget = findGadgets(player)[0];
-    const value = () => bindingsOf(player, engine, gadget)[0];
+    const value = () => listBindings(player, engine, gadget)[0];
 
     assert.strictEqual(value().value, '0');
     assert.ok(!value().overridden);

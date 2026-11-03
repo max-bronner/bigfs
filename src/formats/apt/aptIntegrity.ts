@@ -6,15 +6,17 @@ import type { AptMovie, Character, ConstFile, Frame } from './aptMovie';
 import { describeError } from '../../core/errors';
 
 /**
- * Whether a movie and the files beside it hold together, as the game
+ * Checks whether a movie and the files beside it hold together, as the game
  * needs them to (mint's apt-format research): every shape has its `.ru`,
  * every image a `.dat` line whose texture file is there, every texture
  * style samples an image, every id points at a character of the right
  * kind, every script decodes; and nothing beside it is left over.
  */
 
+/** How serious a `Problem` is: `error` breaks the movie in game, `info` is only unusual */
 export type Severity = 'error' | 'warning' | 'info';
 
+/** One finding of `checkMovie` */
 export interface Problem {
   severity: Severity;
   message: string;
@@ -24,19 +26,20 @@ export interface Problem {
   file?: string;
 }
 
-/** The files beside a movie, by path relative to its folder, matched without casing */
+/** Read access to a movie and the files beside it, by path relative to its folder, matched without casing */
 export interface MovieAccess {
   name: string;
   apt: Uint8Array;
+  /** Reads a file beside the movie, or undefined when it is missing */
   read(relative: string): Promise<Uint8Array | undefined>;
-  /** The names in a folder beside the movie, or nothing when there is none */
+  /** Lists the names in a folder beside the movie, or undefined when there is none */
   list(relative: string): Promise<string[] | undefined>;
 }
 
-const latin1 = (bytes: Uint8Array) => String.fromCharCode(...bytes);
+const decodeLatin1 = (bytes: Uint8Array) => String.fromCharCode(...bytes);
 
-/** A TGA's size from its header, or nothing when it is not one */
-export const tgaSize = (
+/** Reads a TGA's size from its header, or undefined when it is not one */
+export const readTgaSize = (
   bytes: Uint8Array,
 ): { width: number; height: number } | undefined =>
   bytes.length >= 18 && [1, 2, 3, 9, 10, 11].includes(bytes[2])
@@ -48,6 +51,7 @@ export const tgaSize = (
 
 const describe = (character: Character) => `#${character.id} ${character.type}`;
 
+/** Checks a movie and the files beside it for what would break it in game or is left over */
 export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
   const problems: Problem[] = [];
   const report = (
@@ -93,7 +97,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
     }
   } else {
     try {
-      dat = parseDat(latin1(datBytes));
+      dat = parseDat(decodeLatin1(datBytes));
     } catch (error) {
       report(
         'error',
@@ -171,7 +175,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
           break;
         }
         try {
-          for (const run of parseRu(latin1(bytes))) {
+          for (const run of parseRu(decodeLatin1(bytes))) {
             if (
               run.style.kind === 'texture' &&
               !isKind(run.style.character, 'image')
@@ -216,7 +220,7 @@ export const checkMovie = async (access: MovieAccess): Promise<Problem[]> => {
 
         const file = getTexturePath(name, character.texture, location);
         const bytes = await access.read(file);
-        const size = bytes && tgaSize(bytes);
+        const size = bytes && readTgaSize(bytes);
 
         usedTextures.add(file.toLowerCase());
         if (!bytes) {

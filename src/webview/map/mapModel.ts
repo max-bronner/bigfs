@@ -3,15 +3,15 @@ import type { HeightsView, ObjectView } from './protocol';
 
 /** Pure reads of the map the page was sent: what an object is, called and where it stands. */
 
-/** Rounds to two places, which is as fine as a position needs. */
+/** Rounds to two places, which is as fine as a position needs */
 export const roundTo = (value: number): number => Math.round(value * 100) / 100;
 
-/** Whether the object is a waypoint. */
+/** Whether the object is a waypoint */
 export const isWaypoint = (object: ObjectView): boolean =>
   object.template.toLowerCase() === '*waypoints/waypoint';
 
-/** The name an object or waypoint carries, or an empty string. */
-export const nameOf = (object: ObjectView): string => {
+/** Gets the name an object or waypoint carries, or an empty string */
+export const getObjectName = (object: ObjectView): string => {
   const entry = object.properties.find(
     (candidate) =>
       candidate.key === 'waypointName' || candidate.key === 'objectName',
@@ -20,12 +20,12 @@ export const nameOf = (object: ObjectView): string => {
   return entry && entry.value.value ? String(entry.value.value) : '';
 };
 
-/** Whether the object is a player's start position, a waypoint named `Player_<n>_Start`. */
+/** Whether the object is a player's start position, a waypoint named `Player_<n>_Start` */
 export const isStart = (object: ObjectView): boolean =>
-  isWaypoint(object) && /^Player_\d+_Start$/i.test(nameOf(object));
+  isWaypoint(object) && /^Player_\d+_Start$/i.test(getObjectName(object));
 
-/** The id a waypoint's links name it by. */
-export const idOf = (object: ObjectView): number | undefined => {
+/** Gets the id a waypoint's links name it by */
+export const getWaypointId = (object: ObjectView): number | undefined => {
   const entry = object.properties.find(
     (candidate) => candidate.key === 'waypointID',
   );
@@ -35,14 +35,14 @@ export const idOf = (object: ObjectView): number | undefined => {
     : undefined;
 };
 
-/** The waypoints by id; the first of a repeated id wins. */
+/** Indexes the waypoints by id; the first of a repeated id wins */
 export const waypointsById = (
   objects: readonly ObjectView[],
 ): Map<number, ObjectView> => {
   const found = new Map<number, ObjectView>();
 
   for (const object of objects) {
-    const id = isWaypoint(object) ? idOf(object) : undefined;
+    const id = isWaypoint(object) ? getWaypointId(object) : undefined;
 
     if (id !== undefined && !found.has(id)) {
       found.set(id, object);
@@ -51,12 +51,12 @@ export const waypointsById = (
   return found;
 };
 
-/** How the page names a waypoint: its name, or its id. */
-export const waypointLabel = (object: ObjectView): string =>
-  nameOf(object) || `#${idOf(object)}`;
+/** Formats how the page names a waypoint: its name, or its id */
+export const formatWaypointLabel = (object: ObjectView): string =>
+  getObjectName(object) || `#${getWaypointId(object)}`;
 
-/** The owner or team of an object, or an empty string. */
-export const ownerOf = (object: ObjectView): string => {
+/** Gets the owner or team of an object, or an empty string */
+export const getOwner = (object: ObjectView): string => {
   const entry = object.properties.find(
     (candidate) => candidate.key === 'originalOwner',
   );
@@ -64,7 +64,7 @@ export const ownerOf = (object: ObjectView): string => {
   return entry ? String(entry.value.value) : '';
 };
 
-/** Reads typed text as a value of a dictionary type; `undefined` when it is not one. */
+/** Parses typed text as a value of a dictionary type; `undefined` when it is not one */
 export const parseValue = (
   type: DictValue['type'],
   text: string,
@@ -93,8 +93,8 @@ export const parseValue = (
   return { type, value: text };
 };
 
-/** Whether a point lies inside a polygon, by the even-odd rule. */
-export const insidePolygon = (
+/** Whether a point lies inside a polygon, by the even-odd rule */
+export const isInsidePolygon = (
   [x, y]: [number, number],
   points: readonly [number, number][],
 ): boolean => {
@@ -111,13 +111,13 @@ export const insidePolygon = (
   return inside;
 };
 
-/** The size of the drawing in pixels */
+/** Size of the drawing in pixels; the canvas itself satisfies it */
 export interface CanvasSize {
   width: number;
   height: number;
 }
 
-/** World units to canvas pixels; a cell is ten units and the heights start `border` cells out. */
+/** Converts world units to canvas pixels; a cell is ten units and the heights start `border` cells out */
 export const projectToCanvas = (
   heights: HeightsView,
   size: CanvasSize,
@@ -131,7 +131,7 @@ export const projectToCanvas = (
   return [cellX * scale, size.height - cellY * scale];
 };
 
-/** Canvas pixels to world units. */
+/** Converts canvas pixels to world units, the inverse of `projectToCanvas` */
 export const unprojectFromCanvas = (
   heights: HeightsView,
   size: CanvasSize,
@@ -153,7 +153,7 @@ export interface Relief {
   high: number;
 }
 
-/** Shades the height map: height as brightness, lit from the north west. */
+/** Shades the height map: height as brightness, lit from the north west */
 export const shadeRelief = (heights: HeightsView): Relief => {
   const { width, height, samples } = heights;
   const pixels = new Uint8ClampedArray(width * height * 4);
@@ -192,8 +192,8 @@ export const shadeRelief = (heights: HeightsView): Relief => {
   return { pixels, low, high };
 };
 
-/** Turns an angle by a step, keeping it between minus pi and pi. */
-export const turnedAngle = (angle: number, step: number): number => {
+/** Turns an angle by a step, keeping it between minus pi and pi */
+export const turnAngle = (angle: number, step: number): number => {
   let turned = angle + step;
 
   while (turned > Math.PI) {
@@ -205,7 +205,7 @@ export const turnedAngle = (angle: number, step: number): number => {
   return turned;
 };
 
-/** The objects whose template or name holds the filter text, ignoring case. */
+/** Filters the objects to those whose template or name holds the filter text, ignoring case */
 export const filterObjects = (
   objects: readonly ObjectView[],
   filter: string,
@@ -216,6 +216,6 @@ export const filterObjects = (
     (object) =>
       !text ||
       object.template.toLowerCase().includes(text) ||
-      nameOf(object).toLowerCase().includes(text),
+      getObjectName(object).toLowerCase().includes(text),
   );
 };

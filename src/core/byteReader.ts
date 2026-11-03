@@ -17,10 +17,15 @@ export interface ByteReader {
   readonly offset: number;
   /** Count of bytes after the cursor */
   readonly remaining: number;
+  /** Reads an unsigned 8-bit integer */
   u8(): number;
+  /** Reads an unsigned 16-bit integer */
   u16(): number;
+  /** Reads an unsigned 32-bit integer */
   u32(): number;
+  /** Reads a signed 32-bit integer */
   i32(): number;
+  /** Reads a 32-bit float */
   f32(): number;
   /** Copies the next `length` bytes */
   bytes(length: number): Uint8Array;

@@ -89,6 +89,7 @@ because these look interchangeable and are not:
 | **entry** | one file stored inside an archive, as the index table records it |
 | **entry path** | archive relative, no leading slash: `data/ini/object.ini` |
 | **node** (`VirtualNode`) | a file or directory in the virtual tree |
+| **row** (`ExplorerRow`) | one line of the archive explorer: a node, a source, a folder on disk or a game view row |
 | **node path** | starts with a slash and includes the archive: `/mods/x.big/data/a.ini` |
 | **root** / **root path** | where an archive is mounted in the virtual file system |
 | **source** | a place archives come from: the workspace, or an added folder |

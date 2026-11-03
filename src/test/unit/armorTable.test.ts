@@ -2,11 +2,11 @@ import * as assert from 'assert';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
-  armorEdit,
-  armorValue,
-  damageTypes,
+  planArmorEdit,
+  parseArmorValue,
+  listDamageTypes,
   readArmorRows,
-  shownArmor,
+  resolveShownArmor,
 } from '../../game/objects/armorTable';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
@@ -52,8 +52,8 @@ suite('Armor table', () => {
       start: 16,
       end: 19,
     });
-    assert.deepStrictEqual(damageTypes(rows), ['DEFAULT', 'CRUSH', 'PIERCE']);
-    assert.deepStrictEqual(['75', ' 12.5 % ', 'x'].map(armorValue), [
+    assert.deepStrictEqual(listDamageTypes(rows), ['DEFAULT', 'CRUSH', 'PIERCE']);
+    assert.deepStrictEqual(['75', ' 12.5 % ', 'x'].map(parseArmorValue), [
       '75%',
       '12.5%',
       undefined,
@@ -69,15 +69,15 @@ suite('Armor table', () => {
   test('a type no line reaches lets everything through', () => {
     const [row] = rowsOf('Armor NoDefault\n  Armor = CRUSH 50%\nEnd\n');
 
-    assert.deepStrictEqual(shownArmor(row, 'PIERCE'), {
+    assert.deepStrictEqual(resolveShownArmor(row, 'PIERCE'), {
       value: '100%',
       inherited: true,
     });
-    assert.deepStrictEqual(shownArmor(row, 'DEFAULT'), {
+    assert.deepStrictEqual(resolveShownArmor(row, 'DEFAULT'), {
       value: '100%',
       inherited: true,
     });
-    assert.deepStrictEqual(shownArmor(row, 'CRUSH'), {
+    assert.deepStrictEqual(resolveShownArmor(row, 'CRUSH'), {
       value: '50%',
       inherited: false,
     });
@@ -88,15 +88,15 @@ suite('Armor table', () => {
       'Armor Ordered\n  Armor = CRUSH 50%\n  Armor = DEFAULT 80%\n  Armor = PIERCE 20%\nEnd\n',
     );
 
-    assert.deepStrictEqual(shownArmor(row, 'CRUSH'), {
+    assert.deepStrictEqual(resolveShownArmor(row, 'CRUSH'), {
       value: '80%',
       inherited: true,
     });
-    assert.deepStrictEqual(shownArmor(row, 'PIERCE'), {
+    assert.deepStrictEqual(resolveShownArmor(row, 'PIERCE'), {
       value: '20%',
       inherited: false,
     });
-    assert.deepStrictEqual(shownArmor(row, 'FLAME'), {
+    assert.deepStrictEqual(resolveShownArmor(row, 'FLAME'), {
       value: '80%',
       inherited: true,
     });
@@ -107,7 +107,7 @@ suite('Armor table', () => {
       'Armor Ordered\n  Armor = CRUSH 50%\n  Armor = DEFAULT 80%\n  Armor = PIERCE 20%\nEnd\n',
     );
 
-    assert.deepStrictEqual(armorEdit(row, 'PIERCE', '30%'), {
+    assert.deepStrictEqual(planArmorEdit(row, 'PIERCE', '30%'), {
       kind: 'replace',
       line: 3,
       start: 17,
@@ -115,7 +115,7 @@ suite('Armor table', () => {
       old: '20%',
     });
     // CRUSH's line is overwritten by the DEFAULT below it: write a new one last
-    assert.deepStrictEqual(armorEdit(row, 'CRUSH', '10%', '\r\n'), {
+    assert.deepStrictEqual(planArmorEdit(row, 'CRUSH', '10%', '\r\n'), {
       kind: 'insert',
       line: 4,
       text: '  Armor = CRUSH 10%\r\n',
@@ -124,7 +124,7 @@ suite('Armor table', () => {
     const [bare] = rowsOf('Armor Bare\n  Armor = CRUSH 50%\nEnd\n');
 
     // A new DEFAULT goes first, or it would wipe CRUSH
-    assert.deepStrictEqual(armorEdit(bare, 'DEFAULT', '70%'), {
+    assert.deepStrictEqual(planArmorEdit(bare, 'DEFAULT', '70%'), {
       kind: 'insert',
       line: 1,
       text: '  Armor = DEFAULT 70%\n',

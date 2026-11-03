@@ -1,7 +1,7 @@
 import { element } from '../shared/element';
 import type { ChoiceView, FromCahPage } from './protocol';
 
-/** Creates an element with the given properties and children. */
+/** Creates an element with the given properties and children */
 export const create = <Tag extends keyof HTMLElementTagNameMap>(
   tag: Tag,
   props?: Partial<HTMLElementTagNameMap[Tag]>,
@@ -13,8 +13,8 @@ export const create = <Tag extends keyof HTMLElementTagNameMap>(
   return node;
 };
 
-/** A field that posts its value when changed, in the message `message` builds from it. */
-export const field = (
+/** Creates an input that posts, on change, the message `message` builds from its value */
+export const createField = (
   value: string | number | undefined,
   readOnly: boolean,
   message: (value: string) => FromCahPage,
@@ -31,8 +31,8 @@ export const field = (
   return input;
 };
 
-/** A drop-down of the INI's choices; a value outside them stays selectable as "not in the INI". */
-export const choice = (
+/** Creates a drop-down of the INI's choices; a value outside them stays selectable as "not in the INI" */
+export const createChoiceSelect = (
   options: ChoiceView[],
   value: number,
   readOnly: boolean,
@@ -62,8 +62,8 @@ export const choice = (
   return select;
 };
 
-/** A label and the node it names, as two cells of a grid. */
-export const row = (label: string, node: Node): Node[] => [
+/** Creates the two grid cells of a form row: a label and the node it names */
+export const createFormRow = (label: string, node: Node): Node[] => [
   element('div', label, 'muted'),
   node,
 ];

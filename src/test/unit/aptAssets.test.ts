@@ -8,7 +8,7 @@ import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
 import { AptImage } from '../../formats/apt/writer/aptImage';
 import { decodeTga } from '../../formats/texture/textureTools';
 
-const newMovie = () => {
+const createMovie = () => {
   const files = createAptMovie({ width: 100, height: 100, exports: [] });
   const image = new AptImage(files.apt);
   const movieOffset = parseConst(files.constFile).movieOffset;
@@ -18,7 +18,7 @@ const newMovie = () => {
 
 suite('APT files beside the movie', () => {
   test("a shape's geometry is written as its .ru, and its bounds follow", () => {
-    const { image, movieOffset } = newMovie();
+    const { image, movieOffset } = createMovie();
     const shape = applyAptEdit(image, movieOffset, {
       kind: 'addCharacter',
       type: 'shape',
@@ -51,7 +51,7 @@ suite('APT files beside the movie', () => {
   });
 
   test('an imported texture is a new Image, a .dat line and a padded image file', () => {
-    const { image, movieOffset } = newMovie();
+    const { image, movieOffset } = createMovie();
     const pixels = new Uint8Array(5 * 3 * 4).map((_, index) => index);
     const { id, files } = addTexture(
       image,

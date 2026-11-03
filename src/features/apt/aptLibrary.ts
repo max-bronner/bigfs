@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
-import { archiveOrderKey } from '../../game/install/gameView';
+import { getArchiveOrderKey } from '../../game/install/gameView';
 import { getNodeUri } from '../../services/archives/nodeAddress';
-import { findChild } from '../../services/archives/virtualNode';
+import { findChild } from '../../services/archives/virtualTree';
 
 /**
  * Finds the movie an APT import names the way the game finds any file, so
@@ -19,6 +19,7 @@ import { findChild } from '../../services/archives/virtualNode';
  * the `.apt` that was found, the way one `apt/<name>.big` carries them all.
  */
 
+/** Movie an import resolved to, as `AptLibrary.locate` finds it */
 export interface MovieLocation {
   /** The `.apt` the game would load */
   uri: vscode.Uri;
@@ -26,10 +27,11 @@ export interface MovieLocation {
   origin: string;
 }
 
-/** An import's movie name as the game compares it: no casing, no `.apt` */
-export const movieKey = (name: string): string =>
+/** Reduces a movie name to the key the game compares imports by: no casing, no `.apt` */
+export const toMovieKey = (name: string): string =>
   name.toLowerCase().replace(/\.apt$/, '');
 
+/** Cache of where each imported movie resolves, cleared whenever the archives or movie files change */
 export class AptLibrary implements vscode.Disposable {
   private readonly locations = new Map<
     string,
@@ -49,7 +51,13 @@ export class AptLibrary implements vscode.Disposable {
 
     this.subscriptions = [
       this.onDidChangeEmitter,
-      archiveModel.onDidChangeArchive(forget),
+      // An archive read for the first time holds what it always held, and
+      // locating a movie reads archives in order anyway
+      archiveModel.onDidChangeArchive(({ loaded }) => {
+        if (!loaded) {
+          forget();
+        }
+      }),
       archiveModel.onDidScan(forget),
       watcher,
       watcher.onDidCreate(forget),
@@ -58,6 +66,7 @@ export class AptLibrary implements vscode.Disposable {
     ];
   }
 
+  /** Stops watching the archives and movie files */
   public dispose(): void {
     this.subscriptions.forEach((subscription) => subscription.dispose());
   }
@@ -68,9 +77,9 @@ export class AptLibrary implements vscode.Disposable {
     this.onDidChangeEmitter.fire();
   }
 
-  /** Where the game would load the movie of this name from, if anywhere */
+  /** Finds where the game would load the movie of this name from, if anywhere */
   public locate(name: string): Promise<MovieLocation | undefined> {
-    const key = movieKey(name);
+    const key = toMovieKey(name);
     let location = this.locations.get(key);
 
     if (!location) {
@@ -92,7 +101,7 @@ export class AptLibrary implements vscode.Disposable {
 
       const archives = [...this.archiveModel.getArchivesOf(source.id)].sort(
         (a, b) =>
-          archiveOrderKey(a.pathInSource) < archiveOrderKey(b.pathInSource)
+          getArchiveOrderKey(a.pathInSource) < getArchiveOrderKey(b.pathInSource)
             ? -1
             : 1,
       );
@@ -115,7 +124,7 @@ export class AptLibrary implements vscode.Disposable {
   }
 }
 
-/** A file directly in a folder, whatever its casing */
+/** Finds a file directly in a folder, whatever its casing */
 const findLoose = async (
   folder: vscode.Uri,
   fileName: string,

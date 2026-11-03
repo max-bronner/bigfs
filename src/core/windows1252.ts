@@ -6,7 +6,7 @@
  */
 
 /**
- * What bytes 0x80-0x9F stand for. The five the encoding leaves unused
+ * Characters bytes 0x80-0x9F decode to. The five the encoding leaves unused
  * decode to the control character of the same number, as the WHATWG
  * standard has it. Spelled out because a `TextDecoder` is not Windows-1252
  * everywhere (Node without full ICU reads it as ISO-8859-1).
@@ -23,9 +23,29 @@ const UPPER_HALF = new Map(
   ]),
 );
 
+/** Bytes decoded per `String.fromCharCode` call, which takes them as arguments and so cannot take a whole file */
 const CHUNK = 0x8000;
 
+/** Whether every byte is ASCII, which decodes to the same text in UTF-8 and Windows-1252 */
+const isAscii = (bytes: Uint8Array): boolean => {
+  for (let at = 0; at < bytes.length; at += 1) {
+    if (bytes[at] > 0x7f) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const asciiDecoder = new TextDecoder('utf-8');
+
+/** Decodes Windows-1252 bytes, one character per byte */
 export const decodeWindows1252 = (bytes: Uint8Array): string => {
+  // Most files are plain ASCII, which the native decoder reads many times
+  // faster than the character table below
+  if (isAscii(bytes)) {
+    return asciiDecoder.decode(bytes);
+  }
+
   let text = '';
 
   for (let at = 0; at < bytes.length; at += CHUNK) {
@@ -51,7 +71,7 @@ export const decodeIniText = (bytes: Uint8Array): string =>
   );
 
 /**
- * Encodes text; a character the encoding lacks throws, or becomes
+ * Encodes text as Windows-1252; a character the encoding lacks throws, or becomes
  * `replacement` when one is given
  */
 export const encodeWindows1252 = (
@@ -75,8 +95,8 @@ export const encodeWindows1252 = (
     return replacement;
   });
 
-/** The distinct characters of `text` the encoding lacks, in order of appearance */
-export const unencodableCharacters = (text: string): string[] => [
+/** Lists the distinct characters of `text` the encoding lacks, in order of appearance */
+export const findUnencodableCharacters = (text: string): string[] => [
   ...new Set(
     Array.from(text).filter(
       (char) => char.charCodeAt(0) >= 128 && !UPPER_HALF.has(char),

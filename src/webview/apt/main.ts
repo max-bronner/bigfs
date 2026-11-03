@@ -1,10 +1,13 @@
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
 import { onEngineRestart, showEngine } from './enginePanel';
 import { keepAnswers } from './engineState';
 import { setGameText } from './gameText';
 import { movieArrived, storeTextures } from './movieLoads';
 import { byId, escapeHtml } from './dom';
 import { describeCharacter } from './describeCharacter';
-import { GO_TO_FRAME, send, showDetails, showScript } from './details';
+import { showScript } from './blocks/scriptBlock';
+import { GO_TO_FRAME, showDetails } from './details';
+import { send } from './send';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import { scriptSaved } from './blocks/scriptBlock';
 import { installBlockStyles } from './blocks/blockStyles';
@@ -12,10 +15,12 @@ import type { FromPage, ToPage } from './protocol';
 import { showAtlas } from './atlas';
 import './gadgets';
 import { mappedImagesArrived } from './mappedSurfaces';
+import { renderObjectArrived } from './view3dSurface';
+import { suggestionsArrived } from './suggestingInput';
 import { showIntegrity } from './integrity';
 import { nudge } from './edit';
 import './geometry';
-import { freeDepth, showInspector, updateInspector } from './inspector';
+import { findFreeDepth, showInspector, updateInspector } from './inspector';
 import { markPlayhead, setOnion, showTimeline } from './timelinePanel';
 import {
   currentPlayer,
@@ -191,7 +196,7 @@ stage.addEventListener('drop', (event) => {
     return;
   }
 
-  const depth = freeDepth(root);
+  const depth = findFreeDepth(root);
 
   state.inspected = `/${depth}`;
   send({
@@ -321,6 +326,12 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       movieArrived(data);
       render();
       break;
+    case 'renderObject':
+      renderObjectArrived(data);
+      break;
+    case 'suggestions':
+      suggestionsArrived(data);
+      break;
     case 'mappedImages':
       mappedImagesArrived(data);
       break;
@@ -328,6 +339,13 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       showList();
       select(data.character);
       break;
+    case 'progress': {
+      const progress = byId('progress');
+
+      progress.textContent = data.text;
+      progress.hidden = !data.text;
+      break;
+    }
     case 'integrity':
       showIntegrity(data.problems, (character) => {
         showList();
@@ -341,6 +359,9 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPage>) => {
       scriptSaved(data.previous, data.block);
       break;
     }
+    case 'sound':
+      void pageSoundPlayer.receive(data);
+      break;
     case 'notice': {
       const notice = byId('notice');
 

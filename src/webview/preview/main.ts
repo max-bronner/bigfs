@@ -1,34 +1,36 @@
 import { getVsCodeApi } from '../shared/vscodeApi';
-import { showAudio, showCompressedAudio } from './audio';
+import { showAudio } from './audio';
+import { createModelPage } from './createModelPage';
+import type { ModelPage } from './createModelPage';
+import { createRegionEditor } from './createRegionEditor';
+import { showCursor } from './cursor';
 import { showMovie } from './movie';
 import type { MovieControl } from './movie';
 import type { FromPreviewPage, ToPreviewPage } from './protocol';
-import { showModel } from './showModel';
-import type { ModelControl } from './showModel';
 import { createTexturePage } from './texture';
 
 /**
  * The preview editor's page: a texture on a canvas, a sound with its
- * facts, a VP6 movie frame by frame, or a W3D model in 3D. The extension
+ * facts, a VP6 movie frame by frame, or a W3D model in the shared viewer. The extension
  * sends what to show for the file; the page asks for what it needs next.
  */
 
 const vscode = getVsCodeApi<FromPreviewPage>();
 const main = document.getElementById('main')!;
-const showTexture = createTexturePage(main);
-let modelControl: ModelControl | undefined;
+const regions = createRegionEditor(document.getElementById('regions')!, (message) =>
+  vscode.postMessage(message),
+);
+const showTexture = createTexturePage(main, regions, {
+  onPopOut: () => vscode.postMessage({ kind: 'popOut' }),
+});
+let modelPage: ModelPage | undefined;
 let movie: MovieControl | undefined;
 
 window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
   switch (data.kind) {
     case 'model':
-      modelControl = showModel(data, {
-        main,
-        post: (message) => vscode.postMessage(message),
-      });
-      break;
-    case 'compressedAudio':
-      showCompressedAudio(main, data);
+      modelPage ??= createModelPage(main, (message) => vscode.postMessage(message));
+      modelPage.show(data);
       break;
     case 'video':
       movie = showMovie(main, data, (message) => vscode.postMessage(message));
@@ -39,29 +41,35 @@ window.addEventListener('message', ({ data }: MessageEvent<ToPreviewPage>) => {
     case 'videoError': {
       const error = document.createElement('p');
 
-      movie?.failed();
+      movie?.reportFrameError();
       error.className = 'error';
       error.textContent = `Cannot decode this frame: ${data.message}`;
       main.append(error);
       break;
     }
     case 'uses':
-      modelControl?.setUses(data.uses);
+      modelPage?.setUses(data.uses);
       break;
     case 'animations':
-      modelControl?.setAnimations(data.names);
+      modelPage?.setAnimations(data.own, data.foreign);
       break;
     case 'animation':
-      modelControl?.play(data);
+      modelPage?.play(data);
       break;
     case 'animationError':
-      modelControl?.notice(data.message);
+      modelPage?.showNotice(data.message);
       break;
     case 'texture':
       showTexture(data);
       break;
+    case 'regions':
+      regions.show(data);
+      break;
     case 'audio':
       showAudio(main, data);
+      break;
+    case 'cursor':
+      showCursor(main, data);
       break;
     case 'error': {
       const error = document.createElement('p');

@@ -5,7 +5,7 @@ import { VP6_BICUBIC_COEFFS } from './tables';
  * `crates/core/vp6` (`idct.rs`, `mc.rs`; NihAV via Ruffle, MIT).
  */
 
-/** One 8-bit plane; rows contiguous */
+/** One 8-bit image plane, rows stored contiguously with no padding */
 export class Plane {
   public data: Uint8Array;
 
@@ -16,6 +16,7 @@ export class Plane {
     this.data = new Uint8Array(width * height);
   }
 
+  /** Creates an independent copy of the plane */
   public clone(): Plane {
     const copy = new Plane(this.width, this.height);
 
@@ -25,7 +26,7 @@ export class Plane {
   }
 }
 
-/** Y, U and V at the coded size, whole macroblocks */
+/** Decoded picture: Y, U and V planes at the coded size, in whole macroblocks */
 export class Picture {
   public readonly planes: [Plane, Plane, Plane];
 
@@ -40,14 +41,17 @@ export class Picture {
     ];
   }
 
+  /** Luma width in pixels */
   public get width(): number {
     return this.planes[0].width;
   }
 
+  /** Luma height in pixels */
   public get height(): number {
     return this.planes[0].height;
   }
 
+  /** Creates an independent copy of the picture */
   public clone(): Picture {
     const copy = new Picture(this.width / 16, this.height / 16);
 
@@ -111,7 +115,7 @@ const idct8 = (s: number[], bias: number, shift: number): number[] => {
   ].map((value) => (value | 0) >> shift);
 };
 
-/** Inverse transform in place; results truncate to 16 bits */
+/** Applies the inverse transform to an 8×8 block in place; results truncate to 16 bits */
 export const idct = (coeffs: Int16Array): void => {
   const rows: number[][] = [];
 
@@ -130,6 +134,7 @@ export const idct = (coeffs: Int16Array): void => {
   }
 };
 
+/** Computes the inverse transform of a block whose only non-zero coefficient is its DC */
 export const idctDc = (dc: number): number =>
   i16((mul16(C4S4, mul16(C4S4, dc)) + 8) >> 4);
 
@@ -157,6 +162,7 @@ const rowStarts = (
   return starts;
 };
 
+/** Writes an intra block's inverse transform into a plane at block `bx`, `by` */
 export const putBlock = (
   coeffs: Int16Array,
   dcOnly: boolean,
@@ -183,6 +189,7 @@ export const putBlock = (
   });
 };
 
+/** Adds an inter block's inverse transform onto its prediction in a plane at block `bx`, `by` */
 export const addBlock = (
   coeffs: Int16Array,
   dcOnly: boolean,
@@ -215,11 +222,13 @@ export const addBlock = (
   });
 };
 
+/** Motion vector in quarter pixels for luma, eighth pixels for chroma */
 export interface Mv {
   x: number;
   y: number;
 }
 
+/** Motion compensation filter settings a frame header selects */
 export interface Filter {
   advanced: boolean;
   autosel: boolean;
@@ -235,11 +244,11 @@ const TMP_STRIDE = 16;
 const TMP_LEN = TMP_STRIDE * 12;
 const ORIGIN = 2 * TMP_STRIDE + 2;
 /** Scratch for one block at a time; motion compensation is not re-entered */
-const TMP = new Uint8Array(TMP_LEN);
+const SCRATCH = new Uint8Array(TMP_LEN);
 const HORIZONTAL = new Uint16Array(9 * 8);
 
 /** Copies the 12×12 source area around a block, clamping at the edges */
-const getBlock = (tmp: Uint8Array, src: Plane, x: number, y: number) => {
+const copyBlockArea = (tmp: Uint8Array, src: Plane, x: number, y: number) => {
   const { width, height } = src;
 
   if (!width || !height) {
@@ -334,7 +343,7 @@ const bicubic = (
 };
 
 /** Predicts one 8×8 block from the reference plane along a motion vector */
-export const mcBlock = (
+export const predictMotionBlock = (
   dst: Plane,
   src: Plane,
   x: number,
@@ -360,9 +369,9 @@ export const mcBlock = (
         Math.trunc(mv.x / 8),
         Math.trunc(mv.y / 8),
       ];
-  const tmp = TMP;
+  const tmp = SCRATCH;
 
-  getBlock(tmp, src, x + sx - 2, y + sy - 2);
+  copyBlockArea(tmp, src, x + sx - 2, y + sy - 2);
 
   if (f.deblock && (msx & 7) !== 0) {
     loopFilter(tmp, 8 - (sx & 7) + 2, 1, TMP_STRIDE, f.loopThr);

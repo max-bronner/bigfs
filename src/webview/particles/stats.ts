@@ -22,7 +22,7 @@ const totals = {
   perName: new Map<string, { live: number; peak: number }>(),
 };
 
-/** Starts counting over, with the effect */
+/** Resets the counts; called when the effect starts over */
 export const resetStats = (): void => {
   totals.frames = 0;
   totals.sum = 0;
@@ -33,7 +33,7 @@ export const resetStats = (): void => {
   totals.perName.clear();
 };
 
-/** Counts one simulated frame */
+/** Adds one simulated frame to the counts */
 export const sampleStats = (): void => {
   const live = world.liveParticles;
 
@@ -65,12 +65,12 @@ const cell = (text: string, className = '') => {
   return element;
 };
 
-const plural = (count: number, noun: string) =>
+const pluralize = (count: number, noun: string) =>
   `${count} ${noun}${count === 1 ? '' : 's'}`;
 
 let lastShown = 0;
 
-/** Shows the counts, a few times a second */
+/** Renders the counts into the stats panel, at most four times a second */
 export const showStats = (now: number): void => {
   if (now - lastShown < 250 || !state.scene) {
     return;
@@ -79,8 +79,8 @@ export const showStats = (now: number): void => {
 
   const average = totals.frames ? totals.sum / totals.frames : 0;
   const lines = [
-    `now ${world.liveParticles} particles in ${plural(world.systems.length, 'system')} · ${drawStats.drawn} drawn · fill ×${drawStats.fill.toFixed(1)}`,
-    `peak ${totals.peak} at frame ${totals.peakFrame} · ${plural(totals.peakSystems, 'system')} · fill ×${totals.peakFill.toFixed(1)}`,
+    `now ${world.liveParticles} particles in ${pluralize(world.systems.length, 'system')} · ${drawStats.drawn} drawn · fill ×${drawStats.fill.toFixed(1)}`,
+    `peak ${totals.peak} at frame ${totals.peakFrame} · ${pluralize(totals.peakSystems, 'system')} · fill ×${totals.peakFill.toFixed(1)}`,
     `average ${average.toFixed(0)} over ${totals.frames} frames`,
   ];
   const summary = document.createElement('div');

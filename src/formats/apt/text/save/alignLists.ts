@@ -1,4 +1,4 @@
-import { f32Bits } from '../numbers';
+import { toF32Bits } from '../numbers';
 import type { ItemText } from '../textModel';
 import { TextSaveError } from './textSaveError';
 
@@ -99,13 +99,13 @@ export const checkAppended = (
   }
 };
 
-/** The key two frame items, runs or button records are aligned by: every field but where it sits */
-export const printItem = (item: ItemText): string =>
+/** Prints the key two frame items, runs or button records are aligned by: every field but where it sits */
+export const getAlignmentKey = (item: ItemText): string =>
   JSON.stringify(item, (key, value) =>
     key === 'offset' || key === 'line' || key === 'endLine' || key === 'block'
       ? undefined
       : typeof value === 'number' &&
           (!Number.isInteger(value) || Object.is(value, -0))
-        ? f32Bits(value)
+        ? toF32Bits(value)
         : value,
   );

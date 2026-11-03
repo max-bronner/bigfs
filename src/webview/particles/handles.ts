@@ -1,11 +1,6 @@
-import type {
-  NumericField,
-  ParticleDef,
-  Vec3,
-} from '../../formats/particles/particleIni';
-import { cameraBasis, viewProjection } from './camera';
-import { canvas } from './graphics';
-import { $, library, post, state, world } from './page';
+import type { NumericField } from '../../formats/particles/particleValueEdits';
+import type { ParticleDef, Vec3 } from '../../formats/particles/particleDef';
+import { $, library, post, state, viewer, world } from './page';
 
 /**
  * Handles on the emission volume of the previewed system, drawn over the
@@ -28,12 +23,13 @@ interface Handle {
   label: string;
 }
 
+const { canvas } = viewer;
 const overlay = $<HTMLCanvasElement>('handles');
 const RADIUS = 6;
 
 const fieldsOf = () => state.scene?.fields ?? [];
 
-/** A field of the emission volume, by any of its spellings, block or flat */
+/** Finds a field of the emission volume, by any of its spellings, block or flat */
 const volumeField = (names: string[], part = ''): NumericField | undefined =>
   fieldsOf().find(
     (field) =>
@@ -89,7 +85,7 @@ const point = (names: string[], label: string): Handle[] => {
   ];
 };
 
-const handlesOf = (def: ParticleDef): Handle[] => {
+const listHandles = (def: ParticleDef): Handle[] => {
   const volume = def.volume;
 
   switch (volume.type) {
@@ -151,8 +147,8 @@ const handlesOf = (def: ParticleDef): Handle[] => {
   }
 };
 
-/** The previewed system's live instance and definition, if it is one */
-const target = () => {
+/** Finds the previewed system's live origin and definition, when the previewed block is a system */
+const findTarget = () => {
   const name =
     state.scene?.root?.kind === 'system' ? state.scene.root.name : '';
   const def = library.systems.get(name.toLowerCase());
@@ -163,7 +159,7 @@ const target = () => {
   return def && system ? { def, origin: system.origin } : undefined;
 };
 
-/** A world point in CSS pixels of the view, or undefined behind the camera */
+/** Projects a world point to CSS pixels of the view; undefined behind the camera */
 const project = (
   matrix: Float32Array,
   p: Vec3,
@@ -200,8 +196,8 @@ let drag:
     }
   | undefined;
 
-const shown = () =>
-  ($<HTMLInputElement>('showVolume').checked && target()) || undefined;
+const findShownTarget = () =>
+  ($<HTMLInputElement>('showVolume').checked && findTarget()) || undefined;
 
 /** Draws the handles over the view; called once per frame */
 export const drawHandles = (): void => {
@@ -219,16 +215,16 @@ export const drawHandles = (): void => {
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.clearRect(0, 0, width, height);
 
-  const found = shown();
+  const found = findShownTarget();
 
   if (!found) {
     return;
   }
 
-  const matrix = viewProjection(cameraBasis(), canvas);
+  const { matrix } = viewer.getCamera();
 
   ctx.font = '10px sans-serif';
-  for (const handle of handlesOf(found.def)) {
+  for (const handle of listHandles(found.def)) {
     const at = project(matrix, add(found.origin, handle.at));
 
     if (!at) {
@@ -264,12 +260,12 @@ const send = (handle: Handle, values: number[]) =>
     post({ kind: 'set', id, value });
   });
 
-/** Takes the pointer from the camera when it lands on a handle */
+/** Attaches the handle drags, which take the pointer from the camera when it lands on a handle */
 export const attachHandles = (): void => {
   canvas.addEventListener(
     'pointerdown',
     (event) => {
-      const found = shown();
+      const found = findShownTarget();
 
       if (!found || event.button !== 0) {
         return;
@@ -280,8 +276,8 @@ export const attachHandles = (): void => {
         event.clientX - box.left,
         event.clientY - box.top,
       ];
-      const matrix = viewProjection(cameraBasis(), canvas);
-      const handle = handlesOf(found.def).find((each) => {
+      const { matrix, basis } = viewer.getCamera();
+      const handle = listHandles(found.def).find((each) => {
         const at = project(matrix, add(found.origin, each.at));
 
         return (
@@ -307,7 +303,7 @@ export const attachHandles = (): void => {
           along: [to[0] - from[0], to[1] - from[1]],
         };
       } else {
-        const { right, up } = cameraBasis();
+        const { right, up } = basis;
         const step = project(matrix, add(base, right)) ?? from;
 
         drag = {

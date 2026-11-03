@@ -29,6 +29,16 @@ your mod's archives.
   folders, and Wine, Proton and CrossOver prefixes on Linux and macOS.
   Nothing is written until you pick one; **BIG: Find Game Installs** asks
   again later. The folders are only read.
+- **new** **Create archives and manage them:** right-click a folder (or the
+  workspace row) in the view for **New Archive…**, which writes an empty BIG4
+  archive and never replaces a file of that name. **Rename…** and **Delete** on
+  an archive row rename it on disk and move it to the trash. Names are checked
+  before anything is written: no empty, dot, Windows-reserved or
+  non-Windows-1252 names, no separators in a single name, no path past 255
+  characters, nothing differing from an existing name only in case. Dropped
+  files and folders that break these rules are skipped with a message; an
+  archive that would pass 4 GiB is refused before it is touched. Dragging
+  `.big` files from outside onto a folder row copies them there.
 - **Context menu and keys** on a row of the view: **New File…**, **New
   Folder…**, **Add Files…**, **Rename…** (F2), **Delete** (Del), **Cut**
   (Ctrl+X), **Copy** (Ctrl+C), **Paste** (Ctrl+V), **Duplicate**, **Copy Path**
@@ -45,7 +55,24 @@ your mod's archives.
   arguments in `bigfs.game.arguments`).
 - **Override in Folder** copies archive files into a mod folder at the same
   path.
-- **Search in BIG Archives** finds text inside every archive.
+- **Search in BIG Archives** (the *Search in Archives* view under the
+  archive tree, or the command, which takes the selected text as the query)
+  finds text inside every archive the way VS Code's search does: results grouped
+  by archive and file, each match highlighted with the lines around it
+  (adjustable), toggles for case, whole word and regular expression, include
+  and exclude globs on entry paths, a live count, results streaming in while
+  it runs, and Cancel. A click opens the entry at the match. It reads text
+  entries only (INI, STR, WND, Lua, XML and the like) and stops at 5000
+  matches, saying so. VS Code's own search and Ctrl+P cannot see inside a
+  `bigfs:` folder (their extension points are closed to published
+  extensions), which is why this exists.
+- **Go to File in Archives…** (`Ctrl+Alt+P`, `Cmd+Alt+P` on a Mac, or the
+  title bar of the archive tree) is Ctrl+P for the archives: type part of a file
+  name or path, with fuzzy matching that prefers the start of the name, and
+  open it. Archives, loose files of every install and mod are listed from the
+  index tables alone, recent files come first, and a path several archives hold
+  is listed once per archive with the copy the game loads marked. The button on
+  a row reveals it in the archive tree.
 - **Load order** follows the game: a loose file beats every archive of its
   install, archives go by their path below it (`___a.big` before `b.big`, the
   first holding a file wins), and installs are layered by the marker file in
@@ -94,6 +121,13 @@ your mod's archives.
   whitespace; embedded scripts stay as written, and formatting again never
   changes the result.
 - Hovering a `MappedImage` name shows the image, cut from its texture.
+- A lens over each `MappedImage` header, **Edit region in texture**, opens the
+  texture with the block's rectangle drawn on it. Drag or resize the box, or
+  type its edges, and the `Coords` line is rewritten as an undoable edit of
+  the INI document.
+- In a shape's `.ru` geometry file, a lens over each `s tc:` texture style
+  names the image and box it samples and opens the texture with that box
+  selected; dragging it rewrites only that style line.
 - Lua in `BeginScript` regions is checked for syntax errors.
 - **Duplicate Definition…** (refactor menu, editor context menu) copies the
   definition at the cursor under a new name, renaming the game-text labels
@@ -103,8 +137,14 @@ your mod's archives.
   are marked. Slots whose buttons share a hotkey are reported as problems,
   unless they are never on the command bar together: a purchase button and
   the ability it unlocks (`NEED_UPGRADE` on an upgrade or science it buys).
-- Audio events get a **▶ Play** lens that plays one of their sounds, as the
-  game picks one; hovering a sound or an event name gives play links.
+- Audio events get a **▶ Play** lens that plays one of their sounds and an
+  **Open file** lens; hovering a sound or an event name gives play and open
+  links. Every play button in a preview (voices, FX timeline, script
+  parameters, the APT Engine panel) plays in place; Ctrl+click (Cmd on macOS)
+  opens the sound file instead, and a second press stops it.
+- **new** Indexing the INI files of a full install takes about a third of the time
+  it did, and saving a file inside an archive re-reads that file alone, so
+  hover, go to definition and checks stay current without a long wait.
 - **new** The object preview lists every `Voice*` and `Sound*` field of the
   object, inherited ones included, each with its own **▶** button; the
   preview stays muted otherwise.
@@ -193,6 +233,14 @@ your mod's archives.
   is written beside it as a new animation file, named as the game finds it,
   for an INI line to switch to by name.
 
+**The 3D viewer**
+
+- A `.w3d`, **Preview object** and an FX preview all open one viewer: the same
+  view, grid and camera, and the same controls in the same place (animation
+  list, play, stop, restart, step, time slider, speed, loop, bones, model, hidden
+  parts, boxes, grid, level of detail, sky). A `.w3d` opened directly or by
+  Ctrl-click shows the model alone; a preview adds its own panels beside it.
+
 **Particle preview**
 
 - A **Preview** lens on every `FXParticleSystem`, `ParticleSystem` and
@@ -210,7 +258,7 @@ your mod's archives.
 - **On a model…** shows the effect on any W3D model of the workspace or
   its archives, drawn shaded, started at a bone you pick in its bind pose,
   the way a unit carries an effect on a bone.
-- **A/B** (`B`) flips the preview between the block as written and with the
+- **A/B** (`C`) flips the preview between the block as written and with the
   values being tried; **Vary ±** nudges every value by up to a percentage
   to try variations; **Save as variant…** writes the values as a new system
   after this one, which keeps its own.
@@ -323,12 +371,31 @@ your mod's archives.
 **Previews**
 
 - Textures: TGA and DDS (DXT1/3/5, uncompressed), with zoom, channels and mip
-  levels. **Export as PNG**, **Replace with PNG…** (written back in the
+  levels. A References panel lists every `MappedImage` and every APT shape
+  that uses part of the texture, draws their boxes on it and lets you select
+  one and drag, resize or type its region back into the INI or `.ru` file.
+  Fit follows the room the image has beside the panel, the image scrolls
+  inside its own area so the list stays in view while zoomed, the panel is
+  resized by dragging its edge, and **Pop out** moves the editor to its own
+  window for more room. **Export as PNG**, **Replace with PNG…** (written back in the
   texture's own format, mipmaps included) and **Convert to Game Texture…**
   for PNGs (TGA 24/32-bit, DDS DXT1/3/5 or uncompressed).
-- Sounds: WAV, including IMA ADPCM, and MP3.
+- Sounds: WAV, including IMA ADPCM, which VS Code's own audio preview cannot play. MP3 opens in VS Code's own preview.
+- **new** Cursors: `.cur` and `.ani` open in the preview with every image,
+  its size and its hotspot (outlined in red); an animated cursor plays its own
+  sequence and rates, with play, pause and a step slider.
+- **new** **Export Cursor as PNG…** writes a `.cur`, or one or all frames of an
+  `.ani`, as PNG (to a file or a folder you pick, never beside the source), and
+  **Convert to Cursor…** on a PNG asks for the hotspot and writes a `.cur`
+  with alpha.
+- **new** **Build Animated Cursor…** (command palette, or the file explorer menu on
+  images) puts `.png`, `.tga`, `.cur`, `.ico` or `.ani` files in a list of
+  frames: reorder, duplicate or remove them, set each frame's hotspot and
+  duration in milliseconds, watch the loop, then **Save as .ani…** to a place
+  you choose. All frames must share one size.
 - Videos: EA's VP6 movies (`.vp6`), decoded frame by frame with play,
-  pause and seeking; alpha movies show over a checkerboard.
+  pause and seeking (dragging the slider follows the pointer and lands on
+  the frame you let go on); alpha movies show over a checkerboard.
 - **Convert to VP6 Movie…** on a video, an image or a folder of numbered
   PNG/TGA/DDS frames writes an EA VP6 movie the games play: size, frame rate
   and quality are asked for, transparency is kept as an alpha stream, and the
@@ -336,16 +403,35 @@ your mod's archives.
   (`bigfs.vp6.keyFrameSeconds`) are coded as changes from the one before,
   with motion search, and each frame sends the probabilities it needs. Any video FFmpeg reads works
   when FFmpeg is installed (`bigfs.ffmpegPath`); without it, WebM and Ogg.
-- Models: W3D in 3D, with their skeleton and textures found in any archive.
+- Models: W3D in 3D, with their skeleton and textures found in any archive,
+  drawn pass by pass with each triangle's own texture, shader, blend and
+  depth test, and with the material's colours: emissive glow, tints, vertex
+  colours, opacity, unlit surfaces, second texture stages with every detail
+  combine, clamped textures and bump offsets. Scrolling, rotating, flipbook
+  and environment-mapped textures run on the preview's clock and stop with
+  its pause. Parts `housecolor.ini` masks wear a default team colour, and
+  normal-mapped meshes show their relief and highlight.
+  Any animation plays on any model, by bone number as the game applies it;
+  the list shows the skeleton's own clips first and the ones made for other
+  skeletons in their own group, and playing one of those says so.
   Animations of the skeleton are listed and play on the model (dense,
   time-coded, adaptive-delta and motion channels); a skeleton or an
   animation file on its own shows its bones. Meshes marked hidden are not
-  drawn (a toggle shows them); the HLOD's levels of detail are picked from a
-  dropdown with their max screen size, one drawn at a time, and its aggregate
-  and proxy lists are shown; collision boxes can be drawn as wireframes.
+  drawn (a toggle shows them); the levels of detail the HLOD header counts are
+  picked from a dropdown with their max screen size when there is more than
+  one, and arrays past that count are skipped as the game skips them; the
+  aggregate and proxy lists are shown; collision boxes can be drawn as
+  wireframes. A **Parts** list turns each mesh on and off, and the object
+  preview hides what the object's INI and scripts hide in the shown state, and
+  as the game does a write also reaches the parts on bones below the part it names
+  (animation state scripts, fired `SubObjectsUpgrade` modules, `TransitionDamageFX`
+  lists, `OnCreated` handlers in `scripts.lua`), naming the source and listing what depends on the running
+  game. Scripts are read, not run.
 
 **Interface movies (APT)**
 
+- A big movie opens in seconds: the movie is drawn as soon as it is read,
+  its imports fill in after, and a progress line says what it is doing.
 - Every character drawn with its shapes, textures and text; sprites play
   frame by frame.
 - Edit text fields, colours, bounds, exports, imports, placements, frame
@@ -395,6 +481,31 @@ your mod's archives.
   (`FSCommand:PlaySound`) are listed in the Engine panel with a play button;
   the **Play movie sounds** checkbox, off at every start, lets them play as
   the movie asks.
+- **new** Engine images: surfaces no movie names get what the game supplies, the
+  main menu's logo and shell background, the faction icon and a black portrait,
+  in place of their magenta squares. The Engine panel shows each with a field to
+  change it to any `MappedImage` or texture file, kept per movie with the other
+  answers.
+- **new** Engine suggestions: where the engine feeds a movie a value out of the
+  game's INI, the Engine panel field is still plain text but offers the
+  INI's values to pick from. The palantir's `SetPalantirFrameState` offers
+  `_good` and `_evil` with the sides each shows, `SetFaction` (the all-heroes
+  button) and `SetPlayerFaction` offer the player templates' `Side` values, and
+  faction icon, rank icon and command button picture fields offer the
+  `MappedImage`s the game binds there. Nothing is offered without a game
+  loaded. Hovering a field says where the game takes its value from.
+  The same goes for create-a-hero power, class and type icons, hero-row and
+  unit portraits, spell book pictures and the `MultiplayerColor` swatches of
+  the score and loading screens' colour externs. Values the engine itself fixes
+  are offered too, with the evidence in the tooltip: power cell, icon slot and
+  show/hide states, the score screen's mode, save/load mode, game types, true
+  and false externs and a view's `_AnimMode`.
+- **new** `View3D` surfaces (ported from mint's `view3d.rs`): a clip naming a W3D
+  model in `_RenderObj` draws it, found through the game's load order, through
+  the model's own camera and following `_AnimMode` and `_Frame`, in the clip's
+  place in paint order, so masks and fades apply. Models load when shown, at most
+  16 at a time; a missing one is a labelled box. Scrolling, rotating and
+  flipbook materials of the model move with the stage's clock.
 - **new** Engine gadgets (ported from mint's apt-player and apt-viewer): a clip
   whose `_type` (or `_Load` template) names a slider, check box, list box,
   combo box, text entry, scroll bar or progress bar gets a working control
@@ -449,7 +560,8 @@ your mod's archives.
   **Call** button; every variable it reads, and its `GetExtern` keys, can
   be overridden, winning over what the movie holds; calls into the engine
   (`GameCode`, `FSCommand:`) are counted with their arguments and can be
-  given a return value. Overrides are kept per movie.
+  given a return value. Overrides and the calls you make are kept per movie,
+  and a restarted movie makes those calls again once it has settled.
 - Tweens already baked into a movie are recognised: a run of frames in
   which an instance follows one easing curve shows as a purple bar, its
   tooltip saying what moves from where to where, and a double-click opens
@@ -463,13 +575,16 @@ row, file or editor they act on.
 
 | Command | Where | Does |
 | --- | --- | --- |
-| Refresh, Search in BIG Archives…, Validate INI Files, Show What the Game Loads, Show Every Archive | BIG Archives title bar | Rescan, search, validate, switch view |
+| Refresh, Search in BIG Archives…, Go to File in Archives…, Validate INI Files, Show What the Game Loads, Show Every Archive | BIG Archives title bar | Rescan, search, validate, switch view |
 | New File…, New Folder…, Add Files…, Extract…, Rename…, Delete, Cut, Copy, Paste, Duplicate, Copy Path, Copy Relative Path, Override in Folder… | archive row context menu | Edit archives |
 | Pack into BIG Archive…, Launch Game with Mod | Explorer folder menu | Build and run a mod |
 | Find Game Installs, Choose Game Language, Compare with Base Game, Package Mod…, Check Translations, Open Balance Sheet, Armor Table, Find Unused Definitions, Clear Unused Definitions, Check APT Movies | Command Palette | Workspace tools |
 | Convert String Table (.str ⇄ .csf), Open as Table | `.str`/`.csf` menu, editor title | String tables |
 | Show Layout Preview | `.wnd` editor title | WND preview |
 | Export as PNG, Replace with PNG…, Convert to Game Texture… | `.tga`/`.dds`/`.png` menu | Textures |
+| Export Cursor as PNG… | `.cur`/`.ani` menu | Cursors |
+| Convert to Cursor… | `.png` menu | Cursors |
+| Build Animated Cursor… | palette, `.png`/`.cur`/`.tga` file menu | Cursors |
 | Convert to VP6 Movie… | video, image or folder menu | VP6 |
 | Edit W3D Animation… | `.w3d` menu | Bone animations |
 | New APT Movie…, Rename APT Movie…, Delete APT Movie… | folder or `.apt` menu | APT movies |
@@ -488,7 +603,7 @@ row, file or editor they act on.
 
 | Editor | Opens |
 | --- | --- |
-| bigFS Preview | `.tga`, `.dds`, `.wav`, `.mp3`, `.w3d`, `.vp6` |
+| bigFS Preview | `.tga`, `.dds`, `.wav`, `.w3d`, `.vp6`, `.cur`, `.ani` |
 | bigFS APT Movie | `.apt` |
 | bigFS String Table, bigFS CSF String Table | `.str`, `.csf` |
 | bigFS Create-a-Hero | `.cah` |

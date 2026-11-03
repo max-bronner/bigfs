@@ -6,7 +6,9 @@ import { layoutText } from '../../webview/apt/paint';
 import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
 import { resolve } from '../../webview/apt/resolve';
-import { collect, textureOf } from '../../webview/apt/scene';
+import { findPointerTargetAt } from '../../webview/apt/hitTest';
+import { collect, getImageTexture, getLocalBounds } from '../../webview/apt/scene';
+import type { HitArea } from '../../webview/apt/scene';
 import { state } from '../../webview/apt/state';
 import { colorFromApt, concatColor } from '../../webview/apt/timeline';
 
@@ -83,8 +85,8 @@ suite('APT scene', () => {
     state.textures.set('art/panel.tga', pixels);
 
     assert.strictEqual(shown.imageTextures[1], undefined);
-    assert.strictEqual(textureOf(shown, 1), pixels);
-    assert.strictEqual(textureOf(shown, 9), undefined, 'an unknown id');
+    assert.strictEqual(getImageTexture(shown, 1), pixels);
+    assert.strictEqual(getImageTexture(shown, 9), undefined, 'an unknown id');
   });
 
   test('colour transforms nest as mint concatenates them, not as alpha alone', () => {
@@ -106,6 +108,46 @@ suite('APT scene', () => {
     assert.deepStrictEqual(leaves[0].color.mult, [1, 1, 1, half * half]);
     assert.deepStrictEqual(leaves[0].color.add, [0, 2, 0, 0]);
     assert.strictEqual(leaves[0].alpha, half * half);
+  });
+
+  test('an engine surface is one leaf where it stands in paint order, under its masks', () => {
+    const movie = synthetic({
+      characters: [
+        { id: 0, offset: 0, type: 'movie' },
+        sprite(1),
+        shape(2),
+        shape(3),
+        shape(4),
+      ],
+      frames: [
+        {
+          items: [
+            place(1, 4, { clipDepth: 3 }),
+            place(2, 1),
+            place(3, 3),
+            place(4, 3),
+          ],
+        },
+      ],
+      spriteFrames: { 1: [{ items: [place(1, 2)] }] },
+    } as unknown as Partial<PageMovie>);
+    const player = playerOf(movie);
+    const surface = [...player.root.children.values()].find(
+      (child) => child.character?.type === 'sprite',
+    );
+    const { leaves } = collect(player, (instance) => instance === surface);
+
+    assert.deepStrictEqual(
+      leaves.map((leaf) => leaf.id),
+      [1, 3, 3],
+    );
+    assert.ok(leaves[0].surfaceBox, 'its stored art is gone');
+    assert.strictEqual(leaves[0].masks?.length, 1);
+    assert.deepStrictEqual(getLocalBounds(leaves[0]), [0, 0, 10, 10]);
+    assert.deepStrictEqual(
+      collect(player).leaves.map((leaf) => leaf.id),
+      [2, 3, 3],
+    );
   });
 
   test('an empty clip placed with a clip depth masks nothing', () => {
@@ -188,6 +230,51 @@ suite('APT text layout', () => {
         [2, 13.5],
         [2, 25],
       ],
+    );
+  });
+});
+
+suite('APT button picking', () => {
+  const hitArea = (
+    button: string,
+    matrix: HitArea['leaf']['matrix'],
+  ): HitArea =>
+    ({
+      target: button,
+      leaf: {
+        matrix,
+        character: { type: 'shape', bounds: [-10, -5, 10, 5], geometry: 0 },
+      },
+    }) as unknown as HitArea;
+
+  test('a hit area is its bounds, whatever geometry the shape holds', () => {
+    const hits = [hitArea('button', [1, 0, 0, 1, 100, 50])];
+
+    assert.strictEqual(findPointerTargetAt(hits, [105, 52]), 'button');
+    assert.strictEqual(findPointerTargetAt(hits, [120, 50]), undefined);
+  });
+
+  test('the placement scales the area', () => {
+    const hits = [hitArea('button', [2, 0, 0, 2, 0, 0])];
+
+    assert.strictEqual(findPointerTargetAt(hits, [19, 0]), 'button');
+    assert.strictEqual(findPointerTargetAt(hits, [21, 0]), undefined);
+  });
+
+  test('the topmost button wins where two overlap', () => {
+    const hits = [
+      hitArea('below', [1, 0, 0, 1, 0, 0]),
+      hitArea('above', [1, 0, 0, 1, 5, 0]),
+    ];
+
+    assert.strictEqual(findPointerTargetAt(hits, [8, 0]), 'above');
+    assert.strictEqual(findPointerTargetAt(hits, [-8, 0]), 'below');
+  });
+
+  test('a collapsed placement takes nothing', () => {
+    assert.strictEqual(
+      findPointerTargetAt([hitArea('button', [0, 0, 0, 0, 0, 0])], [0, 0]),
+      undefined,
     );
   });
 });

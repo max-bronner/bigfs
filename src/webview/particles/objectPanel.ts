@@ -1,22 +1,30 @@
-import { poseAt } from '../../formats/w3d/w3dPose';
-import type { Pose, Vec3 } from '../../formats/w3d/w3dPose';
+import type { Vec3 } from '../../formats/w3d/w3dPose';
 import type { W3dAnimation } from '../../formats/w3d/w3dAnimation';
+import { findHidingSources } from '../../formats/w3d/w3dScene';
 import type { SceneSkeleton } from '../../formats/w3d/w3dScene';
 import type {
   ObjectScene,
   SceneFocus,
   SceneState,
 } from '../../game/objects/objectScene';
-import { $, post } from './page';
+import {
+  listConditionalSubObjects,
+  listSubObjectRules,
+} from '../../game/objects/subObjectRules';
+import { createSoundButton } from '../shared/createSoundButton';
+import { $, post, viewer } from './page';
 
 /**
  * The object a preview shows: its states to pick from, the animations the
- * picked state plays, and every element on it - the model, its bones, the
- * FX the state starts and the particle systems it keeps on bones - each
- * with a toggle. What the preview was asked from is on; the rest of the
- * level it sits on is shown too, and the object's other FX are listed off.
+ * picked state plays in the viewer's list, and the FX the state starts and
+ * the particle systems it keeps on bones, each with a toggle. What the
+ * preview was asked from is on; the rest of the level it sits on is shown
+ * too, and the object's other FX are listed off.
+ * The parts the object's INI and scripts hide in the state are not drawn,
+ * and the panel names them with what hides them.
  */
 
+/** One effect an object preview can start: an FX list or a particle system */
 export interface Effect {
   kind: 'fxList' | 'system';
   name: string;
@@ -29,28 +37,11 @@ interface Element extends Effect {
   on: boolean;
 }
 
+/** State of the object panel: the object, its picked state and its effects */
 export const objectView = {
   scene: undefined as ObjectScene | undefined,
   state: undefined as SceneState | undefined,
-  showModel: true,
-  showBones: false,
   elements: [] as Element[],
-  skeleton: undefined as SceneSkeleton | undefined,
-  animation: undefined as W3dAnimation | undefined,
-  frame: 0,
-  pose: undefined as Pose | undefined,
-};
-
-/** Restarts the effects, and poses the model; set by the page */
-let restart = () => {};
-let showPose = (_pose: Pose | undefined) => {};
-
-export const attachObjectPanel = (
-  onRestart: () => void,
-  onPose: (pose: Pose | undefined) => void,
-): void => {
-  restart = onRestart;
-  showPose = onPose;
 };
 
 const element = <K extends keyof HTMLElementTagNameMap>(
@@ -59,82 +50,76 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] =>
   Object.assign(document.createElement(tag), properties);
 
-const same = (a: string | undefined, b: string | undefined) =>
+const isSameName = (a: string | undefined, b: string | undefined) =>
   a?.toLowerCase() === b?.toLowerCase();
 
-/** Effects switched on, in order */
-export const enabledEffects = (): Effect[] =>
+/** Lists the effects switched on, in order */
+export const listEnabledEffects = (): Effect[] =>
   objectView.elements.filter((each) => each.on);
 
-/** Where a bone of the shown model stands now, relative to the model */
-export const bonePosition = (name: string | undefined): Vec3 => {
-  const { skeleton, pose } = objectView;
+/** Gets where a bone of the shown model stands now, relative to the model; the origin for an unknown bone */
+export const getBonePosition = (name: string | undefined): Vec3 => {
+  const skeleton = viewer.getModel()?.skeleton;
+  const pose = viewer.getPose();
   const at = name
-    ? (skeleton?.names.findIndex((each) => same(each, name)) ?? -1)
+    ? (skeleton?.names.findIndex((each) => isSameName(each, name)) ?? -1)
     : -1;
 
   return at >= 0 && pose ? ([...pose.world[at].t] as Vec3) : [0, 0, 0];
 };
 
-const setPose = () => {
-  const { skeleton, animation, frame } = objectView;
+/** Says which parts of the shown model are not drawn and why, and what could not be decided */
+const renderHiddenParts = () => {
+  const { scene, state } = objectView;
+  const model = viewer.getModel();
+  const meshes = model?.meshes ?? [];
+  const hiding = findHidingSources(
+    meshes,
+    scene ? listSubObjectRules(scene, state) : [],
+    model?.skeleton?.parents,
+  );
+  const hidden = meshes.flatMap((mesh, at) =>
+    hiding[at] ? [`${mesh.name} (${hiding[at]})`] : [],
+  );
+  const conditional = scene ? listConditionalSubObjects(scene, state) : [];
 
-  objectView.pose = skeleton && poseAt(skeleton, animation, frame);
-  showPose(objectView.pose);
+  $('objectParts').textContent = [
+    ...(hidden.length ? [`Hidden parts: ${hidden.join(', ')}`] : []),
+    ...(conditional.length
+      ? [`Not applied, depends on the running game: ${conditional.join(', ')}`]
+      : []),
+  ].join('. ');
 };
 
-/** Moves the animation on by `seconds` of playback */
-export const advanceAnimation = (seconds: number): void => {
-  const animation = objectView.animation;
-
-  if (!animation) {
-    return;
-  }
-  objectView.frame =
-    (objectView.frame + seconds * animation.frameRate) %
-    Math.max(1, animation.frameCount - 1);
-  setPose();
+/** Takes the model the page now shows, then restarts the effects */
+export const refreshShownModel = (): void => {
+  renderHiddenParts();
+  viewer.restart();
 };
 
-/** The model the page now shows, or none */
-export const modelShown = (skeleton: SceneSkeleton | undefined): void => {
-  objectView.skeleton = skeleton;
-  setPose();
-  restart();
-};
-
-export const animationLoaded = (
+/** Takes a loaded animation with the skeleton it names, or none when it was not found */
+export const setLoadedAnimation = (
   name: string,
   animation: W3dAnimation | undefined,
+  skeleton?: SceneSkeleton,
 ): void => {
-  const notice = $('objectNotice');
-
-  objectView.animation = animation;
-  objectView.frame = 0;
-  notice.textContent = animation
-    ? ''
-    : `The animation ${name} was not found or holds no animation`;
-  if (
-    animation &&
-    objectView.skeleton &&
-    !same(animation.hierarchyName, objectView.skeleton.name)
-  ) {
-    notice.textContent = `${name} is made for ${animation.hierarchyName}, not ${objectView.skeleton.name}; it may look wrong`;
+  if (animation) {
+    viewer.playClip({ id: name, animation, skeleton });
+  } else {
+    viewer.clearClip(`The animation ${name} was not found or holds no animation`);
   }
-  setPose();
 };
 
 const playAnimation = (name: string | undefined) => {
   if (name) {
     post({ kind: 'loadAnimation', name });
   } else {
-    animationLoaded('', undefined);
-    $('objectNotice').textContent = '';
+    viewer.clearClip();
   }
 };
 
-/** The elements a state shows, with what was asked for switched on */
-const elementsOf = (
+/** Lists the elements a state shows, with what was asked for switched on */
+const listElements = (
   scene: ObjectScene,
   state: SceneState | undefined,
   focus: SceneFocus,
@@ -146,7 +131,7 @@ const elementsOf = (
           (each) =>
             each.kind === 'model' &&
             each.draw === state.draw &&
-            same(each.model, state.model),
+            isSameName(each.model, state.model),
         )
       : undefined;
   const own: Element[] = [
@@ -155,23 +140,23 @@ const elementsOf = (
       name: each.system,
       bone: each.bone,
       label: `${each.system} on ${each.bone}`,
-      on: !focus.system || same(focus.system, each.system),
+      on: !focus.system || isSameName(focus.system, each.system),
     })),
     ...(state?.fx ?? []).map((name): Element => ({
       kind: 'fxList',
       name,
       label: `${name} (entering the state)`,
-      on: !focus.fx || same(focus.fx, name),
+      on: !focus.fx || isSameName(focus.fx, name),
     })),
   ];
   // The object's other FX play on events, so they wait to be switched on
   const others = scene.fx
-    .filter((each) => !own.some((mine) => same(mine.name, each.name)))
+    .filter((each) => !own.some((mine) => isSameName(mine.name, each.name)))
     .map((each): Element => ({
       kind: 'fxList',
       name: each.name,
       label: `${each.name} (${each.field})`,
-      on: same(focus.fx, each.name),
+      on: isSameName(focus.fx, each.name),
     }));
 
   return [...own, ...others];
@@ -196,12 +181,10 @@ const renderElements = () => {
   };
 
   list.replaceChildren(
-    toggle('Model', objectView.showModel, (on) => (objectView.showModel = on)),
-    toggle('Bones', objectView.showBones, (on) => (objectView.showBones = on)),
     ...objectView.elements.map((each) =>
       toggle(each.label, each.on, (on) => {
         each.on = on;
-        restart();
+        viewer.restart();
       }),
     ),
   );
@@ -217,13 +200,9 @@ const renderVoices = (scene: ObjectScene) => {
       ? [element('div', { className: 'muted', textContent: 'Voices' })]
       : []),
     ...scene.voices.map((voice) => {
-      const play = element('button', {
-        textContent: '▶',
-        title: `Play ${voice.name}`,
-      });
+      const play = createSoundButton(voice.name, post);
       const line = element('div', { className: 'row' });
 
-      play.onclick = () => post({ kind: 'playSound', name: voice.name });
       line.append(play, ` ${voice.field} = ${voice.name}`);
       return line;
     }),
@@ -239,7 +218,6 @@ const pickState = (focus: SceneFocus) => {
     state ??
     scene.states.find((each) => each.kind === 'model' && each.model) ??
     scene.states[0];
-  const animations = $<HTMLSelectElement>('objectAnimation');
   // A state of its own plays its animation; the object as a whole idles
   const choices = state
     ? state.animations
@@ -251,17 +229,18 @@ const pickState = (focus: SceneFocus) => {
       : scene.states.find((each) => /idle/i.test(each.label))?.animations[0]);
 
   objectView.state = shown;
-  objectView.elements = elementsOf(scene, state ?? shown, focus);
-  animations.replaceChildren(
-    new Option('Bind pose', ''),
-    ...[...new Set(choices)].map((name) => new Option(name, name)),
-  );
-  animations.value = first ?? '';
+  viewer.setSubObjectRules(listSubObjectRules(scene, shown));
+  objectView.elements = listElements(scene, state ?? shown, focus);
+  viewer.setClips({
+    own: [...new Set(choices)].map((name) => ({ id: name, label: name })),
+  });
+  viewer.showClipChoice(first);
   if (shown?.model) {
     post({ kind: 'loadModel', name: shown.model });
   }
   playAnimation(first);
   renderElements();
+  renderHiddenParts();
 };
 
 /** Opens the panel on an object, focused on what the preview came from */
@@ -291,7 +270,5 @@ export const showObject = (scene: ObjectScene, focus: SceneFocus): void => {
     pickState({
       state: states.value === '' ? undefined : Number(states.value),
     });
-  $<HTMLSelectElement>('objectAnimation').onchange = (event) =>
-    playAnimation((event.target as HTMLSelectElement).value || undefined);
   pickState(focus);
 };

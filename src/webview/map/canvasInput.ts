@@ -2,8 +2,8 @@ import type { MapActions } from './actions';
 import { canvas } from './elements';
 import { draw, project, unproject } from './draw';
 import {
-  idOf,
-  insidePolygon,
+  getWaypointId,
+  isInsidePolygon,
   isStart,
   isWaypoint,
   roundTo,
@@ -20,7 +20,7 @@ const PICK_OBJECT_DISTANCE = 100;
 /** The squared distance, in pixels, within which a click picks a trigger area's vertex */
 const PICK_VERTEX_DISTANCE = 64;
 
-const canvasPoint = (event: MouseEvent): [number, number] => {
+const toCanvasPoint = (event: MouseEvent): [number, number] => {
   const rect = canvas.getBoundingClientRect();
 
   return [
@@ -36,7 +36,7 @@ const isLayerShown = (object: ObjectView): boolean =>
       ? state.layers.waypoints
       : state.layers.objects;
 
-const nearestObject = ([x, y]: [number, number]): ObjectView | undefined => {
+const findNearestObject = ([x, y]: [number, number]): ObjectView | undefined => {
   let best: ObjectView | undefined;
   let bestDistance = PICK_OBJECT_DISTANCE;
 
@@ -55,7 +55,7 @@ const nearestObject = ([x, y]: [number, number]): ObjectView | undefined => {
   return best;
 };
 
-const nearestVertex = ([x, y]: [number, number]): number | undefined => {
+const findNearestVertex = ([x, y]: [number, number]): number | undefined => {
   const area =
     state.selectedArea === undefined
       ? undefined
@@ -83,8 +83,8 @@ const onMouseDown = (event: MouseEvent, actions: MapActions) => {
   if (!state.heights || event.button !== 0 || state.mode) {
     return;
   }
-  const at = canvasPoint(event);
-  const vertex = nearestVertex(at);
+  const at = toCanvasPoint(event);
+  const vertex = findNearestVertex(at);
 
   if (vertex !== undefined && !state.readOnly) {
     state.drag = {
@@ -95,7 +95,7 @@ const onMouseDown = (event: MouseEvent, actions: MapActions) => {
     };
     return;
   }
-  const object = nearestObject(at);
+  const object = findNearestObject(at);
   const chosen =
     state.selected === undefined ? undefined : state.map.objects[state.selected];
 
@@ -108,8 +108,8 @@ const onMouseDown = (event: MouseEvent, actions: MapActions) => {
     object !== chosen
   ) {
     if (!state.readOnly) {
-      const from = idOf(chosen);
-      const to = idOf(object);
+      const from = getWaypointId(chosen);
+      const to = getWaypointId(object);
       const present = state.map.waypointLinks.some(
         (link) => link.from === from && link.to === to,
       );
@@ -130,7 +130,7 @@ const onMouseDown = (event: MouseEvent, actions: MapActions) => {
   const world = unproject(at[0], at[1]);
   const index = state.layers.areas
     ? state.map.triggerAreas.findIndex((area) =>
-        insidePolygon(world, area.points),
+        isInsidePolygon(world, area.points),
       )
     : -1;
 
@@ -145,7 +145,7 @@ const onMouseMove = (event: MouseEvent) => {
   if (!drag) {
     return;
   }
-  const [x, y] = unproject(...canvasPoint(event));
+  const [x, y] = unproject(...toCanvasPoint(event));
 
   drag.moved = true;
   if (drag.kind === 'object') {
@@ -190,7 +190,7 @@ const onClick = (event: MouseEvent) => {
   if (!state.heights || !state.mode || state.readOnly) {
     return;
   }
-  const [x, y] = unproject(...canvasPoint(event));
+  const [x, y] = unproject(...toCanvasPoint(event));
 
   if (state.mode.kind === 'place') {
     placeAt(x, y);

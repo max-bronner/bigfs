@@ -1,10 +1,11 @@
 import * as assert from 'assert';
-import { behaviourOf } from '../../formats/apt/aptBehaviour';
+import { readBehaviour } from '../../formats/apt/aptBehaviour';
 import { compileScript } from '../../formats/apt/aptCompiler';
 import type { FrameItem } from '../../formats/apt/aptMovie';
 import { parseScript } from '../../formats/apt/aptScriptParser';
 import { AptImage } from '../../formats/apt/writer/aptImage';
-import { OVER, Player } from '../../webview/apt/player';
+import { OVER } from '../../webview/apt/buttonState';
+import { Player } from '../../webview/apt/player';
 import type { PageMovie } from '../../webview/apt/protocol';
 
 const place = (
@@ -147,7 +148,7 @@ suite('APT player', () => {
     const read = (source: string) => {
       const block = compileScript(parseScript(source), image, []);
 
-      return behaviourOf(image.bytes, block, []);
+      return readBehaviour(image.bytes, block, []);
     };
 
     assert.deepStrictEqual(

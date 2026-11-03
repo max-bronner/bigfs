@@ -9,16 +9,18 @@ import { stripComment, tokenize } from '../../formats/ini/sageIniParser';
  * the command reads the files, this decides the lines.
  */
 
+/** How a new object is made from its source: a `ChildObject` that inherits, or a full copy */
 export type NewObjectMode = 'inherit' | 'copy';
 
+/** An INI block planned for writing, and the labels renamed in it */
 export interface PlannedBlock {
   lines: string[];
   /** Game-text labels the copy renamed, to give their own records */
   labels: LabelRename[];
 }
 
-/** The label a new object's name is shown by */
-export const displayLabel = (name: string) => `OBJECT:${name}`;
+/** Formats the `OBJECT:` label a new object's name is shown by */
+export const formatDisplayLabel = (name: string) => `OBJECT:${name}`;
 
 /**
  * Sets a field written at a block's own level, or adds it under the
@@ -47,14 +49,14 @@ export const setField = (
     : [lines[0], written, ...lines.slice(1)];
 };
 
-/** A `ChildObject` that inherits everything and is shown under its own name */
-export const inheritingObject = (
+/** Creates a `ChildObject` that inherits everything and is shown under its own name */
+export const createInheritingObject = (
   name: string,
   parent: string,
 ): PlannedBlock => ({
   lines: [
     `ChildObject ${name} ${parent}`,
-    `  DisplayName = ${displayLabel(name)}`,
+    `  DisplayName = ${formatDisplayLabel(name)}`,
     `  ; Write what differs from ${parent} here: a field replaces the`,
     '  ; inherited one, a module replaces the one with its tag',
     'End',
@@ -62,8 +64,8 @@ export const inheritingObject = (
   labels: [],
 });
 
-/** A full copy of the source block under the new name, shown by its own label */
-export const copiedObject = (
+/** Copies the source block under the new name, shown by its own label */
+export const copyObject = (
   lines: string[],
   startLine: number,
   endLine: number,
@@ -72,13 +74,13 @@ export const copiedObject = (
   const copy = duplicateDefinition(lines, startLine, endLine, name);
 
   return {
-    lines: setField(copy.lines, 'DisplayName', displayLabel(name)),
+    lines: setField(copy.lines, 'DisplayName', formatDisplayLabel(name)),
     labels: copy.labels,
   };
 };
 
-/** The new button's name: the old one with the unit's name swapped, or suffixed */
-export const buttonName = (
+/** Derives the new button's name: the old one with the unit's name swapped, or suffixed */
+export const deriveButtonName = (
   button: string,
   source: string,
   name: string,
@@ -90,8 +92,8 @@ export const buttonName = (
     : `${button}_${name}`;
 };
 
-/** A copy of the button that builds the source, building the new object */
-export const copiedButton = (
+/** Copies the button that builds the source so that it builds the new object */
+export const copyButton = (
   lines: string[],
   startLine: number,
   endLine: number,
@@ -119,10 +121,10 @@ export const copiedButton = (
 };
 
 /**
- * The line that puts a button in a command set's next free slot, and the
- * line it goes before (the set's `End`)
+ * Plans the line that puts a button in a command set's next free slot, and
+ * the line it goes before (the set's `End`)
  */
-export const slotLine = (
+export const planSlotLine = (
   setLines: string[],
   button: string,
 ): { line: number; text: string } => {
@@ -144,7 +146,7 @@ export const slotLine = (
 };
 
 /**
- * The folder whose `.ini` files the game loads object definitions from: the
+ * Entry path of the folder whose `.ini` files the game loads object definitions from: the
  * `Data\INI\Object` directory is read file by file, subfolders included,
  * while an `.ini` anywhere else is read only when the boot legend names it
  * and an `.inc` only when an `#include` pulls it in
@@ -158,11 +160,11 @@ export const isLoadedObjectPath = (entryPath: string): boolean =>
   );
 
 /**
- * The entry a new object is written to: beside its source when that file is
- * one the game loads, else a file of its own in the object folder, which a
- * file at the root of a mod or in a folder the game never reads is not
+ * Chooses the entry a new object is written to: beside its source when the
+ * game loads that file, else a file of its own in the object folder, since a
+ * file at a mod's root or in a folder the game never reads is not loaded
  */
-export const newObjectEntryPath = (
+export const chooseNewObjectEntryPath = (
   sourceEntryPath: string | undefined,
   name: string,
 ): string =>

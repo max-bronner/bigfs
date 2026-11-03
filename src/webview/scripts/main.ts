@@ -1,3 +1,5 @@
+import type { SoundReply } from '../../core/soundClip';
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
 import { element } from '../shared/element';
 import { createScriptTree } from '../shared/scriptTree';
 import { getVsCodeApi } from '../shared/vscodeApi';
@@ -8,7 +10,13 @@ import type { FromScriptsPage, ScriptsMessage } from './protocol';
 const vscode = getVsCodeApi<FromScriptsPage>();
 const root = document.getElementById('root')!;
 
-window.addEventListener('message', ({ data }: MessageEvent<ScriptsMessage>) => {
+window.addEventListener(
+  'message',
+  ({ data }: MessageEvent<ScriptsMessage | SoundReply>) => {
+  if (data.kind === 'sound') {
+    void pageSoundPlayer.receive(data);
+    return;
+  }
   if (data.kind !== 'scripts') {
     return;
   }
@@ -16,7 +24,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ScriptsMessage>) => {
   if (data.scripts.some((list) => list.length)) {
     const tree = createScriptTree(data.scripts, undefined, {
       editable: false,
-      onPlaySound: (name) => vscode.postMessage({ kind: 'playSound', name }),
+      postSound: (request) => vscode.postMessage(request),
       onSetActive: () => undefined,
     });
 
@@ -28,5 +36,6 @@ window.addEventListener('message', ({ data }: MessageEvent<ScriptsMessage>) => {
   data.problems.forEach((problem) =>
     root.append(element('p', problem, 'problems')),
   );
-});
+  },
+);
 vscode.postMessage({ kind: 'ready' });

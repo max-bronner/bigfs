@@ -1,29 +1,25 @@
 import { EASINGS, compileExpression } from '../../core/expression';
-import {
-  decodeTimeline,
-  detectTweens,
-  motionOf,
-  poseOf,
-} from '../../formats/apt/aptTimeline';
-import type {
-  DetectedTween,
-  Motion,
-  Pose,
-  TimelineOperation,
-} from '../../formats/apt/aptTimeline';
+import { decodeTimeline } from '../../formats/apt/aptTimeline';
+import { detectTweens } from '../../formats/apt/aptTweenDetection';
+import { readMotion } from '../../formats/apt/aptTimelineEdits';
+import { getPose } from '../../formats/apt/aptPose';
+import type { DetectedTween } from '../../formats/apt/aptTweenDetection';
+import type { Motion, TimelineOperation } from '../../formats/apt/aptTimelineEdits';
+import type { Pose } from '../../formats/apt/aptPose';
 import {
   MotionScriptError,
   parseMotionScript,
   tweensAsScript,
 } from '../../formats/apt/motionScript';
 import { blockCard } from './blocks/blockCard';
-import { send, showDetails } from './details';
-import { button, byId } from './dom';
+import { showDetails } from './details';
+import { send } from './send';
+import { createButton, byId } from './dom';
 import { currentPlayer, goToFrame, render, showMode, view } from './stage';
 import { state } from './state';
-import { timelineFlow } from '../../formats/apt/aptFlow';
+import { readTimelineFlow } from '../../formats/apt/aptFlow';
 import type { Jump, TimelineFlow } from '../../formats/apt/aptFlow';
-import { displayList } from './timeline';
+import { buildDisplayList } from './timeline';
 
 /**
  * The timeline panel: depths by frames, the way an animation editor shows
@@ -112,11 +108,11 @@ const cellsOf = (frames: ReturnType<typeof shownTimeline> & object) => {
 const poseAt = (frame: number, depth: number): Pose | undefined => {
   const timeline = shownTimeline();
   const placement = timeline
-    ? displayList(timeline.frames, frame).find((each) => each.depth === depth)
+    ? buildDisplayList(timeline.frames, frame).find((each) => each.depth === depth)
     : undefined;
 
   return placement
-    ? poseOf({
+    ? getPose({
         token: '',
         character: placement.character,
         matrix: placement.matrix,
@@ -169,7 +165,7 @@ const tweenForm = (depth: number): HTMLElement => {
   element.append(
     ...inputs.map(([key, control]) => field(key, control)),
     field('easing', easing),
-    button('Apply', () => {
+    createButton('Apply', () => {
       const values = Object.fromEntries(
         inputs.map(([key, control]) => [key, Number(control.value)]),
       );
@@ -213,7 +209,7 @@ const formulaForm = (depth: number): HTMLElement => {
   element.append(
     ...inputs.map(([key, control]) => field(key, control)),
     field('easing for t', easing),
-    button('Apply', () => {
+    createButton('Apply', () => {
       const formulas = Object.fromEntries(
         inputs
           .filter(([, control]) => control.value.trim())
@@ -271,7 +267,7 @@ const scriptForm = (tweens: DetectedTween[]): HTMLElement => {
   error.className = 'error-text';
   element.append(
     area,
-    button('Run', () => {
+    createButton('Run', () => {
       const timeline = shownTimeline();
 
       try {
@@ -288,7 +284,7 @@ const scriptForm = (tweens: DetectedTween[]): HTMLElement => {
             : String(problem);
       }
     }),
-    button('From the timeline', () => {
+    createButton('From the timeline', () => {
       scriptText = undefined;
       showTimeline();
     }),
@@ -310,7 +306,7 @@ const toolbar = (frameCount: number): HTMLElement => {
     enabled: boolean,
     onClick: () => void,
   ) => {
-    const control = button(name, onClick);
+    const control = createButton(name, onClick);
 
     control.title = title;
     control.disabled = !enabled;
@@ -360,7 +356,7 @@ const toolbar = (frameCount: number): HTMLElement => {
         const timeline = shownTimeline()!;
 
         copied = {
-          motion: motionOf(
+          motion: readMotion(
             decodeTimeline(undefined, timeline.frames),
             depth!,
             from,
@@ -634,7 +630,7 @@ export const showTimeline = (): void => {
   const tweens = detectTweens(decodeTimeline(undefined, timeline.frames));
   const table = document.createElement('table');
 
-  const flow = timelineFlow(
+  const flow = readTimelineFlow(
     timeline.frames,
     timeline.movie.behaviours,
     timeline.movie.characters,

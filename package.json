@@ -45,6 +45,13 @@
           "id": "bigArchiveExplorer",
           "name": "BIG Archives",
           "icon": "$(archive)"
+        },
+        {
+          "id": "bigfs.search",
+          "name": "Search in Archives",
+          "type": "webview",
+          "icon": "$(search)",
+          "visibility": "collapsed"
         }
       ]
     },
@@ -70,6 +77,11 @@
         "command": "bigfs.refreshArchives",
         "title": "Refresh",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "bigfs.newArchive",
+        "title": "New Archive...",
+        "icon": "$(new-file)"
       },
       {
         "command": "bigfs.newFile",
@@ -145,6 +157,11 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.goToFile",
+        "title": "Go to File in Archives...",
+        "category": "bigFS"
+      },
+      {
         "command": "bigfs.validateIni",
         "title": "Validate INI Files",
         "category": "BIG"
@@ -192,6 +209,21 @@
         "category": "BIG"
       },
       {
+        "command": "bigfs.exportCursorPng",
+        "title": "Export Cursor as PNG…",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.convertPngToCursor",
+        "title": "Convert to Cursor…",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.buildAnimatedCursor",
+        "title": "Build Animated Cursor…",
+        "category": "BIG"
+      },
+      {
         "command": "bigfs.previewParticles",
         "title": "Preview Particle System",
         "category": "BIG"
@@ -214,6 +246,16 @@
       {
         "command": "bigfs.showEffectiveObject",
         "title": "Show Effective Definition",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.editMappedImageRegion",
+        "title": "Edit MappedImage Region in Texture",
+        "category": "BIG"
+      },
+      {
+        "command": "bigfs.showRuRegion",
+        "title": "Show APT Geometry Texture Region",
         "category": "BIG"
       },
       {
@@ -333,8 +375,13 @@
           "when": "view == bigArchiveExplorer"
         },
         {
-          "command": "bigfs.validateIni",
+          "command": "bigfs.goToFile",
           "group": "1_search@2",
+          "when": "view == bigArchiveExplorer"
+        },
+        {
+          "command": "bigfs.validateIni",
+          "group": "1_search@3",
           "when": "view == bigArchiveExplorer"
         },
         {
@@ -349,6 +396,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "bigfs.newArchive",
+          "group": "navigation@1",
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Source|DiskFolder)$/"
+        },
         {
           "command": "bigfs.newFile",
           "group": "navigation@1",
@@ -367,17 +419,17 @@
         {
           "command": "bigfs.extract",
           "group": "3_extract@1",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|Folder|File)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|Folder|File|GameFolder)(ReadOnly)?$/"
         },
         {
           "command": "bigfs.rename",
           "group": "7_modification@1",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|File|Folder)$/"
         },
         {
           "command": "bigfs.delete",
           "group": "7_modification@2",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|File|Folder)$/"
         },
         {
           "command": "bigfs.cut",
@@ -387,7 +439,7 @@
         {
           "command": "bigfs.copy",
           "group": "5_cutcopypaste@2",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)(ReadOnly)?$/"
         },
         {
           "command": "bigfs.paste",
@@ -402,17 +454,17 @@
         {
           "command": "bigfs.copyPath",
           "group": "6_copypath@1",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Archive|File|Folder)(ReadOnly)?$/"
         },
         {
           "command": "bigfs.copyRelativePath",
           "group": "6_copypath@2",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)(ReadOnly)?$/"
         },
         {
           "command": "bigfs.overrideInFolder",
           "group": "3_extract@2",
-          "when": "view == bigArchiveExplorer && viewItem =~ /^big(File|Folder)$/"
+          "when": "view == bigArchiveExplorer && viewItem =~ /^big(Folder|File|GameFolder)(ReadOnly)?$/"
         },
         {
           "command": "bigfs.convertStringTable",
@@ -433,6 +485,16 @@
           "command": "bigfs.convertPng",
           "group": "7_modification@13",
           "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i && viewItem != bigFileReadOnly && viewItem != bigFolderReadOnly && viewItem != bigArchiveReadOnly"
+        },
+        {
+          "command": "bigfs.exportCursorPng",
+          "group": "7_modification@13",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.(cur|ani)$/i"
+        },
+        {
+          "command": "bigfs.convertPngToCursor",
+          "group": "7_modification@13",
+          "when": "view == bigArchiveExplorer && resourceExtname =~ /^\\.png$/i"
         },
         {
           "command": "bigfs.newAptMovie",
@@ -481,6 +543,10 @@
         {
           "command": "bigfs.refreshArchives",
           "title": "BIG: Refresh Archives"
+        },
+        {
+          "command": "bigfs.newArchive",
+          "when": "false"
         },
         {
           "command": "bigfs.newFile",
@@ -557,6 +623,14 @@
         {
           "command": "bigfs.convertPng",
           "when": "false"
+        },
+        {
+          "command": "bigfs.exportCursorPng",
+          "when": "false"
+        },
+        {
+          "command": "bigfs.convertPngToCursor",
+          "when": "false"
         }
       ],
       "explorer/context": [
@@ -584,6 +658,21 @@
           "command": "bigfs.convertPng",
           "group": "7_modification@13",
           "when": "resourceExtname =~ /^\\.png$/i"
+        },
+        {
+          "command": "bigfs.exportCursorPng",
+          "group": "7_modification@13",
+          "when": "resourceExtname =~ /^\\.(cur|ani)$/i"
+        },
+        {
+          "command": "bigfs.convertPngToCursor",
+          "group": "7_modification@13",
+          "when": "resourceExtname =~ /^\\.png$/i"
+        },
+        {
+          "command": "bigfs.buildAnimatedCursor",
+          "group": "7_modification@13",
+          "when": "resourceExtname =~ /^\\.(png|cur|tga)$/i"
         },
         {
           "command": "bigfs.newAptMovie",
@@ -682,6 +771,11 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "bigfs.goToFile",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p"
+      },
       {
         "command": "bigfs.rename",
         "key": "f2",
@@ -838,7 +932,7 @@
         "displayName": "bigFS Preview",
         "selector": [
           {
-            "filenamePattern": "*.{tga,dds,wav,w3d,mp3,vp6,TGA,DDS,WAV,W3D,MP3,VP6}"
+            "filenamePattern": "*.{tga,dds,wav,w3d,vp6,cur,ani,TGA,DDS,WAV,W3D,VP6,CUR,ANI}"
           }
         ],
         "priority": "default"

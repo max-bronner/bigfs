@@ -4,10 +4,10 @@ import { join } from 'path';
 import { createSageIniSchema } from '../../formats/ini/sageIniSchema';
 import { parseSageIni } from '../../formats/ini/sageIniParser';
 import {
-  closestNames,
+  findClosestNames,
   formatSageIni,
   formatSageIniStable,
-  missingEndLine,
+  findMissingEndLine,
 } from '../../formats/ini/sageIniFormat';
 
 const schema = createSageIniSchema(
@@ -55,16 +55,16 @@ suite('SAGE INI formatting and fixes', () => {
       'End',
     ];
 
-    assert.strictEqual(missingEndLine(lines, 1), 3);
-    assert.strictEqual(missingEndLine(lines, 4), 5);
+    assert.strictEqual(findMissingEndLine(lines, 1), 3);
+    assert.strictEqual(findMissingEndLine(lines, 4), 5);
   });
 
   test('suggestions are near misses only', () => {
     assert.deepStrictEqual(
-      closestNames('AtackRange', ['AttackRange', 'AttackSpeed', 'Armor']),
+      findClosestNames('AtackRange', ['AttackRange', 'AttackSpeed', 'Armor']),
       ['AttackRange'],
     );
-    assert.deepStrictEqual(closestNames('Zzz', ['AttackRange']), []);
+    assert.deepStrictEqual(findClosestNames('Zzz', ['AttackRange']), []);
   });
 
   test('formatting twice gives what formatting once does', () => {

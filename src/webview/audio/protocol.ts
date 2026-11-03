@@ -1,12 +1,7 @@
-/** A sound for the player to play: the user asked for it with a click */
-export interface PlayMessage {
-  kind: 'play';
-  name: string;
-  mime: string;
-  /** The file's bytes, base64 */
-  data: string;
-}
+import type { PlaySoundRequest, SoundReply } from '../../core/soundClip';
 
-export type ToSoundPage = PlayMessage;
+/** Messages the extension sends to the sound player's page: a sound to play, unasked or answering a press */
+export type ToSoundPage = SoundReply;
 
-export type FromSoundPage = { kind: 'ready' };
+/** Messages the sound player's page sends to the extension */
+export type FromSoundPage = { kind: 'ready' } | PlaySoundRequest;

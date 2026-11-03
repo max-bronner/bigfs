@@ -1,6 +1,6 @@
 /** The messages the string table's page and its editors exchange */
 
-/** One label of the table */
+/** One row of the string table: a label and its text, as the editor sends it */
 export interface StringRow {
   id: number;
   label: string;
@@ -12,7 +12,7 @@ export interface StringRow {
   problems?: string[];
 }
 
-/** What the page sends: `id` and `label` name the row an edit means */
+/** Messages the string table's page sends; `id` and `label` name the row an edit means */
 export type FromStringsPage =
   | { kind: 'ready' }
   | {
@@ -25,7 +25,7 @@ export type FromStringsPage =
   | { kind: 'remove'; id: number; label: string }
   | { kind: 'reveal'; id: number };
 
-/** What the editor sends: the whole table, or a notice about a refused edit */
+/** Messages the editor sends: the whole table, or a notice about a refused edit */
 export type StringsToPage =
   | {
       kind: 'table';

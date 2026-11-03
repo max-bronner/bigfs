@@ -1,11 +1,12 @@
 import { AptReader, parseFrames } from '../aptMovie';
 import type { AptMovie } from '../aptMovie';
-import { applyOperation, decodeTimeline, encodeTimeline } from '../aptTimeline';
+import { applyOperation } from '../aptTimelineEdits';
+import { decodeTimeline, encodeTimeline } from '../aptTimeline';
 import type { FrameSpec } from '../aptTimeline';
 import type { AptEdit, EditResult } from './aptEdit';
 import { AptImage } from './aptImage';
-import { timelineFields } from './frameItems';
-import { placeSpecWords } from './placeObjectWords';
+import { getTimelineFields } from './frameItems';
+import { encodePlaceSpec } from './placeObjectWords';
 
 /** An edit to a whole timeline */
 export type TimelineEdit = Extract<
@@ -21,7 +22,7 @@ export const applyTimelineEdit = (
 ): EditResult => {
   switch (edit.kind) {
     case 'swapDepths': {
-      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const { countAt, pointerAt } = getTimelineFields(movie, edit.timeline);
       const frames = parseFrames(
         new AptReader(image.bytes),
         image.u32(countAt),
@@ -54,7 +55,7 @@ export const applyTimelineEdit = (
       return {};
     }
     case 'setTimeline': {
-      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const { countAt, pointerAt } = getTimelineFields(movie, edit.timeline);
       const count = image.u32(countAt);
       const old = image.u32(pointerAt);
       const words = edit.frames.flatMap((frame, index) => {
@@ -84,7 +85,7 @@ export const applyTimelineEdit = (
                     item.flags >>> 0,
                     index,
                   ])
-                : image.appendWords(placeSpecWords(image, item.place)),
+                : image.appendWords(encodePlaceSpec(image, item.place)),
         );
 
         return [items.length, items.length ? image.appendWords(items) : 0];
@@ -98,7 +99,7 @@ export const applyTimelineEdit = (
       return {};
     }
     case 'addFrame': {
-      const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+      const { countAt, pointerAt } = getTimelineFields(movie, edit.timeline);
       const count = image.u32(countAt);
       const frames = image.appendWords(
         Array.from({ length: count * 2 }, (_, index) =>
@@ -113,13 +114,13 @@ export const applyTimelineEdit = (
   }
 };
 
-/** The frames a timeline has after an operation, or a script of them, is applied to it */
-export const editedTimelineFrames = (
+/** Computes the frames a timeline has once an operation, or a script of them, is applied to it */
+export const computeEditedTimelineFrames = (
   image: AptImage,
   movie: AptMovie,
   edit: Extract<AptEdit, { kind: 'timeline' | 'timelineScript' }>,
 ): FrameSpec[] => {
-  const { countAt, pointerAt } = timelineFields(movie, edit.timeline);
+  const { countAt, pointerAt } = getTimelineFields(movie, edit.timeline);
   const states = decodeTimeline(
     image.bytes,
     parseFrames(

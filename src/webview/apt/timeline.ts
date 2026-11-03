@@ -11,14 +11,16 @@ export interface ColorTransform {
   add: [number, number, number, number];
 }
 
+/** Colour transform that leaves every channel as it is */
 export const IDENTITY_COLOR: ColorTransform = {
   mult: [1, 1, 1, 1],
   add: [0, 0, 0, 0],
 };
 
 /**
- * From a PlaceObject's two packed words: `mult` holds its channels in memory
- * order R, G, B, A; `add` is `0x00RRGGBB` and has no alpha term
+ * Creates a colour transform from a PlaceObject's two packed words: `mult`
+ * holds its channels in memory order R, G, B, A; `add` is `0x00RRGGBB` and has
+ * no alpha term
  */
 export const colorFromApt = (mult: number, add = 0): ColorTransform => ({
   mult: [
@@ -35,7 +37,7 @@ export const colorFromApt = (mult: number, add = 0): ColorTransform => ({
   ],
 });
 
-/** The parent's transform followed by the child's: a child's add is scaled by the parent's mult */
+/** Combines a parent's colour transform with its child's; the child's add is scaled by the parent's mult */
 export const concatColor = (
   parent: ColorTransform,
   child: ColorTransform,
@@ -77,8 +79,8 @@ export interface Placement {
   clipActions?: { events: number; block: number }[];
 }
 
-/** Frames of a timeline: the movie's own, or a sprite's */
-export const framesOf = (movie: PageMovie, character: Character): Frame[] =>
+/** Gets the frames of a timeline: the movie's own, or a sprite's */
+export const getFrames = (movie: PageMovie, character: Character): Frame[] =>
   character.type === 'movie'
     ? movie.frames
     : character.type === 'sprite'
@@ -88,8 +90,8 @@ export const framesOf = (movie: PageMovie, character: Character): Frame[] =>
 /** Display lists already built, per timeline and frame */
 const built = new WeakMap<Frame[], Map<number, Placement[]>>();
 
-/** The display list after a timeline's frame, by depth, built up from frame 0 */
-export const displayList = (frames: Frame[], frame: number): Placement[] => {
+/** Builds the display list after a timeline's frame, by depth, from frame 0; cached per timeline and frame */
+export const buildDisplayList = (frames: Frame[], frame: number): Placement[] => {
   let cache = built.get(frames);
   const known = cache?.get(frame);
 

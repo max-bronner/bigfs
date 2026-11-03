@@ -4,12 +4,10 @@ import { parseStringRecords, quoteStringText } from '../../formats/str/sageStrin
 import {
   decodeIniText,
   encodeWindows1252,
-  unencodableCharacters,
+  findUnencodableCharacters,
 } from '../../core/windows1252';
 import { toUri } from '../../services/archives/commandTarget';
 import type { CommandTarget } from '../../services/archives/commandTarget';
-import type { ArchiveModel } from '../../services/archives/archiveModel';
-import { registerTranslationCheck } from '../translations/translationCheck';
 import { registerCommand } from '../../platform/commands';
 
 /**
@@ -17,11 +15,12 @@ import { registerCommand } from '../../platform/commands';
  * folding per record, and converting between `.str` and `.csf`.
  */
 
+/** Language id of `.str` string tables */
 export const STR_LANGUAGE = 'sage-str';
 
 const selector: vscode.DocumentSelector = { language: STR_LANGUAGE };
 
-/** The problems a reader of the file would trip over */
+/** Finds the problems in a `.str` file a reader of it would trip over, as offsets into `source` */
 export const findStrProblems = (
   source: string,
 ): { start: number; end: number; message: string; isError: boolean }[] => {
@@ -84,7 +83,7 @@ export const findStrProblems = (
   return problems;
 };
 
-/** A `.str` file's text from a `.csf`; speech names have no place in it */
+/** Converts a `.csf` to a `.str` file's text, counting the speech names and extra strings it drops, which have no place in it */
 export const csfToStr = (
   bytes: Uint8Array,
   eol = '\r\n',
@@ -108,10 +107,10 @@ export const csfToStr = (
     })
     .join(eol);
 
-  return { text, dropped, unencodable: unencodableCharacters(text) };
+  return { text, dropped, unencodable: findUnencodableCharacters(text) };
 };
 
-/** A `.csf` from a `.str` file's text, every record in order */
+/** Converts a `.str` file's text to a `.csf`, every record in order */
 export const strToCsf = (source: string): Uint8Array =>
   writeCsf({
     version: 3,
@@ -123,9 +122,9 @@ export const strToCsf = (source: string): Uint8Array =>
     })),
   });
 
+/** Registers the STR language support: problems, outline, folding and `bigfs.convertStringTable` */
 export const registerSageStrLanguage = (
   context: vscode.ExtensionContext,
-  archiveModel: ArchiveModel,
 ): void => {
   const diagnostics = vscode.languages.createDiagnosticCollection(STR_LANGUAGE);
   const refresh = (document: vscode.TextDocument) => {
@@ -264,6 +263,5 @@ export const registerSageStrLanguage = (
         }),
     }),
     registerCommand('bigfs.convertStringTable', convert),
-    registerTranslationCheck(archiveModel),
   );
 };

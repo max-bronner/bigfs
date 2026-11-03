@@ -4,12 +4,8 @@ import { isFragmentPath, parseSageIni } from '../../formats/ini/sageIniParser';
 import type { SageDocument } from '../../formats/ini/sageIniParser';
 import type { SageIniDocuments } from './sageIniDocuments';
 
-/**
- * A file's current text: its editor's when it is open there, so unsaved
- * edits count, else what is on disk.
- */
-
-export const openDocument = (
+/** Finds the text document an editor has open for a uri, if any */
+export const findOpenDocument = (
   uri: vscode.Uri,
 ): vscode.TextDocument | undefined => {
   const key = uri.toString();
@@ -19,18 +15,25 @@ export const openDocument = (
   );
 };
 
+/**
+ * Reads a file's current text: its editor's when it is open there, so unsaved
+ * edits count, else what is on disk
+ */
 export const readWorkspaceText = async (uri: vscode.Uri): Promise<string> =>
-  openDocument(uri)?.getText() ??
+  findOpenDocument(uri)?.getText() ??
   decodeIniText(await vscode.workspace.fs.readFile(uri));
 
+/** Cache of parsed INI files by uri, as `createParseCache` creates it */
 export interface ParseCache {
   /** The parsed file, or nothing when it cannot be read (deleted since indexed) */
   get(uri: vscode.Uri): Promise<SageDocument | undefined>;
+  /** Drops one file, so its next `get` parses it again */
   delete(uri: vscode.Uri): void;
+  /** Drops every file */
   clear(): void;
 }
 
-/** Parses each file once until told it changed; a failed read is retried next time */
+/** Creates a parse cache that parses each file once until told it changed; a failed read is retried next time */
 export const createParseCache = (documents: SageIniDocuments): ParseCache => {
   const parses = new Map<string, Promise<SageDocument | undefined>>();
 
@@ -41,7 +44,7 @@ export const createParseCache = (documents: SageIniDocuments): ParseCache => {
 
       if (!parse) {
         parse = (async () => {
-          const open = openDocument(uri);
+          const open = findOpenDocument(uri);
 
           if (open) {
             return documents.parse(open);

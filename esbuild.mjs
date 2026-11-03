@@ -42,7 +42,7 @@ const esbuildProblemMatcherPlugin = {
  * The extension loads them by that name, so a name never changes.
  */
 const PAGES = [
-  // The particle preview's page, with the simulation it runs
+  // The FX and object previews' page, with the simulation it runs
   { name: 'particles', entry: 'src/webview/particles/main.ts' },
   // The APT editor's page
   { name: 'apt', entry: 'src/webview/apt/main.ts' },
@@ -50,7 +50,7 @@ const PAGES = [
   { name: 'armor', entry: 'src/webview/armor/main.ts' },
   // The CommandSet editor's page
   { name: 'commandset', entry: 'src/webview/commandset/main.ts' },
-  // The W3D viewer's model view
+  // The bigFS Preview editor's page: textures, sounds, movies, cursors and models
   { name: 'model', entry: 'src/webview/preview/main.ts' },
   // The WND layout preview's page
   { name: 'wnd', entry: 'src/webview/wnd/main.ts' },
@@ -68,8 +68,12 @@ const PAGES = [
   { name: 'cah', entry: 'src/webview/cah/main.ts' },
   // The string table editor's page
   { name: 'strings', entry: 'src/webview/strings/main.ts' },
+  // The animated cursor builder's page
+  { name: 'cursors', entry: 'src/webview/cursors/main.ts' },
   // The map script viewer's page
   { name: 'scripts', entry: 'src/webview/scripts/main.ts' },
+  // The search view's page: text search across the archives
+  { name: 'archiveSearch', entry: 'src/webview/archiveSearch/main.ts' },
 ];
 
 /** Options every bundle shares */

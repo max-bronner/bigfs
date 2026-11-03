@@ -3,37 +3,48 @@
  * `crates/core/vp6/src/tables.rs` (from NihAV via Ruffle, MIT; see `NOTICE`).
  */
 
+/** Bit order of a long motion vector component's low raw bits, which the bitstream sends out of order */
 export const LONG_VECTOR_ORDER = [0, 1, 2, 7, 6, 5, 4] as const;
 
+/** Default probability choosing between a short and a long motion vector component, by component */
 export const NZ_PROBS = [162, 164] as const;
+/** Default probabilities of a long motion vector component's raw bits, by component */
 export const RAW_PROBS = [
   [247, 210, 135, 68, 138, 220, 239, 246],
   [244, 184, 201, 44, 173, 221, 239, 253],
 ] as const;
+/** Default probabilities of the short motion vector tree, by component */
 export const TREE_PROBS = [
   [225, 146, 172, 147, 214, 39, 156],
   [204, 170, 119, 235, 140, 230, 228],
 ] as const;
+/** Default probabilities of the zero-run tree, for early and late coefficient positions */
 export const ZERO_RUN_PROBS = [
   [198, 197, 196, 146, 198, 204, 169, 142, 130, 136, 149, 149, 191, 249],
   [135, 201, 181, 154, 98, 117, 132, 126, 146, 169, 184, 240, 246, 254],
 ] as const;
 
+/** Probabilities that a frame header updates `NZ_PROBS`, by component */
 export const HAS_NZ_PROB = [237, 231] as const;
+/** Probabilities that a frame header updates a motion vector sign probability, by component */
 export const HAS_SIGN_PROB = [246, 243] as const;
+/** Probabilities that a frame header updates each `TREE_PROBS` slot, by component */
 export const HAS_TREE_PROB = [
   [253, 253, 254, 254, 254, 254, 254],
   [245, 253, 254, 254, 254, 254, 254],
 ] as const;
+/** Probabilities that a frame header updates each `RAW_PROBS` slot, by component */
 export const HAS_RAW_PROB = [
   [254, 254, 254, 254, 254, 250, 250, 252],
   [254, 254, 254, 254, 254, 251, 251, 254],
 ] as const;
 
+/** Probabilities that a frame header updates each DC token probability, by plane group */
 export const HAS_COEF_PROBS = [
   [146, 255, 181, 207, 232, 243, 238, 251, 244, 250, 249],
   [179, 255, 214, 240, 250, 255, 244, 255, 255, 255, 255],
 ] as const;
+/** Probabilities that a frame header updates each position's band in the scan order */
 export const HAS_SCAN_UPD_PROBS = [
   0, 132, 132, 159, 153, 151, 161, 170, 164, 162, 136, 110, 103, 114, 129, 118,
   124, 125, 132, 136, 114, 110, 142, 135, 134, 123, 143, 126, 153, 183, 166,
@@ -41,11 +52,13 @@ export const HAS_SCAN_UPD_PROBS = [
   248, 243, 253, 255, 253, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
   255, 255, 255,
 ] as const;
+/** Probabilities that a frame header updates each `ZERO_RUN_PROBS` slot */
 export const HAS_ZERO_RUN_PROBS = [
   [219, 246, 238, 249, 232, 239, 249, 255, 248, 253, 239, 244, 241, 248],
   [198, 232, 251, 253, 219, 241, 253, 255, 248, 249, 244, 238, 251, 255],
 ] as const;
 
+/** Probabilities that a frame header updates each AC token probability, by context, plane group and band */
 export const VP6_AC_PROBS = [
   [
     [
@@ -103,6 +116,7 @@ export const VP6_AC_PROBS = [
   ],
 ] as const;
 
+/** Scale and offset that turn a DC token probability into its contextual one, by slot and neighbour context */
 export const VP6_DC_WEIGHTS = [
   [
     [122, 133],
@@ -131,12 +145,14 @@ export const VP6_DC_WEIGHTS = [
   ],
 ] as const;
 
+/** AC band of each coefficient position in scan order */
 export const VP6_IDX_TO_AC_BAND = [
   0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4,
   4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
   5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
 ] as const;
 
+/** Bicubic filter taps by filter strength (`filterAlpha`), then eighth-pixel offset */
 export const VP6_BICUBIC_COEFFS = [
   [
     [0, 128, 0, 0],
@@ -310,20 +326,25 @@ export const VP6_BICUBIC_COEFFS = [
   ],
 ] as const;
 
+/** Band of each coefficient position in a progressive frame's default scan order */
 export const VP6_DEFAULT_SCAN_ORDER = [
   0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 6, 7, 7, 7, 7,
   7, 8, 8, 9, 9, 9, 9, 9, 9, 10, 10, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12,
   12, 13, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 15, 15, 15,
 ] as const;
+/** Band of each coefficient position in an interlaced frame's default scan order */
 export const VP6_INTERLACED_SCAN_ORDER = [
   0, 1, 0, 1, 1, 2, 5, 3, 2, 2, 2, 2, 4, 7, 8, 10, 9, 7, 5, 4, 2, 3, 5, 6, 8, 9,
   11, 12, 13, 12, 11, 10, 9, 7, 5, 4, 6, 7, 9, 11, 12, 12, 13, 13, 14, 12, 11,
   9, 7, 9, 11, 12, 14, 14, 14, 15, 13, 11, 13, 15, 15, 15, 15, 15,
 ] as const;
 
+/** Extra bits a Huffman-coded coefficient reads after its category base, by category */
 export const VP6_COEF_ADD_BITS = [1, 2, 3, 4, 5, 11] as const;
 
+/** Smallest magnitude of each large-coefficient category */
 export const VP56_COEF_BASE = [5, 7, 11, 19, 35, 67] as const;
+/** Probabilities of a large coefficient's extra bits, by category; zero ends the list */
 export const VP56_COEF_ADD_PROBS = [
   [159, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   [165, 145, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -333,12 +354,14 @@ export const VP56_COEF_ADD_PROBS = [
   [254, 254, 243, 230, 196, 177, 153, 140, 133, 130, 129, 128],
 ] as const;
 
+/** DC quantiser by frame quality, before the decoder's scaling by 4 */
 export const VP56_DC_QUANTS = [
   47, 47, 47, 47, 45, 43, 43, 43, 43, 43, 42, 41, 41, 40, 40, 40, 40, 35, 35,
   35, 35, 33, 33, 33, 33, 32, 32, 32, 27, 27, 26, 26, 25, 25, 24, 24, 23, 23,
   19, 19, 19, 19, 18, 18, 17, 16, 16, 16, 16, 16, 15, 11, 11, 11, 10, 10, 9, 8,
   7, 5, 3, 3, 2, 2,
 ] as const;
+/** AC quantiser by frame quality, before the decoder's scaling by 4 */
 export const VP56_AC_QUANTS = [
   94, 92, 90, 88, 86, 82, 78, 74, 70, 66, 62, 58, 54, 53, 52, 51, 50, 49, 48,
   47, 46, 45, 44, 43, 42, 40, 39, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27,
@@ -346,12 +369,14 @@ export const VP56_AC_QUANTS = [
   6, 5, 4, 3, 2, 1,
 ] as const;
 
+/** Loop filter threshold by frame quality */
 export const VP56_FILTER_LIMITS = [
   14, 14, 13, 13, 12, 12, 10, 10, 10, 10, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
   8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 5,
   5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 2,
 ] as const;
 
+/** Vector-quantised macroblock mode probability sets a frame header can select, by context */
 export const VP56_MODE_VQ = [
   [
     [9, 15, 32, 25, 7, 19, 9, 21, 1, 12, 14, 12, 3, 18, 14, 23, 3, 10, 0, 4],
@@ -409,12 +434,14 @@ export const VP56_MODE_VQ = [
   ],
 ] as const;
 
+/** Default transmitted macroblock mode probability pairs, by context */
 export const DEFAULT_XMITTED_PROBS = [
   [42, 69, 2, 1, 7, 1, 42, 44, 22, 6, 3, 1, 2, 0, 5, 1, 1, 0, 0, 0],
   [8, 229, 1, 1, 8, 0, 0, 0, 0, 0, 2, 1, 1, 0, 0, 0, 1, 1, 0, 0],
   [35, 122, 1, 1, 6, 1, 34, 46, 0, 0, 2, 1, 1, 0, 1, 0, 1, 1, 0, 0],
 ] as const;
 
+/** Raster position of each coefficient in zigzag order */
 export const ZIGZAG = [
   0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40,
   48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29,

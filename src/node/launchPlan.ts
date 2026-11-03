@@ -1,6 +1,6 @@
 import path from 'path';
 
-/** How the game is started for a mod folder */
+/** Command line and working folder the game is started with for a mod folder */
 export interface LaunchPlan {
   command: string;
   args: string[];
@@ -8,7 +8,7 @@ export interface LaunchPlan {
   cwd: string;
 }
 
-/** The process that runs a mod folder; `extra` goes before `-mod` */
+/** Plans the process that runs a mod folder; `extra` goes before `-mod` */
 export const planLaunch = (
   executable: string,
   modFolder: string | undefined,

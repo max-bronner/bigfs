@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { openDocument } from '../../services/ini/workspaceText';
+import { findOpenDocument } from '../../services/ini/workspaceText';
 import { parseWnd, toBoxes } from '../../formats/wnd/wndLayout';
 import type { WndBox, WndWindow } from '../../formats/wnd/wndLayout';
 import {
@@ -12,7 +12,7 @@ import { encodePng } from '../../node/png';
 import {
   loadMappedTexture,
   readMappedImage,
-} from '../preview/mappedImagePreview';
+} from '../../services/mappedImagePreview';
 import type { GameLanguage } from '../../services/ini/gameLanguage';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 import type {
@@ -20,7 +20,7 @@ import type {
   PreviewImage,
   ToWndPage,
 } from '../../webview/wnd/protocol';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 import { createSingletonPanel } from '../../platform/webview/singletonPanel';
 import { registerCommand } from '../../platform/commands';
 
@@ -32,7 +32,7 @@ import { registerCommand } from '../../platform/commands';
  * the string tables, when the index and locator are supplied.
  */
 
-/** What the preview reads the game's data through */
+/** Services the layout preview reads the game's images and text through */
 export interface WndPreviewServices {
   index: SageIniIndex;
   /** Settles the language labels resolve in before the text is drawn */
@@ -46,6 +46,7 @@ interface ResolvedImage {
   dataUri: string;
 }
 
+/** Language id of `.wnd` window layouts */
 export const WND_LANGUAGE = 'sage-wnd';
 
 const selector: vscode.DocumentSelector = { language: WND_LANGUAGE };
@@ -166,7 +167,7 @@ const BLOCK_KEYWORDS = [
   'ENDLAYOUTBLOCK',
 ];
 
-const symbolsOf = (
+const toSymbols = (
   document: vscode.TextDocument,
   windows: WndWindow[],
 ): vscode.DocumentSymbol[] =>
@@ -189,12 +190,12 @@ const symbolsOf = (
       new vscode.Range(range.start, document.positionAt(window.start + 6)),
     );
 
-    symbol.children = symbolsOf(document, window.children);
+    symbol.children = toSymbols(document, window.children);
 
     return symbol;
   });
 
-const foldsOf = (
+const toFoldingRanges = (
   document: vscode.TextDocument,
   windows: WndWindow[],
 ): vscode.FoldingRange[] =>
@@ -204,7 +205,7 @@ const foldsOf = (
 
     return [
       ...(end > start ? [new vscode.FoldingRange(start, end)] : []),
-      ...foldsOf(document, window.children),
+      ...toFoldingRanges(document, window.children),
     ];
   });
 
@@ -215,9 +216,9 @@ const createWndPreview = (
   services: WndPreviewServices | undefined,
   onClose: () => void,
 ) => {
-  /** Images already resolved, by lowercased name; `null` for a name nothing defines */
+  // Images already resolved, by lowercased name; `null` for a name nothing defines
   const images = new Map<string, Promise<ResolvedImage | null>>();
-  /** Textures the page already has */
+  // Textures the page already has
   const sent = new Set<string>();
   let version = 0;
 
@@ -251,8 +252,8 @@ const createWndPreview = (
   });
 
   /**
-   * The image a `MappedImage` of this name draws: its texture as a PNG data
-   * URI, and the rect of it the definition's `Coords` cover
+   * Resolves the image a `MappedImage` of this name draws, once per name: its
+   * texture as a PNG data URI, and the rect of it the definition's `Coords` cover
    */
   const resolveImage = (name: string): Promise<ResolvedImage | null> => {
     const key = name.toLowerCase();
@@ -374,12 +375,12 @@ const refreshWndPreview = (document: vscode.TextDocument): void => {
   void openWndPreviews.get(document.uri.toString())?.update();
 };
 
-/** The preview page: the windows drawn at their creation resolution */
+/** Renders the layout preview page: the windows drawn at their creation resolution */
 export const renderPreviewHtml = (
   webview: vscode.Webview,
   scripts: vscode.Uri,
 ): string => {
-  return webviewPage({
+  return renderWebviewPage({
     style: `
   body { margin: 0; padding: 8px; color: var(--vscode-foreground); font: var(--vscode-font-size) var(--vscode-font-family); }
   #bar { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
@@ -395,6 +396,11 @@ export const renderPreviewHtml = (
   });
 };
 
+/**
+ * Registers the WND language support: problems, outline, folding, completion
+ * and `bigfs.showWndPreview`. Without services the preview draws no images or
+ * game text.
+ */
 export const registerSageWndLanguage = (
   context: vscode.ExtensionContext,
   services?: WndPreviewServices,
@@ -438,11 +444,11 @@ export const registerSageWndLanguage = (
     ),
     vscode.languages.registerDocumentSymbolProvider(selector, {
       provideDocumentSymbols: (document) =>
-        symbolsOf(document, parseWnd(document.getText()).windows),
+        toSymbols(document, parseWnd(document.getText()).windows),
     }),
     vscode.languages.registerFoldingRangeProvider(selector, {
       provideFoldingRanges: (document) =>
-        foldsOf(document, parseWnd(document.getText()).windows),
+        toFoldingRanges(document, parseWnd(document.getText()).windows),
     }),
     vscode.languages.registerCompletionItemProvider(
       selector,
@@ -503,7 +509,7 @@ export const registerSageWndLanguage = (
     ),
     registerCommand('bigfs.showWndPreview', (uri?: vscode.Uri) => {
       const document = uri
-        ? openDocument(uri)
+        ? findOpenDocument(uri)
         : vscode.window.activeTextEditor?.document;
 
       if (document) {

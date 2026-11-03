@@ -1,6 +1,6 @@
 import type { MapMode } from './modeText';
 
-/** What the panels ask of the page: they cannot import it, which would make a cycle */
+/** Callbacks the panels reach the page through; passed in, since importing the page would make a cycle */
 export interface MapActions {
   /** Selects an object, or none, and redraws everything that shows the selection */
   select(index: number | undefined): void;

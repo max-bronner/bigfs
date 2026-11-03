@@ -1,13 +1,14 @@
+import type { PlaySoundRequest } from '../../core/soundClip';
 import type { ScriptTreeNode } from '../shared/scriptTreeText';
 
 /** The messages the script viewer's page and its editor exchange */
 
-/** What the page sends */
+/** Messages the script viewer's page sends to its editor */
 export type FromScriptsPage =
   | { kind: 'ready' }
-  | { kind: 'playSound'; name: string };
+  | PlaySoundRequest;
 
-/** What the editor sends */
+/** Message the editor sends with the scripts read from the open file */
 export interface ScriptsMessage {
   kind: 'scripts';
   name: string | undefined;

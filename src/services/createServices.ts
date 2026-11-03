@@ -4,8 +4,10 @@ import { setCommandLog } from '../platform/commands';
 import { ArchiveModel } from './archives/archiveModel';
 import { GameViewModel } from './archives/gameViewModel';
 import { EntryLocator } from './entryLocator';
-import { createToolRegistry } from './toolRegistry';
-import type { ToolBox } from './toolRegistry';
+import { createExplorerSelection } from './archives/explorerSelection';
+import type { ExplorerSelection } from './archives/explorerSelection';
+import { createToolRegistry } from '../core/toolRegistry';
+import type { ToolBox } from '../core/toolRegistry';
 import { decodeDdsTool, decodeTgaTool } from '../formats/texture/textureTools';
 import { playableAudioTool } from '../formats/audio/audioTools';
 import { parseW3dTool } from '../formats/w3d/w3dTools';
@@ -24,6 +26,8 @@ export interface Services {
   archives: ArchiveModel;
   /** Which file the game would load for a path, kept current as archives change */
   gameView: GameViewModel;
+  /** Rows selected in the archive explorer, which node commands act on */
+  explorerSelection: ExplorerSelection;
   /** Finds a skeleton, texture or other asset named by file name only */
   locator: EntryLocator;
   /** The pure decoders the previews run */
@@ -95,6 +99,7 @@ export const createServices = (context: ExtensionContext): Services => {
     log,
     archives,
     gameView,
+    explorerSelection: createExplorerSelection(),
     locator,
     tools,
     iniDocuments,

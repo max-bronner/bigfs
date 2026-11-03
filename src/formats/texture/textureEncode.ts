@@ -36,16 +36,16 @@ const crc32 = (bytes: Uint8Array) => {
 
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 
-/** Compresses bytes with zlib; injected so this module stays free of Node built-ins. */
+/** Compresses bytes with zlib; injected so this module stays free of Node built-ins */
 export type Deflate = (data: Uint8Array) => Uint8Array;
 
-/** Decompresses zlib bytes, failing when the output would exceed `maxOutputLength`. */
+/** Decompresses zlib bytes, failing when the output would exceed `maxOutputLength` */
 export type Inflate = (
   data: Uint8Array,
   maxOutputLength: number,
 ) => Uint8Array;
 
-/** A PNG of RGBA pixels, 8 bits a channel */
+/** Encodes an RGBA image as a PNG, 8 bits a channel */
 export const encodePng = (image: RgbaImage, deflate: Deflate): Uint8Array => {
   const { width, height, pixels } = image;
   const raw = new Uint8Array((width * 4 + 1) * height);
@@ -237,7 +237,7 @@ export const decodePng = (
   return { width, height, pixels };
 };
 
-/** An uncompressed TGA, 32-bit with alpha or 24-bit without, top-left origin */
+/** Encodes an uncompressed TGA, 32-bit with alpha or 24-bit without, top-left origin */
 export const encodeTga = (image: RgbaImage, withAlpha: boolean): Uint8Array => {
   const { width, height, pixels } = image;
   const bytesPerPixel = withAlpha ? 4 : 3;
@@ -301,8 +301,9 @@ const to565 = (r: number, g: number, b: number) =>
   (Math.round((g * 63) / 255) << 5) |
   Math.round((b * 31) / 255);
 
-/** Bytes written in order into a buffer of known size */
+/** Writer that pushes bytes in order into a buffer of known size */
 class Sink {
+  /** Offset the next `push` writes at */
   public at = 0;
 
   public constructor(public readonly bytes: Uint8Array) {}
@@ -318,8 +319,8 @@ const from565 = (c: number) => [
   ((c & 31) * 255) / 31,
 ];
 
-/** One DXT colour block: two 565 endpoints and 2-bit indices */
-const colourBlock = (block: Uint8Array, out: Sink, isDxt1: boolean) => {
+/** Encodes one DXT colour block: two 565 endpoints and 2-bit indices */
+const encodeColourBlock = (block: Uint8Array, out: Sink, isDxt1: boolean) => {
   const min = [255, 255, 255];
   const max = [0, 0, 0];
   let hasTransparent = false;
@@ -421,8 +422,8 @@ const colourBlock = (block: Uint8Array, out: Sink, isDxt1: boolean) => {
   );
 };
 
-/** DXT5's alpha block: two endpoints and 3-bit indices */
-const alphaBlock = (block: Uint8Array, out: Sink) => {
+/** Encodes a DXT5 alpha block: two endpoints and 3-bit indices */
+const encodeAlphaBlock = (block: Uint8Array, out: Sink) => {
   let low = 255;
   let high = 0;
 
@@ -458,10 +459,11 @@ const alphaBlock = (block: Uint8Array, out: Sink) => {
   }
 };
 
+/** Pixel format a DDS is written in: a DXT compression, or uncompressed 32-bit */
 export type DdsFormat = 'DXT1' | 'DXT3' | 'DXT5' | 'RGBA';
 
-/** The bytes one mip level takes in `format` */
-const levelSize = (image: RgbaImage, format: DdsFormat) =>
+/** Computes the bytes one mip level takes in `format` */
+const getLevelSize = (image: RgbaImage, format: DdsFormat) =>
   format === 'RGBA'
     ? image.width * image.height * 4
     : Math.max(1, Math.ceil(image.width / 4)) *
@@ -503,15 +505,15 @@ const encodeLevel = (image: RgbaImage, format: DdsFormat, out: Sink) => {
           out.push((block[pair * 8 + 3] >> 4) | (block[pair * 8 + 7] & 0xf0));
         }
       } else if (format === 'DXT5') {
-        alphaBlock(block, out);
+        encodeAlphaBlock(block, out);
       }
 
-      colourBlock(block, out, format === 'DXT1');
+      encodeColourBlock(block, out, format === 'DXT1');
     }
   }
 };
 
-/** A DDS of the image, with every mip level down to 1×1 when `mipmaps` */
+/** Encodes the image as a DDS, with every mip level down to 1×1 when `mipmaps` */
 export const encodeDds = (
   image: RgbaImage,
   format: DdsFormat,
@@ -529,7 +531,7 @@ export const encodeDds = (
 
   // One buffer for the header and every level, never a list of bytes
   const out = new Uint8Array(
-    128 + levels.reduce((sum, level) => sum + levelSize(level, format), 0),
+    128 + levels.reduce((sum, level) => sum + getLevelSize(level, format), 0),
   );
   const header = out.subarray(0, 128);
   const view = new DataView(out.buffer);

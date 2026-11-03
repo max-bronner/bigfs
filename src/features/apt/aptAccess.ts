@@ -2,7 +2,9 @@ import * as vscode from 'vscode';
 import type { MovieAccess } from '../../formats/apt/aptIntegrity';
 import type { ArchiveModel } from '../../services/archives/archiveModel';
 import { getNodeUri } from '../../services/archives/nodeAddress';
-import { getFileNodes } from '../../services/archives/virtualNode';
+import { getFileNodes } from '../../services/archives/virtualTree';
+import { findBelow } from '../../services/apt/findBelow';
+import { clearFolderListings, listFolder } from '../../services/apt/folderListing';
 
 /**
  * The files beside a movie as the game finds them: by path relative to the
@@ -12,47 +14,11 @@ import { getFileNodes } from '../../services/archives/virtualNode';
  * they will be there once it is saved.
  */
 
-const listings = new Map<string, Promise<[string, vscode.FileType][]>>();
-
-const listFolder = (folder: vscode.Uri) => {
-  const key = folder.toString();
-  let listing = listings.get(key);
-
-  if (!listing) {
-    listing = Promise.resolve(vscode.workspace.fs.readDirectory(folder)).catch(
-      () => [],
-    );
-    listings.set(key, listing);
-  }
-  return listing;
-};
-
-/** A path below a folder, each step matched without casing */
-const findBelow = async (
-  folder: vscode.Uri,
-  relative: string,
-  type: vscode.FileType,
-): Promise<vscode.Uri | undefined> => {
-  const steps = relative.split('/').filter(Boolean);
-  let at = folder;
-
-  for (const [index, step] of steps.entries()) {
-    const wanted =
-      index === steps.length - 1 ? type : vscode.FileType.Directory;
-    const match = (await listFolder(at)).find(
-      ([name, kind]) =>
-        name.toLowerCase() === step.toLowerCase() && (kind & wanted) !== 0,
-    );
-
-    if (!match) {
-      return undefined;
-    }
-    at = vscode.Uri.joinPath(at, match[0]);
-  }
-  return at;
-};
-
-export const movieAccess = (
+/**
+ * Creates the `MovieAccess` an integrity check reads a movie's neighbours
+ * through. `added` holds an unsaved edit's files; an empty one marks a removal.
+ */
+export const createMovieAccess = (
   aptUri: vscode.Uri,
   name: string,
   apt: Uint8Array,
@@ -64,7 +30,7 @@ export const movieAccess = (
   );
 
   // Each check sees the folder as it is now
-  listings.clear();
+  clearFolderListings();
 
   return {
     name,
@@ -115,8 +81,8 @@ export const movieAccess = (
   };
 };
 
-/** Every `.apt` of the workspace, loose and inside archives */
-export const workspaceMovies = async (
+/** Finds every `.apt` of the workspace, loose and inside archives */
+export const findWorkspaceMovies = async (
   archiveModel: ArchiveModel,
 ): Promise<vscode.Uri[]> => {
   await archiveModel.whenReady();
@@ -141,17 +107,17 @@ export const workspaceMovies = async (
   return movies;
 };
 
-/** A file or folder beside a movie, matched without casing */
+/** Finds a file or folder beside a movie, matched without casing */
 export const findBeside = (
   aptUri: vscode.Uri,
   relative: string,
   type: vscode.FileType,
 ): Promise<vscode.Uri | undefined> => {
-  listings.clear();
+  clearFolderListings();
   return findBelow(vscode.Uri.joinPath(aptUri, '..'), relative, type);
 };
 
-/** The names in a folder beside a movie, matched without casing */
+/** Lists the names in a folder beside a movie, found without casing */
 export const listBeside = async (
   aptUri: vscode.Uri,
   relative: string,

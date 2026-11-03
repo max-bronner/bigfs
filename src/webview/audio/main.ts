@@ -1,54 +1,68 @@
+import { createSoundButton } from '../shared/createSoundButton';
+import { element } from '../shared/element';
+import { pageSoundPlayer } from '../shared/pageSoundPlayer';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromSoundPage, ToSoundPage } from './protocol';
 
 /**
- * The sound player's page: plays what the extension sends, one file for one
- * click, and lists the last few to play again.
+ * The sound player's page, the place a sound plays that no page of its own
+ * asked for, such as a lens in an INI file. It plays what the extension
+ * sends and lists the last few to play again. A sound the browser refuses to
+ * start, because nothing in this panel was clicked yet, waits for a press.
  */
 
 const HISTORY = 12;
 
-interface Played {
-  name: string;
-  url: string;
-}
-
 const vscode = getVsCodeApi<FromSoundPage>();
-const audio = document.getElementById('audio') as HTMLAudioElement;
-const name = document.getElementById('name')!;
+const status = document.getElementById('status')!;
 const list = document.getElementById('history')!;
-const history: Played[] = [];
+const history: string[] = [];
 
-const play = (entry: Played) => {
-  name.textContent = entry.name;
-  audio.src = entry.url;
-  audio.play().catch(() => {});
+const post = (request: FromSoundPage) => vscode.postMessage(request);
+
+const describeState = (): string => {
+  const { phase, name, error } = pageSoundPlayer.state();
+
+  switch (phase) {
+    case 'loading':
+      return `Loading ${name}`;
+    case 'playing':
+      return `Playing ${name}`;
+    case 'blocked':
+      return `Press ▶ next to ${name}: the browser starts sound only after a click in this panel`;
+    default:
+      return error ?? (name ? `Stopped ${name}` : 'Nothing played yet');
+  }
 };
 
-window.addEventListener('message', ({ data }: MessageEvent<ToSoundPage>) => {
-  if (data.kind !== 'play') {
-    return;
-  }
-
-  const bytes = Uint8Array.from(atob(data.data), (c) => c.charCodeAt(0));
-  const entry = {
-    name: data.name,
-    url: URL.createObjectURL(new Blob([bytes], { type: data.mime })),
-  };
-
-  history.unshift(entry);
-  history.splice(HISTORY);
+const showHistory = () =>
   list.replaceChildren(
-    ...history.map((each) => {
-      const item = document.createElement('li');
+    ...history.map((name) => {
+      const item = element('li');
 
-      item.textContent = each.name;
-      item.onclick = () => play(each);
-
+      item.append(createSoundButton(name, post), ` ${name}`);
       return item;
     }),
   );
-  play(entry);
+
+pageSoundPlayer.subscribe(() => {
+  status.textContent = describeState();
 });
 
+window.addEventListener('message', ({ data }: MessageEvent<ToSoundPage>) => {
+  if (data.kind !== 'sound') {
+    return;
+  }
+  if (data.id === undefined) {
+    data = { ...data, id: pageSoundPlayer.begin(data.name) };
+    if (!history.includes(data.name)) {
+      history.unshift(data.name);
+      history.splice(HISTORY);
+      showHistory();
+    }
+  }
+  void pageSoundPlayer.receive(data);
+});
+
+status.textContent = describeState();
 vscode.postMessage({ kind: 'ready' });

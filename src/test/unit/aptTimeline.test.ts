@@ -1,21 +1,10 @@
 import * as assert from 'assert';
 import { compileExpression, ExpressionError } from '../../core/expression';
 import { parseAptMovie, parseConst } from '../../formats/apt/aptMovie';
-import {
-  animate,
-  applyMotion,
-  applyOperation,
-  decodeTimeline,
-  deleteFrames,
-  detectTweens,
-  encodeTimeline,
-  hide,
-  motionOf,
-  poseOf,
-  retimeFrames,
-  reverseFrames,
-  tween,
-} from '../../formats/apt/aptTimeline';
+import { animate, applyMotion, applyOperation, deleteFrames, hide, readMotion, retimeFrames, reverseFrames, tween } from '../../formats/apt/aptTimelineEdits';
+import { decodeTimeline, encodeTimeline } from '../../formats/apt/aptTimeline';
+import { detectTweens } from '../../formats/apt/aptTweenDetection';
+import { getPose } from '../../formats/apt/aptPose';
 import type { FrameState } from '../../formats/apt/aptTimeline';
 import { applyAptEdit } from '../../formats/apt/writer/applyAptEdit';
 import { AptImage } from '../../formats/apt/writer/aptImage';
@@ -26,7 +15,7 @@ import {
 import { buildMovie } from './apt.test';
 
 /** The synthetic movie with its root timeline stretched to five frames */
-const fiveFrames = () => {
+const buildFiveFrameMovie = () => {
   const { apt, constFile } = buildMovie();
   const movieOffset = parseConst(constFile).movieOffset;
   const image = new AptImage(apt);
@@ -54,7 +43,7 @@ const xs = (states: FrameState[], depth: number) =>
 
 suite('APT timeline editing', () => {
   test('an unchanged timeline is written back as its own frames', () => {
-    const { read, states, write } = fiveFrames();
+    const { read, states, write } = buildFiveFrameMovie();
     const before = read().frames;
 
     write(states());
@@ -62,7 +51,7 @@ suite('APT timeline editing', () => {
   });
 
   test('a tween bakes one move per frame, read back as the eased values', () => {
-    const { read, states, write } = fiveFrames();
+    const { read, states, write } = buildFiveFrameMovie();
     const after = write(tween(states(), 2, 0, 4, { x: 100 }));
 
     assert.deepStrictEqual(xs(after, 2), [0, 25, 50, 75, 100]);
@@ -88,7 +77,7 @@ suite('APT timeline editing', () => {
   });
 
   test('a formula drives a property by frame, with the start pose as variables', () => {
-    const { states, write } = fiveFrames();
+    const { states, write } = buildFiveFrameMovie();
     const after = write(
       animate(states(), 2, 1, 3, { x: 'x0 + 10 * i', alpha: '1 - t' }),
     );
@@ -101,7 +90,7 @@ suite('APT timeline editing', () => {
   });
 
   test('removing for a range places a new instance afterwards', () => {
-    const { states, write } = fiveFrames();
+    const { states, write } = buildFiveFrameMovie();
     const after = write(hide(states(), 2, 1, 2, 'remove'));
 
     assert.deepStrictEqual(
@@ -115,7 +104,7 @@ suite('APT timeline editing', () => {
   });
 
   test('deleting, reversing and retiming frames keep labels and motion', () => {
-    const { states, write, read } = fiveFrames();
+    const { states, write, read } = buildFiveFrameMovie();
 
     write(tween(states(), 2, 0, 4, { x: 100 }));
     assert.deepStrictEqual(
@@ -168,7 +157,7 @@ suite('APT expressions', () => {
 
 suite('APT tween detection', () => {
   test('baked tweens are found with their easing, and still frames are not', () => {
-    const { states, write } = fiveFrames();
+    const { states, write } = buildFiveFrameMovie();
 
     write(tween(states(), 2, 0, 2, { x: 100 }, 'linear'));
 
@@ -192,7 +181,7 @@ suite('APT tween detection', () => {
 
 suite('APT motion scripts', () => {
   test('a script bakes its lines in order, each on the last', () => {
-    const { states, write } = fiveFrames();
+    const { states, write } = buildFiveFrameMovie();
     const after = write(
       parseMotionScript(
         [
@@ -210,7 +199,7 @@ suite('APT motion scripts', () => {
   });
 
   test("a timeline's tweens read back as a script that remakes them", () => {
-    const { states, write } = fiveFrames();
+    const { states, write } = buildFiveFrameMovie();
     const baked = write(tween(states(), 2, 0, 4, { x: 100 }, 'easeOut'));
     const script = tweensAsScript(detectTweens(baked));
 
@@ -238,14 +227,14 @@ suite('APT motion scripts', () => {
 
 suite('APT motion copy', () => {
   test('a motion plays again from another pose, mirrored if asked', () => {
-    const { states, write } = fiveFrames();
+    const { states, write } = buildFiveFrameMovie();
     const moved = write(tween(states(), 2, 0, 2, { x: 100, rotation: 30 }));
-    const motion = motionOf(moved, 2, 0, 2);
+    const motion = readMotion(moved, 2, 0, 2);
     const mirrored = write(applyMotion(moved, 2, 2, motion, 'x'));
 
     assert.deepStrictEqual(xs(mirrored, 2), [0, 50, 100, 50, 0]);
     assert.strictEqual(
-      Math.round(poseOf(mirrored[4].display.get(2)!).rotation),
+      Math.round(getPose(mirrored[4].display.get(2)!).rotation),
       0,
     );
   });

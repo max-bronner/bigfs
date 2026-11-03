@@ -1,16 +1,16 @@
 import { Uri } from 'vscode';
 import type { Webview } from 'vscode';
 
-/** The folder the extension's bundled webview pages are written to. */
-export const pageBundleFolder = (extensionUri: Uri): Uri =>
+/** Gets the folder the extension's bundled webview pages are written to */
+export const getPageBundleFolder = (extensionUri: Uri): Uri =>
   Uri.joinPath(extensionUri, 'dist', 'webview');
 
 /**
- * The `webviewPage` options that load the bundled page `name` as a script
+ * Builds the `renderWebviewPage` options that load the bundled page `name` as a script
  * file the page's policy allows. The panel's `localResourceRoots` must hold
- * `pageBundleFolder`.
+ * `getPageBundleFolder`.
  */
-export const pageBundle = (
+export const getPageBundleOptions = (
   extensionUri: Uri,
   webview: Webview,
   name: string,
@@ -18,7 +18,7 @@ export const pageBundle = (
   allow: { script: webview.cspSource },
   scriptFiles: [
     webview
-      .asWebviewUri(Uri.joinPath(pageBundleFolder(extensionUri), `${name}.js`))
+      .asWebviewUri(Uri.joinPath(getPageBundleFolder(extensionUri), `${name}.js`))
       .toString(),
   ],
 });

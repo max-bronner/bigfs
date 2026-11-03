@@ -48,14 +48,14 @@ internals._load = (request, ...rest) =>
 let policies: typeof import('../../services/archives/archivePolicy');
 let operationsModule: typeof import('../../services/archives/archiveOperations');
 let registries: typeof import('../../services/archives/archiveRegistry');
-let nodes: typeof import('../../services/archives/virtualNode');
+let nodes: typeof import('../../services/archives/virtualTree');
 
 try {
   /* eslint-disable @typescript-eslint/no-require-imports */
   policies = require('../../services/archives/archivePolicy');
   operationsModule = require('../../services/archives/archiveOperations');
   registries = require('../../services/archives/archiveRegistry');
-  nodes = require('../../services/archives/virtualNode');
+  nodes = require('../../services/archives/virtualTree');
   /* eslint-enable @typescript-eslint/no-require-imports */
 } finally {
   internals._load = original;

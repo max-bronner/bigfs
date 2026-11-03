@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { createAptMovie } from '../../formats/apt/aptCreate';
 import { parseRu } from '../../formats/apt/aptGeometry';
-import { referencesTo } from '../../formats/apt/aptManage';
+import { findReferencesTo } from '../../formats/apt/aptManage';
 import {
   parseAptMovie,
   parseConst,
@@ -43,7 +43,7 @@ suite('APT characters in use', () => {
         ),
       );
 
-      return referencesTo(
+      return findReferencesTo(
         movie,
         spriteFrames,
         {

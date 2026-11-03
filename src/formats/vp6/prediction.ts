@@ -1,18 +1,20 @@
 import type { Mv } from './dsp';
 
 /**
- * What the VP6 decoder predicts from macroblocks already coded: each
+ * Predictions the VP6 decoder makes from macroblocks already coded: each
  * block's DC value and each macroblock's motion vector candidates. The
  * encoder runs the same predictions to write what the decoder will read,
  * so both use this one implementation.
  */
 
+/** Reference frame a macroblock predicts from */
 export const enum Ref {
   Intra = 0,
   Previous = 1,
   Golden = 2,
 }
 
+/** Macroblock coding mode: intra, or the reference and motion vector an inter macroblock uses */
 export const enum MbType {
   Intra,
   InterNoMv,
@@ -26,15 +28,18 @@ export const enum MbType {
   GoldenNear,
 }
 
-export const referenceOf = (type: MbType): Ref =>
+/** Gets the reference frame a macroblock mode predicts from */
+export const getReference = (type: MbType): Ref =>
   type === MbType.Intra
     ? Ref.Intra
     : type <= MbType.InterFourMv
       ? Ref.Previous
       : Ref.Golden;
 
+/** Zero motion vector, the candidate when no neighbour has one */
 export const ZERO_MV: Mv = { x: 0, y: 0 };
-export const sameMv = (a: Mv, b: Mv) => a.x === b.x && a.y === b.y;
+/** Whether two motion vectors are equal */
+export const isSameMv = (a: Mv, b: Mv) => a.x === b.x && a.y === b.y;
 const i16 = (value: number) => (value << 16) >> 16;
 
 /** Neighbours searched for candidates, as `[row, column]` offsets, nearest first */
@@ -53,6 +58,7 @@ const CANDIDATE_OFFSETS = [
   [-2, 2],
 ];
 
+/** Motion vector candidates gathered from a macroblock's neighbours */
 export interface MvCandidates {
   /** How many distinct non-zero vectors were found, at most 2 */
   count: number;
@@ -62,8 +68,8 @@ export interface MvCandidates {
   pred: Mv;
 }
 
-/** The first two distinct non-zero vectors of neighbours using `want` */
-export const mvCandidates = (
+/** Finds the first two distinct non-zero vectors of neighbours that predict from `want` */
+export const findMvCandidates = (
   neighbour: (index: number) => { type: MbType; mv: Mv } | undefined,
   mbX: number,
   mbY: number,
@@ -87,7 +93,7 @@ export const mvCandidates = (
 
     const info = neighbour(cy * mbWidth + cx);
 
-    if (!info || referenceOf(info.type) !== want || sameMv(info.mv, ZERO_MV)) {
+    if (!info || getReference(info.type) !== want || isSameMv(info.mv, ZERO_MV)) {
       continue;
     }
     if (count === 0) {
@@ -96,7 +102,7 @@ export const mvCandidates = (
       if (index < 2) {
         pred = info.mv;
       }
-    } else if (!sameMv(info.mv, nearest)) {
+    } else if (!isSameMv(info.mv, nearest)) {
       near = info.mv;
       count = 2;
       break;
@@ -106,8 +112,8 @@ export const mvCandidates = (
 };
 
 /**
- * DC prediction: the average of the left and above blocks' DC where they
- * use the same reference, else the last DC coded against that reference
+ * DC predictor for one frame: the average of the left and above blocks' DC
+ * where they use the same reference, else the last DC coded against that reference
  */
 export class DcPredictor {
   private dc: Int16Array[] = [];
@@ -117,14 +123,15 @@ export class DcPredictor {
   private leftU = 0;
   private leftV = 0;
   private leftRef: Ref | undefined;
-  private yIdx = 1;
-  private cIdx = 1;
+  private lumaIndex = 1;
+  private chromaIndex = 1;
   private lastDc: number[][] = [];
 
   public constructor(mbWidth = 0) {
     this.resize(mbWidth);
   }
 
+  /** Sizes the row buffers for a frame `mbWidth` macroblocks wide, and resets */
   public resize(mbWidth: number): void {
     this.dc = [
       new Int16Array(mbWidth * 2 + 2),
@@ -136,9 +143,9 @@ export class DcPredictor {
     this.reset();
   }
 
-  /** The state at the start of a frame */
+  /** Restores the state at the start of a frame */
   public reset(): void {
-    this.newRow();
+    this.startRow();
     this.refsY.fill(undefined);
     this.refsC.fill(undefined);
     this.lastDc = [
@@ -148,24 +155,27 @@ export class DcPredictor {
     ];
   }
 
-  public newRow(): void {
-    this.yIdx = 1;
-    this.cIdx = 1;
+  /** Moves to the start of a macroblock row */
+  public startRow(): void {
+    this.lumaIndex = 1;
+    this.chromaIndex = 1;
     this.leftY = [0, 0];
     this.leftU = 0;
     this.leftV = 0;
     this.leftRef = undefined;
   }
 
-  public nextMb(): void {
-    this.yIdx += 2;
-    this.cIdx += 1;
+  /** Moves to the next macroblock in the row */
+  public advanceMacroblock(): void {
+    this.lumaIndex += 2;
+    this.chromaIndex += 1;
   }
 
+  /** Predicts the DC of block `blockNo` (0-3 luma, 4 U, 5 V) of the current macroblock */
   public predict(blockNo: number, reference: Ref): number {
     const luma = blockNo < 4;
     const plane = luma ? 0 : blockNo - 3;
-    const index = luma ? this.yIdx + (blockNo & 1) : this.cIdx;
+    const index = luma ? this.lumaIndex + (blockNo & 1) : this.chromaIndex;
     const refs = luma ? this.refsY : this.refsC;
     let sum = 0;
     let count = 0;
@@ -198,7 +208,7 @@ export class DcPredictor {
   public update(blockNo: number, reference: Ref, dc: number): void {
     const luma = blockNo < 4;
     const plane = luma ? 0 : blockNo - 3;
-    const index = luma ? this.yIdx + (blockNo & 1) : this.cIdx;
+    const index = luma ? this.lumaIndex + (blockNo & 1) : this.chromaIndex;
 
     if (blockNo !== 4) {
       (luma ? this.refsY : this.refsC)[index] = reference;

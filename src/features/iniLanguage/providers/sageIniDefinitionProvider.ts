@@ -5,9 +5,12 @@ import type { SageIniIndex } from '../../../services/ini/sageIniIndex';
 import { resolveSageSymbol } from '../../../formats/ini/sageIniSymbol';
 import { includeExists, resolveIncludeUri } from '../../../services/ini/sageIniInclude';
 
+/** Past the end of any real line, clamped by the editor against the document */
+const LINE_END = 4096;
+
 /**
- * Follows a reference to the block that declares it, across every open
- * archive.
+ * Creates the definition provider, which follows a reference to the block
+ * that declares it, across every open archive.
  *
  * Which namespace a value resolves into depends on the field it sits on:
  * `Weapon = PRIMARY GondorBow` points into `Weapon`, while `Armor = DEFAULT
@@ -20,9 +23,6 @@ import { includeExists, resolveIncludeUri } from '../../../services/ini/sageIniI
  * editor renders when a reference is ctrl-hovered: given the whole block it
  * previews the definition, given a bare line it previews only that line.
  */
-/** Past the end of any real line, clamped by the editor against the document */
-const LINE_END = 4096;
-
 export const createSageIniDefinitionProvider = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -131,9 +131,7 @@ export const createSageIniDefinitionProvider = (
       ({ uri, line, endLine }): LocationLink => ({
         originSelectionRange,
         targetUri: uri,
-        // The whole block, which is what the preview shows. The end column is
-        // large enough to reach any real line and small enough to stay a
-        // sane position; the editor clamps it against the target document.
+        // The whole block, which is what the preview shows
         targetRange: new Range(
           new Position(line, 0),
           new Position(endLine, LINE_END),

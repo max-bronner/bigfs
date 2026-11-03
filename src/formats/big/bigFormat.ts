@@ -30,7 +30,7 @@ export interface BigFileEntry {
  * back unchanged, and every entry in stored order, duplicates included, which
  * the model keys for case insensitive lookup.
  */
-export interface ParsedArchive {
+export interface ArchiveIndex {
   magic: string;
   trailer: Uint8Array;
   entries: BigFileEntry[];
@@ -76,19 +76,26 @@ const MAGICS = new Set(['BIGF', 'BIG4']);
  */
 export class NotAnArchiveError extends Error {}
 
+/**
+ * Largest archive an index table can address: offsets, sizes and the header's
+ * total are four bytes each
+ */
+export const MAX_ARCHIVE_SIZE = 0xffffffff;
+
 /** Rounds up to the next 4 byte boundary, where entry data has to start */
-const alignBytes = (offset: number): number => {
+const alignToFourBytes = (offset: number): number => {
   return (offset + 3) & ~3;
 };
 
 /**
- * Names are 8-bit, not UTF-8. Latin-1 is the one decoding that maps every byte
- * to a character and back, so a name survives a save whatever it contains.
+ * Encoding entry names are read and written with. Names are 8-bit, not
+ * UTF-8; Latin-1 is the one decoding that maps every byte to a character and
+ * back, so a name survives a save whatever it contains.
  */
 const NAME_ENCODING = 'latin1';
 
-/** Entry names are stored with backslashes; everything above this layer uses '/' */
-const toTreeName = (name: string): string => name.replace(/\\/g, '/');
+/** Converts a stored entry name's backslashes to the '/' everything above this layer uses */
+const toEntryPath = (name: string): string => name.replace(/\\/g, '/');
 
 /**
  * Gets the name an entry is written with: the stored one when the entry was
@@ -111,8 +118,8 @@ const getStoredName = (entry: BigFileEntry): string => {
 
 /**
  * Reads the 16 byte header: magic, archive size, entry count, and the offset
- * the first entry's data starts at. Only the archive size is little endian; every other
- * number in the format is big endian.
+ * the first entry's data starts at. Only the archive size is little endian;
+ * every other number in the format is big endian.
  * @throws NotAnArchiveError when the magic is neither BIGF nor BIG4
  */
 export const parseHeader = (buffer: Buffer) => {
@@ -121,7 +128,7 @@ export const parseHeader = (buffer: Buffer) => {
     throw new NotAnArchiveError(`Invalid BIG file magic: '${magic}'`);
   }
 
-  const archiveSize = buffer.readUInt32LE(4); // the one little endian field
+  const archiveSize = buffer.readUInt32LE(4);
   const entryCount = buffer.readUInt32BE(8);
   const dataOffset = buffer.readUInt32BE(12);
 
@@ -136,9 +143,9 @@ export const parseHeader = (buffer: Buffer) => {
 /**
  * Reads `entryCount` records from the table that follows the header, each a
  * big endian offset and size followed by a null terminated name, and reports
- * how many bytes of the table they took. Throws when
- * the table ends before the count is met, rather than returning what it got,
- * and on a name that would escape the directory it is extracted to.
+ * how many bytes of the table they took. Throws when the table ends before
+ * the count is met, rather than returning what it got, and on a name that
+ * would escape the directory it is extracted to.
  */
 export const parseIndexTable = (
   table: Buffer,
@@ -169,7 +176,7 @@ export const parseIndexTable = (
     }
 
     const storedName = table.toString(NAME_ENCODING, nameStart, nameEnd);
-    const name = toTreeName(storedName);
+    const name = toEntryPath(storedName);
 
     if (!isContainedPath(name)) {
       throw new Error(
@@ -192,6 +199,7 @@ export const parseIndexTable = (
  * between the table and the data: eight bytes in every shipped BIG4 archive,
  * none in a BIGF one. A size comes from pending content where there is any,
  * so the layout describes the archive about to be written, not the one on disk.
+ * @throws when the archive would outgrow what four byte offsets address
  */
 export const computeArchiveLayout = (
   entries: readonly BigFileEntry[] | ReadonlyMap<string, BigFileEntry>,
@@ -216,11 +224,17 @@ export const computeArchiveLayout = (
   entriesArray.forEach((entry) => {
     const size = entry.pendingData?.length ?? entry.size;
     placedEntries.push({ entry, offset: dataOffset, size });
-    dataOffset = alignBytes(dataOffset + size);
+    dataOffset = alignToFourBytes(dataOffset + size);
   });
 
   const last = placedEntries[placedEntries.length - 1];
   const totalSize = last ? last.offset + last.size : firstDataOffset;
+
+  if (totalSize > MAX_ARCHIVE_SIZE) {
+    throw new Error(
+      `The archive would be ${totalSize} bytes, past the ${MAX_ARCHIVE_SIZE} a BIG index can address`,
+    );
+  }
 
   return {
     placedEntries,
@@ -245,14 +259,14 @@ const writeIndexTableEntry = (
     NAME_ENCODING,
   );
   nameBytes.copy(buffer, offset + 8);
-  buffer[offset + 8 + nameBytes.length] = 0; // null terminator
+  buffer[offset + 8 + nameBytes.length] = 0;
 
   return offset + 8 + nameBytes.length + 1;
 };
 
 /**
- * Writes the header, the index table and its trailer into one buffer, padded
- * out to the boundary where entry data begins. The archive size in the header
+ * Writes the header, the index table and its trailer into one buffer that
+ * ends where entry data begins. The archive size in the header
  * is the total size the layout arrived at, counting data not yet written.
  */
 export const serializeIndexTable = (

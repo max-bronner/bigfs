@@ -7,7 +7,7 @@ import {
   Stmt,
 } from './aptScriptSyntax';
 
-/** A parse error with the line and column it was found at */
+/** Error thrown by `parseScript`, with the line and column, from 1, it was found at */
 export class ScriptError extends Error {
   public constructor(
     message: string,
@@ -181,7 +181,10 @@ const KEYWORD_VALUES = new Set([
   '_global',
 ]);
 
-/** Parses a script into statements */
+/**
+ * Parses script text into statements.
+ * @throws ScriptError at the first token that does not parse
+ */
 export const parseScript = (source: string): Stmt[] => {
   const tokens = tokenize(source);
   let position = 0;
@@ -206,7 +209,7 @@ export const parseScript = (source: string): Stmt[] => {
     }
   };
 
-  /** A plain or backtick name */
+  // A plain or backtick name
   const name = (): string => {
     const token = next();
 
@@ -221,7 +224,7 @@ export const parseScript = (source: string): Stmt[] => {
     return fail(`Expected a name but found ${token.text}`, token);
   };
 
-  const register = (text: string) => /^\$r\d+$/.test(text);
+  const isRegisterName = (text: string) => /^\$r\d+$/.test(text);
 
   const operand = (): Operand => {
     const token = peek();
@@ -313,7 +316,7 @@ export const parseScript = (source: string): Stmt[] => {
 
       if (
         peek().kind === 'name' &&
-        register(peek().text) &&
+        isRegisterName(peek().text) &&
         peek(1).kind !== 'punct'
       ) {
         paramRegister = Number(next().text.slice(2));
@@ -336,7 +339,7 @@ export const parseScript = (source: string): Stmt[] => {
     return { name: functionName, params, flags, body: block() };
   };
 
-  /** A callee written before `(`: a name, a member, or `call[e]` */
+  // A callee written before `(`: a name, a member, or `call[e]`
   const callOf = (callee: Expr, list: Expr[], isNew: boolean): Expr => {
     if (callee.k === 'var') {
       return {
@@ -459,7 +462,7 @@ export const parseScript = (source: string): Stmt[] => {
       return { k: 'kw', v: text as Keyword };
     }
 
-    if (register(text)) {
+    if (isRegisterName(text)) {
       return { k: 'reg', n: Number(text.slice(2)) };
     }
 

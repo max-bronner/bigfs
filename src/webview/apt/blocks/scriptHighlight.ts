@@ -4,6 +4,7 @@
  * compiler's own parser stays the authority on what is valid.
  */
 
+/** Category of a script token, which picks its colour */
 export type ScriptTokenKind =
   | 'comment'
   | 'string'
@@ -16,6 +17,7 @@ export type ScriptTokenKind =
   | 'operator'
   | 'plain';
 
+/** A token of script text, by its offsets into the text */
 export interface ScriptToken {
   kind: ScriptTokenKind;
   start: number;
@@ -61,7 +63,7 @@ const PATTERNS: [RegExp, ScriptTokenKind][] = [
   [/>>>|===|:=|==|>>|<<|[=<>!+\-*/%&|^]+/y, 'operator'],
 ];
 
-/** The tokens of `source` in order; text between them is whitespace or punctuation */
+/** Splits `source` into tokens in order; text between them is whitespace or punctuation */
 export const tokenizeScript = (source: string): ScriptToken[] => {
   const tokens: ScriptToken[] = [];
   let at = 0;
@@ -105,7 +107,7 @@ export const tokenizeScript = (source: string): ScriptToken[] => {
   return tokens;
 };
 
-/** The line and column, from 1, of an offset of `text` */
+/** Gets the line and column, from 1, of an offset of `text` */
 export const positionOf = (
   text: string,
   offset: number,
@@ -116,7 +118,7 @@ export const positionOf = (
   return { line, column: offset - (before.lastIndexOf('\n') + 1) + 1 };
 };
 
-/** The offset of a line and column, from 1, clamped to the text */
+/** Gets the offset of a line and column, from 1, clamped to the text */
 export const offsetOf = (
   text: string,
   line: number,
@@ -136,10 +138,10 @@ export const offsetOf = (
 };
 
 /**
- * The span an error at a line and column underlines: the token starting
+ * Finds the span an error at a line and column underlines: the token starting
  * there, or the rest of the line when none does
  */
-export const errorSpan = (
+export const findErrorSpan = (
   text: string,
   line: number,
   column: number,
@@ -173,7 +175,7 @@ export interface ScriptSegment {
   error: boolean;
 }
 
-/** The text cut at token and error boundaries, covering all of it */
+/** Cuts the text at token and error boundaries into segments covering all of it */
 export const segmentScript = (
   text: string,
   error?: { start: number; end: number },

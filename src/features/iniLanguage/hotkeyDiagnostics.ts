@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { SAGE_INI_LANGUAGE } from '../../constants';
-import { createLineReader, resolveSlots } from '../commandSet/commandSetPreview';
-import { hotkeyClashes } from '../../game/ini-tools/hotkeys';
+import { createLineReader, resolveSlots } from '../../services/ini/commandSetPreview';
+import { findHotkeyClashes } from '../../game/ini-tools/hotkeys';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 
@@ -13,6 +13,7 @@ import type { SageIniIndex } from '../../services/ini/sageIniIndex';
 
 const DELAY_MS = 500;
 
+/** Creates the watcher that checks open INI files for hotkey clashes as they change */
 export const watchHotkeyClashes = (
   documents: SageIniDocuments,
   index: SageIniIndex,
@@ -57,7 +58,7 @@ export const watchHotkeyClashes = (
           line: statement.line,
         }));
       const resolved = await resolveSlots(index, slots, linesOf);
-      const clashes = hotkeyClashes(resolved);
+      const clashes = findHotkeyClashes(resolved);
 
       resolved.forEach((slot, place) => {
         const others = clashes.get(slot.slot);

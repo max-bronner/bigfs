@@ -1,3 +1,4 @@
+import type { PlaySoundRequest, SoundReply } from '../../core/soundClip';
 import type { AptMovie, Frame } from '../../formats/apt/aptMovie';
 import type { DatLocation, RuRun } from '../../formats/apt/aptGeometry';
 import type {
@@ -7,13 +8,18 @@ import type {
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptInstruction } from '../../formats/apt/aptBytecode';
 import type { Problem } from '../../formats/apt/aptIntegrity';
+import type { ModelScene } from '../../formats/w3d/w3dScene';
+import type {
+  SuggestionKind,
+  SuggestionOption,
+} from '../../game/apt/suggestionKinds';
 
 /**
  * The messages between the APT editor and its page. Shared by both sides,
  * so it must stay free of DOM and Node types.
  */
 
-/** What the user set, kept per movie between sessions */
+/** Engine panel answers the user set, kept per movie between sessions */
 export interface EngineValues {
   /** Values that win over what the movie holds, by path from the root */
   overrides?: Record<string, string>;
@@ -21,6 +27,10 @@ export interface EngineValues {
   externs?: Record<string, string>;
   /** What calls into the engine return, by function name */
   returns: Record<string, string>;
+  /** Pictures the user gave engine surfaces, by surface key */
+  images?: Record<string, string>;
+  /** Arguments of the calls the user made into the movie, by lowercased function path */
+  calls?: Record<string, string[]>;
   /** Before overrides: values only for names nothing set */
   values?: Record<string, string>;
 }
@@ -57,13 +67,16 @@ export interface PageMappedImage {
   extent: [number, number];
 }
 
+/** A decoded texture as sent to the page: RGBA bytes, row by row */
 export interface TexturePixels {
   width: number;
   height: number;
   pixels: Uint8Array;
 }
 
+/** Message the APT editor sends its page, told apart by `kind` */
 export type ToPage =
+  | SoundReply
   | {
       kind: 'movie';
       summary: string;
@@ -105,8 +118,20 @@ export type ToPage =
       kind: 'mappedImages';
       images: Record<string, PageMappedImage | null>;
       textures: Record<string, TexturePixels>;
+      /** Textures shipped as JPEG, which the page decodes */
+      jpegs?: Record<string, Uint8Array>;
     }
+  /** The answer to `suggestions`: the options the game's INI gives a kind of field */
+  | {
+      kind: 'suggestions';
+      field: SuggestionKind;
+      options: SuggestionOption[];
+    }
+  /** The answer to `renderObject`: the model, or why there is none */
+  | { kind: 'renderObject'; name: string; scene?: ModelScene; error?: string }
   | { kind: 'select'; character: number }
+  /** What the editor is doing while it prepares the movie; empty once it is done */
+  | { kind: 'progress'; text: string }
   /** What the integrity check found in the movie and the files beside it */
   | { kind: 'integrity'; problems: Problem[] }
   | {
@@ -120,19 +145,24 @@ export type ToPage =
   | { kind: 'notice'; message: string }
   | { kind: 'error'; message: string };
 
+/** Message the page sends the APT editor, told apart by `kind` */
 export type FromPage =
   | { kind: 'ready' }
   /** The toolbar's text view button: the whole movie as text, in an editor of its own */
   | { kind: 'openTextView' }
   /** Image surfaces name `MappedImage`s; the editor finds them in the game's INI */
   | { kind: 'mappedImages'; names: string[] }
+  /** An Engine panel field is focused; the editor lists the INI values it takes */
+  | { kind: 'suggestions'; field: SuggestionKind }
+  /** A `View3D` surface is shown; the editor finds the model it names */
+  | { kind: 'renderObject'; name: string }
   | { kind: 'script'; block: number }
   /** The Engine panel's answers for the shown movie, to keep in the workspace */
   | { kind: 'engineAnswers'; values: EngineValues }
   /** A script loaded a movie into a clip or level: find it like an import */
   | { kind: 'loadMovie'; name: string }
   /** The Engine panel's play button, or a movie sound with the box ticked */
-  | { kind: 'playSound'; name: string }
+  | PlaySoundRequest
   | { kind: 'edit'; edit: AptEdit }
   | { kind: 'scriptEdit'; block: number; text: string }
   | { kind: 'openGeometry'; geometry: number }

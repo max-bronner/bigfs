@@ -5,11 +5,12 @@
  * saved once with it.
  */
 
-/** A replacement of the columns `start` to `end` of one line */
+/** Replacement of the columns `start` to `end` of one line, both zero-based */
 export interface LineReplacement {
   line: number;
   start: number;
   end: number;
+  /** Text that takes the place of the replaced columns */
   after: string;
 }
 
@@ -20,8 +21,8 @@ export interface LineInsertion {
   lines: string[];
 }
 
-/** The line end a text uses, so an edit does not mix endings into it */
-export const lineEndOf = (text: string): string =>
+/** Detects the line end a text uses, so an edit does not mix endings into it */
+export const detectLineEnd = (text: string): string =>
   text.includes('\r\n') ? '\r\n' : '\n';
 
 /** Applies replacements to a text, keeping every line end as it was */
@@ -56,7 +57,7 @@ export const insertLines = (
   text: string,
   insertions: readonly LineInsertion[],
 ): string => {
-  const eol = lineEndOf(text);
+  const eol = detectLineEnd(text);
   const lines = text.split(/\r?\n/);
 
   for (const insertion of [...insertions]

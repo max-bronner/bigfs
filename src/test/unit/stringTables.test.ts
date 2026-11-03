@@ -1,11 +1,11 @@
 import * as assert from 'assert';
 import {
-  csfNameProblem,
+  describeCsfNameProblem,
   keepLineBreaks,
   parseCsf,
   writeCsf,
 } from '../../formats/csf/csf';
-import { unencodableCharacters } from '../../core/windows1252';
+import { findUnencodableCharacters } from '../../core/windows1252';
 import {
   parseStringRecords,
   quoteStringText,
@@ -90,8 +90,8 @@ suite('String tables', () => {
   });
 
   test('a label or speech name outside Windows-1252 is refused when typed', () => {
-    assert.strictEqual(csfNameProblem('OBJECT:Café’s'), undefined);
-    assert.match(csfNameProblem('OBJECT:日本') ?? '', /"日"/);
+    assert.strictEqual(describeCsfNameProblem('OBJECT:Café’s'), undefined);
+    assert.match(describeCsfNameProblem('OBJECT:日本') ?? '', /"日"/);
     assert.throws(
       () =>
         writeCsf({
@@ -123,10 +123,10 @@ suite('String tables', () => {
   });
 
   test('characters a .str cannot hold are listed once each', () => {
-    assert.deepStrictEqual(unencodableCharacters('Café ’ “x” 日本 日'), [
+    assert.deepStrictEqual(findUnencodableCharacters('Café ’ “x” 日本 日'), [
       '日',
       '本',
     ]);
-    assert.deepStrictEqual(unencodableCharacters('plain'), []);
+    assert.deepStrictEqual(findUnencodableCharacters('plain'), []);
   });
 });

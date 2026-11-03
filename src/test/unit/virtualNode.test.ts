@@ -14,11 +14,11 @@ internals._load = (request, ...rest) =>
     ? { FileType: { File: 1, Directory: 2 } }
     : original.call(Module, request, ...rest);
 
-let nodes: typeof import('../../services/archives/virtualNode');
+let nodes: typeof import('../../services/archives/virtualTree');
 
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  nodes = require('../../services/archives/virtualNode');
+  nodes = require('../../services/archives/virtualTree');
 } finally {
   internals._load = original;
 }
@@ -39,25 +39,25 @@ const nodeAt = (
 suite('Virtual node containment', () => {
   test('a node is inside the directories above it', () => {
     assert.ok(
-      nodes.isInside(nodeAt('data/ini/object.ini'), nodeAt('data/ini')),
+      nodes.isBelow(nodeAt('data/ini/object.ini'), nodeAt('data/ini')),
     );
-    assert.ok(nodes.isInside(nodeAt('data/ini/object.ini'), nodeAt('data')));
+    assert.ok(nodes.isBelow(nodeAt('data/ini/object.ini'), nodeAt('data')));
   });
 
   test('a sibling whose name starts with the same prefix is not inside', () => {
-    assert.ok(!nodes.isInside(nodeAt('data/ini2'), nodeAt('data/ini')));
-    assert.ok(!nodes.isInside(nodeAt('data/ini2/a.ini'), nodeAt('data/ini')));
-    assert.ok(!nodes.isInside(nodeAt('data/ini'), nodeAt('data/ini2')));
+    assert.ok(!nodes.isBelow(nodeAt('data/ini2'), nodeAt('data/ini')));
+    assert.ok(!nodes.isBelow(nodeAt('data/ini2/a.ini'), nodeAt('data/ini')));
+    assert.ok(!nodes.isBelow(nodeAt('data/ini'), nodeAt('data/ini2')));
   });
 
   test('a node is not inside itself or below itself', () => {
-    assert.ok(!nodes.isInside(nodeAt('data/ini'), nodeAt('data/ini')));
-    assert.ok(!nodes.isInside(nodeAt('data'), nodeAt('data/ini')));
+    assert.ok(!nodes.isBelow(nodeAt('data/ini'), nodeAt('data/ini')));
+    assert.ok(!nodes.isBelow(nodeAt('data'), nodeAt('data/ini')));
   });
 
   test('the same path in another archive is not inside', () => {
     assert.ok(
-      !nodes.isInside(
+      !nodes.isBelow(
         nodeAt('data/ini/object.ini', otherArchive),
         nodeAt('data/ini'),
       ),
@@ -65,10 +65,10 @@ suite('Virtual node containment', () => {
   });
 
   test('the archive root holds every other node of its archive', () => {
-    assert.ok(nodes.isInside(nodeAt('data'), nodeAt('')));
-    assert.ok(nodes.isInside(nodeAt('data/ini/object.ini'), nodeAt('')));
-    assert.ok(!nodes.isInside(nodeAt(''), nodeAt('')));
-    assert.ok(!nodes.isInside(nodeAt('data', otherArchive), nodeAt('')));
+    assert.ok(nodes.isBelow(nodeAt('data'), nodeAt('')));
+    assert.ok(nodes.isBelow(nodeAt('data/ini/object.ini'), nodeAt('')));
+    assert.ok(!nodes.isBelow(nodeAt(''), nodeAt('')));
+    assert.ok(!nodes.isBelow(nodeAt('data', otherArchive), nodeAt('')));
   });
 
   test('a selection holding a root and its descendants collapses to the root', () => {

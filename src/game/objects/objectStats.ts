@@ -14,6 +14,7 @@ import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/s
  * parent, marked as inherited.
  */
 
+/** Columns of the balance table, in display order */
 export const STAT_COLUMNS = [
   'side',
   'cost',
@@ -29,9 +30,10 @@ export const STAT_COLUMNS = [
   'delay',
 ] as const;
 
+/** One column of the balance table */
 export type StatColumn = (typeof STAT_COLUMNS)[number];
 
-/** A value and the token it is written as */
+/** A stat's value and the token it is written as, so a table can edit it in place */
 export interface StatValue {
   /** The number a macro or `#ADD` call stands for, else the token itself */
   value: string;
@@ -42,12 +44,13 @@ export interface StatValue {
   end: number;
 }
 
-/** What evaluating a number needs: the file's lines and the macros defined */
+/** Context for evaluating a number: the file's lines and the macros defined */
 export interface StatEvaluation {
   lines: string[];
   lookupMacro: LookupMacro;
 }
 
+/** The stats one object block writes, as a row of the balance table */
 export interface ObjectStats {
   name: string;
   /** `Object`, `ChildObject` or `ObjectReskin` */
@@ -60,6 +63,7 @@ export interface ObjectStats {
   selectable: boolean;
 }
 
+/** The stats one weapon block writes for the balance table */
 export interface WeaponStats {
   /** The damage when one nugget writes it, so it can be edited in place */
   damage?: StatValue;
@@ -80,7 +84,7 @@ const OBJECT_FIELDS: Record<string, StatColumn> = {
 const parseNumber = (text: string): number | undefined =>
   /^[+-]?(\d+\.?\d*|\.\d+)%?$/.test(text) ? parseFloat(text) : undefined;
 
-/** The number a call or a macro at a token stands for, if it is one */
+/** Evaluates the number a call or a macro at a token stands for, if it is one */
 const evaluateToken = (
   parsed: SageDocument,
   statement: SageStatement,
@@ -118,11 +122,11 @@ const evaluateToken = (
 };
 
 /**
- * A statement's token as a value. With `evaluation`, a macro or an `#ADD`
+ * Reads a statement's token as a value. With `evaluation`, a macro or an `#ADD`
  * call shows the number it stands for, and what is written stays on
  * `written` so an edit can replace it.
  */
-const valueOf = (
+const readStatValue = (
   statement: SageStatement,
   index = 0,
   parsed?: SageDocument,
@@ -151,8 +155,8 @@ const valueOf = (
   };
 };
 
-/** The innermost block of `root` holding a line, and the chain to it */
-const chainAt = (root: SageBlock, line: number): SageBlock[] => {
+/** Lists the blocks from `root` down to the innermost one holding a line */
+const findBlockChain = (root: SageBlock, line: number): SageBlock[] => {
   const chain = [root];
   let current = root;
 
@@ -169,8 +173,8 @@ const chainAt = (root: SageBlock, line: number): SageBlock[] => {
   }
 };
 
-/** The field statements inside a block, with the block chain holding each */
-const fieldsIn = (parsed: SageDocument, root: SageBlock) =>
+/** Lists the field statements inside a block, with the block chain holding each */
+const listFieldsIn = (parsed: SageDocument, root: SageBlock) =>
   parsed.statements
     .filter(
       (statement) =>
@@ -180,10 +184,10 @@ const fieldsIn = (parsed: SageDocument, root: SageBlock) =>
     )
     .map((statement) => ({
       statement,
-      chain: chainAt(root, statement.line).slice(1),
+      chain: findBlockChain(root, statement.line).slice(1),
     }));
 
-/** The stats an `Object`, `ChildObject` or `ObjectReskin` block writes */
+/** Reads the stats an `Object`, `ChildObject` or `ObjectReskin` block writes; inherited ones are left to the caller */
 export const readObjectStats = (
   parsed: SageDocument,
   block: SageBlock,
@@ -206,7 +210,7 @@ export const readObjectStats = (
     }
   };
 
-  for (const { statement, chain } of fieldsIn(parsed, block)) {
+  for (const { statement, chain } of listFieldsIn(parsed, block)) {
     const key = statement.keyword.text.toLowerCase();
     const holder = chain[0]?.keyword.toLowerCase();
 
@@ -214,7 +218,7 @@ export const readObjectStats = (
       if (OBJECT_FIELDS[key]) {
         set(
           OBJECT_FIELDS[key],
-          valueOf(
+          readStatValue(
             statement,
             0,
             key === 'side' ? undefined : parsed,
@@ -227,23 +231,23 @@ export const readObjectStats = (
         );
       }
     } else if (holder === 'body' && key === 'maxhealth') {
-      set('health', valueOf(statement, 0, parsed, evaluation));
+      set('health', readStatValue(statement, 0, parsed, evaluation));
     } else if (holder === 'armorset' && key === 'armor') {
-      set('armor', valueOf(statement));
+      set('armor', readStatValue(statement));
     } else if (holder === 'locomotorset' && key === 'speed') {
-      set('speed', valueOf(statement, 0, parsed, evaluation));
+      set('speed', readStatValue(statement, 0, parsed, evaluation));
     } else if (
       holder === 'weaponset' &&
       key === 'weapon' &&
       statement.values[0]?.text.toUpperCase() === 'PRIMARY'
     ) {
-      set('weapon', valueOf(statement, 1));
+      set('weapon', readStatValue(statement, 1));
     }
   }
   return stats;
 };
 
-/** A weapon's damage (summed over its damage nuggets), range and delay */
+/** Reads a weapon's damage (summed over its damage nuggets), range and delay */
 export const readWeaponStats = (
   parsed: SageDocument,
   block: SageBlock,
@@ -252,18 +256,18 @@ export const readWeaponStats = (
   const stats: WeaponStats = {};
   const nuggets: StatValue[] = [];
 
-  for (const { statement, chain } of fieldsIn(parsed, block)) {
+  for (const { statement, chain } of listFieldsIn(parsed, block)) {
     const key = statement.keyword.text.toLowerCase();
 
     if (!chain.length && key === 'attackrange') {
-      stats.range ??= valueOf(statement, 0, parsed, evaluation);
+      stats.range ??= readStatValue(statement, 0, parsed, evaluation);
     } else if (!chain.length && key === 'delaybetweenshots') {
-      stats.delay ??= valueOf(statement, 0, parsed, evaluation);
+      stats.delay ??= readStatValue(statement, 0, parsed, evaluation);
     } else if (
       chain[0]?.keyword.toLowerCase() === 'damagenugget' &&
       key === 'damage'
     ) {
-      const damage = valueOf(statement, 0, parsed, evaluation);
+      const damage = readStatValue(statement, 0, parsed, evaluation);
 
       if (damage) {
         nuggets.push(damage);

@@ -3,9 +3,9 @@ import { builtinModules } from "node:module";
 import typescriptEslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 
-// The layer rules of docs/conventions.md. They apply to the layer folders;
-// the folders that predate them (LEGACY) are migrated wave by wave, see
-// docs/refactor-plan.md, and the rules go from warn to error in the last one.
+// The layer rules of docs/conventions.md, enforced as errors. LEGACY names the
+// folders that predate the layers, so an import that climbs back into one is
+// refused even though they are gone.
 
 const LAYERS = ["core", "formats", "game", "node", "platform", "services", "features", "webview"];
 const LEGACY = ["actions", "binary", "commands", "common", "language", "model", "providers", "tools", "ui", "constants", "extension"];
@@ -41,7 +41,7 @@ const VSCODE = {
 const restrict = (files, { patterns = [], paths = [] }) => ({
     files,
     rules: {
-        "@typescript-eslint/no-restricted-imports": ["warn", { paths, patterns }],
+        "@typescript-eslint/no-restricted-imports": ["error", { paths, patterns }],
     },
 });
 
@@ -74,7 +74,6 @@ const layerRules = [
     restrict(["src/platform/**/*.ts"], {
         patterns: [below("platform", ["core", "platform"])],
     }),
-    // Until the legacy folders are migrated, services and features wire them
     restrict(["src/services/**/*.ts"], {
         patterns: [climbingTo(["features", "webview"], "src/services never imports features or webview code.")],
     }),

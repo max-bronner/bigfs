@@ -9,6 +9,7 @@ import { byId } from './dom';
 
 const panel = byId('integrity');
 
+/** Fills the integrity panel with a count of the problems and a row for each */
 export const showIntegrity = (
   problems: Problem[],
   select: (character: number) => void,

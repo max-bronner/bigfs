@@ -13,6 +13,7 @@
  *   width and height swapped
  */
 
+/** A `Coords` rect in texture pixels, as the INI writes it */
 export interface MappedRect {
   left: number;
   top: number;
@@ -20,6 +21,7 @@ export interface MappedRect {
   bottom: number;
 }
 
+/** One `MappedImage` definition's fields, as written */
 export interface MappedImage {
   name: string;
   texture?: string;
@@ -29,7 +31,7 @@ export interface MappedImage {
   status?: string;
 }
 
-/** `[x, y, width, height]` in `0..1` texture space */
+/** A texture rect as `[x, y, width, height]` in `0..1` texture space */
 export type UvRect = [number, number, number, number];
 
 /** Reads the fields of a definition's body, the lines between its header and `End` */
@@ -77,11 +79,12 @@ export const parseMappedImage = (
   };
 };
 
+/** Whether the image was packed turned a quarter turn clockwise (`ROTATED_90_CLOCKWISE`) */
 export const isRotated = (image: Pick<MappedImage, 'status'>): boolean =>
   /(^|[\s+])ROTATED_90_CLOCKWISE($|[\s+])/i.test(image.status ?? '');
 
 /**
- * The rect `[x, y, w, h]` of the texture the image occupies. `decoded` is the
+ * Computes the rect `[x, y, w, h]` of the texture the image occupies. `decoded` is the
  * texture's real size, used for a size the definition does not state.
  */
 export const mappedUv = (
@@ -107,7 +110,7 @@ export const mappedUv = (
   ];
 };
 
-/** `Coords`' width and height as they span the page; `undefined` without `Coords` */
+/** Measures `Coords`' width and height as they span the page; `undefined` without `Coords` */
 export const imageSize = (
   image: Pick<MappedImage, 'coords'>,
 ): [number, number] | undefined =>
@@ -116,7 +119,7 @@ export const imageSize = (
     image.coords.bottom - image.coords.top,
   ];
 
-/** The size the image draws at: [`imageSize`], swapped when it is rotated */
+/** Gets the size the image draws at: `imageSize`, swapped when it is rotated */
 export const imageExtent = (
   image: Pick<MappedImage, 'coords' | 'status'>,
 ): [number, number] | undefined => {

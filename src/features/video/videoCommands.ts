@@ -12,8 +12,8 @@ import {
 import type { FrameSource } from '../../formats/vp6/encodeMovie';
 import { registerCommand } from '../../platform/commands';
 import { settings } from '../../platform/settings';
-import { webviewPage } from '../../platform/webview/webviewPage';
-import { ffmpegSource, probe, run } from '../../node/ffmpeg';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
+import { createFfmpegFrameSource, probe, runProcess } from '../../node/ffmpeg';
 import { decodeDds, decodeTga } from '../../formats/texture/textureTools';
 import { toUri } from '../../services/archives/commandTarget';
 import type { FromVideoPage, ToVideoPage } from '../../webview/video/protocol';
@@ -45,13 +45,13 @@ const decodeImage = (name: string, bytes: Uint8Array) =>
     ? decodePng(bytes)
     : (/\.dds$/i.test(name) ? decodeDds(bytes) : decodeTga(bytes)).levels[0];
 
-/** The FFmpeg to use: the setting's, else one on the PATH, else none */
+/** Finds the FFmpeg to use: the setting's, else one on the PATH, else none */
 const findFfmpeg = async (): Promise<string | undefined> => {
   const configured = settings.ffmpegPath.get();
 
   for (const candidate of [configured, 'ffmpeg'].filter(Boolean) as string[]) {
     try {
-      if ((await run(candidate, ['-version'])).code === 0) {
+      if ((await runProcess(candidate, ['-version'])).code === 0) {
         return candidate;
       }
     } catch {
@@ -61,10 +61,11 @@ const findFfmpeg = async (): Promise<string | undefined> => {
   return undefined;
 };
 
-/** Frames read in VS Code's own browser engine, one per request */
+/** Frame reader decoding a video in VS Code's own browser engine, one frame per request */
 class BrowserFrames {
   private readonly panel: vscode.WebviewPanel;
   private readonly pending = new Map<number, (data: Uint8Array) => void>();
+  /** The video's size and its duration in seconds, once the page has loaded it */
   public readonly meta: Promise<{
     width: number;
     height: number;
@@ -100,14 +101,15 @@ class BrowserFrames {
     this.panel.onDidDispose(() =>
       failed(new Error('The reading panel was closed')),
     );
-    this.panel.webview.html = browserPage(
+    this.panel.webview.html = renderBrowserPage(
       this.panel.webview.asWebviewUri(file),
       this.panel.webview,
       scripts,
     );
   }
 
-  public frame(
+  /** Reads the frame at `time` seconds as RGBA, scaled to the size given */
+  public readFrame(
     index: number,
     time: number,
     width: number,
@@ -127,17 +129,18 @@ class BrowserFrames {
     });
   }
 
+  /** Closes the reading panel */
   public dispose(): void {
     this.panel.dispose();
   }
 }
 
-const browserPage = (
+const renderBrowserPage = (
   video: vscode.Uri,
   webview: vscode.Webview,
   scripts: vscode.Uri,
 ): string => {
-  return webviewPage({
+  return renderWebviewPage({
     allow: { media: webview.cspSource, script: webview.cspSource },
     scriptFiles: [
       webview.asWebviewUri(vscode.Uri.joinPath(scripts, 'video.js')).toString(),
@@ -220,8 +223,8 @@ const askSize = async (
   return text ? (text.split('x').map(Number) as [number, number]) : undefined;
 };
 
-/** A rate as numerator and denominator, keeping 29.97-style rates exact */
-const rateOf = (fps: number): [number, number] => {
+/** Splits a rate into numerator and denominator, keeping 29.97-style rates exact */
+const toRateFraction = (fps: number): [number, number] => {
   const whole = Math.round(fps * 1.001);
 
   return !Number.isInteger(fps) && Math.abs((whole * 1000) / 1001 - fps) < 0.01
@@ -229,8 +232,8 @@ const rateOf = (fps: number): [number, number] => {
     : [Math.round(fps * 1000), 1000];
 };
 
-/** Frames between forced key frames, from the setting */
-const keyInterval = (fps: number): number => {
+/** Reads from the setting how many frames lie between forced key frames */
+const getKeyInterval = (fps: number): number => {
   const seconds = settings.vp6KeyFrameSeconds.get();
 
   return seconds > 0 ? Math.max(1, Math.round(seconds * fps)) : 1;
@@ -332,7 +335,7 @@ const convert = async (
       if (ffmpeg) {
         ({ width, height, fps } = await probe(ffmpeg, file.fsPath));
         makeSource = (w, h, rate) => {
-          const source = ffmpegSource(ffmpeg, file.fsPath, w, h, rate);
+          const source = createFfmpegFrameSource(ffmpeg, file.fsPath, w, h, rate);
 
           stop = source.stop;
           return source.next;
@@ -355,7 +358,7 @@ const convert = async (
 
           return async () =>
             index < count
-              ? browser.frame(index, index++ / rate + 0.5 / rate, w, h)
+              ? browser.readFrame(index, index++ / rate + 0.5 / rate, w, h)
               : undefined;
         };
       }
@@ -420,7 +423,7 @@ const convert = async (
     }
 
     let pending: Uint8Array | undefined = firstFrame;
-    const [rateNumerator, rateDenominator] = rateOf(rate);
+    const [rateNumerator, rateDenominator] = toRateFraction(rate);
     const bytes = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -444,7 +447,7 @@ const convert = async (
           },
           {
             quality: quality.q,
-            keyInterval: keyInterval(rate),
+            keyInterval: getKeyInterval(rate),
             cancelled: () => token.isCancellationRequested,
             progress: (frames) =>
               progress.report({
@@ -462,7 +465,7 @@ const convert = async (
     const movie = new Vp6Movie(bytes);
 
     for (const index of [0, movie.frameCount >> 1, movie.frameCount - 1]) {
-      movie.frame(index);
+      movie.decodeFrame(index);
     }
 
     await vscode.workspace.fs.writeFile(output, bytes);
@@ -481,6 +484,7 @@ const convert = async (
   }
 };
 
+/** Registers `bigfs.convertToVp6`, which resolves to the movie written */
 export const registerVideoCommands = (
   context: vscode.ExtensionContext,
 ): void => {

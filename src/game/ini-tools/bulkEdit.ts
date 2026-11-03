@@ -26,6 +26,7 @@ import type {
  *   fields by name
  */
 
+/** A bulk edit as the user writes it: the four inputs described above, uncompiled */
 export interface BulkQuery {
   blocks: string;
   where: string;
@@ -33,6 +34,7 @@ export interface BulkQuery {
   formula: string;
 }
 
+/** One token edit a bulk query makes, for the preview and the workspace edit */
 export interface BulkChange {
   /** The file to edit: where the value is defined, which may not be where the block is */
   uri: string;
@@ -47,6 +49,7 @@ export interface BulkChange {
   via?: string;
 }
 
+/** The edits a bulk query makes and the counts the preview reports */
 export interface BulkResult {
   changes: BulkChange[];
   /** Blocks that matched the selection and the conditions */
@@ -68,7 +71,7 @@ export interface BulkSource {
 /** What a query reads beyond the file a block sits in */
 export interface BulkWorkspace {
   sources: readonly BulkSource[];
-  /** The parsed fragment an `#include` in `from` names, when it can be read */
+  /** Reads the parsed fragment an `#include` in `from` names, when it can be read */
   include(from: BulkSource, path: string): BulkSource | undefined;
 }
 
@@ -85,6 +88,7 @@ interface Condition {
   value: string;
 }
 
+/** A bulk query checked and compiled by `compileBulkQuery`, ready to run */
 export interface CompiledQuery {
   keyword: string;
   name?: RegExp;
@@ -93,9 +97,10 @@ export interface CompiledQuery {
   formula: (variables: Record<string, number>) => number;
 }
 
+/** Error thrown for a bulk query input the user wrote wrong; its message says which */
 export class BulkQueryError extends Error {}
 
-const glob = (pattern: string) =>
+const globToRegExp = (pattern: string) =>
   new RegExp(
     `^${pattern
       .replace(/[.+^${}()|[\]\\]/g, '\\$&')
@@ -123,7 +128,10 @@ const parseSelector = (text: string): FieldSelector => {
   };
 };
 
-/** Checks and compiles the four inputs, or explains which is wrong */
+/**
+ * Checks and compiles the four inputs.
+ * @throws BulkQueryError naming the input that is wrong
+ */
 export const compileBulkQuery = (query: BulkQuery): CompiledQuery => {
   const [keyword, ...name] = query.blocks.trim().split(/\s+/);
 
@@ -159,7 +167,7 @@ export const compileBulkQuery = (query: BulkQuery): CompiledQuery => {
 
   return {
     keyword,
-    name: name.length ? glob(name.join(' ')) : undefined,
+    name: name.length ? globToRegExp(name.join(' ')) : undefined,
     conditions,
     field: parseSelector(query.field),
     formula,
@@ -169,13 +177,13 @@ export const compileBulkQuery = (query: BulkQuery): CompiledQuery => {
 /** A number as the INI writes it, with an optional `X:` prefix and `%` */
 const NUMBER = /^([A-Za-z]:)?(-?(?:\d+\.?\d*|\.\d+))(%?)$/;
 
-const numberOf = (text: string): number | undefined => {
+const parseIniNumber = (text: string): number | undefined => {
   const match = NUMBER.exec(text);
 
   return match ? Number(match[2]) : undefined;
 };
 
-const write = (before: string, value: number): string => {
+const formatNumberLike = (before: string, value: number): string => {
   const [, prefix = '', digits, percent] = NUMBER.exec(before)!;
   const integer = !digits.includes('.');
   const text = integer
@@ -227,7 +235,7 @@ interface Resolved {
   via?: string;
 }
 
-/** Reads a query over a workspace: macros, includes and inheritance resolved */
+/** Creates the reader a query runs over a workspace, with macros, includes and inheritance resolved */
 const createReader = (workspace: BulkWorkspace) => {
   const macros = new Map<
     string,
@@ -273,7 +281,7 @@ const createReader = (workspace: BulkWorkspace) => {
     }
   }
 
-  const macroOf = (token: SageToken, from: BulkSource) => {
+  const findMacro = (token: SageToken, from: BulkSource) => {
     const local = from.document.macros.find(
       (macro) => macro.name.toLowerCase() === token.text.toLowerCase(),
     );
@@ -283,7 +291,7 @@ const createReader = (workspace: BulkWorkspace) => {
       : macros.get(token.text.toLowerCase());
   };
 
-  /** The number a value stands for and where it is written, following macros */
+  // The number a value stands for and where it is written, following macros
   const resolve = (
     token: SageToken,
     line: number,
@@ -294,7 +302,7 @@ const createReader = (workspace: BulkWorkspace) => {
     let via: string | undefined;
 
     for (let hops = 0; !NUMBER.test(text) && hops < MAX_DEPTH; hops++) {
-      const found = macroOf({ ...token, text }, target.source);
+      const found = findMacro({ ...token, text }, target.source);
 
       if (!found) {
         break;
@@ -378,7 +386,7 @@ const createReader = (workspace: BulkWorkspace) => {
   };
 
   const ownCache = new Map<SageBlock, FieldRef[]>();
-  const own = (unit: Unit) => {
+  const readOwnFields = (unit: Unit) => {
     let fields = ownCache.get(unit.block);
 
     if (!fields) {
@@ -388,7 +396,7 @@ const createReader = (workspace: BulkWorkspace) => {
     return fields;
   };
 
-  const parentOf = (unit: Unit): Unit | undefined => {
+  const findParent = (unit: Unit): Unit | undefined => {
     const parent = PARENT_KEYWORDS.test(unit.block.keyword)
       ? (unit.block.name ?? '').split(/\s+/)[1]
       : undefined;
@@ -396,22 +404,20 @@ const createReader = (workspace: BulkWorkspace) => {
     return parent ? tops.get(parent.toLowerCase()) : undefined;
   };
 
-  /**
-   * The fields a selector picks on a block: its own, or when it writes none,
-   * those of the parent it inherits from, which are where they are defined
-   */
+  // The fields a selector picks on a block: its own, or when it writes none,
+  // those of the parent it inherits from, which are where they are defined
   const select = (
     unit: Unit,
     selector: FieldSelector,
     inheritedFrom?: Unit,
   ): { field: FieldRef; inheritedFrom?: Unit }[] => {
-    const found = own(unit).filter((field) => matches(selector, field));
+    const found = readOwnFields(unit).filter((field) => matches(selector, field));
 
     if (found.length) {
       return found.map((field) => ({ field, inheritedFrom }));
     }
 
-    const parent = parentOf(unit);
+    const parent = findParent(unit);
     let hops = 0;
 
     return parent && hops++ < MAX_DEPTH && parent.block !== unit.block
@@ -419,7 +425,7 @@ const createReader = (workspace: BulkWorkspace) => {
       : [];
   };
 
-  return { resolve, own, select, parentOf, macroOf };
+  return { resolve, own: readOwnFields, select, parentOf: findParent, macroOf: findMacro };
 };
 
 const expand = (
@@ -433,8 +439,8 @@ const expand = (
   return resolved && 'text' in resolved ? resolved.text : token.text;
 };
 
-/** The edits a query makes across a workspace of parsed files */
-export const bulkChangesAcross = (
+/** Plans the edits a query makes across a workspace of parsed files */
+export const planBulkChangesAcross = (
   workspace: BulkWorkspace,
   query: CompiledQuery,
 ): BulkResult => {
@@ -479,7 +485,7 @@ export const bulkChangesAcross = (
       case '!~':
         return !values.some((value) => value.toLowerCase() === wanted);
       default: {
-        const value = values.map(numberOf).find((each) => each !== undefined);
+        const value = values.map(parseIniNumber).find((each) => each !== undefined);
 
         if (value === undefined || !Number.isFinite(number)) {
           return false;
@@ -535,7 +541,7 @@ export const bulkChangesAcross = (
             'text' in resolved &&
             NUMBER.test(resolved.text)
           ) {
-            variables[statement.keyword.text] = numberOf(resolved.text)!;
+            variables[statement.keyword.text] = parseIniNumber(resolved.text)!;
           }
         }
       }
@@ -581,8 +587,8 @@ export const bulkChangesAcross = (
             continue;
           }
 
-          const x = numberOf(resolved.text)!;
-          const after = write(
+          const x = parseIniNumber(resolved.text)!;
+          const after = formatNumberLike(
             resolved.text,
             query.formula({ ...variables, x }),
           );
@@ -625,12 +631,12 @@ export const bulkChangesAcross = (
   return result;
 };
 
-/** The edits a query makes to one parsed file, with no other file in reach */
-export const bulkChanges = (
+/** Plans the edits a query makes to one parsed file, with no other file in reach */
+export const planBulkChanges = (
   document: SageDocument,
   query: CompiledQuery,
 ): BulkResult =>
-  bulkChangesAcross(
+  planBulkChangesAcross(
     { sources: [{ uri: '', document }], include: () => undefined },
     query,
   );

@@ -1,9 +1,9 @@
 /**
- * Runs `action` once, `wait` milliseconds after the last call of `schedule`,
+ * Creates a debouncer that runs `action` once, `wait` milliseconds after the last call of `schedule`,
  * so a burst of changes costs one run. `cancel` drops a pending run.
  */
 export const createDebouncer = (action: () => void, wait: number) => {
-  let handle: NodeJS.Timeout | undefined;
+  let handle: ReturnType<typeof setTimeout> | undefined;
 
   const cancel = (): void => {
     if (handle) {

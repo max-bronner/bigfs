@@ -1,4 +1,4 @@
-import type { Tool } from '../../services/toolRegistry';
+import type { Tool } from '../../core/toolRegistry';
 import { decompressEar, isEarWrapped } from '../refpack/refpack';
 
 /**
@@ -11,7 +11,7 @@ import { decompressEar, isEarWrapped } from '../refpack/refpack';
  * the bytes present: a 200 byte file claiming 65535 by 65535 is an error.
  */
 
-/** Pixels top row first, four bytes each in red, green, blue, alpha order */
+/** An RGBA image: pixels top row first, four bytes each in red, green, blue, alpha order */
 export interface RgbaImage {
   width: number;
   height: number;
@@ -89,7 +89,7 @@ const readTgaPixel = (
   out[to + 3] = bytesPerPixel === 4 ? bytes[at + 3] : 255;
 };
 
-/** A texture some retail files keep RefPack-compressed in an `EAR\0` wrapper */
+/** Unwraps a texture some retail files keep RefPack-compressed in an `EAR\0` wrapper */
 const unwrapEar = (bytes: Uint8Array) =>
   isEarWrapped(bytes) ? decompressEar(bytes) : bytes;
 
@@ -174,7 +174,7 @@ export const decodeTga = (wrapped: Uint8Array): DecodedTexture => {
   const stored = new Uint8Array(count * 4);
   const storedBytesPerPixel = type.kind === 'mapped' ? 1 : bytesPerPixel;
 
-  /** Writes the pixel stored at `at` as the `pixel`-th decoded one */
+  // Writes the pixel stored at `at` as the `pixel`-th decoded one
   const put = (at: number, pixel: number): void => {
     if (palette) {
       const index = bytes[at] * 4;
@@ -345,7 +345,7 @@ const decodeExplicitAlpha = (
   }
 };
 
-/** Bytes one level of a block-compressed format takes */
+/** Computes the bytes one level of a block-compressed format takes */
 const blockLevelLength = (
   width: number,
   height: number,
@@ -399,8 +399,8 @@ const decodeBlockLevel = (
   return pixels;
 };
 
-/** Position and width of a channel within a pixel, from its bit mask */
-const maskShape = (mask: number): { shift: number; max: number } => {
+/** Finds the position and width of a channel within a pixel, from its bit mask */
+const getMaskShape = (mask: number): { shift: number; max: number } => {
   if (!mask) {
     return { shift: 0, max: 0 };
   }
@@ -483,7 +483,7 @@ export const decodeDds = (wrapped: Uint8Array): DecodedTexture => {
     if (isCompressed) {
       pixels = decodeBlockLevel(bytes, cursor, levelWidth, levelHeight, fourCC);
     } else {
-      const shapes = masks.map(maskShape);
+      const shapes = masks.map(getMaskShape);
       const bytesPerPixel = bitCount / 8;
       const hasAlphaMask = (flags & DDPF_ALPHAPIXELS) !== 0 && masks[3] !== 0;
 
@@ -521,13 +521,13 @@ export const decodeDds = (wrapped: Uint8Array): DecodedTexture => {
   };
 };
 
-/** Tool that decodes a TGA entry to RGBA */
+/** Registered tool that decodes a TGA entry to RGBA */
 export const decodeTgaTool: Tool<Uint8Array, DecodedTexture> = {
   id: 'texture.decodeTga',
   run: decodeTga,
 };
 
-/** Tool that decodes a DDS entry to RGBA, every mip level */
+/** Registered tool that decodes a DDS entry to RGBA, every mip level */
 export const decodeDdsTool: Tool<Uint8Array, DecodedTexture> = {
   id: 'texture.decodeDds',
   run: decodeDds,

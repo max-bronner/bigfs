@@ -1,8 +1,10 @@
 import type { WorkspaceConfiguration } from 'vscode';
 
-/** The values of the `bigfs.*` settings that are one of a few words */
+/** Value of the `bigfs.ini.check*` settings, which turn a kind of INI check on or off */
 export type CheckMode = 'auto' | 'on' | 'off';
+/** Game id the `bigfs.ini.game` setting picks the INI schema by */
 export type SageGameId = 'rotwk' | 'bfme2' | 'bfme1';
+/** Layout of the archive explorer, as the `bigfs.explorer.view` setting names it */
 export type ExplorerView = 'archives' | 'game';
 
 /** The part of `workspace.getConfiguration()` the settings read and write through */

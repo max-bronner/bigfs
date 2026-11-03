@@ -1,9 +1,9 @@
-import type { Instance } from '../player';
+import type { Instance } from '../instance';
 import {
   apply,
   invert,
   multiply,
-  placedColor,
+  getPlacedColor,
   transformRect,
   union,
 } from '../scene';
@@ -16,8 +16,7 @@ import {
   toInt32,
   toNumber,
 } from './value';
-import type { NativeFunction, Value } from './value';
-import type { Vm } from './vm';
+import type { NativeFunction, NativeHost, Value } from './value';
 
 /**
  * The built-in objects and functions a movie finds: `Object`, `Array`,
@@ -28,7 +27,7 @@ import type { Vm } from './vm';
 
 const arg = (args: Value[], at: number): Value => args[at];
 
-const chars = (vm: Vm, self: Value) => [...vm.string(self)];
+const chars = (vm: NativeHost, self: Value) => [...vm.string(self)];
 
 /** An index argument clamped into a string or array, negatives from the end */
 const relative = (value: Value, length: number, fallback: number) => {
@@ -41,7 +40,7 @@ const relative = (value: Value, length: number, fallback: number) => {
   return n < 0 ? Math.max(0, length + n) : Math.min(n, length);
 };
 
-const valuesOf = (vm: Vm, array: Value): Value[] => {
+const valuesOf = (vm: NativeHost, array: Value): Value[] => {
   if (!(array instanceof AsObject)) {
     return [];
   }
@@ -73,7 +72,7 @@ const asAffine = (clip: Instance): Affine => [
   ...clip.translate,
 ];
 
-/** Clip space to the stage's */
+/** The matrix from a clip's space to the stage's */
 const worldOf = (clip: Instance): Affine => {
   const chain: Instance[] = [];
 
@@ -117,7 +116,8 @@ const repath = (clip: Instance, path: string) => {
   }
 };
 
-export const installNatives = (vm: Vm): void => {
+/** Installs the built-in objects and functions on a machine's globals and prototypes */
+export const installNatives = (vm: NativeHost): void => {
   const { protos, global } = vm;
   const method = (on: AsObject, name: string, call: NativeFunction) =>
     on.define(name, vm.native(name, call));
@@ -371,7 +371,7 @@ export const installNatives = (vm: Vm): void => {
   });
   method(protos.movieClip, 'getBytesLoaded', () => 1);
   method(protos.movieClip, 'getBytesTotal', () => 1);
-  /** A point or clip argument as a box in the stage's space */
+  // A clip argument as a box in the stage's space
   const stageBox = (at: Instance): Rect | undefined => {
     const box = ownBounds(at);
 
@@ -510,7 +510,7 @@ export const installNatives = (vm: Vm): void => {
   });
   method(colorProto, 'getRGB', (_, self) => {
     const at = colorTarget(self);
-    const add = at && placedColor(at).add;
+    const add = at && getPlacedColor(at).add;
 
     return add && (byte(add[0]) << 16) | (byte(add[1]) << 8) | byte(add[2]);
   });
@@ -519,7 +519,7 @@ export const installNatives = (vm: Vm): void => {
     const given = args[0];
 
     if (at && given instanceof AsObject) {
-      const { mult, add } = placedColor(at);
+      const { mult, add } = getPlacedColor(at);
       const next = { mult: [...mult], add: [...add] } as typeof at.tint &
         object;
 
@@ -544,7 +544,7 @@ export const installNatives = (vm: Vm): void => {
       return undefined;
     }
 
-    const { mult, add } = placedColor(at);
+    const { mult, add } = getPlacedColor(at);
     const result = vm.object();
 
     CHANNELS.forEach(([m, a], channel) => {

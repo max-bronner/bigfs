@@ -1,19 +1,19 @@
 import * as assert from 'assert';
-import { webviewPage } from '../../platform/webview/webviewPage';
+import { renderWebviewPage } from '../../platform/webview/webviewPage';
 
 const policyOf = (html: string): string =>
   /http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1] ?? '';
 
 suite('webviewPage', () => {
   test('lets only the nonce-tagged style in by default', () => {
-    const policy = policyOf(webviewPage({ style: '', body: '' }));
+    const policy = policyOf(renderWebviewPage({ style: '', body: '' }));
 
     assert.match(policy, /style-src 'nonce-[a-z0-9]{32}';/);
   });
 
   test('uses the given style sources in place of the nonce', () => {
     const policy = policyOf(
-      webviewPage({
+      renderWebviewPage({
         style: '',
         body: '',
         allow: { img: 'blob: data:', script: 'https://page' },

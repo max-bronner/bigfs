@@ -49,8 +49,8 @@ const CSF_LANGUAGES = [
   'chinese',
 ];
 
-/** The language a table is in, from its path, else its header, else unknown */
-export const languageOf = (path: string, csfLanguage?: number): string => {
+/** Detects the language a table is in, from its path, else its header, else `unknown` */
+export const detectTableLanguage = (path: string, csfLanguage?: number): string => {
   const segments = path
     .toLowerCase()
     .split(/[\\/]/)
@@ -73,6 +73,7 @@ export const languageOf = (path: string, csfLanguage?: number): string => {
   return 'unknown';
 };
 
+/** One string table, its labels keyed for case-insensitive lookup */
 export interface StringTable {
   path: string;
   language: string;
@@ -80,6 +81,7 @@ export interface StringTable {
   labels: ReadonlyMap<string, { label: string; text: string }>;
 }
 
+/** The labels one language lacks that some other language defines */
 export interface LanguageGap {
   language: string;
   tables: string[];
@@ -87,8 +89,8 @@ export interface LanguageGap {
   missing: { label: string; text: string; from: string }[];
 }
 
-/** Every language's missing labels, against the union of all of them */
-export const translationGaps = (tables: StringTable[]): LanguageGap[] => {
+/** Finds every language's missing labels, against the union of all of them */
+export const findTranslationGaps = (tables: StringTable[]): LanguageGap[] => {
   const languages = new Map<string, StringTable[]>();
 
   for (const table of tables) {
@@ -137,11 +139,11 @@ export interface UndefinedLabel {
 }
 
 /**
- * The labels INI files use that none of the tables define in any language.
+ * Finds the labels INI files use that none of the tables define in any language.
  * A label defined in one language only is a translation gap, not a missing
- * string, so it is left to `translationGaps`.
+ * string, so it is left to `findTranslationGaps`.
  */
-export const undefinedLabels = (
+export const findUndefinedLabels = (
   used: ReadonlyMap<string, { label: string; usedIn: string }>,
   tables: readonly StringTable[],
 ): UndefinedLabel[] =>

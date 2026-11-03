@@ -1,6 +1,9 @@
 import type { SageBlock, SageDocument, SageStatement } from '../../formats/ini/sageIniParser';
-import { audioReferenceKind } from '../audio/sageAudioFields';
+import { getAudioReferenceKind } from '../../formats/ini/sageAudioFields';
 import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
+import type { SubObjectRule } from '../../formats/w3d/w3dScene';
+import { readStateScript } from './subObjectScripts';
+import type { CreatedSubObjects, ScriptedSubObjects } from './subObjectScripts';
 
 /**
  * What an object shows: the models its draw modules switch between, the
@@ -15,21 +18,42 @@ import type { SageIniSchema } from '../../formats/ini/sageIniSchema';
  * animation state plays on its draw module's default model.
  */
 
+/** Kind of state block: a model condition state, or an animation state */
 export type StateKind = 'model' | 'animation';
 
+/** One state block of a draw module: the model, animations, FX and particle systems it shows */
 export interface SceneState {
   /** Tag of the draw module holding it */
   draw: string;
   kind: StateKind;
   /** The state's keyword and conditions, as written */
   label: string;
+  /** `StateName`, what the next state's script reads as the previous state */
+  name?: string;
   model?: string;
+  /** `RetainSubObjects`: plain script writes survive the switch to this state's model */
+  retainsSubObjects?: boolean;
   /** As written: `SKELETON.CLIP`, or a bare clip */
   animations: string[];
   fx: string[];
   particles: { bone: string; system: string }[];
+  /** What the state's `BeginScript` shows and hides */
+  subObjects: ScriptedSubObjects;
 }
 
+/** A `SubObjectsUpgrade` module, which writes nothing until it fires */
+export interface SceneUpgrade {
+  /** Its `TriggeredBy` names */
+  triggers: string[];
+  shows: string[];
+  hides: string[];
+  startsActive: boolean;
+}
+
+/** The damage states `TransitionDamageFX` writes sub-objects for */
+export type BodyDamageState = 'pristine' | 'damaged' | 'reallydamaged' | 'rubble';
+
+/** Everything an object shows, as the object preview draws it */
 export interface ObjectScene {
   name: string;
   states: SceneState[];
@@ -37,9 +61,16 @@ export interface ObjectScene {
   fx: { field: string; name: string }[];
   /** Sounds and announcer events the object names, by the field naming them */
   voices: { field: string; name: string }[];
+  upgrades: SceneUpgrade[];
+  /** `TransitionDamageFX`'s writes on entering each damage state */
+  damageSubObjects: Record<BodyDamageState, SubObjectRule[]>;
+  /** The `AILuaEventsList` names, whose handlers `created` is read from */
+  luaEventLists: string[];
+  /** What the object's `OnCreated` handlers do; empty until the scripts are read */
+  created: CreatedSubObjects;
 }
 
-/** Where a preview was asked for, so it opens on that */
+/** The part of a scene a preview opens on: the state and the name the source line points at */
 export interface SceneFocus {
   /** Index into `states` */
   state?: number;
@@ -53,9 +84,18 @@ const lower = (text: string) => text.toLowerCase();
 const MODEL_FIELDS = new Set(['model']);
 const ANIMATION_FIELDS = new Set(['animation', 'animationname']);
 const DEFAULT_STATE = /^default/i;
+const IDLE_STATE = /^idleanimationstate/i;
+const DAMAGE_FIELD = /^(pristine|damaged|reallydamaged|rubble)(hide|show)subobject$/;
+
+/** Finds the idle animation state of a draw module, the one a new object enters first */
+export const findIdleState = (
+  scene: ObjectScene,
+  draw: string,
+): SceneState | undefined =>
+  scene.states.find((state) => state.draw === draw && IDLE_STATE.test(state.label));
 
 /** Blocks holding a line, outermost first */
-const chainAt = (blocks: readonly SageBlock[], line: number): SageBlock[] => {
+const findBlockChain = (blocks: readonly SageBlock[], line: number): SageBlock[] => {
   const chain: SageBlock[] = [];
 
   for (
@@ -75,15 +115,15 @@ const namesFx = (schema: SageIniSchema, statement: SageStatement) =>
     .includes('FXList');
 
 /** A block's header as written: its keyword and whatever follows */
-const headerOf = (block: SageBlock) =>
+const formatBlockHeader = (block: SageBlock) =>
   [block.keyword, block.name].filter(Boolean).join(' = ');
 
 /**
  * The draw module and the state block a line sits in: the state is the
  * innermost block below the draw module that is a direct child of it
  */
-const placeOf = (blocks: readonly SageBlock[], line: number) => {
-  const chain = chainAt(blocks, line);
+const findDrawPlace = (blocks: readonly SageBlock[], line: number) => {
+  const chain = findBlockChain(blocks, line);
   const at = chain.findIndex((block) => lower(block.keyword) === 'draw');
 
   return at < 0
@@ -95,12 +135,15 @@ const placeOf = (blocks: readonly SageBlock[], line: number) => {
  * Reads the object's scene from its composed definition. `isFx` and
  * `isSystem` say whether a name is a defined FX list or particle system,
  * since a field's values mix names with numbers and flags.
+ * @param lines The text `parsed` was parsed from, for the scripts the parse skips; without it
+ * no script is read
  */
 export const readObjectScene = (
   parsed: SageDocument,
   schema: SageIniSchema,
   isFx: (name: string) => boolean,
   isSystem: (name: string) => boolean,
+  lines: readonly string[] = [],
 ): ObjectScene | undefined => {
   const object = parsed.blocks.find((block) =>
     /^(object|childobject|objectreskin)$/i.test(block.keyword),
@@ -116,6 +159,21 @@ export const readObjectScene = (
     states: [],
     fx: [],
     voices: [],
+    upgrades: [],
+    damageSubObjects: { pristine: [], damaged: [], reallydamaged: [], rubble: [] },
+    luaEventLists: [],
+    created: { rules: [], conditional: [], grantedUpgrades: [] },
+  };
+  const upgrades = new Map<SageBlock, SceneUpgrade>();
+  const upgradeOf = (block: SageBlock) => {
+    let upgrade = upgrades.get(block);
+
+    if (!upgrade) {
+      upgrade = { triggers: [], shows: [], hides: [], startsActive: false };
+      upgrades.set(block, upgrade);
+      scene.upgrades.push(upgrade);
+    }
+    return upgrade;
   };
   const stateOf = (draw: SageBlock, block: SageBlock) => {
     let state = states.get(block);
@@ -124,10 +182,11 @@ export const readObjectScene = (
       state = {
         draw: draw.moduleTag ?? draw.moduleType ?? 'Draw',
         kind: /animation/i.test(block.keyword) ? 'animation' : 'model',
-        label: headerOf(block),
+        label: formatBlockHeader(block),
         animations: [],
         fx: [],
         particles: [],
+        subObjects: { rules: [], conditional: [] },
       };
       states.set(block, state);
       scene.states.push(state);
@@ -147,12 +206,51 @@ export const readObjectScene = (
 
     const key = lower(statement.keyword.text);
     const values = statement.values.map((value) => value.text);
-    const { draw, state } = placeOf(parsed.blocks, statement.line);
+    const { draw, state } = findDrawPlace(parsed.blocks, statement.line);
     const owner = draw && state ? stateOf(draw, state) : undefined;
+
+    if (key === 'ailuaeventslist') {
+      scene.luaEventLists.push(values[0]);
+      continue;
+    }
+
+    const damageField = DAMAGE_FIELD.exec(key);
+
+    if (damageField) {
+      scene.damageSubObjects[damageField[1] as BodyDamageState].push(
+        ...values.map((pattern) => ({
+          pattern,
+          hide: damageField[2] === 'hide',
+          source: statement.keyword.text,
+        })),
+      );
+      continue;
+    }
+
+    const upgradeModule = findBlockChain(parsed.blocks, statement.line).find(
+      (block) => lower(block.moduleType ?? '') === 'subobjectsupgrade',
+    );
+
+    if (upgradeModule && key === 'showsubobjects') {
+      upgradeOf(upgradeModule).shows.push(...values);
+      continue;
+    }
+    if (upgradeModule && key === 'hidesubobjects') {
+      upgradeOf(upgradeModule).hides.push(...values);
+      continue;
+    }
+    if (upgradeModule && key === 'triggeredby') {
+      upgradeOf(upgradeModule).triggers.push(...values);
+      continue;
+    }
+    if (upgradeModule && key === 'startsactive') {
+      upgradeOf(upgradeModule).startsActive = /^yes$/i.test(values[0]);
+      continue;
+    }
 
     // Every field the audio tables call a sound, inherited ones included
     // since the object is read as composed; `NONE` is the engine's "no sound"
-    if (audioReferenceKind(statement.context, statement.keyword.text)) {
+    if (getAudioReferenceKind(statement.context, statement.keyword.text)) {
       for (const name of values.filter((value) => !/^none$/i.test(value))) {
         if (
           !scene.voices.some(
@@ -168,6 +266,10 @@ export const readObjectScene = (
 
     if (owner && MODEL_FIELDS.has(key)) {
       owner.model = values[0];
+    } else if (owner && key === 'statename') {
+      owner.name = values[0];
+    } else if (owner && key === 'retainsubobjects') {
+      owner.retainsSubObjects = /^yes$/i.test(values[0]);
     } else if (owner && ANIMATION_FIELDS.has(key) && values[0] !== 'NONE') {
       owner.animations.push(values[0]);
     } else if (owner && key === 'particlesysbone' && values.length > 1) {
@@ -182,6 +284,25 @@ export const readObjectScene = (
           scene.fx.push({ field: statement.keyword.text, name });
         }
       }
+    }
+  }
+
+  for (const { startLine, endLine } of lines.length ? parsed.scripts : []) {
+    const { draw, state } = findDrawPlace(parsed.blocks, startLine);
+
+    if (draw && state && startLine > object.startLine && endLine < object.endLine) {
+      const owner = stateOf(draw, state);
+      const idle = findIdleState(scene, owner.draw);
+      // The preview enters a state from idle, and idle from nothing; the game
+      // gives a script the previous state's `StateName`, nil when it has none
+      const { rules, conditional } = readStateScript(
+        lines.slice(startLine + 1, endLine).join('\n'),
+        `${owner.label} script`,
+        idle ? (owner === idle ? null : (idle.name ?? null)) : undefined,
+      );
+
+      owner.subObjects.rules.push(...rules);
+      owner.subObjects.conditional.push(...conditional);
     }
   }
 
@@ -212,16 +333,16 @@ export const readObjectScene = (
 };
 
 /**
- * What a line of the source definition points at, matched into the
+ * Finds what a line of the source definition points at, matched into the
  * scene: its state by draw module and header, and the animation, FX or
  * particle system the line itself names
  */
-export const focusAt = (
+export const findSceneFocus = (
   parsed: SageDocument,
   line: number,
   scene: ObjectScene,
 ): SceneFocus => {
-  const { draw, state } = placeOf(parsed.blocks, line);
+  const { draw, state } = findDrawPlace(parsed.blocks, line);
   const focus: SceneFocus = {};
 
   if (draw && state) {
@@ -229,7 +350,7 @@ export const focusAt = (
     const at = scene.states.findIndex(
       (each) =>
         lower(each.draw) === lower(tag) &&
-        lower(each.label) === lower(headerOf(state)),
+        lower(each.label) === lower(formatBlockHeader(state)),
     );
 
     focus.state = at < 0 ? undefined : at;

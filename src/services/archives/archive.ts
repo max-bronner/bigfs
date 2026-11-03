@@ -1,4 +1,4 @@
-﻿import { Uri, workspace } from 'vscode';
+import { Uri, workspace } from 'vscode';
 import path from 'path';
 import {
   IN_PLACE_THRESHOLD,
@@ -10,17 +10,11 @@ import {
 } from '../../node/archiveFile';
 import type { BigFileEntry } from '../../formats/big/bigFormat';
 import { movePath } from '../../core/paths';
-import {
-  buildVirtualTree,
-  copyNode,
-  getFileNodes,
-  insertDirectory,
-  insertFile,
-  moveNode,
-  removeNode,
-  syncFiles,
-} from './virtualNode';
-import type { VirtualNode } from './virtualNode';
+import { buildVirtualTree, copyNode, getFileNodes, insertDirectory, insertFile, moveNode, removeNode, syncFiles } from './virtualTree';
+import type { TreeNode } from './virtualTree';
+
+/** A node of an archive's own tree; `virtualNode.ts` names it for everyone above this file */
+type ArchiveNode = TreeNode<Archive>;
 
 /** Where the content of a written entry comes from */
 export type EntrySource =
@@ -42,7 +36,7 @@ export type EntryChange =
  * Gets the keys of the entries at or below a path, which is how a change to a
  * directory reaches the files it holds
  */
-const keysUnder = (
+const getKeysUnder = (
   entries: Map<string, BigFileEntry>,
   entryPath: string,
 ): string[] => {
@@ -79,7 +73,7 @@ const changeEntries = (
     }
 
     case 'remove': {
-      const keys = keysUnder(entries, change.path);
+      const keys = getKeysUnder(entries, change.path);
 
       keys.forEach((key) => entries.delete(key));
 
@@ -88,7 +82,7 @@ const changeEntries = (
 
     case 'move':
     case 'copy': {
-      const keys = keysUnder(entries, change.from);
+      const keys = getKeysUnder(entries, change.from);
 
       for (const key of keys) {
         const entry = entries.get(key);
@@ -117,7 +111,7 @@ const changeEntries = (
 };
 
 /** Applies the same change to the tree, which owns the directories */
-const changeTree = (rootNode: VirtualNode, change: EntryChange): void => {
+const changeTree = (rootNode: ArchiveNode, change: EntryChange): void => {
   switch (change.kind) {
     case 'put':
       insertFile(rootNode, change.path);
@@ -147,8 +141,9 @@ const changeTree = (rootNode: VirtualNode, change: EntryChange): void => {
  * removed without anything tracking it.
  */
 export class Archive {
-  /** Absolute path on disk, which is what `binary` opens */
+  /** Absolute path on disk, which every read and write of the file opens */
   public readonly archivePath: string;
+  /** File name of the archive, which the tree shows for its root */
   public readonly name: string;
 
   /** Where the archive is mounted in the virtual file system */
@@ -159,7 +154,7 @@ export class Archive {
   public readonly pathInSource: string;
 
   /** Kept for the life of the archive: the tree view holds on to it */
-  public readonly root: VirtualNode;
+  public readonly root: ArchiveNode;
 
   /** The tag the file opens with, kept so a rewrite stays the format it was */
   private magic = '';
@@ -262,7 +257,7 @@ export class Archive {
     return Boolean(this.loading) && !this.loaded;
   }
 
-  /** How the archive is identified, case insensitively like its content */
+  /** Key the archive is identified by: its root path, lowercased like its content */
   public get rootKey(): string {
     return this.rootPath.toLowerCase();
   }
@@ -333,7 +328,7 @@ export class Archive {
     });
   }
 
-  /** The archive file's mtime, or zero when it cannot be read */
+  /** Reads the archive file's mtime, or zero when it cannot be read */
   private async statMtime(): Promise<number> {
     try {
       return (await workspace.fs.stat(Uri.file(this.archivePath))).mtime;
@@ -343,7 +338,7 @@ export class Archive {
   }
 
   /**
-   * When an entry last changed, as its editor compares it: when this session
+   * Gets when an entry last changed, as its editor compares it: when this session
    * wrote it, or otherwise when the archive was read
    */
   public getModifiedAt(entryPath: string): number {
@@ -516,7 +511,7 @@ export class Archive {
    * Reads several file nodes with the archive open only once, queued behind
    * every earlier access so nothing writes underneath the reader
    */
-  public async readFileNodes<T extends { node: VirtualNode }>(
+  public async readFileNodes<T extends { node: ArchiveNode }>(
     items: readonly T[],
     onFile: (item: T, content: Uint8Array) => Promise<void>,
   ): Promise<void> {
@@ -544,7 +539,7 @@ export class Archive {
   }
 
   /** Gets the entry paths of all files at or below a node */
-  public getFileEntryPaths(node: VirtualNode): string[] {
+  public getFileEntryPaths(node: ArchiveNode): string[] {
     return getFileNodes(node).map((fileNode) => fileNode.entryPath);
   }
 }

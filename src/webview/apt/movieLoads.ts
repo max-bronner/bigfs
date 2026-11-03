@@ -1,7 +1,7 @@
 import { getVsCodeApi } from '../shared/vscodeApi';
 import { mergeGameText } from './gameText';
 import type { FromPage, PageMovie, ToPage, TexturePixels } from './protocol';
-import { movieKey, movieNamed } from './resolve';
+import { toMovieKey, findMovieNamed } from './resolve';
 import { state } from './state';
 
 const vscode = getVsCodeApi<FromPage>();
@@ -41,10 +41,10 @@ export const storeTextures = (
   }
 };
 
-/** The movie of a name, now if the page holds it, else once the editor sends it */
+/** Hands the movie of a name to `done`, now if the page holds it, else once the editor sends it */
 export const fetchMovie = (name: string, done: Done): void => {
-  const key = movieKey(name);
-  const known = movieNamed(key);
+  const key = toMovieKey(name);
+  const known = findMovieNamed(key);
 
   if (known) {
     done(known);
@@ -76,7 +76,7 @@ export const movieArrived = (
     mergeGameText(data.texts);
   }
 
-  const movie = data.error ? undefined : movieNamed(data.name);
+  const movie = data.error ? undefined : findMovieNamed(data.name);
   const result = movie ?? data.error ?? 'the editor sent nothing';
 
   callers.forEach((done) => done(result));

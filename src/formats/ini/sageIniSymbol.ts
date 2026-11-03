@@ -1,10 +1,10 @@
-import { declarationOf, parentOf } from './sageIniNames';
-import { referencedNames } from '../../game/audio/sageAudioValues';
+import { getDeclaration, getParent } from './sageIniNames';
+import { findReferencedNames } from './sageAudioValues';
 import type { SageIniSchema } from './sageIniSchema';
 import type { SageDocument, SageStatement, SageToken } from './sageIniParser';
 
 /**
- * What name sits under a position, and which namespaces it belongs to.
+ * Name under a position in an INI document, and the namespaces it belongs to.
  *
  * Navigation works in both directions off the same answer. On the name of a
  * block at file scope this is a declaration, so the interesting question is
@@ -28,7 +28,7 @@ export interface SageSymbol {
   isDeclaration: boolean;
 }
 
-/** The token of a statement a column sits on, if any */
+/** Finds the token of a statement a column sits on, if any */
 const tokenAt = (
   statement: SageStatement,
   character: number,
@@ -65,8 +65,8 @@ export const resolveSageSymbol = (
   // `ChildObject` header's second value is not a declaration but the object
   // it inherits from.
   if (statement.block) {
-    const declaration = declarationOf(statement, schema);
-    const parent = parentOf(statement);
+    const declaration = getDeclaration(statement, schema);
+    const parent = getParent(statement);
 
     if (parent && token === parent.token) {
       return {
@@ -100,7 +100,7 @@ export const resolveSageSymbol = (
 
   // A sound or announcer field names its sounds inside its values, so the
   // symbol is the name alone: not the `EVA:` before it, nor the weight after
-  const inside = referencedNames(statement, schema).find(
+  const inside = findReferencedNames(statement, schema).find(
     (candidate) => character >= candidate.start && character <= candidate.end,
   );
 

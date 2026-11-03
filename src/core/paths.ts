@@ -1,4 +1,4 @@
-﻿
+
 /** Helpers for '/' separated paths, never the platform's separator */
 
 /** Extension of a file name with its dot, empty for none; a leading dot does not start one */

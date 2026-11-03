@@ -1,4 +1,4 @@
-import { editorRows, isEdited } from './cellText';
+import { countEditorRows, isEdited } from './cellText';
 
 /**
  * Turns a cell into an editor. Enter commits a one-line field, Ctrl+Enter a
@@ -18,7 +18,7 @@ export const editCell = (
 
   input.value = value;
   if (input instanceof HTMLTextAreaElement) {
-    input.rows = editorRows(value);
+    input.rows = countEditorRows(value);
   }
 
   const finish = (save: boolean) => {

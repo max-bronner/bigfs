@@ -1,9 +1,9 @@
 import {
   DEFAULT_SIZE,
-  fraction,
-  itemsOf,
-  numberOf,
-  rangeOf,
+  getFillFraction,
+  splitItems,
+  toNumberOr,
+  getRange,
 } from '../../formats/apt/aptGadgets';
 import type { Rect } from '../../formats/apt/aptMovie';
 import { byId } from './dom';
@@ -14,19 +14,21 @@ import {
   writeBinding,
 } from './gadgetModel';
 import type { Gadget } from './gadgetModel';
-import { mappedImage, onMappedImages } from './mappedSurfaces';
+import { onMappedImages } from './mappedSurfaces';
 import type { Affine } from './scene';
 import { multiply } from './scene';
-import { addRenderHook, currentPlayer, instanceBox, render } from './stage';
+import { addRenderHook, currentPlayer, measureInstanceBox, render } from './stage';
 import { state } from './state';
+import { onRenderObjects } from './view3dSurface';
 
 /**
  * Gadgets on the stage: interactive controls laid over the canvas for
  * sliders, check boxes, list and combo boxes, text entries, scroll bars and
  * progress bars, drawn at the box their clip covers (or a default size when
- * it draws nothing), and `MappedImage` surfaces painted on the canvas. A
- * `_type` nothing here knows is a labelled placeholder. Ported from mint's
- * apt-viewer; what each control reads and writes is `BINDINGS`.
+ * it draws nothing). Images and `View3D` models are the stage's to paint, in
+ * paint order (`imageSurface.ts`, `view3dSurface.ts`). A `_type` nothing here
+ * knows is a labelled placeholder. Ported from mint's apt-viewer; what each
+ * control reads and writes is `BINDINGS`.
  */
 
 const stage = byId<HTMLCanvasElement>('stage');
@@ -38,7 +40,7 @@ layer.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none';
 stage.replaceWith(wrap);
 wrap.append(stage, layer);
 
-/** The gadgets of the shown run; the Engine panel lists these too */
+/** Gets the gadgets of the shown run; the Engine panel lists these too */
 export const currentGadgets = (): Gadget[] =>
   state.movie ? findGadgets(currentPlayer()) : [];
 
@@ -57,7 +59,7 @@ const absolute = (gadget: Gadget): Affine => {
 
 /** Where a gadget sits in the shown character's space */
 const boxOf = (gadget: Gadget): Rect => {
-  const drawn = instanceBox(gadget.instance);
+  const drawn = measureInstanceBox(gadget.instance);
 
   if (drawn) {
     return drawn;
@@ -96,11 +98,11 @@ const control = (
       return {
         element: range,
         fill: (g) => {
-          const [low, high] = rangeOf(value(g, '_min'), value(g, '_max'));
+          const [low, high] = getRange(value(g, '_min'), value(g, '_max'));
 
           range.min = String(low);
           range.max = String(high);
-          range.value = String(numberOf(value(g, '_value'), low));
+          range.value = String(toNumberOr(value(g, '_value'), low));
           if (g.kind === 'scrollbar' && g.instance) {
             range.title = `${g.label} ${range.value}`;
           }
@@ -128,14 +130,14 @@ const control = (
       return {
         element: select,
         fill: (g) => {
-          const items = itemsOf(value(g, '_items'));
+          const items = splitItems(value(g, '_items'));
 
           select.replaceChildren(
             ...items.map((item, at) => new Option(item, String(at))),
           );
           select.selectedIndex = Math.min(
             items.length - 1,
-            numberOf(value(g, '_selected'), -1),
+            toNumberOr(value(g, '_selected'), -1),
           );
         },
       };
@@ -160,10 +162,10 @@ const control = (
       return {
         element: bar,
         fill: (g) => {
-          const range = rangeOf(0, value(g, '_max'));
+          const range = getRange(0, value(g, '_max'));
 
           bar.max = range[1] || 1;
-          bar.value = fraction(numberOf(value(g, '_value'), 0), range) * bar.max;
+          bar.value = getFillFraction(toNumberOr(value(g, '_value'), 0), range) * bar.max;
         },
       };
     }
@@ -182,7 +184,7 @@ const controls = new Map<
   { kind: string; element: HTMLElement; fill: (g: Gadget) => void }
 >();
 
-const sync = (ctx: CanvasRenderingContext2D, base: Affine): void => {
+const sync = (_ctx: CanvasRenderingContext2D, base: Affine): void => {
   const ratio = window.devicePixelRatio || 1;
   const all = currentGadgets();
   const alive = new Set<Gadget['instance']>();
@@ -191,12 +193,12 @@ const sync = (ctx: CanvasRenderingContext2D, base: Affine): void => {
   layer.style.height = `${stage.height / ratio}px`;
 
   for (const gadget of all) {
-    const [left, top, right, bottom] = boxOf(gadget);
-
-    if (gadget.kind === 'image') {
-      paintImage(ctx, base, gadget, [left, top, right, bottom]);
+    if (gadget.kind === 'view3d' || gadget.kind === 'image') {
       continue;
     }
+
+    const [left, top, right, bottom] = boxOf(gadget);
+
     alive.add(gadget.instance);
 
     let held = controls.get(gadget.instance);
@@ -225,55 +227,6 @@ const sync = (ctx: CanvasRenderingContext2D, base: Affine): void => {
   }
 };
 
-/** An image surface: its `MappedImage` drawn into its box, or a placeholder naming it */
-const paintImage = (
-  ctx: CanvasRenderingContext2D,
-  base: Affine,
-  gadget: Gadget,
-  [left, top, right, bottom]: Rect,
-): void => {
-  const name = gadget.imageName?.trim() || gadget.imageMap?.trim() || '';
-  const image = mappedImage(name);
-  const texture = image && state.textures.get(image.texture);
-  const boxed = instanceBox(gadget.instance);
-  const [w, h] = image?.extent ?? [right - left, bottom - top];
-  const dest: Rect = boxed ?? [left, top, left + w, top + h];
-  const [x, y] = [dest[0], dest[1]];
-  const [width, height] = [dest[2] - dest[0], dest[3] - dest[1]];
-
-  ctx.save();
-  ctx.setTransform(...base);
-  if (image && texture) {
-    const [u, v, uw, vh] = image.uv;
-    const source: Rect = [
-      u * texture.width,
-      v * texture.height,
-      uw * texture.width,
-      vh * texture.height,
-    ];
-
-    if (image.rotated) {
-      ctx.translate(x, y + height);
-      ctx.rotate(-Math.PI / 2);
-      ctx.drawImage(texture, source[0], source[1], source[2], source[3], 0, 0, height, width);
-    } else {
-      ctx.drawImage(texture, source[0], source[1], source[2], source[3], x, y, width, height);
-    }
-  } else {
-    ctx.strokeStyle = '#c0c';
-    ctx.setLineDash([4, 3]);
-    ctx.lineWidth = 1 / base[0];
-    ctx.strokeRect(x, y, width, height);
-    ctx.fillStyle = '#c0c';
-    ctx.font = `${11 / base[0]}px monospace`;
-    ctx.fillText(
-      image === null ? `[no MappedImage ${name}]` : `[image ${name || '?'}]`,
-      x + 2 / base[0],
-      y + 12 / base[0],
-    );
-  }
-  ctx.restore();
-};
-
 addRenderHook(sync);
 onMappedImages(render);
+onRenderObjects(render);

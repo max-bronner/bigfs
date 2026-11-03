@@ -10,7 +10,7 @@ export interface PreviewImage {
   extent: [number, number];
 }
 
-/** The windows to draw, with the images they name and the textures not yet sent */
+/** Message carrying the windows to draw, the images they name and the textures not yet sent */
 export interface WndLayoutMessage {
   kind: 'layout';
   boxes: WndBox[];
@@ -19,8 +19,10 @@ export interface WndLayoutMessage {
   textures: Record<string, string>;
 }
 
+/** Messages the extension sends to the WND preview's page */
 export type ToWndPage = WndLayoutMessage;
 
+/** Messages the WND preview's page sends: ready, or a window clicked, by its offset in the file */
 export type FromWndPage =
   | { kind: 'ready' }
   | { kind: 'reveal'; offset: number };

@@ -1,5 +1,6 @@
 import type { StatColumn } from '../../game/objects/objectStats';
 
+/** One value of the balance sheet, with where it is written when it can be edited */
 export interface SheetCell {
   value: string;
   /** Where the value is written; absent when nothing writes it */
@@ -7,7 +8,7 @@ export interface SheetCell {
   line?: number;
   start?: number;
   end?: number;
-  /** The template it is inherited from */
+  /** The template it is inherited from; absent when the row writes it itself */
   from?: string;
   /** How many rows read this same weapon value */
   shared?: number;
@@ -17,6 +18,7 @@ export interface SheetCell {
   written?: string;
 }
 
+/** One object template of the balance sheet and its values by column */
 export interface SheetRow {
   name: string;
   keyword: string;
@@ -27,13 +29,14 @@ export interface SheetRow {
   cells: Partial<Record<StatColumn | 'dps', SheetCell>>;
 }
 
-/** What the page sends: a row and a column by name, never a place in a file */
+/** Messages the balance sheet's page sends; a row and a column are named, never a place in a file */
 export type FromSheetPage =
   | { kind: 'ready' }
   | { kind: 'refresh' }
   | { kind: 'open'; row: string }
   | { kind: 'edit'; row: string; column: string; old: string; value: string };
 
+/** Messages the extension sends to the balance sheet's page */
 export type ToSheetPage =
   | { kind: 'loading' }
   | { kind: 'notice'; message: string }

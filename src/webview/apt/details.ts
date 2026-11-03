@@ -2,13 +2,14 @@ import type { Character, Frame } from '../../formats/apt/aptMovie';
 import type { Behaviour } from '../../formats/apt/aptBehaviour';
 import type { AptEdit } from '../../formats/apt/writer/aptEdit';
 import { byId } from './dom';
+import { send } from './send';
 import { getVsCodeApi } from '../shared/vscodeApi';
 import type { FromPage } from './protocol';
-import { BUTTON_CONDITIONS, CLIP_EVENTS, bitNames } from './scriptSites';
+import { BUTTON_CONDITIONS, CLIP_EVENTS, formatBitNames } from './scriptSites';
 import { movie, state } from './state';
 import { TYPE_NAMES, describeCharacter } from './describeCharacter';
-import { movieNamed, resolve } from './resolve';
-import { framesOf } from './timeline';
+import { findMovieNamed, resolve } from './resolve';
+import { getFrames } from './timeline';
 import { addMenu } from './blocks/addMenu';
 import { blockCard, reorderList } from './blocks/blockCard';
 import { addChoices, kindOfCharacter, moveTarget } from './blocks/blockModel';
@@ -16,12 +17,12 @@ import {
   action,
   characterPicker,
   colourField,
-  field,
+  createField,
   flagToggles,
   hexField,
   listField,
   numberField,
-  section,
+  createSection,
   text,
   textField,
   tupleFields,
@@ -35,18 +36,13 @@ import {
   textRunBlock,
 } from './recordFields';
 
-export { showScript } from './blocks/scriptBlock';
 
 const vscode = getVsCodeApi<FromPage>();
 
 const details = byId('details');
 const frameInput = byId<HTMLInputElement>('frame');
 
-/** Sends an edit; the extension applies it and sends the movie back */
-export const send = (edit: AptEdit): void =>
-  vscode.postMessage({ kind: 'edit', edit });
-
-/** Asks the page to show a frame of the timeline on the stage */
+/** Name of the window event that asks the page to show a frame of the timeline on the stage */
 export const GO_TO_FRAME = 'apt-go-to-frame';
 
 /** The scripts of a character's other frames and its buttons, which the shown frame does not list */
@@ -54,7 +50,7 @@ const scriptsOutsideFrame = (character: Character) => {
   const timeline = character.id;
   const sites: Parameters<typeof scriptBlock>[0][] = [];
 
-  framesOf(movie(), character).forEach((frame, index) => {
+  getFrames(movie(), character).forEach((frame, index) => {
     if (index === state.frame) {
       return;
     }
@@ -78,7 +74,7 @@ const scriptsOutsideFrame = (character: Character) => {
       if (item.type === 'placeObject') {
         (item.clipActions ?? []).forEach((clip, clipIndex) =>
           sites.push({
-            label: `frame ${index} @${item.depth} on ${bitNames(clip.events, CLIP_EVENTS)}`,
+            label: `frame ${index} @${item.depth} on ${formatBitNames(clip.events, CLIP_EVENTS)}`,
             block: clip.block,
             tab: `${movie().name} #${timeline} frame ${index} @${item.depth}`,
             remove: {
@@ -109,7 +105,7 @@ const bounds = (
   character: Extract<Character, { bounds: unknown }>,
   change: (field: string) => (value: unknown) => void,
 ) =>
-  field(
+  createField(
     'Bounds',
     tupleFields(
       [...character.bounds] as number[],
@@ -152,7 +148,7 @@ const constantBlocks = (): HTMLElement => {
           title: `#${index}`,
           summary: String(value).slice(0, 40),
           body: () => [
-            field(
+            createField(
               'Value',
               kind,
               typeof value === 'string'
@@ -170,17 +166,17 @@ const importSource = (character: Character): HTMLElement[] => {
   const entry = movie().imports.find((each) => each.character === character.id);
 
   if (!entry) {
-    return [field('Import', text('no import fills this slot'))];
+    return [createField('Import', text('no import fills this slot'))];
   }
 
-  const target = movieNamed(entry.movie);
+  const target = findMovieNamed(entry.movie);
   const resolved = resolve(movie(), character.id);
   const exported = target?.exports.find(
     (each) => each.name.toLowerCase() === entry.name.toLowerCase(),
   );
 
   return [
-    field(
+    createField(
       'From',
       text(
         target
@@ -195,7 +191,7 @@ const importSource = (character: Character): HTMLElement[] => {
           ]
         : []),
     ),
-    field(
+    createField(
       'Export',
       text(
         resolved
@@ -222,13 +218,13 @@ const movieBody = (character: Extract<Character, { type: 'movie' }>) => {
       summary: `→ #${entry.character}`,
       onRemove: () => send({ kind: 'removeExport', index }),
       body: () => [
-        field(
+        createField(
           'Name',
           textField(entry.name, (name) =>
             send({ kind: 'export', index, name }),
           ),
         ),
-        field(
+        createField(
           'Character',
           characterPicker(entry.character, (value) =>
             send({ kind: 'export', index, character: value }),
@@ -245,19 +241,19 @@ const movieBody = (character: Extract<Character, { type: 'movie' }>) => {
       summary: `slot #${entry.character}`,
       onRemove: () => send({ kind: 'removeImport', index }),
       body: () => [
-        field(
+        createField(
           'Movie',
           textField(entry.movie, (value) =>
             send({ kind: 'import', index, movie: value }),
           ),
         ),
-        field(
+        createField(
           'Name',
           textField(entry.name, (name) =>
             send({ kind: 'import', index, name }),
           ),
         ),
-        field(
+        createField(
           'Slot',
           numberField(entry.character, (value) =>
             send({ kind: 'import', index, character: value }),
@@ -281,19 +277,19 @@ const movieBody = (character: Extract<Character, { type: 'movie' }>) => {
   };
 
   return [
-    field(
+    createField(
       'Screen',
       tupleFields(size, ['width', 'height'], ([width, height]) =>
         send({ kind: 'screen', width, height }),
       ),
     ),
-    field(
+    createField(
       'Word +36',
       numberField(character.record.unknown36, (value) =>
         send({ kind: 'movieUnknown36', value }),
       ),
     ),
-    field(
+    createField(
       'Movie',
       action('Rename movie…', () =>
         vscode.postMessage({ kind: 'manageMovie', action: 'rename' }),
@@ -302,9 +298,9 @@ const movieBody = (character: Extract<Character, { type: 'movie' }>) => {
         vscode.postMessage({ kind: 'manageMovie', action: 'delete' }),
       ),
     ),
-    section(`Exports (${exports.length})`),
+    createSection(`Exports (${exports.length})`),
     ...exports,
-    section(`Imports (${imports.length})`),
+    createSection(`Imports (${imports.length})`),
     ...imports,
     constantBlocks(),
     addMenu('Add block', addChoices('movie'), add),
@@ -331,19 +327,19 @@ const characterBody = (character: Character): Node[] => {
       const argb = character.color >>> 0;
 
       fields.push(
-        field(
+        createField(
           'Text',
           textField(character.text ?? '', (value) =>
             change('text')(value === '' ? undefined : value),
           ),
         ),
-        field(
+        createField(
           'Variable',
           textField(character.variable ?? '', (value) =>
             change('variable')(value.trim() === '' ? undefined : value.trim()),
           ),
         ),
-        field(
+        createField(
           'Colour',
           colourField(
             [(argb >>> 16) & 255, (argb >>> 8) & 255, argb & 255, argb >>> 24],
@@ -352,16 +348,16 @@ const characterBody = (character: Character): Node[] => {
           ),
           hexField(argb, change('color')),
         ),
-        field(
+        createField(
           'Font height',
           numberField(character.fontHeight, change('fontHeight')),
         ),
-        field('Font', characterPicker(character.font, change('font'))),
-        field(
+        createField('Font', characterPicker(character.font, change('font'))),
+        createField(
           'Alignment',
           numberField(character.alignment, change('alignment')),
         ),
-        field(
+        createField(
           'Style',
           flagToggles(
             [
@@ -390,13 +386,13 @@ const characterBody = (character: Character): Node[] => {
     }
     case 'font':
       fields.push(
-        field(
+        createField(
           'Font name',
           textField(character.name ?? '', (value) =>
             change('fontName')(value || undefined),
           ),
         ),
-        field(
+        createField(
           'Glyph ids',
           listField(character.glyphs.join(', '), 1, (ids) =>
             change('glyphs')(ids.map(([id]) => id)),
@@ -406,11 +402,11 @@ const characterBody = (character: Character): Node[] => {
       break;
     case 'morph':
       fields.push(
-        field(
+        createField(
           'Start shape',
           characterPicker(character.startShape, change('startShape')),
         ),
-        field(
+        createField(
           'End shape',
           characterPicker(character.endShape, change('endShape')),
         ),
@@ -423,7 +419,7 @@ const characterBody = (character: Character): Node[] => {
         1;
 
       fields.push(
-        field(
+        createField(
           'Matrix',
           tupleFields(
             [...character.matrix, ...character.translate],
@@ -442,7 +438,7 @@ const characterBody = (character: Character): Node[] => {
             },
           ),
         ),
-        section(`Text runs (${character.records.length})`),
+        createSection(`Text runs (${character.records.length})`),
         ...character.records.map((record, index) =>
           textRunBlock(character, record, index),
         ),
@@ -453,16 +449,16 @@ const characterBody = (character: Character): Node[] => {
       break;
     }
     case 'sprite':
-      fields.push(field('Frames', text(String(character.frameCount))));
+      fields.push(createField('Frames', text(String(character.frameCount))));
       break;
     case 'image':
       fields.push(
-        field('Texture id', numberField(character.texture, change('texture'))),
+        createField('Texture id', numberField(character.texture, change('texture'))),
       );
       break;
     case 'shape':
       fields.push(
-        field(
+        createField(
           'Geometry',
           numberField(character.geometry, change('geometry')),
           action('Open .ru', () =>
@@ -489,9 +485,9 @@ const characterBody = (character: Character): Node[] => {
       );
       const actions = character.actions.map((entry, index) =>
         scriptBlock({
-          label: `on ${bitNames(entry.condition, BUTTON_CONDITIONS)}`,
+          label: `on ${formatBitNames(entry.condition, BUTTON_CONDITIONS)}`,
           block: entry.block,
-          tab: `${movie().name} #${character.id} on ${bitNames(entry.condition, BUTTON_CONDITIONS)}`,
+          tab: `${movie().name} #${character.id} on ${formatBitNames(entry.condition, BUTTON_CONDITIONS)}`,
           remove: { kind: 'removeButtonAction', id: character.id, index },
           when: () =>
             buttonConditionToggles(character.id, index, entry.condition),
@@ -509,16 +505,16 @@ const characterBody = (character: Character): Node[] => {
         ),
       );
       fields.push(
-        field('Hit mesh', text(`${character.hitTriangles} triangles`)),
-        section(`State records (${character.records.length})`),
+        createField('Hit mesh', text(`${character.hitTriangles} triangles`)),
+        createSection(`State records (${character.records.length})`),
         records,
-        section(`Actions (${actions.length})`),
+        createSection(`Actions (${actions.length})`),
         ...actions,
         addMenu('Add block', addChoices('button'), (id) =>
           id === 'script'
             ? addScript(
                 { kind: 'button', id: character.id, condition: 0x8 },
-                `#${character.id} on ${bitNames(0x8, BUTTON_CONDITIONS)}`,
+                `#${character.id} on ${formatBitNames(0x8, BUTTON_CONDITIONS)}`,
               )
             : send({
                 kind: 'addButtonRecord',
@@ -592,7 +588,7 @@ const flowOf = (
 
 /** The items of the shown frame of a timeline as blocks, and the menu that adds more */
 const frameBlock = (character: Character): HTMLElement => {
-  const frames = framesOf(movie(), character);
+  const frames = getFrames(movie(), character);
   const frame = frames[state.frame];
   const timeline = character.id;
   const items = frame?.items ?? [];
@@ -661,7 +657,7 @@ export const showDetails = (): void => {
   const character = movie().characters[state.selected];
   // An import plays the timeline of what it imports
   const shown = resolve(movie(), state.selected);
-  const frames = shown ? framesOf(shown.movie, shown.character) : [];
+  const frames = shown ? getFrames(shown.movie, shown.character) : [];
   const labels = frames.flatMap((frame, index) =>
     frame.items.flatMap((item) =>
       item.type === 'frameLabel' ? [index + ':' + item.label] : [],

@@ -13,6 +13,7 @@ import * as path from 'path';
 /** The games that can be offered, by the executable that tells them apart */
 export type GameId = 'bfme' | 'bfme2' | 'rotwk';
 
+/** A game discovery can offer: the executable that identifies it and where it is looked for */
 export interface GameInfo {
   id: GameId;
   title: string;
@@ -23,7 +24,7 @@ export interface GameInfo {
   folders: readonly string[];
 }
 
-/** ROTWK comes first: it is an expansion and may sit beside the base game's files */
+/** The games discovery looks for, ROTWK first: it is an expansion and may sit beside the base game's files */
 export const GAMES: readonly GameInfo[] = [
   {
     id: 'rotwk',
@@ -76,7 +77,7 @@ export interface FoundInstall {
 const INSTALL_VALUES = ['InstallPath', 'Install Dir'];
 
 /** Whether a path names the same folder as another, without casing or a trailing separator */
-const sameFolder = (a: string, b: string): boolean => {
+const isSameFolder = (a: string, b: string): boolean => {
   const normalise = (text: string) =>
     text.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
@@ -154,7 +155,7 @@ const PROGRAM_ROOTS = [
 ];
 
 /** Joins every root with every folder name a game goes by */
-const underRoots = (
+const joinUnderRoots = (
   roots: readonly string[],
   join: (...parts: string[]) => string,
 ): string[] =>
@@ -169,8 +170,8 @@ export interface Machine {
   home: string;
 }
 
-/** Wine prefixes by kind: plain, a Steam Proton prefix, CrossOver, Lutris and Bottles */
-export const winePrefixRoots = (machine: Machine): string[] => {
+/** Lists the folders Wine prefixes are kept in, by kind: plain, a Steam Proton prefix, CrossOver, Lutris and Bottles */
+export const listWinePrefixRoots = (machine: Machine): string[] => {
   const { home, platform } = machine;
 
   if (platform === 'win32') {
@@ -203,8 +204,8 @@ export const winePrefixRoots = (machine: Machine): string[] => {
   return roots;
 };
 
-/** Where `drive_c` can sit below a prefix root: the root itself, or a folder it holds */
-export const driveCOfPrefix = (
+/** Lists where `drive_c` can sit below a prefix root: the root itself, or a folder it holds */
+export const listDriveCFolders = (
   prefix: string,
   children: string[],
 ): string[] => [
@@ -216,8 +217,8 @@ export const driveCOfPrefix = (
   ]),
 ];
 
-/** The usual install folders of a Windows machine, from its environment */
-export const windowsCandidates = (machine: Machine): string[] => {
+/** Lists the usual install folders of a Windows machine, from its environment */
+export const listWindowsCandidates = (machine: Machine): string[] => {
   const { env } = machine;
   const programs = [
     env['ProgramFiles'],
@@ -243,21 +244,22 @@ export const windowsCandidates = (machine: Machine): string[] => {
     ]),
   ];
 
-  return unique(underRoots(roots, path.win32.join));
+  return removeDuplicateFolders(joinUnderRoots(roots, path.win32.join));
 };
 
-/** The usual install folders inside one Wine drive C */
-export const wineCandidates = (driveC: string): string[] =>
-  underRoots(
+/** Lists the usual install folders inside one Wine drive C */
+export const listWineCandidates = (driveC: string): string[] =>
+  joinUnderRoots(
     PROGRAM_ROOTS.map((root) => path.posix.join(driveC, root)),
     path.posix.join,
   );
 
-const unique = (folders: string[]): string[] => {
+/** Drops folders that repeat an earlier one, compared as `isSameFolder` does */
+const removeDuplicateFolders = (folders: string[]): string[] => {
   const seen: string[] = [];
 
   for (const folder of folders) {
-    if (!seen.some((held) => sameFolder(held, folder))) {
+    if (!seen.some((held) => isSameFolder(held, folder))) {
       seen.push(folder);
     }
   }
@@ -276,8 +278,8 @@ export interface DiscoveryHost {
   query(key: string, view: '32' | '64'): Promise<string | undefined>;
 }
 
-/** The host of the running machine: the real file system and `reg query` */
-export const systemHost = (machine: Machine): DiscoveryHost => ({
+/** Creates the host of the running machine: the real file system and `reg query` */
+export const createSystemHost = (machine: Machine): DiscoveryHost => ({
   machine,
   list: (folder) => readdir(folder).catch(() => []),
   read: (file) => readFile(file, 'latin1').catch(() => undefined),
@@ -301,7 +303,7 @@ export const systemHost = (machine: Machine): DiscoveryHost => ({
     }),
 });
 
-/** The game a folder holds, from the executable in it, or undefined for a folder that holds none */
+/** Identifies the game a folder holds by the executable in it; undefined for a folder that holds none */
 export const identifyInstall = async (
   host: DiscoveryHost,
   folder: string,
@@ -337,12 +339,12 @@ export const findInstalls = async (
       }
     }
 
-    candidates.push(...windowsCandidates(machine));
+    candidates.push(...listWindowsCandidates(machine));
   } else {
-    for (const prefix of winePrefixRoots(machine)) {
+    for (const prefix of listWinePrefixRoots(machine)) {
       const children = await host.list(prefix);
 
-      for (const driveC of driveCOfPrefix(prefix, children)) {
+      for (const driveC of listDriveCFolders(prefix, children)) {
         if (!(await host.list(driveC)).length) {
           continue;
         }
@@ -363,14 +365,14 @@ export const findInstalls = async (
           }
         }
 
-        candidates.push(...wineCandidates(driveC));
+        candidates.push(...listWineCandidates(driveC));
       }
     }
   }
 
   const found: FoundInstall[] = [];
 
-  for (const folder of unique(candidates)) {
+  for (const folder of removeDuplicateFolders(candidates)) {
     const game = await identifyInstall(host, folder);
 
     if (game) {

@@ -96,17 +96,17 @@ export const scanCalls = (content: string, line: number): SageCall[] => {
   return calls;
 };
 
-/** A number, a percentage read as its number, or nothing for anything else */
+/** Parses a number, or a percentage as its number; `undefined` for anything else */
 const parseNumber = (text: string): number | undefined => {
   const match = /^[+-]?(\d+\.?\d*|\.\d+)%?$/.exec(text);
 
   return match ? parseFloat(text) : undefined;
 };
 
-/** The outcome of evaluating a call or an operand */
+/** Result of evaluating a call or an operand: its number, or why it has none */
 export type SageValue = { value: number } | { error: string };
 
-/** Finds a macro's body by name, without regard to casing */
+/** Callback that finds a macro's body by name, without regard to casing */
 export type LookupMacro = (name: string) => string | undefined;
 
 /**
@@ -187,7 +187,7 @@ export const evaluateCall = (
 };
 
 /**
- * Evaluates a macro body, when it is a number or a single call; nothing for
+ * Evaluates a macro body, when it is a number or a single call; `undefined` for
  * a body that is a list of tokens, which is spliced in rather than computed
  */
 export const evaluateMacroBody = (

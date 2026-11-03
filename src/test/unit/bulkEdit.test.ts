@@ -3,8 +3,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   BulkQueryError,
-  bulkChanges,
-  bulkChangesAcross,
+  planBulkChanges,
+  planBulkChangesAcross,
   compileBulkQuery,
 } from '../../game/ini-tools/bulkEdit';
 import type { BulkQuery, BulkSource } from '../../game/ini-tools/bulkEdit';
@@ -47,7 +47,7 @@ End
 `;
 
 const run = (query: Partial<BulkQuery>) =>
-  bulkChanges(
+  planBulkChanges(
     parseSageIni(TEXT.split('\n'), schema),
     compileBulkQuery({
       blocks: 'Object',
@@ -58,7 +58,7 @@ const run = (query: Partial<BulkQuery>) =>
     }),
   );
 
-const afters = (query: Partial<BulkQuery>) =>
+const describeChanges = (query: Partial<BulkQuery>) =>
   run(query).changes.map(
     (change) => `${change.block}: ${change.before} -> ${change.after}`,
   );
@@ -66,7 +66,7 @@ const afters = (query: Partial<BulkQuery>) =>
 suite('INI bulk edits', () => {
   test('a module field changes only in the blocks the conditions pick', () => {
     assert.deepStrictEqual(
-      afters({
+      describeChanges({
         where: 'Side = Testland; KindOf ~ INFANTRY',
         field: 'ActiveBody/MaxHealth',
         formula: 'x * 1.1',
@@ -77,7 +77,7 @@ suite('INI bulk edits', () => {
 
   test("names, numeric conditions and the block's own fields", () => {
     assert.deepStrictEqual(
-      afters({
+      describeChanges({
         blocks: 'Object *Archer',
         where: 'BuildCost >= 110',
         formula: 'x + BuildCost / 10',
@@ -85,10 +85,10 @@ suite('INI bulk edits', () => {
       ['Object TestArcher: 120 -> 132'],
     );
     // A decimal stays decimal; a whole number is rounded
-    assert.deepStrictEqual(afters({ field: 'BuildTime', formula: 'x / 3' }), [
+    assert.deepStrictEqual(describeChanges({ field: 'BuildTime', formula: 'x / 3' }), [
       'Object OtherArcher: 15.5 -> 5.1667',
     ]);
-    assert.deepStrictEqual(afters({ formula: 'x / 7' }), [
+    assert.deepStrictEqual(describeChanges({ formula: 'x / 7' }), [
       'Object TestArcher: 120 -> 17',
       'Object TestKnight: 300 -> 43',
       'Object OtherArcher: 100 -> 14',
@@ -120,7 +120,7 @@ suite('INI bulk edits', () => {
       fragments: BulkSource[],
       query: Partial<BulkQuery>,
     ) =>
-      bulkChangesAcross(
+      planBulkChangesAcross(
         {
           sources: files,
           include: (_from, path) =>

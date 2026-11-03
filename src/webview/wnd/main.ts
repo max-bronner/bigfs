@@ -25,7 +25,7 @@ let boxes: WndBox[] = [];
 let placed: { box: WndBox; rect: Rect }[] = [];
 let hover: WndBox | undefined;
 
-const lookOf = (box: WndBox) => {
+const getLook = (box: WndBox) => {
   const state = stateSelect.value as WndState;
   const checked = `${state}+checked` as const;
   const key = checkedBox.checked && box.looks[checked] ? checked : state;
@@ -38,7 +38,7 @@ const drawBox = (box: WndBox, rect: Rect) => {
   const width = right - left;
   const height = bottom - top;
   const state = stateSelect.value as WndState;
-  const parts = lookOf(box);
+  const parts = getLook(box);
   const type = box.type.toUpperCase();
 
   context.save();
@@ -154,7 +154,7 @@ const draw = () => {
       : '');
 };
 
-const at = (event: MouseEvent) => {
+const findPlacedAt = (event: MouseEvent) => {
   const rect = canvas.getBoundingClientRect();
   const x = ((event.clientX - rect.left) * canvas.width) / rect.width;
   const y = ((event.clientY - rect.top) * canvas.height) / rect.height;
@@ -172,7 +172,7 @@ const at = (event: MouseEvent) => {
 };
 
 canvas.addEventListener('mousemove', (event) => {
-  const box = at(event)?.box;
+  const box = findPlacedAt(event)?.box;
 
   if (box !== hover) {
     hover = box;
@@ -180,7 +180,7 @@ canvas.addEventListener('mousemove', (event) => {
   }
 });
 canvas.addEventListener('click', (event) => {
-  const found = at(event);
+  const found = findPlacedAt(event);
 
   if (found) {
     vscode.postMessage({ kind: 'reveal', offset: found.box.start });

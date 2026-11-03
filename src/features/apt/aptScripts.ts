@@ -19,9 +19,10 @@ import type { AptDocument } from './aptDocument';
  * the newest one the movie still runs.
  */
 
+/** Uri scheme the action-block tabs are served under */
 export const SCRIPT_SCHEME = 'bigfs-apt-script';
 
-/** What the scripts need from the APT editor */
+/** Callbacks `AptScripts` reaches the APT editor's open movies through */
 export interface ScriptHost {
   /** The open movie a uri string names */
   document(movie: string): AptDocument | undefined;
@@ -31,12 +32,14 @@ export interface ScriptHost {
 
 const encoder = new TextEncoder();
 
+/** File system provider serving a movie's action blocks as editable script tabs */
 export class AptScripts
   implements vscode.FileSystemProvider, vscode.Disposable
 {
   private readonly changes = new vscode.EventEmitter<
     vscode.FileChangeEvent[]
   >();
+  /** Fires when a script tab's content changed, so a clean tab reads it again */
   public readonly onDidChangeFile = this.changes.event;
 
   /** Every block each opened uri was saved to, oldest first */
@@ -68,12 +71,13 @@ export class AptScripts
     ];
   }
 
+  /** Unregisters the scheme and clears the script diagnostics */
   public dispose(): void {
     this.subscriptions.forEach((subscription) => subscription.dispose());
   }
 
-  /** The uri a block of a movie opens at; `label` names the tab */
-  public static uriOf(
+  /** Builds the uri a block of a movie opens at; `label` names the tab */
+  public static getScriptUri(
     document: AptDocument,
     block: number,
     label: string,
@@ -96,7 +100,7 @@ export class AptScripts
     block: number,
     label: string,
   ): Promise<vscode.Uri> {
-    const uri = AptScripts.uriOf(document, block, label);
+    const uri = AptScripts.getScriptUri(document, block, label);
 
     this.blocks.set(uri.toString(), [block]);
     await vscode.window.showTextDocument(
@@ -110,10 +114,10 @@ export class AptScripts
   }
 
   /** Tells open tabs of a movie that it changed, so clean ones read it again */
-  public changed(document: AptDocument): void {
+  public notifyChanged(document: AptDocument): void {
     const events = [...this.blocks.keys()]
       .map((key) => vscode.Uri.parse(key))
-      .filter((uri) => this.target(uri).movie === document.uri.toString())
+      .filter((uri) => this.parseTarget(uri).movie === document.uri.toString())
       .map((uri) => ({ type: vscode.FileChangeType.Changed, uri }));
 
     if (events.length) {
@@ -121,7 +125,7 @@ export class AptScripts
     }
   }
 
-  private target(uri: vscode.Uri): { movie: string; blocks: number[] } {
+  private parseTarget(uri: vscode.Uri): { movie: string; blocks: number[] } {
     const query = new URLSearchParams(uri.query);
 
     return {
@@ -130,9 +134,12 @@ export class AptScripts
     };
   }
 
-  /** The open movie and the block a uri means, or the error VS Code expects */
+  /**
+   * Finds the open movie and the newest block a uri still means.
+   * @throws `FileSystemError.FileNotFound` when the movie is not open or the block is gone
+   */
   private resolve(uri: vscode.Uri): { document: AptDocument; block: number } {
-    const { movie, blocks } = this.target(uri);
+    const { movie, blocks } = this.parseTarget(uri);
     const document = this.host.document(movie);
     const block =
       document &&
@@ -155,7 +162,7 @@ export class AptScripts
     return { document, block };
   }
 
-  private script(uri: vscode.Uri) {
+  private decompileScript(uri: vscode.Uri) {
     const { document, block } = this.resolve(uri);
 
     return decompileBlock(
@@ -196,6 +203,7 @@ export class AptScripts
     }
   }
 
+  /** Describes a script tab; a block that only decodes as a listing is read-only */
   public stat(uri: vscode.Uri): vscode.FileStat {
     const { document } = this.resolve(uri);
 
@@ -203,22 +211,27 @@ export class AptScripts
       type: vscode.FileType.File,
       ctime: 0,
       mtime: document.version,
-      size: encoder.encode(this.script(uri).text).length,
+      size: encoder.encode(this.decompileScript(uri).text).length,
       permissions:
-        this.script(uri).mode === 'listing'
+        this.decompileScript(uri).mode === 'listing'
           ? vscode.FilePermission.Readonly
           : undefined,
     };
   }
 
+  /** Decompiles the block a uri means into script text */
   public readFile(uri: vscode.Uri): Uint8Array {
-    return encoder.encode(this.script(uri).text);
+    return encoder.encode(this.decompileScript(uri).text);
   }
 
+  /**
+   * Compiles a saved tab back into its movie as one undoable edit.
+   * @throws `FileSystemError` when the block is a listing or the script does not compile
+   */
   public async writeFile(uri: vscode.Uri, content: Uint8Array): Promise<void> {
     const { document, block } = this.resolve(uri);
 
-    if (this.script(uri).mode === 'listing') {
+    if (this.decompileScript(uri).mode === 'listing') {
       throw vscode.FileSystemError.NoPermissions(
         'This block only shows as a listing and cannot be compiled back',
       );
@@ -234,28 +247,33 @@ export class AptScripts
     }
     const saved = await this.host.save(document, block, text);
 
-    this.blocks.set(uri.toString(), [...this.target(uri).blocks, saved]);
+    this.blocks.set(uri.toString(), [...this.parseTarget(uri).blocks, saved]);
     this.changes.fire([{ type: vscode.FileChangeType.Changed, uri }]);
   }
 
+  /** Watches nothing: a tab learns of changes through `changed` */
   public watch(): vscode.Disposable {
     return new vscode.Disposable(() => {});
   }
 
+  /** Lists nothing, as scripts are opened by uri only */
   public readDirectory(): [string, vscode.FileType][] {
     return [];
   }
 
+  /** Refuses, as scripts live in their movie */
   public createDirectory(): void {
     throw vscode.FileSystemError.NoPermissions('Scripts live in their movie');
   }
 
+  /** Refuses; a script is removed from the APT editor */
   public delete(): void {
     throw vscode.FileSystemError.NoPermissions(
       'Remove a script from the APT editor',
     );
   }
 
+  /** Refuses, as scripts live in their movie */
   public rename(): void {
     throw vscode.FileSystemError.NoPermissions('Scripts live in their movie');
   }

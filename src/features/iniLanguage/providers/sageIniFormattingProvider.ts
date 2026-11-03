@@ -4,7 +4,7 @@ import type { SageIniDocuments } from '../../../services/ini/sageIniDocuments';
 import { formatSageIniStable } from '../../../formats/ini/sageIniFormat';
 import { isFragmentPath, parseSageIni } from '../../../formats/ini/sageIniParser';
 
-/** Re-indents a file from its block structure; only whitespace changes */
+/** Creates the formatting provider, which re-indents a file from its block structure; only whitespace changes */
 export const createSageIniFormattingProvider = (
   documents: SageIniDocuments,
 ): DocumentFormattingEditProvider => ({

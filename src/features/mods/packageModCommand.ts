@@ -3,15 +3,15 @@ import os from 'os';
 import path from 'path';
 import { listBaseArchives } from '../../node/modDiff';
 import {
-  defaultPackageFolder,
-  overrideReport,
-  reportMarkdown,
-  skippedFromPackage,
+  getDefaultPackageFolder,
+  buildOverrideReport,
+  renderOverrideReport,
+  isSkippedFromPackage,
 } from '../../node/modPackage';
 import type { Delivery, OverrideReport } from '../../node/modPackage';
-import { packedArchives } from '../../services/archives/packagedOutputs';
+import { getPackedArchives } from '../../services/archives/packagedOutputs';
 import { decodeWindows1252 } from '../../core/windows1252';
-import { diagnoseText } from '../iniLanguage/sageIniValidation';
+import { diagnoseIniText } from '../../services/ini/diagnoseIniText';
 import type { SageIniDocuments } from '../../services/ini/sageIniDocuments';
 import { listFiles, packFolderInto } from './modCommands';
 import { registerCommand } from '../../platform/commands';
@@ -21,29 +21,30 @@ import { registerCommand } from '../../platform/commands';
  * shipping it does. The report lists, against the base game, the files the
  * archive overrides, the new ones, and the ones it would not override
  * because a base archive sorts before its name; and the INI errors of the
- * folder's files, checked here rather than read off the Problems panel. Hidden files and archives inside the
- * folder are left out.
+ * folder's files, checked here rather than read off the Problems panel.
+ * Hidden files and archives inside the folder are left out.
  *
  * The base game is every install the settings name, ROTWK above BFME II,
  * loose files included. The archive is offered beside the mod folder, never
  * in the base game folder, and a copy saved there is not counted as base.
  */
 
+/** What to package and how: the mod folder, the archive's name and how players install it */
 export interface PackageRequest {
   folder: vscode.Uri;
   name: string;
   delivery: Delivery;
   /** Where the archive goes; asked for when missing */
   target?: vscode.Uri;
-  /** False packs without asking, for automation */
+  /** `false` packs without showing the report first, for automation */
   confirm?: boolean;
 }
 
 /**
- * The INI errors of the mod folder's files, found by checking them here: a
- * file nobody opened has no diagnostics in the Problems panel to count
+ * Checks the mod folder's INI files and lists their errors. They are checked
+ * here because a file nobody opened has no diagnostics in the Problems panel.
  */
-const errorsIn = async (
+const findIniErrors = async (
   files: { uri: vscode.Uri; relativePath: string }[],
   documents: SageIniDocuments,
 ) => {
@@ -58,7 +59,7 @@ const errorsIn = async (
     try {
       const text = decodeWindows1252(await vscode.workspace.fs.readFile(uri));
 
-      for (const diagnostic of diagnoseText(text, relativePath, schema)) {
+      for (const diagnostic of diagnoseIniText(text, relativePath, schema)) {
         if (diagnostic.severity === vscode.DiagnosticSeverity.Error) {
           errors.push({
             path: relativePath,
@@ -75,7 +76,7 @@ const errorsIn = async (
   return errors;
 };
 
-const ask = async (): Promise<PackageRequest | undefined> => {
+const askPackageRequest = async (): Promise<PackageRequest | undefined> => {
   const folders = vscode.workspace.workspaceFolders ?? [];
   const folder =
     folders.length === 1
@@ -128,6 +129,11 @@ const ask = async (): Promise<PackageRequest | undefined> => {
   return delivery && { folder, name, delivery: delivery.delivery };
 };
 
+/**
+ * Registers `bigfs.packageMod`, which reports what the archive would override
+ * and packs it on confirmation. Given a request it asks nothing; the command
+ * resolves to the report and how many files were packed.
+ */
 export const registerPackageMod = (
   baseLayers: () => Promise<string[]>,
   documents: SageIniDocuments,
@@ -137,7 +143,7 @@ export const registerPackageMod = (
     async (
       given?: PackageRequest,
     ): Promise<{ report: OverrideReport; packed: number } | undefined> => {
-      const request = given ?? (await ask());
+      const request = given ?? (await askPackageRequest());
 
       if (!request) {
         return undefined;
@@ -145,25 +151,25 @@ export const registerPackageMod = (
 
       const layers = await baseLayers();
       const listed = (await listFiles(request.folder)).filter(
-        (file) => !skippedFromPackage(file.relativePath),
+        (file) => !isSkippedFromPackage(file.relativePath),
       );
       const files = listed.map((file) => file.relativePath);
       const archives = layers.length
-        ? (await listBaseArchives(layers, { exclude: packedArchives() }))
+        ? (await listBaseArchives(layers, { exclude: getPackedArchives() }))
             .archives
         : [];
-      const report = overrideReport(
+      const report = buildOverrideReport(
         files,
         request.name,
         archives,
         request.delivery,
       );
-      const problems = await errorsIn(listed, documents);
+      const problems = await findIniErrors(listed, documents);
 
       if (request.confirm !== false) {
         const document = await vscode.workspace.openTextDocument({
           language: 'markdown',
-          content: reportMarkdown(
+          content: renderOverrideReport(
             report,
             request.name,
             request.delivery,
@@ -193,7 +199,7 @@ export const registerPackageMod = (
         (await vscode.window.showSaveDialog({
           defaultUri: vscode.Uri.file(
             path.join(
-              defaultPackageFolder(request.folder.fsPath, layers, os.homedir()),
+              getDefaultPackageFolder(request.folder.fsPath, layers, os.homedir()),
               request.name,
             ),
           ),
@@ -210,7 +216,7 @@ export const registerPackageMod = (
           location: vscode.ProgressLocation.Notification,
           title: `Packing ${path.basename(target.fsPath)}`,
         },
-        () => packFolderInto(request.folder, target, skippedFromPackage),
+        () => packFolderInto(request.folder, target, isSkippedFromPackage),
       );
 
       void vscode.window.showInformationMessage(

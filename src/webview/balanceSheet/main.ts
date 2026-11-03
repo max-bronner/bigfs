@@ -40,19 +40,19 @@ const state = {
   shown: PAGE,
 };
 
-const number = (text: string) => {
+const parseNumber = (text: string) => {
   const value = Number(String(text).replace(/%$/, ''));
 
   return Number.isFinite(value) ? value : undefined;
 };
 
-const valueOf = (row: SheetRow, column: string) =>
+const getCellValue = (row: SheetRow, column: string) =>
   column === 'name'
     ? row.name
     : ((row.cells as Record<string, SheetCell | undefined>)[column]?.value ??
       '');
 
-const visible = () => {
+const getVisibleRows = () => {
   const text = $<HTMLInputElement>('filter').value.toLowerCase();
   const side = $<HTMLSelectElement>('side').value;
 
@@ -60,19 +60,19 @@ const visible = () => {
     (row) =>
       (!$<HTMLInputElement>('selectable').checked || row.selectable) &&
       (!$<HTMLInputElement>('buildable').checked || row.cells.cost) &&
-      (!side || valueOf(row, 'side') === side) &&
+      (!side || getCellValue(row, 'side') === side) &&
       (!text ||
-        [row.name, valueOf(row, 'weapon'), valueOf(row, 'armor')].some((v) =>
+        [row.name, getCellValue(row, 'weapon'), getCellValue(row, 'armor')].some((v) =>
           v.toLowerCase().includes(text),
         )),
   );
 };
 
 const compare = (a: SheetRow, b: SheetRow) => {
-  const x = valueOf(a, state.sort);
-  const y = valueOf(b, state.sort);
-  const nx = number(x);
-  const ny = number(y);
+  const x = getCellValue(a, state.sort);
+  const y = getCellValue(b, state.sort);
+  const nx = parseNumber(x);
+  const ny = parseNumber(y);
   let result: number;
 
   if (x === '' || y === '') {
@@ -134,7 +134,7 @@ const editCell = (
   input.select();
 };
 
-const cellElement = (row: SheetRow, column: string) => {
+const createCellElement = (row: SheetRow, column: string) => {
   const td = document.createElement('td');
   const cell = (row.cells as Record<string, SheetCell | undefined>)[column];
 
@@ -144,7 +144,7 @@ const cellElement = (row: SheetRow, column: string) => {
 
   td.textContent = cell.value;
 
-  if (number(cell.value) !== undefined) {
+  if (parseNumber(cell.value) !== undefined) {
     td.classList.add('number');
   }
 
@@ -170,7 +170,7 @@ const cellElement = (row: SheetRow, column: string) => {
   return td;
 };
 
-const rowElement = (row: SheetRow) => {
+const createRowElement = (row: SheetRow) => {
   const tr = document.createElement('tr');
   const name = document.createElement('td');
 
@@ -178,7 +178,7 @@ const rowElement = (row: SheetRow) => {
   name.textContent = row.name;
   name.title = `${row.keyword}${row.parent ? ` of ${row.parent}` : ''}. Click to open.`;
   name.onclick = () => vscode.postMessage({ kind: 'open', row: row.name });
-  tr.append(name, ...state.columns.map((column) => cellElement(row, column)));
+  tr.append(name, ...state.columns.map((column) => createCellElement(row, column)));
 
   return tr;
 };
@@ -201,10 +201,10 @@ const render = () => {
     }),
   );
 
-  const rows = visible().sort(compare);
+  const rows = getVisibleRows().sort(compare);
 
   $('count').textContent = `${rows.length} of ${state.rows.length} templates`;
-  $('rows').replaceChildren(...rows.slice(0, state.shown).map(rowElement));
+  $('rows').replaceChildren(...rows.slice(0, state.shown).map(createRowElement));
   $('more').textContent =
     rows.length > state.shown
       ? `Showing ${state.shown}; scroll to the end for more`
@@ -237,7 +237,7 @@ window.addEventListener('message', ({ data }: MessageEvent<ToSheetPage>) => {
     state.columns = data.columns;
 
     const sides = [
-      ...new Set(data.rows.map((row) => valueOf(row, 'side')).filter(Boolean)),
+      ...new Set(data.rows.map((row) => getCellValue(row, 'side')).filter(Boolean)),
     ].sort();
     const side = $<HTMLSelectElement>('side');
     const chosen = side.value;

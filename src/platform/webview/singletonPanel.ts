@@ -5,6 +5,7 @@ export type PanelColumn =
   | vscode.ViewColumn
   | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean };
 
+/** Options `createSingletonPanel` opens its panel with */
 export interface SingletonPanelConfig<Incoming> {
   viewType: string;
   title: string;
@@ -21,12 +22,13 @@ export interface SingletonPanelConfig<Incoming> {
   onDispose?: () => void;
 }
 
-/** How a caller brings an already open panel forward */
+/** Column and focus an already open panel is brought forward with */
 export interface RevealOptions {
   column?: vscode.ViewColumn;
   preserveFocus?: boolean;
 }
 
+/** Handle on the one webview panel of a kind, as `createSingletonPanel` returns it */
 export interface SingletonPanel<Outgoing = unknown> {
   /** Opens the panel, or brings the open one forward without redrawing it */
   show: (reveal?: RevealOptions) => vscode.WebviewPanel;
@@ -34,6 +36,7 @@ export interface SingletonPanel<Outgoing = unknown> {
   post: (message: Outgoing) => Thenable<boolean>;
   /** Closes the panel if it is open */
   dispose: () => void;
+  /** Whether the panel is open now */
   isOpen: () => boolean;
 }
 

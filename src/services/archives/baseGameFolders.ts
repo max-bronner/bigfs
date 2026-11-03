@@ -19,7 +19,7 @@ import { settings } from '../../platform/settings';
 const BFME2_KEY =
   'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\lotrbfme2.exe';
 
-const holds = async (folder: string, file: string): Promise<boolean> => {
+const hasFile = async (folder: string, file: string): Promise<boolean> => {
   try {
     return (await readdir(folder)).some((name) => name.toLowerCase() === file);
   } catch {
@@ -27,7 +27,8 @@ const holds = async (folder: string, file: string): Promise<boolean> => {
   }
 };
 
-const registryBfme2 = (): Promise<string | undefined> =>
+/** Reads where retail recorded BFME II in the registry; nothing off Windows */
+const queryBfme2Folder = (): Promise<string | undefined> =>
   new Promise((resolve) => {
     if (process.platform !== 'win32') {
       resolve(undefined);
@@ -41,7 +42,7 @@ const registryBfme2 = (): Promise<string | undefined> =>
     );
   });
 
-/** The base game folders, the highest layer first, those that exist */
+/** Finds the base game folders that exist, the highest layer first */
 export const findBaseGameFolders = async (): Promise<string[]> => {
   const base = settings.baseGameFolder.get().trim();
   const named = settings.underlyingGameFolder.get().trim();
@@ -57,9 +58,9 @@ export const findBaseGameFolders = async (): Promise<string[]> => {
     base &&
     detectInstallKind(await readdir(base).catch(() => [])) === 'rotwk'
   ) {
-    const found = await registryBfme2();
+    const found = await queryBfme2Folder();
 
-    if (found && (await holds(found, 'lotrbfme2.exe'))) {
+    if (found && (await hasFile(found, 'lotrbfme2.exe'))) {
       folders.push(found);
     }
   }

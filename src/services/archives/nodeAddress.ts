@@ -13,7 +13,7 @@ import type { VirtualNode } from './virtualNode';
  * beside the rendering it has to agree with.
  */
 
-/** What a uri resolves to: the archive it points into, and where inside it */
+/** Result of `parseNodeUri`: the archive a uri points into, and where inside it */
 export interface ResolvedUri {
   archive: Archive;
   /** Empty when the uri names the archive itself */

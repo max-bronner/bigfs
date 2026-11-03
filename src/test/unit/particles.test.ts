@@ -1,15 +1,10 @@
 import * as assert from 'assert';
-import {
-  applyValueEdits,
-  findParticleDefinitions,
-  numericFields,
-  readFxList,
-  readParticleDef,
-  valueEdits,
-} from '../../formats/particles/particleIni';
-import type { ParticleDef } from '../../formats/particles/particleIni';
-import { effectsAt } from '../../formats/particles/fxEffects';
-import { ParticleWorld } from '../../formats/particles/particleSimulation';
+import { applyValueEdits, findNumericFields, computeValueEdits } from '../../formats/particles/particleValueEdits';
+import { findParticleDefinitions } from '../../formats/particles/particleDefinitions';
+import { readFxList, readParticleDef } from '../../formats/particles/particleIni';
+import type { ParticleDef } from '../../formats/particles/particleDef';
+import { getEffectStateAt } from '../../formats/particles/fxEffects';
+import { computeAngleAwayFrom, ParticleWorld } from '../../formats/particles/particleSimulation';
 
 // Synthetic definitions: field names are the games' grammar, values invented
 const BLOCK = `
@@ -96,9 +91,9 @@ const definitionsOf = (text: string) => findParticleDefinitions(text);
 
 const worldOf = (...defs: ParticleDef[]) =>
   new ParticleWorld({
-    system: (name) =>
+    findSystem: (name) =>
       defs.find((def) => def.name.toLowerCase() === name.toLowerCase()),
-    fxList: () => undefined,
+    findFxList: () => undefined,
   });
 
 suite('Particle systems', () => {
@@ -113,6 +108,7 @@ suite('Particle systems', () => {
     assert.deepStrictEqual(def.volume, {
       type: 'cylinder',
       radius: 4,
+      radiusRate: 0,
       length: 2,
       offset: [0, 0, 0],
       hollow: true,
@@ -255,13 +251,13 @@ End
     ).effects.map((effect) => [effect]);
     const effects = [flash[0], shake[0], scorch[0]];
 
-    assert.deepStrictEqual(effectsAt(effects, 29, 30), {
+    assert.deepStrictEqual(getEffectStateAt(effects, 29, 30), {
       shake: 0,
       scorches: [],
     });
 
     // 1100 ms: the flash is at its peak, the shake and the scorch have begun
-    const peak = effectsAt(effects, 33, 30);
+    const peak = getEffectStateAt(effects, 33, 30);
 
     assert.deepStrictEqual(peak.flash?.color, [0, 0, 1]);
     assert.ok(peak.flash!.alpha > 0.4);
@@ -269,11 +265,11 @@ End
     assert.deepStrictEqual(peak.scorches, [30]);
 
     // 3000 ms: flash and shake are over, the scorch stays
-    assert.deepStrictEqual(effectsAt(effects, 90, 30), {
+    assert.deepStrictEqual(getEffectStateAt(effects, 90, 30), {
       shake: 0,
       scorches: [30],
     });
-    assert.deepStrictEqual(effectsAt(effects, 33, 30), peak);
+    assert.deepStrictEqual(getEffectStateAt(effects, 33, 30), peak);
   });
 
   test('a light pulse that writes no times still fades out', () => {
@@ -293,20 +289,20 @@ End
       rise: 0,
       fall: 300,
     });
-    assert.ok(effectsAt([pulse], 0, 30).flash);
-    assert.strictEqual(effectsAt([pulse], 15, 30).flash, undefined);
+    assert.ok(getEffectStateAt([pulse], 0, 30).flash);
+    assert.strictEqual(getEffectStateAt([pulse], 15, 30).flash, undefined);
   });
 
   test('slider values are written back over the tokens they came from', () => {
     const [sparks] = definitionsOf(BLOCK);
-    const fields = numericFields(sparks);
+    const fields = findNumericFields(sparks);
     const red = fields.find(
       (field) => field.keyword === 'Color1' && field.part === 'R',
     )!;
     const size = fields.find(
       (field) => field.keyword === 'Size' && field.part === 'max',
     )!;
-    const edits = valueEdits(
+    const edits = computeValueEdits(
       sparks,
       new Map([
         [red.id, 128.4],
@@ -325,6 +321,48 @@ suite('Particle simulation', () => {
   const [sparksText, slaveText] = definitionsOf(BLOCK);
   const sparks = readParticleDef(sparksText);
   const slave = readParticleDef(slaveText);
+
+  test('an offset within FLT_EPSILON of the emitter counts as level with it', () => {
+    const emitter = [0, 0, 0] as const;
+    const near = 2 ** -24;
+
+    assert.strictEqual(computeAngleAwayFrom([5, near, 0], [...emitter]), Math.PI * 2);
+    assert.strictEqual(computeAngleAwayFrom([-5, -near, 0], [...emitter]), Math.PI);
+    assert.ok(computeAngleAwayFrom([5, 2 ** -22, 0], [...emitter]) < Math.PI * 2);
+  });
+
+  test('a cylinder keeps a running radius, floored after its first emission', () => {
+    const cylinder = (radius: number, radiusRate: number): ParticleDef => {
+      const def = sparks;
+
+      return {
+        ...def,
+        name: `Cylinder${radius}${radiusRate}`,
+        volume: {
+          type: 'cylinder',
+          radius,
+          radiusRate,
+          length: 0,
+          offset: [0, 0, 0],
+          hollow: false,
+        },
+      };
+    };
+    const radiusAfter = (def: ParticleDef, steps: number) => {
+      const world = worldOf(def);
+      const id = world.spawn(def.name, [0, 0, 0])!;
+
+      for (let step = 0; step < steps; step++) {
+        world.step();
+      }
+      return world.find(id)!.cylinderRadius;
+    };
+
+    assert.strictEqual(radiusAfter(cylinder(0, 0), 0), 0);
+    assert.strictEqual(radiusAfter(cylinder(0, 0), 1), 0.1);
+    assert.strictEqual(radiusAfter(cylinder(4, 0.5), 2), 5);
+    assert.strictEqual(radiusAfter(cylinder(1, -1), 3), 0.1);
+  });
 
   test('bursts on its delay, keys alpha by snapping and dies on time', () => {
     const world = worldOf(sparks, slave);

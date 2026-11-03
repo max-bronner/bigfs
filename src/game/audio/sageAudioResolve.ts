@@ -31,6 +31,7 @@ export type AudioLookup = (
   name: string,
 ) => AudioDefinition | undefined | Promise<AudioDefinition | undefined>;
 
+/** One file a name can play, and where in the definitions it came from */
 export interface AudioVariant {
   /** Where in the definition it came from: a role, a side, a subsound path */
   label: string;
@@ -48,7 +49,7 @@ const STREAMED = /^(dialogevent|musictrack|ambientstream|streamedsound)$/i;
 const MULTISOUND = /^multisound$/i;
 const EVA = /^(newevaevent|predefinedevaevent)$/i;
 
-/** The name an event is registered under, without the lookup prefixes */
+/** Strips the `EVA:` and `+SOUND:` lookup prefixes, leaving the name an event is registered under */
 export const stripAudioPrefix = (name: string): string => {
   let result = name;
 
@@ -63,7 +64,7 @@ export const stripAudioPrefix = (name: string): string => {
 
 const unquote = (text: string) => text.replace(/^"|"$/g, '');
 
-/** `name:weight` as a file or event and its weight, when a whole number */
+/** Splits `name:weight` into a file or event and its weight, when a whole number */
 const splitWeight = (token: string): { name: string; weight?: number } => {
   const match = /^(.*):(\d+)$/.exec(unquote(token));
 
@@ -75,16 +76,16 @@ const splitWeight = (token: string): { name: string; weight?: number } => {
 const fieldsNamed = (definition: AudioDefinition, pattern: RegExp) =>
   definition.fields.filter((field) => pattern.test(field.key));
 
-const stemOf = (name: string) =>
+const getFileStem = (name: string) =>
   name.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '');
 
-/** The variants of `name`; none when nothing by that name is defined */
+/** Resolves the files `name` can play; none when nothing by that name is defined */
 export const resolveAudio = async (
   name: string,
   lookup: AudioLookup,
 ): Promise<AudioVariant[]> => walk(stripAudioPrefix(name), lookup, [], 0);
 
-const prefixed = (prefix: string, variants: AudioVariant[]): AudioVariant[] =>
+const prefixLabels = (prefix: string, variants: AudioVariant[]): AudioVariant[] =>
   variants.map((variant) => ({
     ...variant,
     label: `${prefix} › ${variant.label}`,
@@ -153,7 +154,7 @@ const walk = async (
       for (const token of field.values) {
         const subsound = splitWeight(token).name;
 
-        variants.push(...prefixed(subsound, await follow(subsound)));
+        variants.push(...prefixLabels(subsound, await follow(subsound)));
       }
     }
     return variants;
@@ -164,21 +165,21 @@ const walk = async (
 
     for (const { side, sound } of definition.sideSounds) {
       if (sound) {
-        variants.push(...prefixed(side || '?', await follow(sound)));
+        variants.push(...prefixLabels(side || '?', await follow(sound)));
       }
     }
     return variants;
   }
 
   if (/^video$/i.test(definition.keyword)) {
-    const stem = stemOf(
+    const stem = getFileStem(
       fieldsNamed(definition, /^filename$/i)[0]?.values[0] ?? name,
     );
     const variants: AudioVariant[] = [];
 
     // The score first, as the movie starts them
     for (const event of [`${stem}_Music`, stem]) {
-      variants.push(...prefixed(event, await follow(event)));
+      variants.push(...prefixLabels(event, await follow(event)));
     }
     return variants;
   }
@@ -186,10 +187,10 @@ const walk = async (
 };
 
 /**
- * One block of a parsed file as a definition: its own fields, and the sides
- * of its `SideSound` children
+ * Reads one block of a parsed file as an audio definition: its own fields,
+ * and the sides of its `SideSound` children
  */
-export const audioDefinitionOf = (
+export const readAudioDefinition = (
   parsed: SageDocument,
   block: SageBlock,
 ): AudioDefinition => {

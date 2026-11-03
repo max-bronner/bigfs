@@ -18,6 +18,7 @@
 
 import { createByteReader } from "../../core/byteReader";
 
+/** Number of power slots every hero record stores */
 export const POWER_SLOTS = 15;
 
 const MAGIC = "ALAE";
@@ -28,6 +29,7 @@ const LONG_STRING = 0xff;
 /** The least a bling entry takes: an empty-looking length byte, one name byte, its index */
 const MIN_BLING_BYTES = 5;
 
+/** One power slot of a hero: the button picked and when */
 export interface CahPower {
   /** Command button name; empty for an unused slot */
   button: string;
@@ -37,11 +39,13 @@ export interface CahPower {
   slot: number;
 }
 
+/** One cosmetic or attribute choice: a bling group and the index picked in it */
 export interface CahBling {
   group: string;
   index: number;
 }
 
+/** One hero record, every field of the file layout above */
 export interface CahRecord {
   /** Record version as read; {@link writeCah} always writes the current one */
   version: number;
@@ -63,6 +67,7 @@ export interface CahRecord {
   storedCrc?: number;
 }
 
+/** Result of `parseCah`: the record and how well the file checked out */
 export interface ParsedCah {
   record: CahRecord;
   /** Whether the trailer matches the recomputed checksum; true before version 8 */
@@ -71,7 +76,8 @@ export interface ParsedCah {
   trailing: number;
 }
 
-export const emptyCahRecord = (): CahRecord => ({
+/** Creates a blank current-version record, every power slot empty */
+export const createEmptyCahRecord = (): CahRecord => ({
   version: RECORD_VERSION,
   objectId: 0,
   name: "",
@@ -89,6 +95,7 @@ export const emptyCahRecord = (): CahRecord => ({
   isSystem: false,
 });
 
+/** Copies a record deeply enough that editing the copy leaves the original alone */
 export const cloneCahRecord = (record: CahRecord): CahRecord => ({
   ...record,
   reserved: [...record.reserved],
@@ -97,7 +104,7 @@ export const cloneCahRecord = (record: CahRecord): CahRecord => ({
   blings: record.blings.map((bling) => ({ ...bling })),
 });
 
-/** The CRC-32 of zlib (ISO-HDLC), fed in pieces */
+/** Lookup table for the zlib (ISO-HDLC) CRC-32 */
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
 
@@ -112,9 +119,11 @@ const CRC_TABLE = (() => {
   return table;
 })();
 
+/** Incremental zlib (ISO-HDLC) CRC-32, fed in pieces */
 export class Crc32 {
   private state = 0xffffffff;
 
+  /** Feeds bytes into the checksum; each value is taken as one byte */
   public update(bytes: ArrayLike<number>): void {
     for (let at = 0; at < bytes.length; at++) {
       this.state =
@@ -122,6 +131,7 @@ export class Crc32 {
     }
   }
 
+  /** Gets the checksum of everything fed so far */
   public finish(): number {
     return ~this.state >>> 0;
   }
@@ -134,8 +144,8 @@ const u32Bytes = (value: number): number[] => [
   (value >>> 24) & 0xff,
 ];
 
-/** Text up to its first NUL, as the game's C strings end there */
-const untilNul = (text: string): string => {
+/** Cuts text at its first NUL, as the game's C strings end there */
+const cutAtNul = (text: string): string => {
   const end = text.indexOf("\0");
 
   return end < 0 ? text : text.slice(0, end);
@@ -145,7 +155,7 @@ const latin1Bytes = (text: string): number[] =>
   Array.from(text, (char) => char.charCodeAt(0) & 0xff);
 
 /**
- * The checksum the trailer carries, as mint's `compute_crc` feeds it: the
+ * Computes the checksum the trailer carries, as mint's `compute_crc` feeds it: the
  * hashed fields in file order with no length prefixes, strings cut at their
  * first NUL, the name as UTF-8 with unpaired surrogates replaced.
  */
@@ -153,27 +163,27 @@ export const computeCahCrc = (record: CahRecord): number => {
   const crc = new Crc32();
 
   crc.update(u32Bytes(record.objectId));
-  crc.update(new TextEncoder().encode(untilNul(record.name)));
+  crc.update(new TextEncoder().encode(cutAtNul(record.name)));
   crc.update(u32Bytes(record.classIndex));
   crc.update(u32Bytes(record.subclassIndex));
   for (const word of [...record.reserved, ...record.colors]) {
     crc.update(u32Bytes(word));
   }
   for (const power of record.powers) {
-    crc.update(latin1Bytes(untilNul(power.button)));
+    crc.update(latin1Bytes(cutAtNul(power.button)));
     crc.update(u32Bytes(power.level));
     crc.update(u32Bytes(power.slot));
   }
   crc.update(u32Bytes(record.blings.length));
   for (const bling of record.blings) {
-    crc.update(latin1Bytes(untilNul(bling.group)));
+    crc.update(latin1Bytes(cutAtNul(bling.group)));
     crc.update(u32Bytes(bling.index));
   }
   crc.update([record.isSystem ? 1 : 0]);
   return crc.finish();
 };
 
-/** Reads little-endian values, refusing any that run past the bytes present */
+/** Creates the little-endian reader `parseCah` uses, naming the field that runs past the bytes present */
 const createCahReader = (bytes: Uint8Array) => {
   let what = "";
   const reader = createByteReader(bytes, true, {
@@ -255,7 +265,7 @@ export const parseCah = (bytes: Uint8Array): ParsedCah => {
     throw new Error(`Unsupported record version ${version}`);
   }
 
-  const record = emptyCahRecord();
+  const record = createEmptyCahRecord();
 
   record.version = version;
   record.objectId = reader.u32("object id");
@@ -352,8 +362,8 @@ export const writeCah = (record: CahRecord): Uint8Array => {
   return Uint8Array.from(out);
 };
 
-/** Why a record cannot be saved, if it cannot */
-export const cahRecordProblem = (record: CahRecord): string | undefined => {
+/** Explains why a record cannot be saved, or undefined when it can */
+export const describeCahRecordProblem = (record: CahRecord): string | undefined => {
   if (record.powers.length !== POWER_SLOTS) {
     return `A hero has ${POWER_SLOTS} power slots`;
   }
