@@ -98,6 +98,9 @@ export class SageIniIndex implements Disposable {
         void this.indexLooseFile(uri).catch((error: unknown) =>
           this.log.error(`Failed to index ${uri.fsPath}`, error),
         );
+      } else {
+        // Nothing is indexed yet, so the next lookup's build reads the file
+        this.needsBuild = true;
       }
     };
 
